@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: finance-config
+  namespace: finance
+  labels:
+    app: finance-service
+data:
+  APP_ENV: "production"
+  
+  # Server configuration
+  GRPC_PORT: "50051"
+  HTTP_PORT: "8080"
+  
+  # Redis
+  REDIS_HOST: "redis.cache.svc.cluster.local"
+  REDIS_PORT: "6379"
+  
+  # Observability
+  OTEL_ENDPOINT: "http://jaeger-collector.observability.svc.cluster.local:4317"
+  
+  # Rate limiting
+  RATE_LIMIT_RPS: "100"
+  RATE_LIMIT_BURST: "200"
+  
+  # Timeouts
+  REQUEST_TIMEOUT_SECONDS: "30"

@@ -1,0 +1,42 @@
+# Finance Service Configuration
+
+app:
+  name: finance-service
+  version: "1.0.0"
+  env: development  # development, staging, production
+
+server:
+  grpc_port: 50051
+  http_port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+
+database:
+  host: localhost
+  port: 5434
+  user: finance
+  password: finance123
+  name: finance_db
+  ssl_mode: disable
+  max_open_conns: 25
+  max_idle_conns: 5
+  conn_max_lifetime: 5m
+
+redis:
+  host: localhost
+  port: 6379
+  password: ""
+  db: 0
+
+tracing:
+  enabled: true
+  endpoint: localhost:4317
+  insecure: true
+
+rate_limit:
+  requests_per_second: 100
+  burst_size: 200
+
+logging:
+  level: debug  # debug, info, warn, error
+  format: console  # console, json

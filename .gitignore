@@ -1,0 +1,101 @@
+# GoApps Backend .gitignore
+
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Build output
+*.out
+
+# Test binary
+*.test
+
+# Go coverage
+*.prof
+coverage.html
+coverage.txt
+coverage.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files with credentials
+.env
+.env.local
+.env.*.local
+*.env
+env.yaml
+env.yml
+
+# Config files with potential secrets
+config.local.yaml
+config.local.yml
+config.production.yaml
+config.production.yml
+secrets.yaml
+secrets.yml
+
+# Kubernetes secrets (never commit real secrets!)
+**/deployments/kubernetes/secret.yaml
+!**/secret.yaml.template
+
+# Logs
+*.log
+logs/
+
+# Temp files
+tmp/
+temp/
+*.tmp
+
+# Vendor (uncomment if not vendoring)
+# vendor/
+
+# Air hot reload
+.air.toml
+
+# Test databases
+*.db
+*.sqlite
+
+# Docker
+docker-compose.override.yaml
+docker-compose.override.yml
+
+# Redis dumps
+dump.rdb
+
+# Coverage reports
+htmlcov/
+
+# Load test results
+*.json.log
+
+# Backup files
+*.bak
+*.backup
+
+# Certificate files
+*.pem
+*.key
+*.crt
+*.cer
+!*example*
+
+# Generated proto files (optional - uncomment if regenerating)
+# gen/
+
+# Gemini brain artifacts (local only)
+.gemini/
