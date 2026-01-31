@@ -1,0 +1,87 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:18-alpine
+    container_name: finance-postgres
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_DB: finance_db
+      POSTGRES_USER: finance
+      POSTGRES_PASSWORD: finance123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U finance -d finance_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - finance-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: finance-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - finance-network
+
+  # Jaeger - Distributed Tracing
+  jaeger:
+    image: jaegertracing/all-in-one:1.55
+    container_name: finance-jaeger
+    ports:
+      - "16686:16686" # Jaeger UI
+      - "14268:14268" # Collector HTTP
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - finance-network
+  # Finance Service (uncomment when ready to containerize)
+  # finance-service:
+  #   build:
+  #     context: ../../../
+  #     dockerfile: services/finance/Dockerfile
+  #   container_name: finance-service
+  #   ports:
+  #     - "50051:50051"  # gRPC
+  #     - "8080:8080"    # HTTP/Swagger/Metrics
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     jaeger:
+  #       condition: service_started
+  #   environment:
+  #     - APP_ENV=development
+  #     - DATABASE_HOST=postgres
+  #     - DATABASE_PORT=5432
+  #     - DATABASE_USER=finance
+  #     - DATABASE_PASSWORD=finance123
+  #     - DATABASE_NAME=finance_db
+  #     - REDIS_HOST=redis
+  #     - REDIS_PORT=6379
+  #     - JAEGER_ENDPOINT=http://jaeger:4317
+  #   networks:
+  #     - finance-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+
+networks:
+  finance-network:
+    driver: bridge
