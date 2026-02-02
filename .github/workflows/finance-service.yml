@@ -91,6 +91,19 @@ jobs:
         working-directory: ${{ env.WORKING_DIR }}
         run: go test -v -race -short ./internal/...
 
+      - name: Install golang-migrate
+        run: |
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.18.1/migrate.linux-amd64.tar.gz | tar xvz
+          sudo mv migrate /usr/local/bin/migrate
+          migrate --version
+
+      - name: Run database migrations
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          migrate -path migrations/postgres \
+            -database "postgres://finance:finance123@localhost:5434/finance_db_test?sslmode=disable" \
+            up
+
       - name: Run integration tests
         working-directory: ${{ env.WORKING_DIR }}
         env:
