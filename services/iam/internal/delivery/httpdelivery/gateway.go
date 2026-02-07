@@ -1,0 +1,201 @@
+// Package httpdelivery provides HTTP server for gateway and Swagger.
+package httpdelivery
+
+import (
+	"context"
+	_ "embed"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/rs/cors"
+	"github.com/rs/zerolog/log"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/encoding/protojson"
+
+	iamv1 "github.com/mutugading/goapps-backend/gen/iam/v1"
+	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/config"
+)
+
+//go:embed swagger.json
+var swaggerJSON []byte
+
+// Server represents the HTTP server.
+type Server struct {
+	server     *http.Server
+	grpcTarget string
+	config     *config.ServerConfig
+}
+
+// NewServer creates a new HTTP server.
+func NewServer(cfg *config.ServerConfig) *Server {
+	return &Server{
+		config:     cfg,
+		grpcTarget: fmt.Sprintf("localhost:%d", cfg.GRPCPort),
+	}
+}
+
+// Start starts the HTTP server.
+func (s *Server) Start(ctx context.Context) error {
+	// Create gRPC-Gateway mux
+	gwMux := runtime.NewServeMux(
+		runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.JSONPb{
+			MarshalOptions: protojson.MarshalOptions{
+				UseProtoNames:   true,
+				EmitUnpopulated: true,
+			},
+			UnmarshalOptions: protojson.UnmarshalOptions{
+				DiscardUnknown: true,
+			},
+		}),
+	)
+
+	// Connect to gRPC server
+	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+
+	// Register all IAM services
+	registrations := []struct {
+		name string
+		fn   func(context.Context, *runtime.ServeMux, string, []grpc.DialOption) error
+	}{
+		{"auth", iamv1.RegisterAuthServiceHandlerFromEndpoint},
+		{"user", iamv1.RegisterUserServiceHandlerFromEndpoint},
+		{"role", iamv1.RegisterRoleServiceHandlerFromEndpoint},
+		{"permission", iamv1.RegisterPermissionServiceHandlerFromEndpoint},
+		{"session", iamv1.RegisterSessionServiceHandlerFromEndpoint},
+		{"audit", iamv1.RegisterAuditServiceHandlerFromEndpoint},
+		{"menu", iamv1.RegisterMenuServiceHandlerFromEndpoint},
+		{"company", iamv1.RegisterCompanyServiceHandlerFromEndpoint},
+		{"division", iamv1.RegisterDivisionServiceHandlerFromEndpoint},
+		{"department", iamv1.RegisterDepartmentServiceHandlerFromEndpoint},
+		{"section", iamv1.RegisterSectionServiceHandlerFromEndpoint},
+		{"organization", iamv1.RegisterOrganizationServiceHandlerFromEndpoint},
+	}
+
+	for _, reg := range registrations {
+		if err := reg.fn(ctx, gwMux, s.grpcTarget, opts); err != nil {
+			return fmt.Errorf("failed to register %s gateway: %w", reg.name, err)
+		}
+	}
+
+	// Create main mux
+	mux := http.NewServeMux()
+
+	// API routes (gRPC-Gateway)
+	mux.Handle("/api/", gwMux)
+
+	// Health check endpoints
+	mux.HandleFunc("/healthz", s.healthHandler)
+	mux.HandleFunc("/readyz", s.readyHandler)
+	mux.HandleFunc("/livez", s.liveHandler)
+
+	// Metrics endpoint
+	mux.Handle("/metrics", promhttp.Handler())
+
+	// Swagger UI
+	mux.HandleFunc("/swagger/", s.swaggerHandler)
+	mux.HandleFunc("/swagger.json", s.swaggerJSONHandler)
+
+	// CORS middleware
+	corsHandler := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Request-ID"},
+		ExposedHeaders:   []string{"X-Request-ID"},
+		AllowCredentials: true,
+		MaxAge:           300,
+	}).Handler(mux)
+
+	// Create server
+	s.server = &http.Server{
+		Addr:         fmt.Sprintf(":%d", s.config.HTTPPort),
+		Handler:      corsHandler,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	log.Info().
+		Int("port", s.config.HTTPPort).
+		Msg("HTTP server starting")
+
+	return s.server.ListenAndServe()
+}
+
+// Stop stops the HTTP server.
+func (s *Server) Stop(ctx context.Context) error {
+	if s.server != nil {
+		return s.server.Shutdown(ctx)
+	}
+	return nil
+}
+
+// Health handlers.
+func (s *Server) healthHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write([]byte(`{"status":"healthy"}`)); err != nil {
+		log.Warn().Err(err).Msg("Failed to write health response")
+	}
+}
+
+func (s *Server) readyHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write([]byte(`{"status":"ready"}`)); err != nil {
+		log.Warn().Err(err).Msg("Failed to write ready response")
+	}
+}
+
+func (s *Server) liveHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write([]byte(`{"status":"live"}`)); err != nil {
+		log.Warn().Err(err).Msg("Failed to write live response")
+	}
+}
+
+// Swagger handlers.
+func (s *Server) swaggerHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if _, err := w.Write([]byte(swaggerUIHTML)); err != nil {
+		log.Warn().Err(err).Msg("Failed to write swagger UI response")
+	}
+}
+
+func (s *Server) swaggerJSONHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if _, err := w.Write(swaggerJSON); err != nil {
+		log.Warn().Err(err).Msg("Failed to write swagger JSON response")
+	}
+}
+
+const swaggerUIHTML = `<!DOCTYPE html>
+<html>
+<head>
+    <title>IAM Service API</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css" />
+</head>
+<body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"></script>
+    <script>
+        window.onload = function() {
+            SwaggerUIBundle({
+                url: "/swagger.json",
+                dom_id: '#swagger-ui',
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIBundle.SwaggerUIStandalonePreset
+                ],
+                layout: "BaseLayout"
+            });
+        };
+    </script>
+</body>
+</html>`

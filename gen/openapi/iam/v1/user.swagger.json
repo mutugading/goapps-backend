@@ -1,0 +1,1465 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "iam/v1/user.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "UserService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/iam/users": {
+      "get": {
+        "summary": "ListUsers lists users with search, filter, sort, and pagination.",
+        "operationId": "UserService_ListUsers",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListUsersResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "description": "Page number (1-indexed, default 1).",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pageSize",
+            "description": "Items per page (1-100, default 10).",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "search",
+            "description": "Search query (searches in username, email, full_name, employee_code).",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "activeFilter",
+            "description": "Filter by active status.\n\n - ACTIVE_FILTER_UNSPECIFIED: Show all records regardless of active status (default).\n - ACTIVE_FILTER_ACTIVE: Show only active records.\n - ACTIVE_FILTER_INACTIVE: Show only inactive records.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "ACTIVE_FILTER_UNSPECIFIED",
+              "ACTIVE_FILTER_ACTIVE",
+              "ACTIVE_FILTER_INACTIVE"
+            ],
+            "default": "ACTIVE_FILTER_UNSPECIFIED"
+          },
+          {
+            "name": "sectionId",
+            "description": "Filter by section ID.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "departmentId",
+            "description": "Filter by department ID.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "divisionId",
+            "description": "Filter by division ID.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "companyId",
+            "description": "Filter by company ID.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "roleId",
+            "description": "Filter by role ID.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sortBy",
+            "description": "Sort field: \"username\", \"email\", \"full_name\", \"employee_code\", \"created_at\".",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sortOrder",
+            "description": "Sort order: \"asc\", \"desc\" (default: \"asc\").",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      },
+      "post": {
+        "summary": "CreateUser creates a new user (admin only).",
+        "operationId": "UserService_CreateUser",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateUserResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "CreateUserRequest creates a new user with employee details.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateUserRequest"
+            }
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      }
+    },
+    "/api/v1/iam/users/export": {
+      "get": {
+        "summary": "ExportUsers exports users to Excel file.",
+        "operationId": "UserService_ExportUsers",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ExportUsersResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "activeFilter",
+            "description": "Filter by active status.\n\n - ACTIVE_FILTER_UNSPECIFIED: Show all records regardless of active status (default).\n - ACTIVE_FILTER_ACTIVE: Show only active records.\n - ACTIVE_FILTER_INACTIVE: Show only inactive records.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "ACTIVE_FILTER_UNSPECIFIED",
+              "ACTIVE_FILTER_ACTIVE",
+              "ACTIVE_FILTER_INACTIVE"
+            ],
+            "default": "ACTIVE_FILTER_UNSPECIFIED"
+          },
+          {
+            "name": "sectionId",
+            "description": "Filter by section ID.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "departmentId",
+            "description": "Filter by department ID.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "divisionId",
+            "description": "Filter by division ID.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "companyId",
+            "description": "Filter by company ID.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      }
+    },
+    "/api/v1/iam/users/import": {
+      "post": {
+        "summary": "ImportUsers imports users from Excel file.",
+        "operationId": "UserService_ImportUsers",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ImportUsersResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "ImportUsersRequest imports users from Excel.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ImportUsersRequest"
+            }
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      }
+    },
+    "/api/v1/iam/users/template": {
+      "get": {
+        "summary": "DownloadTemplate downloads the Excel import template.",
+        "operationId": "UserService_DownloadTemplate",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/iamV1DownloadTemplateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "UserService"
+        ]
+      }
+    },
+    "/api/v1/iam/users/{userId}": {
+      "get": {
+        "summary": "GetUser retrieves a user by ID.",
+        "operationId": "UserService_GetUser",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetUserResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "userId",
+            "description": "User ID (UUID format).",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      },
+      "delete": {
+        "summary": "DeleteUser soft deletes a user.",
+        "operationId": "UserService_DeleteUser",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteUserResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "userId",
+            "description": "User ID to delete.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      },
+      "put": {
+        "summary": "UpdateUser updates user credentials.",
+        "operationId": "UserService_UpdateUser",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateUserResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "userId",
+            "description": "User ID to update.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UserServiceUpdateUserBody"
+            }
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      }
+    },
+    "/api/v1/iam/users/{userId}/access": {
+      "get": {
+        "summary": "GetUserRolesAndPermissions gets all roles and permissions for a user.",
+        "operationId": "UserService_GetUserRolesAndPermissions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetUserRolesAndPermissionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "userId",
+            "description": "User ID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      }
+    },
+    "/api/v1/iam/users/{userId}/detail": {
+      "get": {
+        "summary": "GetUserDetail retrieves user with full employee details.",
+        "operationId": "UserService_GetUserDetail",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetUserDetailResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "userId",
+            "description": "User ID (UUID format).",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      },
+      "put": {
+        "summary": "UpdateUserDetail updates employee details.",
+        "operationId": "UserService_UpdateUserDetail",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateUserDetailResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "userId",
+            "description": "User ID to update.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UserServiceUpdateUserDetailBody"
+            }
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      }
+    },
+    "/api/v1/iam/users/{userId}/permissions": {
+      "post": {
+        "summary": "AssignUserPermissions assigns direct permissions to a user.",
+        "operationId": "UserService_AssignUserPermissions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1AssignUserPermissionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "userId",
+            "description": "User ID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UserServiceAssignUserPermissionsBody"
+            }
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      }
+    },
+    "/api/v1/iam/users/{userId}/permissions/remove": {
+      "post": {
+        "summary": "RemoveUserPermissions removes direct permissions from a user.",
+        "operationId": "UserService_RemoveUserPermissions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RemoveUserPermissionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "userId",
+            "description": "User ID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UserServiceRemoveUserPermissionsBody"
+            }
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      }
+    },
+    "/api/v1/iam/users/{userId}/roles": {
+      "post": {
+        "summary": "AssignUserRoles assigns roles to a user.",
+        "operationId": "UserService_AssignUserRoles",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1AssignUserRolesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "userId",
+            "description": "User ID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UserServiceAssignUserRolesBody"
+            }
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      }
+    },
+    "/api/v1/iam/users/{userId}/roles/remove": {
+      "post": {
+        "summary": "RemoveUserRoles removes roles from a user.",
+        "operationId": "UserService_RemoveUserRoles",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RemoveUserRolesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "userId",
+            "description": "User ID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UserServiceRemoveUserRolesBody"
+            }
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "UserServiceAssignUserPermissionsBody": {
+      "type": "object",
+      "properties": {
+        "permissionIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Permission IDs to assign."
+        }
+      },
+      "description": "AssignUserPermissionsRequest assigns direct permissions to a user."
+    },
+    "UserServiceAssignUserRolesBody": {
+      "type": "object",
+      "properties": {
+        "roleIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Role IDs to assign."
+        }
+      },
+      "description": "AssignUserRolesRequest assigns roles to a user."
+    },
+    "UserServiceRemoveUserPermissionsBody": {
+      "type": "object",
+      "properties": {
+        "permissionIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Permission IDs to remove."
+        }
+      },
+      "description": "RemoveUserPermissionsRequest removes direct permissions from a user."
+    },
+    "UserServiceRemoveUserRolesBody": {
+      "type": "object",
+      "properties": {
+        "roleIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Role IDs to remove."
+        }
+      },
+      "description": "RemoveUserRolesRequest removes roles from a user."
+    },
+    "UserServiceUpdateUserBody": {
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "description": "New username (optional)."
+        },
+        "email": {
+          "type": "string",
+          "description": "New email (optional)."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "New active status (optional)."
+        },
+        "unlockAccount": {
+          "type": "boolean",
+          "description": "Unlock account (optional)."
+        }
+      },
+      "description": "UpdateUserRequest updates user credentials."
+    },
+    "UserServiceUpdateUserDetailBody": {
+      "type": "object",
+      "properties": {
+        "employeeCode": {
+          "type": "string",
+          "description": "New employee code (optional)."
+        },
+        "fullName": {
+          "type": "string",
+          "description": "New full name (optional)."
+        },
+        "firstName": {
+          "type": "string",
+          "description": "New first name (optional)."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "New last name (optional)."
+        },
+        "sectionId": {
+          "type": "string",
+          "description": "New section ID (optional)."
+        },
+        "phone": {
+          "type": "string",
+          "description": "New phone number (optional)."
+        },
+        "profilePictureUrl": {
+          "type": "string",
+          "description": "New profile picture URL (optional)."
+        },
+        "position": {
+          "type": "string",
+          "description": "New position (optional)."
+        },
+        "dateOfBirth": {
+          "type": "string",
+          "description": "New date of birth (optional)."
+        },
+        "address": {
+          "type": "string",
+          "description": "New address (optional)."
+        }
+      },
+      "description": "UpdateUserDetailRequest updates employee details."
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1ActiveFilter": {
+      "type": "string",
+      "enum": [
+        "ACTIVE_FILTER_UNSPECIFIED",
+        "ACTIVE_FILTER_ACTIVE",
+        "ACTIVE_FILTER_INACTIVE"
+      ],
+      "default": "ACTIVE_FILTER_UNSPECIFIED",
+      "description": "ActiveFilter represents filter options for is_active field.\n\n - ACTIVE_FILTER_UNSPECIFIED: Show all records regardless of active status (default).\n - ACTIVE_FILTER_ACTIVE: Show only active records.\n - ACTIVE_FILTER_INACTIVE: Show only inactive records."
+    },
+    "v1AssignUserPermissionsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        }
+      },
+      "description": "AssignUserPermissionsResponse is the response for assigning permissions."
+    },
+    "v1AssignUserRolesResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        }
+      },
+      "description": "AssignUserRolesResponse is the response for assigning roles."
+    },
+    "v1AuditInfo": {
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the record was created (ISO 8601)."
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "User who created the record."
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the record was last updated (ISO 8601)."
+        },
+        "updatedBy": {
+          "type": "string",
+          "description": "User who last updated the record."
+        }
+      },
+      "description": "AuditInfo contains audit trail information."
+    },
+    "v1BaseResponse": {
+      "type": "object",
+      "properties": {
+        "validationErrors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ValidationError"
+          },
+          "description": "List of validation errors if any."
+        },
+        "statusCode": {
+          "type": "string",
+          "description": "HTTP-like status code (e.g., \"200\", \"400\", \"404\", \"500\")."
+        },
+        "isSuccess": {
+          "type": "boolean",
+          "description": "Indicates if the operation was successful."
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable message describing the result."
+        }
+      },
+      "description": "BaseResponse is the standard response wrapper for all API responses."
+    },
+    "v1CreateUserRequest": {
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "description": "Username (unique, 3-50 chars, alphanumeric with underscore)."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address (unique)."
+        },
+        "password": {
+          "type": "string",
+          "description": "Initial password (min 8 chars)."
+        },
+        "employeeCode": {
+          "type": "string",
+          "description": "Employee code (unique, HR ID)."
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Full name."
+        },
+        "firstName": {
+          "type": "string",
+          "description": "First name."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "Last name."
+        },
+        "sectionId": {
+          "type": "string",
+          "description": "Section ID (optional)."
+        },
+        "phone": {
+          "type": "string",
+          "description": "Phone number (optional)."
+        },
+        "position": {
+          "type": "string",
+          "description": "Position/job title (optional)."
+        },
+        "dateOfBirth": {
+          "type": "string",
+          "description": "Date of birth (optional, ISO 8601 date)."
+        },
+        "address": {
+          "type": "string",
+          "description": "Address (optional)."
+        },
+        "roleIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Initial role IDs to assign."
+        }
+      },
+      "description": "CreateUserRequest creates a new user with employee details."
+    },
+    "v1CreateUserResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1UserWithDetail",
+          "description": "Created user data."
+        }
+      },
+      "description": "CreateUserResponse is the response for creating a user."
+    },
+    "v1DeleteUserResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        }
+      },
+      "description": "DeleteUserResponse is the response for deleting a user."
+    },
+    "v1DownloadTemplateResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "Excel template file content."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Suggested filename."
+        }
+      },
+      "description": "DownloadTemplateResponse contains the template file."
+    },
+    "v1ExportUsersResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "Excel file content as bytes."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Suggested filename."
+        }
+      },
+      "description": "ExportUsersResponse contains the Excel file."
+    },
+    "v1GetUserDetailResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1UserWithDetail",
+          "description": "User with details."
+        }
+      },
+      "description": "GetUserDetailResponse is the response for getting user details."
+    },
+    "v1GetUserResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1User",
+          "description": "User data."
+        }
+      },
+      "description": "GetUserResponse is the response for getting a user."
+    },
+    "v1GetUserRolesAndPermissionsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1UserAccessInfo",
+          "description": "Access data."
+        }
+      },
+      "description": "GetUserRolesAndPermissionsResponse contains user's access info."
+    },
+    "v1ImportError": {
+      "type": "object",
+      "properties": {
+        "rowNumber": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Row number in the Excel file."
+        },
+        "field": {
+          "type": "string",
+          "description": "Field that caused the error."
+        },
+        "message": {
+          "type": "string",
+          "description": "Error message."
+        }
+      },
+      "description": "ImportError represents a single import error."
+    },
+    "v1ImportUsersRequest": {
+      "type": "object",
+      "properties": {
+        "fileContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "Excel file content as bytes."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Original filename."
+        },
+        "duplicateAction": {
+          "type": "string",
+          "description": "How to handle duplicates: \"skip\", \"update\", \"error\"."
+        }
+      },
+      "description": "ImportUsersRequest imports users from Excel."
+    },
+    "v1ImportUsersResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "successCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of successfully imported records."
+        },
+        "skippedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of skipped records."
+        },
+        "updatedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of updated records."
+        },
+        "failedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of failed records."
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ImportError"
+          },
+          "description": "Details of failed records."
+        }
+      },
+      "description": "ImportUsersResponse is the response for importing users."
+    },
+    "v1ListUsersResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1UserWithDetail"
+          },
+          "description": "List of users with details."
+        },
+        "pagination": {
+          "$ref": "#/definitions/v1PaginationResponse",
+          "description": "Pagination metadata."
+        }
+      },
+      "description": "ListUsersResponse is the response for listing users."
+    },
+    "v1PaginationResponse": {
+      "type": "object",
+      "properties": {
+        "currentPage": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Current page number."
+        },
+        "pageSize": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of items per page."
+        },
+        "totalItems": {
+          "type": "string",
+          "format": "int64",
+          "description": "Total number of items across all pages."
+        },
+        "totalPages": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Total number of pages."
+        }
+      },
+      "description": "PaginationResponse contains pagination metadata for list responses."
+    },
+    "v1Permission": {
+      "type": "object",
+      "properties": {
+        "permissionId": {
+          "type": "string"
+        },
+        "permissionCode": {
+          "type": "string"
+        },
+        "permissionName": {
+          "type": "string"
+        },
+        "serviceName": {
+          "type": "string"
+        },
+        "moduleName": {
+          "type": "string"
+        },
+        "actionType": {
+          "type": "string"
+        }
+      },
+      "description": "Permission represents a permission entity."
+    },
+    "v1RemoveUserPermissionsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        }
+      },
+      "description": "RemoveUserPermissionsResponse is the response for removing permissions."
+    },
+    "v1RemoveUserRolesResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        }
+      },
+      "description": "RemoveUserRolesResponse is the response for removing roles."
+    },
+    "v1RoleWithPermissions": {
+      "type": "object",
+      "properties": {
+        "roleId": {
+          "type": "string"
+        },
+        "roleCode": {
+          "type": "string"
+        },
+        "roleName": {
+          "type": "string"
+        },
+        "permissions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Permission"
+          }
+        }
+      },
+      "description": "RoleWithPermissions contains role info with its permissions."
+    },
+    "v1SectionInfo": {
+      "type": "object",
+      "properties": {
+        "sectionId": {
+          "type": "string"
+        },
+        "sectionCode": {
+          "type": "string"
+        },
+        "sectionName": {
+          "type": "string"
+        },
+        "departmentId": {
+          "type": "string"
+        },
+        "departmentCode": {
+          "type": "string"
+        },
+        "departmentName": {
+          "type": "string"
+        },
+        "divisionId": {
+          "type": "string"
+        },
+        "divisionCode": {
+          "type": "string"
+        },
+        "divisionName": {
+          "type": "string"
+        },
+        "companyId": {
+          "type": "string"
+        },
+        "companyCode": {
+          "type": "string"
+        },
+        "companyName": {
+          "type": "string"
+        }
+      },
+      "description": "SectionInfo contains section with hierarchy info."
+    },
+    "v1UpdateUserDetailResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1UserDetail",
+          "description": "Updated user detail."
+        }
+      },
+      "description": "UpdateUserDetailResponse is the response for updating user details."
+    },
+    "v1UpdateUserResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1User",
+          "description": "Updated user data."
+        }
+      },
+      "description": "UpdateUserResponse is the response for updating a user."
+    },
+    "v1User": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Unique identifier (UUID)."
+        },
+        "username": {
+          "type": "string",
+          "description": "Unique username for login."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether the user account is active."
+        },
+        "isLocked": {
+          "type": "boolean",
+          "description": "Whether the account is locked."
+        },
+        "twoFactorEnabled": {
+          "type": "boolean",
+          "description": "Whether 2FA is enabled."
+        },
+        "lastLoginAt": {
+          "type": "string",
+          "description": "Last login timestamp (ISO 8601)."
+        },
+        "audit": {
+          "$ref": "#/definitions/v1AuditInfo",
+          "description": "Audit information."
+        }
+      },
+      "description": "User represents a user entity."
+    },
+    "v1UserAccessInfo": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "User ID."
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1RoleWithPermissions"
+          },
+          "description": "Assigned roles with their permissions."
+        },
+        "directPermissions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Permission"
+          },
+          "description": "Direct permissions (not from roles)."
+        },
+        "allPermissionCodes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "All unique permission codes (combined from roles and direct)."
+        }
+      },
+      "description": "UserAccessInfo contains roles and permissions for a user."
+    },
+    "v1UserDetail": {
+      "type": "object",
+      "properties": {
+        "detailId": {
+          "type": "string",
+          "description": "Detail ID."
+        },
+        "userId": {
+          "type": "string",
+          "description": "User ID reference."
+        },
+        "sectionId": {
+          "type": "string",
+          "description": "Section ID reference."
+        },
+        "section": {
+          "$ref": "#/definitions/v1SectionInfo",
+          "description": "Section info (populated on read)."
+        },
+        "employeeCode": {
+          "type": "string",
+          "description": "Employee code (HR ID)."
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Full name."
+        },
+        "firstName": {
+          "type": "string",
+          "description": "First name."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "Last name."
+        },
+        "phone": {
+          "type": "string",
+          "description": "Phone number."
+        },
+        "profilePictureUrl": {
+          "type": "string",
+          "description": "Profile picture URL."
+        },
+        "position": {
+          "type": "string",
+          "description": "Job position/title."
+        },
+        "dateOfBirth": {
+          "type": "string",
+          "description": "Date of birth (ISO 8601 date)."
+        },
+        "address": {
+          "type": "string",
+          "description": "Address."
+        },
+        "audit": {
+          "$ref": "#/definitions/v1AuditInfo",
+          "description": "Audit information."
+        }
+      },
+      "description": "UserDetail represents employee details."
+    },
+    "v1UserWithDetail": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/v1User"
+        },
+        "detail": {
+          "$ref": "#/definitions/v1UserDetail"
+        },
+        "roleCodes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "UserWithDetail combines User and UserDetail."
+    },
+    "v1ValidationError": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "description": "The field name that failed validation."
+        },
+        "message": {
+          "type": "string",
+          "description": "The validation error message."
+        }
+      },
+      "description": "ValidationError represents a single field validation error."
+    }
+  }
+}

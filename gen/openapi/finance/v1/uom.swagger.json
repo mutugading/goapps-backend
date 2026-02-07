@@ -233,7 +233,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1DownloadTemplateResponse"
+              "$ref": "#/definitions/financeV1DownloadTemplateResponse"
             }
           },
           "default": {

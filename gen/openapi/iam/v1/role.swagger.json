@@ -1,0 +1,1466 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "iam/v1/role.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "RoleService"
+    },
+    {
+      "name": "PermissionService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/iam/permissions": {
+      "get": {
+        "operationId": "PermissionService_ListPermissions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListPermissionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "activeFilter",
+            "description": " - ACTIVE_FILTER_UNSPECIFIED: Show all records regardless of active status (default).\n - ACTIVE_FILTER_ACTIVE: Show only active records.\n - ACTIVE_FILTER_INACTIVE: Show only inactive records.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "ACTIVE_FILTER_UNSPECIFIED",
+              "ACTIVE_FILTER_ACTIVE",
+              "ACTIVE_FILTER_INACTIVE"
+            ],
+            "default": "ACTIVE_FILTER_UNSPECIFIED"
+          },
+          {
+            "name": "serviceName",
+            "description": "Filter by service",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "moduleName",
+            "description": "Filter by module",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "actionType",
+            "description": "Filter by action type",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PermissionService"
+        ]
+      },
+      "post": {
+        "operationId": "PermissionService_CreatePermission",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreatePermissionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreatePermissionRequest"
+            }
+          }
+        ],
+        "tags": [
+          "PermissionService"
+        ]
+      }
+    },
+    "/api/v1/iam/permissions/by-service": {
+      "get": {
+        "summary": "Get permissions grouped by service/module",
+        "operationId": "PermissionService_GetPermissionsByService",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetPermissionsByServiceResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "serviceName",
+            "description": "Filter by specific service (optional, returns all if empty)",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "includeInactive",
+            "description": "Include inactive permissions",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "tags": [
+          "PermissionService"
+        ]
+      }
+    },
+    "/api/v1/iam/permissions/export": {
+      "get": {
+        "operationId": "PermissionService_ExportPermissions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ExportPermissionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "activeFilter",
+            "description": " - ACTIVE_FILTER_UNSPECIFIED: Show all records regardless of active status (default).\n - ACTIVE_FILTER_ACTIVE: Show only active records.\n - ACTIVE_FILTER_INACTIVE: Show only inactive records.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "ACTIVE_FILTER_UNSPECIFIED",
+              "ACTIVE_FILTER_ACTIVE",
+              "ACTIVE_FILTER_INACTIVE"
+            ],
+            "default": "ACTIVE_FILTER_UNSPECIFIED"
+          },
+          {
+            "name": "serviceName",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "moduleName",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PermissionService"
+        ]
+      }
+    },
+    "/api/v1/iam/permissions/import": {
+      "post": {
+        "operationId": "PermissionService_ImportPermissions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ImportPermissionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ImportPermissionsRequest"
+            }
+          }
+        ],
+        "tags": [
+          "PermissionService"
+        ]
+      }
+    },
+    "/api/v1/iam/permissions/template": {
+      "get": {
+        "operationId": "PermissionService_DownloadPermissionTemplate",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DownloadPermissionTemplateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "PermissionService"
+        ]
+      }
+    },
+    "/api/v1/iam/permissions/{permissionId}": {
+      "get": {
+        "operationId": "PermissionService_GetPermission",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetPermissionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "permissionId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PermissionService"
+        ]
+      },
+      "delete": {
+        "operationId": "PermissionService_DeletePermission",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeletePermissionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "permissionId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PermissionService"
+        ]
+      },
+      "put": {
+        "operationId": "PermissionService_UpdatePermission",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdatePermissionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "permissionId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PermissionServiceUpdatePermissionBody"
+            }
+          }
+        ],
+        "tags": [
+          "PermissionService"
+        ]
+      }
+    },
+    "/api/v1/iam/roles": {
+      "get": {
+        "operationId": "RoleService_ListRoles",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListRolesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "activeFilter",
+            "description": " - ACTIVE_FILTER_UNSPECIFIED: Show all records regardless of active status (default).\n - ACTIVE_FILTER_ACTIVE: Show only active records.\n - ACTIVE_FILTER_INACTIVE: Show only inactive records.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "ACTIVE_FILTER_UNSPECIFIED",
+              "ACTIVE_FILTER_ACTIVE",
+              "ACTIVE_FILTER_INACTIVE"
+            ],
+            "default": "ACTIVE_FILTER_UNSPECIFIED"
+          },
+          {
+            "name": "isSystem",
+            "description": "Filter by is_system flag",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "RoleService"
+        ]
+      },
+      "post": {
+        "operationId": "RoleService_CreateRole",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateRoleResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateRoleRequest"
+            }
+          }
+        ],
+        "tags": [
+          "RoleService"
+        ]
+      }
+    },
+    "/api/v1/iam/roles/export": {
+      "get": {
+        "operationId": "RoleService_ExportRoles",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ExportRolesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "activeFilter",
+            "description": " - ACTIVE_FILTER_UNSPECIFIED: Show all records regardless of active status (default).\n - ACTIVE_FILTER_ACTIVE: Show only active records.\n - ACTIVE_FILTER_INACTIVE: Show only inactive records.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "ACTIVE_FILTER_UNSPECIFIED",
+              "ACTIVE_FILTER_ACTIVE",
+              "ACTIVE_FILTER_INACTIVE"
+            ],
+            "default": "ACTIVE_FILTER_UNSPECIFIED"
+          },
+          {
+            "name": "isSystem",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "tags": [
+          "RoleService"
+        ]
+      }
+    },
+    "/api/v1/iam/roles/import": {
+      "post": {
+        "operationId": "RoleService_ImportRoles",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ImportRolesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ImportRolesRequest"
+            }
+          }
+        ],
+        "tags": [
+          "RoleService"
+        ]
+      }
+    },
+    "/api/v1/iam/roles/template": {
+      "get": {
+        "operationId": "RoleService_DownloadRoleTemplate",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DownloadRoleTemplateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "RoleService"
+        ]
+      }
+    },
+    "/api/v1/iam/roles/{roleId}": {
+      "get": {
+        "operationId": "RoleService_GetRole",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetRoleResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "roleId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "RoleService"
+        ]
+      },
+      "delete": {
+        "operationId": "RoleService_DeleteRole",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteRoleResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "roleId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "RoleService"
+        ]
+      },
+      "put": {
+        "operationId": "RoleService_UpdateRole",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateRoleResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "roleId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/RoleServiceUpdateRoleBody"
+            }
+          }
+        ],
+        "tags": [
+          "RoleService"
+        ]
+      }
+    },
+    "/api/v1/iam/roles/{roleId}/permissions": {
+      "get": {
+        "operationId": "RoleService_GetRolePermissions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetRolePermissionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "roleId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "RoleService"
+        ]
+      },
+      "post": {
+        "summary": "Role-Permission assignment",
+        "operationId": "RoleService_AssignRolePermissions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1AssignRolePermissionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "roleId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/RoleServiceAssignRolePermissionsBody"
+            }
+          }
+        ],
+        "tags": [
+          "RoleService"
+        ]
+      }
+    },
+    "/api/v1/iam/roles/{roleId}/permissions/remove": {
+      "post": {
+        "operationId": "RoleService_RemoveRolePermissions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RemoveRolePermissionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "roleId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/RoleServiceRemoveRolePermissionsBody"
+            }
+          }
+        ],
+        "tags": [
+          "RoleService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "PermissionServiceUpdatePermissionBody": {
+      "type": "object",
+      "properties": {
+        "permissionName": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "isActive": {
+          "type": "boolean"
+        }
+      }
+    },
+    "RoleServiceAssignRolePermissionsBody": {
+      "type": "object",
+      "properties": {
+        "permissionIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "RoleServiceRemoveRolePermissionsBody": {
+      "type": "object",
+      "properties": {
+        "permissionIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "RoleServiceUpdateRoleBody": {
+      "type": "object",
+      "properties": {
+        "roleName": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "isActive": {
+          "type": "boolean"
+        }
+      }
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1ActiveFilter": {
+      "type": "string",
+      "enum": [
+        "ACTIVE_FILTER_UNSPECIFIED",
+        "ACTIVE_FILTER_ACTIVE",
+        "ACTIVE_FILTER_INACTIVE"
+      ],
+      "default": "ACTIVE_FILTER_UNSPECIFIED",
+      "description": "ActiveFilter represents filter options for is_active field.\n\n - ACTIVE_FILTER_UNSPECIFIED: Show all records regardless of active status (default).\n - ACTIVE_FILTER_ACTIVE: Show only active records.\n - ACTIVE_FILTER_INACTIVE: Show only inactive records."
+    },
+    "v1AssignRolePermissionsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      }
+    },
+    "v1AuditInfo": {
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the record was created (ISO 8601)."
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "User who created the record."
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the record was last updated (ISO 8601)."
+        },
+        "updatedBy": {
+          "type": "string",
+          "description": "User who last updated the record."
+        }
+      },
+      "description": "AuditInfo contains audit trail information."
+    },
+    "v1BaseResponse": {
+      "type": "object",
+      "properties": {
+        "validationErrors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ValidationError"
+          },
+          "description": "List of validation errors if any."
+        },
+        "statusCode": {
+          "type": "string",
+          "description": "HTTP-like status code (e.g., \"200\", \"400\", \"404\", \"500\")."
+        },
+        "isSuccess": {
+          "type": "boolean",
+          "description": "Indicates if the operation was successful."
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable message describing the result."
+        }
+      },
+      "description": "BaseResponse is the standard response wrapper for all API responses."
+    },
+    "v1CreatePermissionRequest": {
+      "type": "object",
+      "properties": {
+        "permissionCode": {
+          "type": "string",
+          "title": "Permission code format: {service}.{module}.{entity}.{action}\ne.g., finance.master.uom.view, iam.user.create"
+        },
+        "permissionName": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "serviceName": {
+          "type": "string"
+        },
+        "moduleName": {
+          "type": "string"
+        },
+        "actionType": {
+          "type": "string",
+          "title": "Action type: view, create, update, delete, export, import"
+        }
+      }
+    },
+    "v1CreatePermissionResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1PermissionDetail"
+        }
+      }
+    },
+    "v1CreateRoleRequest": {
+      "type": "object",
+      "properties": {
+        "roleCode": {
+          "type": "string"
+        },
+        "roleName": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "permissionIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Initial permission IDs to assign"
+        }
+      }
+    },
+    "v1CreateRoleResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Role"
+        }
+      }
+    },
+    "v1DeletePermissionResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      }
+    },
+    "v1DeleteRoleResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      }
+    },
+    "v1DownloadPermissionTemplateResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte"
+        },
+        "fileName": {
+          "type": "string"
+        }
+      }
+    },
+    "v1DownloadRoleTemplateResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte"
+        },
+        "fileName": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ExportPermissionsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte"
+        },
+        "fileName": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ExportRolesResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte"
+        },
+        "fileName": {
+          "type": "string"
+        }
+      }
+    },
+    "v1GetPermissionResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1PermissionDetail"
+        }
+      }
+    },
+    "v1GetPermissionsByServiceResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ServicePermissions"
+          }
+        }
+      }
+    },
+    "v1GetRolePermissionsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Permission"
+          }
+        }
+      }
+    },
+    "v1GetRoleResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Role"
+        }
+      }
+    },
+    "v1ImportError": {
+      "type": "object",
+      "properties": {
+        "rowNumber": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Row number in the Excel file."
+        },
+        "field": {
+          "type": "string",
+          "description": "Field that caused the error."
+        },
+        "message": {
+          "type": "string",
+          "description": "Error message."
+        }
+      },
+      "description": "ImportError represents a single import error."
+    },
+    "v1ImportPermissionsRequest": {
+      "type": "object",
+      "properties": {
+        "fileContent": {
+          "type": "string",
+          "format": "byte"
+        },
+        "fileName": {
+          "type": "string"
+        },
+        "duplicateAction": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ImportPermissionsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "successCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "skippedCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "updatedCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "failedCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ImportError"
+          }
+        }
+      }
+    },
+    "v1ImportRolesRequest": {
+      "type": "object",
+      "properties": {
+        "fileContent": {
+          "type": "string",
+          "format": "byte"
+        },
+        "fileName": {
+          "type": "string"
+        },
+        "duplicateAction": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ImportRolesResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "successCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "skippedCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "updatedCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "failedCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ImportError"
+          }
+        }
+      }
+    },
+    "v1ListPermissionsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1PermissionDetail"
+          }
+        },
+        "pagination": {
+          "$ref": "#/definitions/v1PaginationResponse"
+        }
+      }
+    },
+    "v1ListRolesResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Role"
+          }
+        },
+        "pagination": {
+          "$ref": "#/definitions/v1PaginationResponse"
+        }
+      }
+    },
+    "v1ModulePermissions": {
+      "type": "object",
+      "properties": {
+        "moduleName": {
+          "type": "string"
+        },
+        "permissions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1PermissionDetail"
+          }
+        }
+      },
+      "description": "ModulePermissions groups permissions within a module."
+    },
+    "v1PaginationResponse": {
+      "type": "object",
+      "properties": {
+        "currentPage": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Current page number."
+        },
+        "pageSize": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of items per page."
+        },
+        "totalItems": {
+          "type": "string",
+          "format": "int64",
+          "description": "Total number of items across all pages."
+        },
+        "totalPages": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Total number of pages."
+        }
+      },
+      "description": "PaginationResponse contains pagination metadata for list responses."
+    },
+    "v1Permission": {
+      "type": "object",
+      "properties": {
+        "permissionId": {
+          "type": "string"
+        },
+        "permissionCode": {
+          "type": "string"
+        },
+        "permissionName": {
+          "type": "string"
+        },
+        "serviceName": {
+          "type": "string"
+        },
+        "moduleName": {
+          "type": "string"
+        },
+        "actionType": {
+          "type": "string"
+        }
+      },
+      "description": "Permission represents a permission entity."
+    },
+    "v1PermissionDetail": {
+      "type": "object",
+      "properties": {
+        "permissionId": {
+          "type": "string"
+        },
+        "permissionCode": {
+          "type": "string"
+        },
+        "permissionName": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "serviceName": {
+          "type": "string"
+        },
+        "moduleName": {
+          "type": "string"
+        },
+        "actionType": {
+          "type": "string",
+          "title": "view, create, update, delete, export, import"
+        },
+        "isActive": {
+          "type": "boolean"
+        },
+        "roleCount": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Number of roles with this permission"
+        },
+        "audit": {
+          "$ref": "#/definitions/v1AuditInfo"
+        }
+      }
+    },
+    "v1RemoveRolePermissionsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      }
+    },
+    "v1Role": {
+      "type": "object",
+      "properties": {
+        "roleId": {
+          "type": "string"
+        },
+        "roleCode": {
+          "type": "string"
+        },
+        "roleName": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "isSystem": {
+          "type": "boolean",
+          "title": "System roles cannot be deleted"
+        },
+        "isActive": {
+          "type": "boolean"
+        },
+        "userCount": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Number of users with this role"
+        },
+        "audit": {
+          "$ref": "#/definitions/v1AuditInfo"
+        }
+      }
+    },
+    "v1ServicePermissions": {
+      "type": "object",
+      "properties": {
+        "serviceName": {
+          "type": "string"
+        },
+        "modules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ModulePermissions"
+          }
+        }
+      },
+      "description": "ServicePermissions groups permissions by service and module."
+    },
+    "v1UpdatePermissionResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1PermissionDetail"
+        }
+      }
+    },
+    "v1UpdateRoleResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Role"
+        }
+      }
+    },
+    "v1ValidationError": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "description": "The field name that failed validation."
+        },
+        "message": {
+          "type": "string",
+          "description": "The validation error message."
+        }
+      },
+      "description": "ValidationError represents a single field validation error."
+    }
+  }
+}

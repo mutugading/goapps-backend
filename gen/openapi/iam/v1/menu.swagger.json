@@ -1,0 +1,1163 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "iam/v1/menu.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "MenuService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/iam/menus": {
+      "get": {
+        "operationId": "MenuService_ListMenus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListMenusResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "activeFilter",
+            "description": " - ACTIVE_FILTER_UNSPECIFIED: Show all records regardless of active status (default).\n - ACTIVE_FILTER_ACTIVE: Show only active records.\n - ACTIVE_FILTER_INACTIVE: Show only inactive records.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "ACTIVE_FILTER_UNSPECIFIED",
+              "ACTIVE_FILTER_ACTIVE",
+              "ACTIVE_FILTER_INACTIVE"
+            ],
+            "default": "ACTIVE_FILTER_UNSPECIFIED"
+          },
+          {
+            "name": "isVisible",
+            "description": "Filter by visibility.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "serviceName",
+            "description": "Filter by service name.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "menuLevel",
+            "description": "Filter by menu level.\n\n - MENU_LEVEL_ROOT: Level 1: Root menu (e.g., Dashboard, Finance)\n - MENU_LEVEL_PARENT: Level 2: Parent menu (e.g., Master, Transaction)\n - MENU_LEVEL_CHILD: Level 3: Child menu (e.g., UOM, Parameter)",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "MENU_LEVEL_UNSPECIFIED",
+              "MENU_LEVEL_ROOT",
+              "MENU_LEVEL_PARENT",
+              "MENU_LEVEL_CHILD"
+            ],
+            "default": "MENU_LEVEL_UNSPECIFIED"
+          },
+          {
+            "name": "parentId",
+            "description": "Filter by parent ID (null/unset for root only).",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MenuService"
+        ]
+      },
+      "post": {
+        "operationId": "MenuService_CreateMenu",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateMenuResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateMenuRequest"
+            }
+          }
+        ],
+        "tags": [
+          "MenuService"
+        ]
+      }
+    },
+    "/api/v1/iam/menus/export": {
+      "get": {
+        "operationId": "MenuService_ExportMenus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ExportMenusResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "activeFilter",
+            "description": " - ACTIVE_FILTER_UNSPECIFIED: Show all records regardless of active status (default).\n - ACTIVE_FILTER_ACTIVE: Show only active records.\n - ACTIVE_FILTER_INACTIVE: Show only inactive records.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "ACTIVE_FILTER_UNSPECIFIED",
+              "ACTIVE_FILTER_ACTIVE",
+              "ACTIVE_FILTER_INACTIVE"
+            ],
+            "default": "ACTIVE_FILTER_UNSPECIFIED"
+          },
+          {
+            "name": "isVisible",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "serviceName",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MenuService"
+        ]
+      }
+    },
+    "/api/v1/iam/menus/import": {
+      "post": {
+        "operationId": "MenuService_ImportMenus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ImportMenusResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ImportMenusRequest"
+            }
+          }
+        ],
+        "tags": [
+          "MenuService"
+        ]
+      }
+    },
+    "/api/v1/iam/menus/reorder": {
+      "post": {
+        "summary": "Reorder menus within same parent",
+        "operationId": "MenuService_ReorderMenus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ReorderMenusResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ReorderMenusRequest"
+            }
+          }
+        ],
+        "tags": [
+          "MenuService"
+        ]
+      }
+    },
+    "/api/v1/iam/menus/template": {
+      "get": {
+        "operationId": "MenuService_DownloadMenuTemplate",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DownloadMenuTemplateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "MenuService"
+        ]
+      }
+    },
+    "/api/v1/iam/menus/tree": {
+      "get": {
+        "summary": "Get menu tree for current authenticated user (filtered by permissions)",
+        "operationId": "MenuService_GetMenuTree",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetMenuTreeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "serviceName",
+            "description": "Filter by service name (optional, returns all services if empty).",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MenuService"
+        ]
+      }
+    },
+    "/api/v1/iam/menus/tree/full": {
+      "get": {
+        "summary": "Get full menu tree for admin management (not filtered by permissions)",
+        "operationId": "MenuService_GetFullMenuTree",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetFullMenuTreeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "serviceName",
+            "description": "Filter by service name (optional).",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "includeInactive",
+            "description": "Include inactive menus.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "includeHidden",
+            "description": "Include hidden menus (is_visible = false).",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "tags": [
+          "MenuService"
+        ]
+      }
+    },
+    "/api/v1/iam/menus/{menuId}": {
+      "get": {
+        "operationId": "MenuService_GetMenu",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetMenuResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "menuId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MenuService"
+        ]
+      },
+      "delete": {
+        "operationId": "MenuService_DeleteMenu",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteMenuResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "menuId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "cascade",
+            "description": "If true, also delete all child menus. Otherwise fails if has children.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "tags": [
+          "MenuService"
+        ]
+      },
+      "put": {
+        "operationId": "MenuService_UpdateMenu",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateMenuResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "menuId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/MenuServiceUpdateMenuBody"
+            }
+          }
+        ],
+        "tags": [
+          "MenuService"
+        ]
+      }
+    },
+    "/api/v1/iam/menus/{menuId}/permissions": {
+      "get": {
+        "operationId": "MenuService_GetMenuPermissions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetMenuPermissionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "menuId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MenuService"
+        ]
+      },
+      "post": {
+        "summary": "Menu-Permission assignment",
+        "operationId": "MenuService_AssignMenuPermissions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1AssignMenuPermissionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "menuId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/MenuServiceAssignMenuPermissionsBody"
+            }
+          }
+        ],
+        "tags": [
+          "MenuService"
+        ]
+      }
+    },
+    "/api/v1/iam/menus/{menuId}/permissions/remove": {
+      "post": {
+        "operationId": "MenuService_RemoveMenuPermissions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RemoveMenuPermissionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "menuId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/MenuServiceRemoveMenuPermissionsBody"
+            }
+          }
+        ],
+        "tags": [
+          "MenuService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "MenuServiceAssignMenuPermissionsBody": {
+      "type": "object",
+      "properties": {
+        "permissionIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "MenuServiceRemoveMenuPermissionsBody": {
+      "type": "object",
+      "properties": {
+        "permissionIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "MenuServiceUpdateMenuBody": {
+      "type": "object",
+      "properties": {
+        "menuTitle": {
+          "type": "string",
+          "description": "Cannot change parent after creation (use reorder for moving)."
+        },
+        "menuUrl": {
+          "type": "string"
+        },
+        "iconName": {
+          "type": "string"
+        },
+        "sortOrder": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "isVisible": {
+          "type": "boolean"
+        },
+        "isActive": {
+          "type": "boolean"
+        }
+      }
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1ActiveFilter": {
+      "type": "string",
+      "enum": [
+        "ACTIVE_FILTER_UNSPECIFIED",
+        "ACTIVE_FILTER_ACTIVE",
+        "ACTIVE_FILTER_INACTIVE"
+      ],
+      "default": "ACTIVE_FILTER_UNSPECIFIED",
+      "description": "ActiveFilter represents filter options for is_active field.\n\n - ACTIVE_FILTER_UNSPECIFIED: Show all records regardless of active status (default).\n - ACTIVE_FILTER_ACTIVE: Show only active records.\n - ACTIVE_FILTER_INACTIVE: Show only inactive records."
+    },
+    "v1AssignMenuPermissionsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      }
+    },
+    "v1AuditInfo": {
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the record was created (ISO 8601)."
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "User who created the record."
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the record was last updated (ISO 8601)."
+        },
+        "updatedBy": {
+          "type": "string",
+          "description": "User who last updated the record."
+        }
+      },
+      "description": "AuditInfo contains audit trail information."
+    },
+    "v1BaseResponse": {
+      "type": "object",
+      "properties": {
+        "validationErrors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ValidationError"
+          },
+          "description": "List of validation errors if any."
+        },
+        "statusCode": {
+          "type": "string",
+          "description": "HTTP-like status code (e.g., \"200\", \"400\", \"404\", \"500\")."
+        },
+        "isSuccess": {
+          "type": "boolean",
+          "description": "Indicates if the operation was successful."
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable message describing the result."
+        }
+      },
+      "description": "BaseResponse is the standard response wrapper for all API responses."
+    },
+    "v1CreateMenuRequest": {
+      "type": "object",
+      "properties": {
+        "parentId": {
+          "type": "string",
+          "description": "Parent menu ID (optional, null for root level)."
+        },
+        "menuCode": {
+          "type": "string",
+          "description": "Unique menu code."
+        },
+        "menuTitle": {
+          "type": "string",
+          "description": "Display title."
+        },
+        "menuUrl": {
+          "type": "string",
+          "description": "Route URL path (optional for parent-only menus)."
+        },
+        "iconName": {
+          "type": "string",
+          "description": "Lucide icon name."
+        },
+        "serviceName": {
+          "type": "string",
+          "description": "Service name."
+        },
+        "menuLevel": {
+          "$ref": "#/definitions/v1MenuLevel",
+          "description": "Menu level (must match parent hierarchy)."
+        },
+        "sortOrder": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Initial sort order (optional, auto-assigned if not provided)."
+        },
+        "isVisible": {
+          "type": "boolean",
+          "description": "Initial visibility state (default true)."
+        },
+        "permissionIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Initial permission IDs to require for this menu."
+        }
+      }
+    },
+    "v1CreateMenuResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Menu"
+        }
+      }
+    },
+    "v1DeleteMenuResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "deletedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of menus deleted (1 + children if cascade)."
+        }
+      }
+    },
+    "v1DownloadMenuTemplateResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte"
+        },
+        "fileName": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ExportMenusResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte"
+        },
+        "fileName": {
+          "type": "string"
+        }
+      }
+    },
+    "v1GetFullMenuTreeResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MenuWithChildren"
+          }
+        }
+      },
+      "description": "GetFullMenuTreeResponse returns the full menu tree for admin management."
+    },
+    "v1GetMenuPermissionsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Permission"
+          }
+        }
+      }
+    },
+    "v1GetMenuResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Menu"
+        },
+        "requiredPermissions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Permission"
+          }
+        }
+      }
+    },
+    "v1GetMenuTreeResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MenuWithChildren"
+          }
+        }
+      },
+      "description": "GetMenuTreeResponse returns the menu tree for sidebar navigation."
+    },
+    "v1ImportError": {
+      "type": "object",
+      "properties": {
+        "rowNumber": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Row number in the Excel file."
+        },
+        "field": {
+          "type": "string",
+          "description": "Field that caused the error."
+        },
+        "message": {
+          "type": "string",
+          "description": "Error message."
+        }
+      },
+      "description": "ImportError represents a single import error."
+    },
+    "v1ImportMenusRequest": {
+      "type": "object",
+      "properties": {
+        "fileContent": {
+          "type": "string",
+          "format": "byte"
+        },
+        "fileName": {
+          "type": "string"
+        },
+        "duplicateAction": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ImportMenusResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "successCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "skippedCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "updatedCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "failedCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ImportError"
+          }
+        }
+      }
+    },
+    "v1ListMenusResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Menu"
+          }
+        },
+        "pagination": {
+          "$ref": "#/definitions/v1PaginationResponse"
+        }
+      }
+    },
+    "v1Menu": {
+      "type": "object",
+      "properties": {
+        "menuId": {
+          "type": "string"
+        },
+        "parentId": {
+          "type": "string",
+          "description": "Parent menu ID (null for root level)."
+        },
+        "menuCode": {
+          "type": "string",
+          "description": "Unique menu code."
+        },
+        "menuTitle": {
+          "type": "string",
+          "description": "Display title."
+        },
+        "menuUrl": {
+          "type": "string",
+          "description": "Route URL path (null for parent-only menus without links)."
+        },
+        "iconName": {
+          "type": "string",
+          "description": "Lucide icon name (e.g., \"DollarSign\", \"Settings\", \"Users\")."
+        },
+        "serviceName": {
+          "type": "string",
+          "description": "Service name (e.g., \"finance\", \"hr\", \"iam\")."
+        },
+        "menuLevel": {
+          "$ref": "#/definitions/v1MenuLevel",
+          "description": "Menu level: 1=root, 2=parent, 3=child."
+        },
+        "sortOrder": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Sort order within parent."
+        },
+        "isVisible": {
+          "type": "boolean",
+          "description": "Whether the menu is visible in sidebar."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether the menu is active (can be toggled without deletion)."
+        },
+        "audit": {
+          "$ref": "#/definitions/v1AuditInfo",
+          "description": "Audit information."
+        }
+      },
+      "description": "Menu represents a menu entity."
+    },
+    "v1MenuLevel": {
+      "type": "string",
+      "enum": [
+        "MENU_LEVEL_UNSPECIFIED",
+        "MENU_LEVEL_ROOT",
+        "MENU_LEVEL_PARENT",
+        "MENU_LEVEL_CHILD"
+      ],
+      "default": "MENU_LEVEL_UNSPECIFIED",
+      "description": "MenuLevel represents the hierarchy level of a menu.\n\n - MENU_LEVEL_ROOT: Level 1: Root menu (e.g., Dashboard, Finance)\n - MENU_LEVEL_PARENT: Level 2: Parent menu (e.g., Master, Transaction)\n - MENU_LEVEL_CHILD: Level 3: Child menu (e.g., UOM, Parameter)"
+    },
+    "v1MenuWithChildren": {
+      "type": "object",
+      "properties": {
+        "menu": {
+          "$ref": "#/definitions/v1Menu"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MenuWithChildren"
+          }
+        },
+        "requiredPermissions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Required permission codes to view this menu."
+        }
+      },
+      "description": "MenuWithChildren represents a menu with its child menus (for tree view)."
+    },
+    "v1PaginationResponse": {
+      "type": "object",
+      "properties": {
+        "currentPage": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Current page number."
+        },
+        "pageSize": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of items per page."
+        },
+        "totalItems": {
+          "type": "string",
+          "format": "int64",
+          "description": "Total number of items across all pages."
+        },
+        "totalPages": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Total number of pages."
+        }
+      },
+      "description": "PaginationResponse contains pagination metadata for list responses."
+    },
+    "v1Permission": {
+      "type": "object",
+      "properties": {
+        "permissionId": {
+          "type": "string"
+        },
+        "permissionCode": {
+          "type": "string"
+        },
+        "permissionName": {
+          "type": "string"
+        },
+        "serviceName": {
+          "type": "string"
+        },
+        "moduleName": {
+          "type": "string"
+        },
+        "actionType": {
+          "type": "string"
+        }
+      },
+      "description": "Permission represents a permission entity."
+    },
+    "v1RemoveMenuPermissionsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      }
+    },
+    "v1ReorderMenusRequest": {
+      "type": "object",
+      "properties": {
+        "parentId": {
+          "type": "string",
+          "description": "Parent ID (null for reordering root menus)."
+        },
+        "menuIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Ordered list of menu IDs in their new order."
+        }
+      }
+    },
+    "v1ReorderMenusResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      }
+    },
+    "v1UpdateMenuResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Menu"
+        }
+      }
+    },
+    "v1ValidationError": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "description": "The field name that failed validation."
+        },
+        "message": {
+          "type": "string",
+          "description": "The validation error message."
+        }
+      },
+      "description": "ValidationError represents a single field validation error."
+    }
+  }
+}
