@@ -1,0 +1,847 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "iam/v1/auth.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "AuthService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/iam/auth/2fa/disable": {
+      "post": {
+        "summary": "Disable2FA removes two-factor authentication.",
+        "operationId": "AuthService_Disable2FA",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1Disable2FAResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "Disable2FARequest removes 2FA.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1Disable2FARequest"
+            }
+          }
+        ],
+        "tags": [
+          "AuthService"
+        ]
+      }
+    },
+    "/api/v1/iam/auth/2fa/enable": {
+      "post": {
+        "summary": "Enable2FA initiates two-factor authentication setup.\nReturns a TOTP secret and QR code URL.",
+        "operationId": "AuthService_Enable2FA",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1Enable2FAResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "Enable2FARequest initiates 2FA setup.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1Enable2FARequest"
+            }
+          }
+        ],
+        "tags": [
+          "AuthService"
+        ]
+      }
+    },
+    "/api/v1/iam/auth/2fa/verify": {
+      "post": {
+        "summary": "Verify2FA confirms 2FA setup with a TOTP code.",
+        "operationId": "AuthService_Verify2FA",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1Verify2FAResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "Verify2FARequest confirms 2FA setup.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1Verify2FARequest"
+            }
+          }
+        ],
+        "tags": [
+          "AuthService"
+        ]
+      }
+    },
+    "/api/v1/iam/auth/forgot-password": {
+      "post": {
+        "summary": "ForgotPassword initiates password reset by sending OTP to email.",
+        "operationId": "AuthService_ForgotPassword",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ForgotPasswordResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "ForgotPasswordRequest initiates password reset.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ForgotPasswordRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AuthService"
+        ]
+      }
+    },
+    "/api/v1/iam/auth/login": {
+      "post": {
+        "summary": "Login authenticates a user with username and password.\nReturns access token, refresh token, and user info.\nNote: Any existing session will be revoked (single-device policy).",
+        "operationId": "AuthService_Login",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1LoginResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "LoginRequest is the request for user login.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1LoginRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AuthService"
+        ]
+      }
+    },
+    "/api/v1/iam/auth/logout": {
+      "post": {
+        "summary": "Logout invalidates the current session.",
+        "operationId": "AuthService_Logout",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1LogoutResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "LogoutRequest is the request for logout.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1LogoutRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AuthService"
+        ]
+      }
+    },
+    "/api/v1/iam/auth/me": {
+      "get": {
+        "summary": "GetCurrentUser returns the authenticated user's info.",
+        "operationId": "AuthService_GetCurrentUser",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetCurrentUserResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "AuthService"
+        ]
+      }
+    },
+    "/api/v1/iam/auth/refresh": {
+      "post": {
+        "summary": "RefreshToken exchanges a refresh token for new access/refresh tokens.",
+        "operationId": "AuthService_RefreshToken",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RefreshTokenResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "RefreshTokenRequest is the request for refreshing tokens.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1RefreshTokenRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AuthService"
+        ]
+      }
+    },
+    "/api/v1/iam/auth/reset-password": {
+      "post": {
+        "summary": "ResetPassword sets a new password using a valid reset token.",
+        "operationId": "AuthService_ResetPassword",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ResetPasswordResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "ResetPasswordRequest sets a new password.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ResetPasswordRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AuthService"
+        ]
+      }
+    },
+    "/api/v1/iam/auth/update-password": {
+      "post": {
+        "summary": "UpdatePassword changes password for authenticated user.",
+        "operationId": "AuthService_UpdatePassword",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdatePasswordResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "UpdatePasswordRequest changes password for authenticated user.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1UpdatePasswordRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AuthService"
+        ]
+      }
+    },
+    "/api/v1/iam/auth/verify-otp": {
+      "post": {
+        "summary": "VerifyResetOTP validates the OTP code and returns a reset token.",
+        "operationId": "AuthService_VerifyResetOTP",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1VerifyResetOTPResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "VerifyResetOTPRequest validates the OTP code.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1VerifyResetOTPRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AuthService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1AuthUser": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "User ID."
+        },
+        "username": {
+          "type": "string",
+          "description": "Username."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address."
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Full name."
+        },
+        "profilePictureUrl": {
+          "type": "string",
+          "description": "Profile picture URL."
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of role codes (e.g., [\"ADMIN\", \"MANAGER\"])."
+        },
+        "permissions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of permission codes (e.g., [\"finance.master.uom.view\"])."
+        },
+        "twoFactorEnabled": {
+          "type": "boolean",
+          "description": "Whether 2FA is enabled."
+        }
+      },
+      "description": "AuthUser contains basic user info for authentication context."
+    },
+    "v1BaseResponse": {
+      "type": "object",
+      "properties": {
+        "validationErrors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ValidationError"
+          },
+          "description": "List of validation errors if any."
+        },
+        "statusCode": {
+          "type": "string",
+          "description": "HTTP-like status code (e.g., \"200\", \"400\", \"404\", \"500\")."
+        },
+        "isSuccess": {
+          "type": "boolean",
+          "description": "Indicates if the operation was successful."
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable message describing the result."
+        }
+      },
+      "description": "BaseResponse is the standard response wrapper for all API responses."
+    },
+    "v1Disable2FARequest": {
+      "type": "object",
+      "properties": {
+        "password": {
+          "type": "string",
+          "description": "Current password for verification."
+        },
+        "verificationCode": {
+          "type": "string",
+          "description": "TOTP code OR recovery code."
+        }
+      },
+      "description": "Disable2FARequest removes 2FA."
+    },
+    "v1Disable2FAResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        }
+      },
+      "description": "Disable2FAResponse confirms 2FA is disabled."
+    },
+    "v1Enable2FARequest": {
+      "type": "object",
+      "properties": {
+        "password": {
+          "type": "string",
+          "description": "Current password for verification."
+        }
+      },
+      "description": "Enable2FARequest initiates 2FA setup."
+    },
+    "v1Enable2FAResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1TwoFactorSetup",
+          "description": "2FA setup data."
+        }
+      },
+      "description": "Enable2FAResponse returns 2FA setup info."
+    },
+    "v1ForgotPasswordRequest": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "Email address to send OTP."
+        }
+      },
+      "description": "ForgotPasswordRequest initiates password reset."
+    },
+    "v1ForgotPasswordResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "message": {
+          "type": "string",
+          "description": "Message indicating OTP was sent."
+        },
+        "expiresIn": {
+          "type": "integer",
+          "format": "int32",
+          "description": "OTP expiry in seconds (e.g., 300 = 5 minutes)."
+        }
+      },
+      "description": "ForgotPasswordResponse confirms OTP sent."
+    },
+    "v1GetCurrentUserResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1AuthUser",
+          "description": "User info."
+        }
+      },
+      "description": "GetCurrentUserResponse returns authenticated user info."
+    },
+    "v1LoginData": {
+      "type": "object",
+      "properties": {
+        "accessToken": {
+          "type": "string",
+          "description": "JWT access token (short-lived, e.g., 15 minutes)."
+        },
+        "refreshToken": {
+          "type": "string",
+          "description": "Refresh token (long-lived, e.g., 7 days)."
+        },
+        "expiresIn": {
+          "type": "string",
+          "format": "int64",
+          "description": "Access token expiry in seconds."
+        },
+        "tokenType": {
+          "type": "string",
+          "description": "Token type (always \"Bearer\")."
+        },
+        "user": {
+          "$ref": "#/definitions/v1AuthUser",
+          "description": "Authenticated user info."
+        },
+        "requires2fa": {
+          "type": "boolean",
+          "description": "Whether 2FA is required (return true if 2FA enabled but totp_code not provided)."
+        }
+      },
+      "description": "LoginData contains the login result."
+    },
+    "v1LoginRequest": {
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "description": "Username or email for login."
+        },
+        "password": {
+          "type": "string",
+          "description": "User password."
+        },
+        "totpCode": {
+          "type": "string",
+          "description": "Optional TOTP code if 2FA is enabled."
+        },
+        "deviceInfo": {
+          "type": "string",
+          "description": "Device info for session tracking."
+        }
+      },
+      "description": "LoginRequest is the request for user login."
+    },
+    "v1LoginResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1LoginData",
+          "description": "Login result data."
+        }
+      },
+      "description": "LoginResponse is the response for successful login."
+    },
+    "v1LogoutRequest": {
+      "type": "object",
+      "properties": {
+        "refreshToken": {
+          "type": "string",
+          "description": "Refresh token to invalidate (optional, if not provided uses current session)."
+        }
+      },
+      "description": "LogoutRequest is the request for logout."
+    },
+    "v1LogoutResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        }
+      },
+      "description": "LogoutResponse is the response for logout."
+    },
+    "v1RefreshTokenRequest": {
+      "type": "object",
+      "properties": {
+        "refreshToken": {
+          "type": "string",
+          "description": "Current refresh token."
+        }
+      },
+      "description": "RefreshTokenRequest is the request for refreshing tokens."
+    },
+    "v1RefreshTokenResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1TokenPair",
+          "description": "New token pair."
+        }
+      },
+      "description": "RefreshTokenResponse is the response with new tokens."
+    },
+    "v1ResetPasswordRequest": {
+      "type": "object",
+      "properties": {
+        "resetToken": {
+          "type": "string",
+          "description": "Reset token from VerifyResetOTP."
+        },
+        "newPassword": {
+          "type": "string",
+          "description": "New password (min 8 chars, must contain uppercase, lowercase, number)."
+        },
+        "confirmPassword": {
+          "type": "string",
+          "description": "Confirm new password."
+        }
+      },
+      "description": "ResetPasswordRequest sets a new password."
+    },
+    "v1ResetPasswordResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        }
+      },
+      "description": "ResetPasswordResponse confirms password reset."
+    },
+    "v1TokenPair": {
+      "type": "object",
+      "properties": {
+        "accessToken": {
+          "type": "string",
+          "description": "New JWT access token."
+        },
+        "refreshToken": {
+          "type": "string",
+          "description": "New refresh token."
+        },
+        "expiresIn": {
+          "type": "string",
+          "format": "int64",
+          "description": "Access token expiry in seconds."
+        },
+        "tokenType": {
+          "type": "string",
+          "description": "Token type (always \"Bearer\")."
+        }
+      },
+      "description": "TokenPair contains access and refresh tokens."
+    },
+    "v1TwoFactorSetup": {
+      "type": "object",
+      "properties": {
+        "secret": {
+          "type": "string",
+          "description": "TOTP secret (Base32 encoded)."
+        },
+        "qrCodeUrl": {
+          "type": "string",
+          "description": "QR code URL for authenticator apps."
+        },
+        "recoveryCodes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Recovery codes (one-time use)."
+        }
+      },
+      "description": "TwoFactorSetup contains TOTP setup information."
+    },
+    "v1UpdatePasswordRequest": {
+      "type": "object",
+      "properties": {
+        "currentPassword": {
+          "type": "string",
+          "description": "Current password for verification."
+        },
+        "newPassword": {
+          "type": "string",
+          "description": "New password."
+        },
+        "confirmPassword": {
+          "type": "string",
+          "description": "Confirm new password."
+        }
+      },
+      "description": "UpdatePasswordRequest changes password for authenticated user."
+    },
+    "v1UpdatePasswordResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        }
+      },
+      "description": "UpdatePasswordResponse confirms password update."
+    },
+    "v1ValidationError": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "description": "The field name that failed validation."
+        },
+        "message": {
+          "type": "string",
+          "description": "The validation error message."
+        }
+      },
+      "description": "ValidationError represents a single field validation error."
+    },
+    "v1Verify2FARequest": {
+      "type": "object",
+      "properties": {
+        "totpCode": {
+          "type": "string",
+          "description": "TOTP code from authenticator app."
+        }
+      },
+      "description": "Verify2FARequest confirms 2FA setup."
+    },
+    "v1Verify2FAResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        }
+      },
+      "description": "Verify2FAResponse confirms 2FA is enabled."
+    },
+    "v1VerifyResetOTPRequest": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "Email address."
+        },
+        "otpCode": {
+          "type": "string",
+          "description": "6-digit OTP code."
+        }
+      },
+      "description": "VerifyResetOTPRequest validates the OTP code."
+    },
+    "v1VerifyResetOTPResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "resetToken": {
+          "type": "string",
+          "description": "Reset token for password reset (valid for 10 minutes)."
+        }
+      },
+      "description": "VerifyResetOTPResponse returns a reset token."
+    }
+  }
+}

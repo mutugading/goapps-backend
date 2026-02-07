@@ -1,32 +1,32 @@
-name: finance-infra
+name: iam-infra
 
 services:
-  # PostgreSQL Database
+  # PostgreSQL Database for IAM
   postgres:
     image: postgres:18-alpine
-    container_name: finance-postgres
+    container_name: iam-postgres
     ports:
-      - "5434:5432"
+      - "5435:5432"
     environment:
-      POSTGRES_DB: finance_db
-      POSTGRES_USER: finance
-      POSTGRES_PASSWORD: finance123
+      POSTGRES_DB: iam_db
+      POSTGRES_USER: iam
+      POSTGRES_PASSWORD: iam123
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U finance -d finance_db" ]
+      test: [ "CMD-SHELL", "pg_isready -U iam -d iam_db" ]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - finance-network
+      - iam-network
 
   # Redis Cache
   redis:
     image: redis:7-alpine
-    container_name: finance-redis
+    container_name: iam-redis
     ports:
-      - "6379:6379"
+      - "6380:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -35,30 +35,30 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - finance-network
+      - iam-network
 
   # Jaeger - Distributed Tracing
   jaeger:
     image: jaegertracing/all-in-one:1.55
-    container_name: finance-jaeger
+    container_name: iam-jaeger
     ports:
-      - "16686:16686" # Jaeger UI
-      - "14268:14268" # Collector HTTP
-      - "4317:4317" # OTLP gRPC
-      - "4318:4318" # OTLP HTTP
+      - "16687:16686" # Jaeger UI
+      - "14269:14268" # Collector HTTP
+      - "4319:4317" # OTLP gRPC
+      - "4320:4318" # OTLP HTTP
     environment:
       - COLLECTOR_OTLP_ENABLED=true
     networks:
-      - finance-network
-  # Finance Service (uncomment when ready to containerize)
-  # finance-service:
+      - iam-network
+  # IAM Service (uncomment when ready to containerize)
+  # iam-service:
   #   build:
   #     context: ../../../
-  #     dockerfile: services/finance/Dockerfile
-  #   container_name: finance-service
+  #     dockerfile: services/iam/Dockerfile
+  #   container_name: iam-service
   #   ports:
-  #     - "50051:50051"  # gRPC
-  #     - "8080:8080"    # HTTP/Swagger/Metrics
+  #     - "50052:50052"  # gRPC
+  #     - "8081:8081"    # HTTP/Swagger/Metrics
   #   depends_on:
   #     postgres:
   #       condition: service_healthy
@@ -70,14 +70,14 @@ services:
   #     - APP_ENV=development
   #     - DATABASE_HOST=postgres
   #     - DATABASE_PORT=5432
-  #     - DATABASE_USER=finance
-  #     - DATABASE_PASSWORD=finance123
-  #     - DATABASE_NAME=finance_db
+  #     - DATABASE_USER=iam
+  #     - DATABASE_PASSWORD=iam123
+  #     - DATABASE_NAME=iam_db
   #     - REDIS_HOST=redis
   #     - REDIS_PORT=6379
-  #     - JAEGER_ENDPOINT=http://jaeger:4317
+  #     - JAEGER_ENDPOINT=http://jaeger:4319
   #   networks:
-  #     - finance-network
+  #     - iam-network
 
 volumes:
   postgres_data:
@@ -85,5 +85,5 @@ volumes:
 
 
 networks:
-  finance-network:
+  iam-network:
     driver: bridge

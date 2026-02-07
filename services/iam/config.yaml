@@ -1,0 +1,78 @@
+# IAM Service Configuration
+
+app:
+  name: iam-service
+  version: "1.0.0"
+  env: development  # development, staging, production
+
+server:
+  grpc_port: 50052
+  http_port: 8081
+  read_timeout: 30s
+  write_timeout: 30s
+
+database:
+  host: localhost
+  port: 5435
+  user: iam
+  password: iam123
+  name: iam_db
+  ssl_mode: disable
+  max_open_conns: 25
+  max_idle_conns: 5
+  conn_max_lifetime: 5m
+
+redis:
+  host: localhost
+  port: 6380
+  password: ""
+  db: 1  # Different from finance service (db: 0)
+  session_ttl: 168h  # Session expiry (7 days)
+  token_blacklist_ttl: 24h  # Revoked token blacklist
+
+jwt:
+  access_token_secret: "dev-access-secret-change-in-production"
+  refresh_token_secret: "dev-refresh-secret-change-in-production"
+  access_token_ttl: 15m
+  refresh_token_ttl: 168h  # 7 days
+  issuer: "goapps-iam"
+
+email:
+  smtp_host: localhost
+  smtp_port: 1025
+  smtp_user: ""
+  smtp_password: ""
+  from_address: "noreply@goapps.local"
+  from_name: "GoApps IAM"
+
+totp:
+  issuer: "GoApps"
+  digits: 6
+  period: 30  # seconds
+  algorithm: SHA1
+
+security:
+  password_min_length: 8
+  password_require_uppercase: true
+  password_require_lowercase: true
+  password_require_number: true
+  max_login_attempts: 5
+  lockout_duration: 15m
+  otp_expiry: 5m
+  reset_token_expiry: 10m
+  single_device_login: true  # Force logout previous session on new login
+
+tracing:
+  enabled: true
+  endpoint: localhost:4317
+  insecure: true
+
+rate_limit:
+  requests_per_second: 100
+  burst_size: 200
+  login_requests_per_minute: 10  # Stricter for auth endpoints
+  login_burst_size: 5
+
+logging:
+  level: debug  # debug, info, warn, error
+  format: console  # console, json

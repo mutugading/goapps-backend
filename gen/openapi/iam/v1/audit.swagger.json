@@ -1,0 +1,614 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "iam/v1/audit.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "AuditService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/iam/audit-logs": {
+      "get": {
+        "summary": "ListAuditLogs lists audit logs with search, filter, and pagination.",
+        "operationId": "AuditService_ListAuditLogs",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListAuditLogsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "search",
+            "description": "Search in username, full_name, table_name.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "eventType",
+            "description": "Filter by event type.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "EVENT_TYPE_UNSPECIFIED",
+              "EVENT_TYPE_LOGIN",
+              "EVENT_TYPE_LOGOUT",
+              "EVENT_TYPE_LOGIN_FAILED",
+              "EVENT_TYPE_PASSWORD_RESET",
+              "EVENT_TYPE_PASSWORD_CHANGE",
+              "EVENT_TYPE_2FA_ENABLED",
+              "EVENT_TYPE_2FA_DISABLED",
+              "EVENT_TYPE_CREATE",
+              "EVENT_TYPE_UPDATE",
+              "EVENT_TYPE_DELETE",
+              "EVENT_TYPE_EXPORT",
+              "EVENT_TYPE_IMPORT"
+            ],
+            "default": "EVENT_TYPE_UNSPECIFIED"
+          },
+          {
+            "name": "userId",
+            "description": "Filter by user ID.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "tableName",
+            "description": "Filter by table name.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "serviceName",
+            "description": "Filter by service name.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "dateFrom",
+            "description": "Filter by date range (ISO 8601).",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "dateTo",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AuditService"
+        ]
+      }
+    },
+    "/api/v1/iam/audit-logs/export": {
+      "get": {
+        "summary": "ExportAuditLogs exports audit logs to Excel for compliance.",
+        "operationId": "AuditService_ExportAuditLogs",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ExportAuditLogsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "eventType",
+            "description": "Filter by event type.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "EVENT_TYPE_UNSPECIFIED",
+              "EVENT_TYPE_LOGIN",
+              "EVENT_TYPE_LOGOUT",
+              "EVENT_TYPE_LOGIN_FAILED",
+              "EVENT_TYPE_PASSWORD_RESET",
+              "EVENT_TYPE_PASSWORD_CHANGE",
+              "EVENT_TYPE_2FA_ENABLED",
+              "EVENT_TYPE_2FA_DISABLED",
+              "EVENT_TYPE_CREATE",
+              "EVENT_TYPE_UPDATE",
+              "EVENT_TYPE_DELETE",
+              "EVENT_TYPE_EXPORT",
+              "EVENT_TYPE_IMPORT"
+            ],
+            "default": "EVENT_TYPE_UNSPECIFIED"
+          },
+          {
+            "name": "userId",
+            "description": "Filter by user ID.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "tableName",
+            "description": "Filter by table name.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "serviceName",
+            "description": "Filter by service name.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "dateFrom",
+            "description": "Filter by date range (ISO 8601).",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "dateTo",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AuditService"
+        ]
+      }
+    },
+    "/api/v1/iam/audit-logs/summary": {
+      "get": {
+        "summary": "GetAuditSummary gets audit statistics for dashboard.",
+        "operationId": "AuditService_GetAuditSummary",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetAuditSummaryResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "timeRange",
+            "description": "Time range for summary: \"today\", \"week\", \"month\", \"year\".",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "serviceName",
+            "description": "Filter by service name (optional).",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AuditService"
+        ]
+      }
+    },
+    "/api/v1/iam/audit-logs/{logId}": {
+      "get": {
+        "summary": "GetAuditLog retrieves a single audit log entry.",
+        "operationId": "AuditService_GetAuditLog",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetAuditLogResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "logId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AuditService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1AuditLog": {
+      "type": "object",
+      "properties": {
+        "logId": {
+          "type": "string"
+        },
+        "eventType": {
+          "$ref": "#/definitions/v1EventType"
+        },
+        "tableName": {
+          "type": "string",
+          "description": "Table name for CRUD events (null for auth events)."
+        },
+        "recordId": {
+          "type": "string",
+          "description": "Record ID affected (null for auth events)."
+        },
+        "userId": {
+          "type": "string",
+          "description": "User who performed the action."
+        },
+        "username": {
+          "type": "string",
+          "description": "Username (denormalized for history)."
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Full name (denormalized)."
+        },
+        "ipAddress": {
+          "type": "string",
+          "description": "IP address of the request."
+        },
+        "userAgent": {
+          "type": "string",
+          "description": "User agent string."
+        },
+        "serviceName": {
+          "type": "string",
+          "description": "Service name (iam, finance, hr, etc.)."
+        },
+        "oldData": {
+          "type": "string",
+          "description": "Previous state (JSON, for UPDATE/DELETE)."
+        },
+        "newData": {
+          "type": "string",
+          "description": "New state (JSON, for CREATE/UPDATE)."
+        },
+        "changes": {
+          "type": "string",
+          "description": "Changed fields only (JSON)."
+        },
+        "performedAt": {
+          "type": "string",
+          "description": "When the action was performed."
+        }
+      },
+      "description": "AuditLog represents a single audit log entry."
+    },
+    "v1AuditSummary": {
+      "type": "object",
+      "properties": {
+        "totalEvents": {
+          "type": "string",
+          "format": "int64",
+          "description": "Total events in time range."
+        },
+        "loginCount": {
+          "type": "string",
+          "format": "int64",
+          "description": "Login counts."
+        },
+        "loginFailedCount": {
+          "type": "string",
+          "format": "int64"
+        },
+        "logoutCount": {
+          "type": "string",
+          "format": "int64"
+        },
+        "createCount": {
+          "type": "string",
+          "format": "int64",
+          "description": "CRUD counts."
+        },
+        "updateCount": {
+          "type": "string",
+          "format": "int64"
+        },
+        "deleteCount": {
+          "type": "string",
+          "format": "int64"
+        },
+        "exportCount": {
+          "type": "string",
+          "format": "int64",
+          "description": "Export/Import counts."
+        },
+        "importCount": {
+          "type": "string",
+          "format": "int64"
+        },
+        "topUsers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1UserActivityInfo"
+          },
+          "description": "Most active users."
+        },
+        "eventsByHour": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1HourlyCount"
+          },
+          "description": "Events by hour (for chart)."
+        }
+      },
+      "description": "AuditSummary contains audit statistics."
+    },
+    "v1BaseResponse": {
+      "type": "object",
+      "properties": {
+        "validationErrors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ValidationError"
+          },
+          "description": "List of validation errors if any."
+        },
+        "statusCode": {
+          "type": "string",
+          "description": "HTTP-like status code (e.g., \"200\", \"400\", \"404\", \"500\")."
+        },
+        "isSuccess": {
+          "type": "boolean",
+          "description": "Indicates if the operation was successful."
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable message describing the result."
+        }
+      },
+      "description": "BaseResponse is the standard response wrapper for all API responses."
+    },
+    "v1EventType": {
+      "type": "string",
+      "enum": [
+        "EVENT_TYPE_UNSPECIFIED",
+        "EVENT_TYPE_LOGIN",
+        "EVENT_TYPE_LOGOUT",
+        "EVENT_TYPE_LOGIN_FAILED",
+        "EVENT_TYPE_PASSWORD_RESET",
+        "EVENT_TYPE_PASSWORD_CHANGE",
+        "EVENT_TYPE_2FA_ENABLED",
+        "EVENT_TYPE_2FA_DISABLED",
+        "EVENT_TYPE_CREATE",
+        "EVENT_TYPE_UPDATE",
+        "EVENT_TYPE_DELETE",
+        "EVENT_TYPE_EXPORT",
+        "EVENT_TYPE_IMPORT"
+      ],
+      "default": "EVENT_TYPE_UNSPECIFIED",
+      "description": "EventType represents the type of audit event."
+    },
+    "v1ExportAuditLogsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte"
+        },
+        "fileName": {
+          "type": "string"
+        }
+      }
+    },
+    "v1GetAuditLogResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1AuditLog"
+        }
+      }
+    },
+    "v1GetAuditSummaryResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1AuditSummary"
+        }
+      }
+    },
+    "v1HourlyCount": {
+      "type": "object",
+      "properties": {
+        "hour": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Hour in 0-23 format."
+        },
+        "count": {
+          "type": "string",
+          "format": "int64"
+        }
+      },
+      "description": "HourlyCount represents event count by hour."
+    },
+    "v1ListAuditLogsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1AuditLog"
+          }
+        },
+        "pagination": {
+          "$ref": "#/definitions/v1PaginationResponse"
+        }
+      }
+    },
+    "v1PaginationResponse": {
+      "type": "object",
+      "properties": {
+        "currentPage": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Current page number."
+        },
+        "pageSize": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of items per page."
+        },
+        "totalItems": {
+          "type": "string",
+          "format": "int64",
+          "description": "Total number of items across all pages."
+        },
+        "totalPages": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Total number of pages."
+        }
+      },
+      "description": "PaginationResponse contains pagination metadata for list responses."
+    },
+    "v1UserActivityInfo": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        },
+        "fullName": {
+          "type": "string"
+        },
+        "eventCount": {
+          "type": "string",
+          "format": "int64"
+        }
+      },
+      "description": "UserActivityInfo represents user activity count."
+    },
+    "v1ValidationError": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "description": "The field name that failed validation."
+        },
+        "message": {
+          "type": "string",
+          "description": "The validation error message."
+        }
+      },
+      "description": "ValidationError represents a single field validation error."
+    }
+  }
+}
