@@ -20,9 +20,16 @@ type Config struct {
 	Email     EmailConfig     `mapstructure:"email"`
 	TOTP      TOTPConfig      `mapstructure:"totp"`
 	Security  SecurityConfig  `mapstructure:"security"`
+	CORS      CORSConfig      `mapstructure:"cors"`
 	Tracing   TracingConfig   `mapstructure:"tracing"`
 	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
 	Logger    LoggerConfig    `mapstructure:"logging"`
+}
+
+// CORSConfig holds CORS configuration for SSO multi-app support.
+type CORSConfig struct {
+	AllowedOrigins []string `mapstructure:"allowed_origins"`
+	MaxAge         int      `mapstructure:"max_age"`
 }
 
 // AppConfig holds application-level configuration.
@@ -93,6 +100,8 @@ type EmailConfig struct {
 	SMTPPassword string `mapstructure:"smtp_password"`
 	FromAddress  string `mapstructure:"from_address"`
 	FromName     string `mapstructure:"from_name"`
+	UseTLS       bool   `mapstructure:"use_tls"`
+	SkipVerify   bool   `mapstructure:"skip_verify"`
 }
 
 // TOTPConfig holds TOTP 2FA configuration.
@@ -219,6 +228,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("email.smtp_password", "")
 	v.SetDefault("email.from_address", "noreply@goapps.local")
 	v.SetDefault("email.from_name", "GoApps IAM")
+	v.SetDefault("email.use_tls", false)
+	v.SetDefault("email.skip_verify", true)
 
 	// TOTP defaults
 	v.SetDefault("totp.issuer", "GoApps")
@@ -236,6 +247,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("security.otp_expiry", 5*time.Minute)
 	v.SetDefault("security.reset_token_expiry", 10*time.Minute)
 	v.SetDefault("security.single_device_login", true)
+
+	// CORS defaults (comma-separated origins for SSO multi-app)
+	v.SetDefault("cors.allowed_origins", []string{"http://localhost:3000"})
+	v.SetDefault("cors.max_age", 300)
 
 	// Rate limit defaults
 	v.SetDefault("rate_limit.requests_per_second", 100)
@@ -277,6 +292,12 @@ func bindEnvVars(v *viper.Viper) {
 		{"email.smtp_port", "SMTP_PORT"},
 		{"email.smtp_user", "SMTP_USER"},
 		{"email.smtp_password", "SMTP_PASSWORD"},
+		{"email.from_address", "SMTP_FROM_ADDRESS"},
+		{"email.from_name", "SMTP_FROM_NAME"},
+		{"email.use_tls", "SMTP_USE_TLS"},
+		{"email.skip_verify", "SMTP_SKIP_VERIFY"},
+		// CORS
+		{"cors.allowed_origins", "CORS_ALLOWED_ORIGINS"},
 		// Tracing
 		{"tracing.enabled", "TRACING_ENABLED"},
 		{"tracing.endpoint", "JAEGER_ENDPOINT"},

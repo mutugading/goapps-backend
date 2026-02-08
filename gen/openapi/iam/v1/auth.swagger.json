@@ -614,7 +614,7 @@
         },
         "totpCode": {
           "type": "string",
-          "description": "Optional TOTP code if 2FA is enabled."
+          "description": "TOTP code for 2FA login. Leave empty if 2FA is not enabled.\nValidation is skipped when empty; application layer handles the 2FA check."
         },
         "deviceInfo": {
           "type": "string",

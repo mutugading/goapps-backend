@@ -28,21 +28,22 @@ type Server struct {
 }
 
 // NewServer creates a new gRPC server with all interceptors.
-func NewServer(cfg *config.ServerConfig, db *postgres.DB) (*Server, error) {
+func NewServer(cfg *config.ServerConfig, db *postgres.DB, jwtCfg *config.JWTConfig, blacklist TokenBlacklistChecker) (*Server, error) {
 	// Create rate limiter
 	rateLimiter := NewRateLimiter(100) // 100 requests per second default
 
-	// Chain interceptors in order
-	// Note: Validation is now handled at handler level to return proper BaseResponse
+	// Chain interceptors in order (outermost first)
 	unaryChain := grpc.ChainUnaryInterceptor(
+		StructuredErrorInterceptor(),       // 0. Wrap gRPC errors into BaseResponse
 		RecoveryInterceptor(),              // 1. Recover from panics first
 		RequestIDInterceptor(),             // 2. Add request ID
 		TracingInterceptor(),               // 3. Add tracing span
 		MetricsInterceptor(),               // 4. Record metrics
 		RateLimitInterceptor(rateLimiter),  // 5. Rate limiting
-		LoggingInterceptor(),               // 6. Log request
-		TimeoutInterceptor(30*time.Second), // 7. Enforce timeout
-		// ValidationInterceptor removed - now handled in handler for proper BaseResponse format
+		AuthInterceptor(jwtCfg, blacklist), // 6. JWT authentication + blacklist
+		PermissionInterceptor(),            // 7. RBAC permission check
+		LoggingInterceptor(),               // 8. Log request
+		TimeoutInterceptor(30*time.Second), // 9. Enforce timeout
 	)
 
 	// Server options

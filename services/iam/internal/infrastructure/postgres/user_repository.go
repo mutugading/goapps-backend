@@ -590,6 +590,54 @@ func (r *UserRepository) BatchCreate(ctx context.Context, users []*user.User, de
 	return count, err
 }
 
+// StoreRecoveryCodes stores hashed recovery codes for a user.
+func (r *UserRepository) StoreRecoveryCodes(ctx context.Context, userID uuid.UUID, hashedCodes []string) error {
+	return r.db.Transaction(ctx, func(tx *sql.Tx) error {
+		// Delete existing codes
+		if _, err := tx.ExecContext(ctx, "DELETE FROM user_recovery_codes WHERE user_id = $1", userID); err != nil {
+			return fmt.Errorf("failed to delete existing recovery codes: %w", err)
+		}
+
+		// Insert new codes
+		for _, code := range hashedCodes {
+			_, err := tx.ExecContext(ctx,
+				"INSERT INTO user_recovery_codes (user_id, code_hash) VALUES ($1, $2)",
+				userID, code,
+			)
+			if err != nil {
+				return fmt.Errorf("failed to insert recovery code: %w", err)
+			}
+		}
+		return nil
+	})
+}
+
+// DeleteRecoveryCodes deletes all recovery codes for a user.
+func (r *UserRepository) DeleteRecoveryCodes(ctx context.Context, userID uuid.UUID) error {
+	_, err := r.db.ExecContext(ctx, "DELETE FROM user_recovery_codes WHERE user_id = $1", userID)
+	if err != nil {
+		return fmt.Errorf("failed to delete recovery codes: %w", err)
+	}
+	return nil
+}
+
+// UseRecoveryCode marks a recovery code as used if it exists and is unused.
+func (r *UserRepository) UseRecoveryCode(ctx context.Context, userID uuid.UUID, codeHash string) (bool, error) {
+	result, err := r.db.ExecContext(ctx,
+		"DELETE FROM user_recovery_codes WHERE user_id = $1 AND code_hash = $2 AND used_at IS NULL",
+		userID, codeHash,
+	)
+	if err != nil {
+		return false, fmt.Errorf("failed to use recovery code: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	return rows > 0, nil
+}
+
 // Helper structs for scanning
 type userRow struct {
 	ID                  uuid.UUID

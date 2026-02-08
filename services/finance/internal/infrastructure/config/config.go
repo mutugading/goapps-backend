@@ -12,12 +12,27 @@ import (
 
 // Config holds all configuration for the service.
 type Config struct {
-	App      AppConfig      `mapstructure:"app"`
-	Server   ServerConfig   `mapstructure:"server"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Redis    RedisConfig    `mapstructure:"redis"`
-	Tracing  TracingConfig  `mapstructure:"tracing"`
-	Logger   LoggerConfig   `mapstructure:"logger"`
+	App       AppConfig       `mapstructure:"app"`
+	Server    ServerConfig    `mapstructure:"server"`
+	Database  DatabaseConfig  `mapstructure:"database"`
+	Redis     RedisConfig     `mapstructure:"redis"`
+	AuthRedis AuthRedisConfig `mapstructure:"auth_redis"`
+	JWT       JWTConfig       `mapstructure:"jwt"`
+	CORS      CORSConfig      `mapstructure:"cors"`
+	Tracing   TracingConfig   `mapstructure:"tracing"`
+	Logger    LoggerConfig    `mapstructure:"logger"`
+}
+
+// CORSConfig holds CORS configuration for SSO multi-app support.
+type CORSConfig struct {
+	AllowedOrigins []string `mapstructure:"allowed_origins"`
+	MaxAge         int      `mapstructure:"max_age"`
+}
+
+// JWTConfig holds JWT validation configuration (shared secret with IAM).
+type JWTConfig struct {
+	AccessTokenSecret string `mapstructure:"access_token_secret"`
+	Issuer            string `mapstructure:"issuer"`
 }
 
 // AppConfig holds application-level configuration.
@@ -65,6 +80,20 @@ type RedisConfig struct {
 
 // Address returns the Redis address.
 func (c *RedisConfig) Address() string {
+	return fmt.Sprintf("%s:%d", c.Host, c.Port)
+}
+
+// AuthRedisConfig holds Redis configuration for the shared auth blacklist.
+// This connects to the same Redis used by IAM for token revocation.
+type AuthRedisConfig struct {
+	Host     string `mapstructure:"host"`
+	Port     int    `mapstructure:"port"`
+	Password string `mapstructure:"password"`
+	DB       int    `mapstructure:"db"`
+}
+
+// Address returns the auth Redis address.
+func (c *AuthRedisConfig) Address() string {
 	return fmt.Sprintf("%s:%d", c.Host, c.Port)
 }
 
@@ -148,11 +177,25 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("database.max_idle_conns", 5)
 	v.SetDefault("database.conn_max_lifetime", 5*time.Minute)
 
-	// Redis defaults
+	// JWT defaults (must match IAM service secret for token validation)
+	v.SetDefault("jwt.access_token_secret", "change-this-in-production")
+	v.SetDefault("jwt.issuer", "goapps-iam")
+
+	// Redis defaults (UOM cache)
 	v.SetDefault("redis.host", "localhost")
 	v.SetDefault("redis.port", 6379)
 	v.SetDefault("redis.password", "")
 	v.SetDefault("redis.db", 0)
+
+	// Auth Redis defaults (shared with IAM for token blacklist)
+	v.SetDefault("auth_redis.host", "localhost")
+	v.SetDefault("auth_redis.port", 6379)
+	v.SetDefault("auth_redis.password", "")
+	v.SetDefault("auth_redis.db", 1)
+
+	// CORS defaults (comma-separated origins for SSO multi-app)
+	v.SetDefault("cors.allowed_origins", []string{"http://localhost:3000"})
+	v.SetDefault("cors.max_age", 300)
 
 	// Tracing defaults
 	v.SetDefault("tracing.enabled", true)
@@ -180,10 +223,19 @@ func bindEnvVars(v *viper.Viper) {
 		{"database.password", "DATABASE_PASSWORD"},
 		{"database.dbname", "DATABASE_NAME"},
 		{"database.sslmode", "DATABASE_SSLMODE"},
-		// Redis
+		// JWT (shared secret with IAM)
+		{"jwt.access_token_secret", "JWT_ACCESS_SECRET"},
+		// Redis (UOM cache)
 		{"redis.host", "REDIS_HOST"},
 		{"redis.port", "REDIS_PORT"},
 		{"redis.password", "REDIS_PASSWORD"},
+		// Auth Redis (shared blacklist with IAM)
+		{"auth_redis.host", "AUTH_REDIS_HOST"},
+		{"auth_redis.port", "AUTH_REDIS_PORT"},
+		{"auth_redis.password", "AUTH_REDIS_PASSWORD"},
+		{"auth_redis.db", "AUTH_REDIS_DB"},
+		// CORS
+		{"cors.allowed_origins", "CORS_ALLOWED_ORIGINS"},
 		// Tracing
 		{"tracing.enabled", "TRACING_ENABLED"},
 		{"tracing.endpoint", "JAEGER_ENDPOINT"},

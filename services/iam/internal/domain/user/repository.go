@@ -35,6 +35,11 @@ type Repository interface {
 
 	// Role and Permission operations
 	GetRolesAndPermissions(ctx context.Context, userID uuid.UUID) ([]RoleRef, []PermissionRef, error)
+
+	// Recovery code operations
+	StoreRecoveryCodes(ctx context.Context, userID uuid.UUID, hashedCodes []string) error
+	DeleteRecoveryCodes(ctx context.Context, userID uuid.UUID) error
+	UseRecoveryCode(ctx context.Context, userID uuid.UUID, codeHash string) (bool, error)
 }
 
 // RoleRef represents a reference to a role with minimal fields.

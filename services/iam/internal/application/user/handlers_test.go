@@ -112,6 +112,21 @@ func (m *MockUserRepo) GetRolesAndPermissions(ctx context.Context, userID uuid.U
 	return args.Get(0).([]user.RoleRef), args.Get(1).([]user.PermissionRef), args.Error(2)
 }
 
+func (m *MockUserRepo) StoreRecoveryCodes(ctx context.Context, userID uuid.UUID, hashedCodes []string) error {
+	args := m.Called(ctx, userID, hashedCodes)
+	return args.Error(0)
+}
+
+func (m *MockUserRepo) DeleteRecoveryCodes(ctx context.Context, userID uuid.UUID) error {
+	args := m.Called(ctx, userID)
+	return args.Error(0)
+}
+
+func (m *MockUserRepo) UseRecoveryCode(ctx context.Context, userID uuid.UUID, codeHash string) (bool, error) {
+	args := m.Called(ctx, userID, codeHash)
+	return args.Bool(0), args.Error(1)
+}
+
 // MockUserRoleRepo is a mock implementation of role.UserRoleRepository.
 type MockUserRoleRepo struct {
 	mock.Mock

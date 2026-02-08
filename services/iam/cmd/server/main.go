@@ -16,6 +16,7 @@ import (
 	grpcdelivery "github.com/mutugading/goapps-backend/services/iam/internal/delivery/grpc"
 	httpdelivery "github.com/mutugading/goapps-backend/services/iam/internal/delivery/httpdelivery"
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/config"
+	emailinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/email"
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/jwt"
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/postgres"
 	redisinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/redis"
@@ -91,6 +92,10 @@ func run() error {
 		&cfg.Security,
 	)
 
+	// Setup email service
+	emailService := emailinfra.NewService(&cfg.Email)
+	authService.SetEmailService(emailService)
+
 	// Setup validation helper
 	validationHelper, err := grpcdelivery.NewValidationHelper()
 	if err != nil {
@@ -110,8 +115,8 @@ func run() error {
 	departmentHandler := grpcdelivery.NewDepartmentHandler(departmentRepo, validationHelper)
 	sectionHandler := grpcdelivery.NewSectionHandler(sectionRepo, validationHelper)
 
-	// Setup gRPC server with interceptor chain
-	grpcServer, err := grpcdelivery.NewServer(&cfg.Server, db)
+	// Setup gRPC server with interceptor chain (pass JWT + session cache for auth)
+	grpcServer, err := grpcdelivery.NewServer(&cfg.Server, db, jwtService, sessionCache)
 	if err != nil {
 		return err
 	}
@@ -138,7 +143,9 @@ func run() error {
 	}()
 
 	// Start HTTP gateway (Swagger, health, metrics, CORS)
-	httpServer := httpdelivery.NewServer(&cfg.Server)
+	httpServer := httpdelivery.NewServer(&cfg.Server,
+		httpdelivery.WithCORS(cfg.CORS.AllowedOrigins, cfg.CORS.MaxAge),
+	)
 	go func() {
 		if err := httpServer.Start(ctx); err != nil {
 			log.Warn().Err(err).Msg("HTTP server stopped")

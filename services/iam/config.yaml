@@ -24,9 +24,9 @@ database:
 
 redis:
   host: localhost
-  port: 6380
+  port: 6379  # Shared Redis instance (use docker-compose.yaml at backend root)
   password: ""
-  db: 1  # Different from finance service (db: 0)
+  db: 1  # DB 1 for IAM (sessions, blacklist, OTP). Finance uses DB 0 for cache.
   session_ttl: 168h  # Session expiry (7 days)
   token_blacklist_ttl: 24h  # Revoked token blacklist
 
@@ -37,6 +37,11 @@ jwt:
   refresh_token_ttl: 168h  # 7 days
   issuer: "goapps-iam"
 
+cors:
+  allowed_origins:
+    - "http://localhost:3000"
+  max_age: 300
+
 email:
   smtp_host: localhost
   smtp_port: 1025
@@ -44,6 +49,8 @@ email:
   smtp_password: ""
   from_address: "noreply@goapps.local"
   from_name: "GoApps IAM"
+  use_tls: false
+  skip_verify: true
 
 totp:
   issuer: "GoApps"

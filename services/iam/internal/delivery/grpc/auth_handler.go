@@ -307,20 +307,11 @@ func (h *AuthHandler) GetCurrentUser(ctx context.Context, _ *iamv1.GetCurrentUse
 }
 
 // getUserIDFromContext extracts the user ID from the context.
+// The user ID is set by AuthInterceptor using the UserIDKey typed context key.
 func getUserIDFromContext(ctx context.Context) (uuid.UUID, error) {
-	// This would typically use grpc metadata or a custom context key
-	// set by an auth interceptor
-	userIDVal := ctx.Value("user_id")
-	if userIDVal == nil {
+	userIDStr, ok := GetUserIDFromCtx(ctx)
+	if !ok {
 		return uuid.Nil, shared.ErrUnauthorized
 	}
-
-	switch v := userIDVal.(type) {
-	case string:
-		return uuid.Parse(v)
-	case uuid.UUID:
-		return v, nil
-	default:
-		return uuid.Nil, shared.ErrUnauthorized
-	}
+	return uuid.Parse(userIDStr)
 }

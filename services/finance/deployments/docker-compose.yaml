@@ -1,4 +1,6 @@
 name: finance-infra
+# NOTE: Prefer using the shared docker-compose.yaml at the backend root.
+# This per-service compose is for Finance-only development.
 
 services:
   # PostgreSQL Database
