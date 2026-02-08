@@ -8,6 +8,7 @@ import (
 	"regexp"
 
 	"golang.org/x/crypto/argon2"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // Argon2id configuration parameters.
@@ -157,6 +158,19 @@ func splitHash(s string) []string {
 		}
 	}
 	return parts
+}
+
+// VerifyBcryptLegacy verifies a password against a legacy bcrypt hash.
+// This supports gradual migration from bcrypt to argon2id.
+func VerifyBcryptLegacy(password, hash string) (bool, error) {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	if err != nil {
+		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 // GenerateTemporaryPassword generates a random temporary password.

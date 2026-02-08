@@ -1,4 +1,6 @@
 name: iam-infra
+# NOTE: Prefer using the shared docker-compose.yaml at the backend root.
+# This per-service compose is for IAM-only development (Redis on port 6380).
 
 services:
   # PostgreSQL Database for IAM
@@ -34,6 +36,19 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - iam-network
+
+  # Mailpit - Email Testing (SMTP on 1025, Web UI on 8025)
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: iam-mailpit
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
     networks:
       - iam-network
 

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -180,6 +181,58 @@ func (c *OTPCache) GetResetToken(ctx context.Context, token string) (uuid.UUID, 
 	// Delete after retrieval
 	_ = c.client.Del(ctx, key)
 	return uuid.Parse(val)
+}
+
+const (
+	twoFASecretPrefix = "iam:2fa_setup:" //nolint:gosec // Not a credential, just a Redis key prefix.
+	twoFACodesPrefix  = "iam:2fa_codes:" //nolint:gosec // Not a credential, just a Redis key prefix.
+)
+
+// Store2FASetup stores a pending 2FA secret and recovery codes in Redis.
+func (c *OTPCache) Store2FASetup(ctx context.Context, userID uuid.UUID, secret string, recoveryCodes []string, ttl time.Duration) error {
+	key := twoFASecretPrefix + userID.String()
+	if err := c.client.Set(ctx, key, secret, ttl).Err(); err != nil {
+		return err
+	}
+
+	// Store recovery codes as a comma-separated string
+	codesKey := twoFACodesPrefix + userID.String()
+	codesStr := strings.Join(recoveryCodes, ",")
+	return c.client.Set(ctx, codesKey, codesStr, ttl).Err()
+}
+
+// Get2FASetup retrieves a pending 2FA secret and recovery codes from Redis.
+func (c *OTPCache) Get2FASetup(ctx context.Context, userID uuid.UUID) (string, []string, error) {
+	key := twoFASecretPrefix + userID.String()
+	secret, err := c.client.Get(ctx, key).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return "", nil, nil
+		}
+		return "", nil, err
+	}
+
+	codesKey := twoFACodesPrefix + userID.String()
+	codesStr, err := c.client.Get(ctx, codesKey).Result()
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return secret, nil, err
+	}
+
+	var codes []string
+	if codesStr != "" {
+		codes = strings.Split(codesStr, ",")
+	}
+
+	return secret, codes, nil
+}
+
+// Delete2FASetup removes a pending 2FA setup from Redis.
+func (c *OTPCache) Delete2FASetup(ctx context.Context, userID uuid.UUID) error {
+	pipe := c.client.Pipeline()
+	pipe.Del(ctx, twoFASecretPrefix+userID.String())
+	pipe.Del(ctx, twoFACodesPrefix+userID.String())
+	_, err := pipe.Exec(ctx)
+	return err
 }
 
 // RateLimitCache provides rate limiting functionality.

@@ -62,6 +62,12 @@ func run() error {
 		defer closeRedis(redisClient)
 	}
 
+	// Setup shared auth Redis for token blacklist (optional - graceful degradation)
+	tokenBlacklist := setupAuthRedis(cfg)
+	if tokenBlacklist != nil {
+		defer closeAuthRedis(tokenBlacklist)
+	}
+
 	// Setup repository
 	uomRepo := postgres.NewUOMRepository(db)
 
@@ -72,7 +78,7 @@ func run() error {
 	}
 
 	// Setup and start servers
-	return startServers(ctx, cfg, uomHandler)
+	return startServers(ctx, cfg, uomHandler, tokenBlacklist)
 }
 
 // setupLogger configures the application logger.
@@ -151,10 +157,27 @@ func closeRedis(client *redisinfra.Client) {
 	}
 }
 
+// setupAuthRedis creates a Redis connection to IAM's shared blacklist (optional).
+func setupAuthRedis(cfg *config.Config) *redisinfra.TokenBlacklist {
+	blacklist, err := redisinfra.NewTokenBlacklist(&cfg.AuthRedis)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to connect to auth Redis, continuing without token blacklist")
+		return nil
+	}
+	return blacklist
+}
+
+// closeAuthRedis closes the auth Redis connection.
+func closeAuthRedis(bl *redisinfra.TokenBlacklist) {
+	if err := bl.Close(); err != nil {
+		log.Warn().Err(err).Msg("Failed to close auth Redis connection")
+	}
+}
+
 // startServers starts the gRPC and HTTP servers and handles graceful shutdown.
-func startServers(ctx context.Context, cfg *config.Config, uomHandler *grpcdelivery.UOMHandler) error {
-	// Setup gRPC server
-	grpcServer, err := grpcdelivery.NewServer(&cfg.Server, nil)
+func startServers(ctx context.Context, cfg *config.Config, uomHandler *grpcdelivery.UOMHandler, tokenBlacklist *redisinfra.TokenBlacklist) error {
+	// Setup gRPC server with JWT auth and token blacklist
+	grpcServer, err := grpcdelivery.NewServer(&cfg.Server, nil, &cfg.JWT, tokenBlacklist)
 	if err != nil {
 		return err
 	}
@@ -169,8 +192,10 @@ func startServers(ctx context.Context, cfg *config.Config, uomHandler *grpcdeliv
 		}
 	}()
 
-	// Start HTTP gateway
-	httpServer := httpdelivery.NewServer(&cfg.Server)
+	// Start HTTP gateway with CORS config
+	httpServer := httpdelivery.NewServer(&cfg.Server,
+		httpdelivery.WithCORS(cfg.CORS.AllowedOrigins, cfg.CORS.MaxAge),
+	)
 	go func() {
 		if err := httpServer.Start(ctx); err != nil {
 			log.Warn().Err(err).Msg("HTTP server stopped")

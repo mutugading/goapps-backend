@@ -1,0 +1,101 @@
+# Shared Infrastructure for GoApps Local Development
+# Usage: docker compose up -d
+# This starts ALL infrastructure needed by both IAM and Finance services.
+name: goapps-infra
+
+services:
+  # PostgreSQL for IAM Service
+  iam-postgres:
+    image: postgres:18-alpine
+    container_name: goapps-iam-postgres
+    ports:
+      - "5435:5432"
+    environment:
+      POSTGRES_DB: iam_db
+      POSTGRES_USER: iam
+      POSTGRES_PASSWORD: iam123
+    volumes:
+      - iam_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iam -d iam_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - goapps
+
+  # PostgreSQL for Finance Service
+  finance-postgres:
+    image: postgres:18-alpine
+    container_name: goapps-finance-postgres
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_DB: finance_db
+      POSTGRES_USER: finance
+      POSTGRES_PASSWORD: finance123
+    volumes:
+      - finance_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finance -d finance_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - goapps
+
+  # Shared Redis (used by both IAM and Finance)
+  # IAM uses DB 1 (sessions, blacklist, OTP, rate limit)
+  # Finance uses DB 0 (UOM cache) and reads DB 1 (token blacklist)
+  redis:
+    image: redis:7-alpine
+    container_name: goapps-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - goapps
+
+  # Mailpit - Email Testing (SMTP + Web UI)
+  # SMTP: localhost:1025 | Web UI: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: goapps-mailpit
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    networks:
+      - goapps
+
+  # Jaeger - Distributed Tracing
+  # UI: http://localhost:16686
+  jaeger:
+    image: jaegertracing/all-in-one:1.55
+    container_name: goapps-jaeger
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14268:14268"  # Collector HTTP
+      - "4317:4317"    # OTLP gRPC
+      - "4318:4318"    # OTLP HTTP
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - goapps
+
+volumes:
+  iam_postgres_data:
+  finance_postgres_data:
+  redis_data:
+
+networks:
+  goapps:
+    driver: bridge

@@ -4,6 +4,7 @@ package httpdelivery
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -13,7 +14,9 @@ import (
 	"github.com/rs/cors"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	financev1 "github.com/mutugading/goapps-backend/gen/finance/v1"
@@ -25,16 +28,39 @@ var swaggerJSON []byte
 
 // Server represents the HTTP server.
 type Server struct {
-	server     *http.Server
-	grpcTarget string
-	config     *config.ServerConfig
+	server         *http.Server
+	grpcTarget     string
+	config         *config.ServerConfig
+	allowedOrigins []string
+	corsMaxAge     int
 }
 
 // NewServer creates a new HTTP server.
-func NewServer(cfg *config.ServerConfig) *Server {
-	return &Server{
-		config:     cfg,
-		grpcTarget: fmt.Sprintf("localhost:%d", cfg.GRPCPort),
+func NewServer(cfg *config.ServerConfig, opts ...Option) *Server {
+	s := &Server{
+		config:         cfg,
+		grpcTarget:     fmt.Sprintf("localhost:%d", cfg.GRPCPort),
+		allowedOrigins: []string{"http://localhost:3000"},
+		corsMaxAge:     300,
+	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
+}
+
+// Option configures the HTTP server.
+type Option func(*Server)
+
+// WithCORS sets CORS allowed origins and max age.
+func WithCORS(origins []string, maxAge int) Option {
+	return func(s *Server) {
+		if len(origins) > 0 {
+			s.allowedOrigins = origins
+		}
+		if maxAge > 0 {
+			s.corsMaxAge = maxAge
+		}
 	}
 }
 
@@ -51,6 +77,7 @@ func (s *Server) Start(ctx context.Context) error {
 				DiscardUnknown: true,
 			},
 		}),
+		runtime.WithErrorHandler(baseResponseErrorHandler),
 	)
 
 	// Connect to gRPC server
@@ -78,14 +105,14 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/swagger/", s.swaggerHandler)
 	mux.HandleFunc("/swagger.json", s.swaggerJSONHandler)
 
-	// CORS middleware
+	// CORS middleware (configurable for SSO multi-app support)
 	corsHandler := cors.New(cors.Options{
-		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Request-ID"},
+		AllowedOrigins:   s.allowedOrigins,
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Request-ID", "X-Requested-With"},
 		ExposedHeaders:   []string{"X-Request-ID"},
 		AllowCredentials: true,
-		MaxAge:           300,
+		MaxAge:           s.corsMaxAge,
 	}).Handler(mux)
 
 	// Create server
@@ -149,6 +176,57 @@ func (s *Server) swaggerJSONHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if _, err := w.Write(swaggerJSON); err != nil {
 		log.Warn().Err(err).Msg("Failed to write swagger JSON response")
+	}
+}
+
+// grpcCodeToHTTP maps gRPC status codes to HTTP status codes.
+func grpcCodeToHTTP(code codes.Code) int {
+	switch code {
+	case codes.OK:
+		return http.StatusOK
+	case codes.InvalidArgument:
+		return http.StatusBadRequest
+	case codes.Unauthenticated:
+		return http.StatusUnauthorized
+	case codes.PermissionDenied:
+		return http.StatusForbidden
+	case codes.NotFound:
+		return http.StatusNotFound
+	case codes.AlreadyExists:
+		return http.StatusConflict
+	case codes.ResourceExhausted:
+		return http.StatusTooManyRequests
+	case codes.FailedPrecondition:
+		return http.StatusPreconditionFailed
+	case codes.Unimplemented:
+		return http.StatusNotImplemented
+	case codes.Unavailable:
+		return http.StatusServiceUnavailable
+	case codes.DeadlineExceeded:
+		return http.StatusGatewayTimeout
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
+// baseResponseErrorHandler wraps gRPC errors into the standard BaseResponse JSON format.
+func baseResponseErrorHandler(_ context.Context, _ *runtime.ServeMux, _ runtime.Marshaler, w http.ResponseWriter, _ *http.Request, err error) {
+	st := status.Convert(err)
+	httpCode := grpcCodeToHTTP(st.Code())
+
+	resp := map[string]any{
+		"base": map[string]any{
+			"is_success":        false,
+			"status_code":       fmt.Sprintf("%d", httpCode),
+			"message":           st.Message(),
+			"validation_errors": []any{},
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(httpCode)
+	if encErr := json.NewEncoder(w).Encode(resp); encErr != nil {
+		log.Warn().Err(encErr).Msg("Failed to write error response")
 	}
 }
 

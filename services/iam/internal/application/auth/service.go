@@ -4,14 +4,15 @@ package auth
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
-	"golang.org/x/crypto/bcrypt"
 
 	"github.com/mutugading/goapps-backend/services/iam/internal/domain/audit"
 	domainAuth "github.com/mutugading/goapps-backend/services/iam/internal/domain/auth"
@@ -20,9 +21,18 @@ import (
 	"github.com/mutugading/goapps-backend/services/iam/internal/domain/user"
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/config"
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/jwt"
+	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/password"
 	redisinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/redis"
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/totp"
 )
+
+// EmailService defines the interface for sending emails.
+type EmailService interface {
+	// SendOTP sends a password reset OTP to the user's email.
+	SendOTP(ctx context.Context, email, otp string, expiryMinutes int) error
+	// Send2FANotification sends a notification about 2FA status change.
+	Send2FANotification(ctx context.Context, email, action string) error
+}
 
 // Service implements domainAuth.Service interface.
 type Service struct {
@@ -34,6 +44,7 @@ type Service struct {
 	sessionCache   *redisinfra.SessionCache
 	otpCache       *redisinfra.OTPCache
 	rateLimitCache *redisinfra.RateLimitCache
+	emailService   EmailService
 	securityCfg    *config.SecurityConfig
 }
 
@@ -60,6 +71,11 @@ func NewService(
 		rateLimitCache: rateLimitCache,
 		securityCfg:    securityCfg,
 	}
+}
+
+// SetEmailService sets the email service (optional, for dependency injection).
+func (s *Service) SetEmailService(emailService EmailService) {
+	s.emailService = emailService
 }
 
 // Login authenticates a user and returns tokens.
@@ -136,7 +152,7 @@ func (s *Service) authenticateUser(ctx context.Context, input domainAuth.LoginIn
 		return nil, err
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash()), []byte(input.Password)); err != nil {
+	if err := s.verifyPassword(u.PasswordHash(), input.Password); err != nil {
 		s.recordFailedLogin(ctx, input.Username)
 		u.RecordLoginFailure(s.securityCfg.MaxLoginAttempts, s.securityCfg.LockoutDuration)
 		if updateErr := s.userRepo.Update(ctx, u); updateErr != nil {
@@ -305,6 +321,11 @@ func (s *Service) blacklistToken(ctx context.Context, tokenID string, expiresAtU
 
 // ForgotPassword initiates the password reset flow.
 func (s *Service) ForgotPassword(ctx context.Context, email string) (expiresIn int, err error) {
+	// OTP cache is required for password reset flow
+	if s.otpCache == nil {
+		return 0, errors.New("password reset service unavailable")
+	}
+
 	u, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
 		// Return success even if user not found (prevent email enumeration)
@@ -316,14 +337,19 @@ func (s *Service) ForgotPassword(ctx context.Context, email string) (expiresIn i
 
 	// Generate OTP
 	otp := generateOTP(6)
-	if s.otpCache != nil {
-		if err := s.otpCache.StoreOTP(ctx, u.ID(), otp); err != nil {
-			return 0, fmt.Errorf("failed to store OTP: %w", err)
-		}
+	if err := s.otpCache.StoreOTP(ctx, u.ID(), otp); err != nil {
+		return 0, fmt.Errorf("failed to store OTP: %w", err)
 	}
 
-	// TODO: Send OTP via email
-	// For now, log it (in production, implement email sending)
+	// Send OTP via email (if email service is configured)
+	if s.emailService != nil {
+		if err := s.emailService.SendOTP(ctx, u.Email(), otp, int(s.securityCfg.OTPExpiry.Minutes())); err != nil {
+			log.Warn().Err(err).Str("email", u.Email()).Msg("failed to send OTP email")
+			// Don't fail the request — OTP is stored, user can retry
+		}
+	} else {
+		log.Warn().Str("otp", otp).Str("email", u.Email()).Msg("Email service not configured, OTP logged for development")
+	}
 
 	s.logAudit(ctx, u.ID(), "FORGOT_PASSWORD", "Password reset requested", "", "")
 
@@ -332,25 +358,26 @@ func (s *Service) ForgotPassword(ctx context.Context, email string) (expiresIn i
 
 // VerifyResetOTP verifies the password reset OTP.
 func (s *Service) VerifyResetOTP(ctx context.Context, email, otpCode string) (resetToken string, err error) {
+	// OTP cache is required — never skip verification
+	if s.otpCache == nil {
+		return "", errors.New("password reset service unavailable")
+	}
+
 	u, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
 		return "", shared.ErrInvalidCredentials
 	}
 
-	// Verify OTP
-	if s.otpCache != nil {
-		valid, err := s.otpCache.VerifyOTP(ctx, u.ID(), otpCode)
-		if err != nil || !valid {
-			return "", shared.ErrInvalidOTP
-		}
+	// Verify OTP — this MUST always be checked
+	valid, verifyErr := s.otpCache.VerifyOTP(ctx, u.ID(), otpCode)
+	if verifyErr != nil || !valid {
+		return "", shared.ErrInvalidOTP
 	}
 
 	// Generate reset token
 	resetToken = generateResetToken()
-	if s.otpCache != nil {
-		if err := s.otpCache.StoreResetToken(ctx, resetToken, u.ID(), 15*time.Minute); err != nil {
-			return "", fmt.Errorf("failed to store reset token: %w", err)
-		}
+	if err := s.otpCache.StoreResetToken(ctx, resetToken, u.ID(), s.securityCfg.ResetTokenExpiry); err != nil {
+		return "", fmt.Errorf("failed to store reset token: %w", err)
 	}
 
 	return resetToken, nil
@@ -359,7 +386,7 @@ func (s *Service) VerifyResetOTP(ctx context.Context, email, otpCode string) (re
 // ResetPassword resets the password using a reset token.
 func (s *Service) ResetPassword(ctx context.Context, resetToken, newPassword string) error {
 	if s.otpCache == nil {
-		return errors.New("OTP cache not configured")
+		return errors.New("password reset service unavailable")
 	}
 
 	userID, err := s.otpCache.GetResetToken(ctx, resetToken)
@@ -372,13 +399,13 @@ func (s *Service) ResetPassword(ctx context.Context, resetToken, newPassword str
 		return fmt.Errorf("failed to get user: %w", err)
 	}
 
-	// Hash new password
-	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	// Hash new password using Argon2id
+	hash, err := password.Hash(newPassword)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	if err := u.UpdatePassword(string(hash), "system"); err != nil {
+	if err := u.UpdatePassword(hash, "system"); err != nil {
 		return err
 	}
 
@@ -399,17 +426,17 @@ func (s *Service) UpdatePassword(ctx context.Context, userID uuid.UUID, currentP
 	}
 
 	// Verify current password
-	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash()), []byte(currentPassword)); err != nil {
+	if err := s.verifyPassword(u.PasswordHash(), currentPassword); err != nil {
 		return shared.ErrInvalidCredentials
 	}
 
-	// Hash new password
-	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	// Hash new password using Argon2id
+	hash, err := password.Hash(newPassword)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	if err := u.UpdatePassword(string(hash), userID.String()); err != nil {
+	if err := u.UpdatePassword(hash, userID.String()); err != nil {
 		return err
 	}
 
@@ -424,6 +451,10 @@ func (s *Service) UpdatePassword(ctx context.Context, userID uuid.UUID, currentP
 
 // Enable2FA initiates 2FA setup.
 func (s *Service) Enable2FA(ctx context.Context, userID uuid.UUID) (*domainAuth.Enable2FAResult, error) {
+	if s.otpCache == nil {
+		return nil, errors.New("2FA setup service unavailable")
+	}
+
 	u, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
@@ -445,12 +476,9 @@ func (s *Service) Enable2FA(ctx context.Context, userID uuid.UUID) (*domainAuth.
 	// Generate recovery codes
 	recoveryCodes := generateRecoveryCodes(8)
 
-	// Store secret temporarily (not activated yet)
-	// User must verify with TOTP code first
-	if s.otpCache != nil {
-		if err := s.otpCache.StoreResetToken(ctx, "2fa:"+userID.String(), uuid.New(), 10*time.Minute); err != nil {
-			log.Warn().Err(err).Msg("failed to store 2FA setup token")
-		}
+	// Store pending secret in Redis (NOT activated yet — user must verify first)
+	if err := s.otpCache.Store2FASetup(ctx, userID, secret, recoveryCodes, 10*time.Minute); err != nil {
+		return nil, fmt.Errorf("failed to store 2FA setup: %w", err)
 	}
 
 	return &domainAuth.Enable2FAResult{
@@ -462,27 +490,56 @@ func (s *Service) Enable2FA(ctx context.Context, userID uuid.UUID) (*domainAuth.
 
 // Verify2FA verifies and activates 2FA.
 func (s *Service) Verify2FA(ctx context.Context, userID uuid.UUID, totpCode string) error {
+	if s.otpCache == nil {
+		return errors.New("2FA setup service unavailable")
+	}
+
 	u, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
 	}
 
-	// For initial verification, the secret should be passed from Enable2FA
-	// In production, you'd store the pending secret in cache
-	// For now, we assume the secret is already set
+	if u.TwoFactorEnabled() {
+		return shared.ErrTwoFAAlreadyEnabled
+	}
 
-	if !s.totpService.Validate(u.TwoFactorSecret(), totpCode) {
+	// Retrieve pending secret from Redis (stored by Enable2FA)
+	secret, recoveryCodes, err := s.otpCache.Get2FASetup(ctx, userID)
+	if err != nil || secret == "" {
+		return fmt.Errorf("2FA setup expired or not initiated, please call Enable2FA first")
+	}
+
+	// Validate TOTP code against the pending secret
+	if !s.totpService.Validate(secret, totpCode) {
 		return shared.ErrInvalid2FACode
 	}
 
-	// 2FA is already validated, just confirm activation
+	// Activate 2FA on the user entity
+	if err := u.Enable2FA(secret, userID.String()); err != nil {
+		return err
+	}
+
+	if err := s.userRepo.Update(ctx, u); err != nil {
+		return fmt.Errorf("failed to update user: %w", err)
+	}
+
+	// Store hashed recovery codes in database
+	if err := s.userRepo.StoreRecoveryCodes(ctx, userID, hashRecoveryCodes(recoveryCodes)); err != nil {
+		log.Warn().Err(err).Msg("failed to store recovery codes")
+	}
+
+	// Clean up the pending setup from Redis
+	if err := s.otpCache.Delete2FASetup(ctx, userID); err != nil {
+		log.Warn().Err(err).Msg("failed to clean up 2FA setup from cache")
+	}
+
 	s.logAudit(ctx, u.ID(), "ENABLE_2FA", "Two-factor authentication enabled", "", "")
 
 	return nil
 }
 
 // Disable2FA disables 2FA for a user.
-func (s *Service) Disable2FA(ctx context.Context, userID uuid.UUID, password, totpCode string) error {
+func (s *Service) Disable2FA(ctx context.Context, userID uuid.UUID, pwd, verificationCode string) error {
 	u, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
@@ -493,13 +550,16 @@ func (s *Service) Disable2FA(ctx context.Context, userID uuid.UUID, password, to
 	}
 
 	// Verify password
-	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash()), []byte(password)); err != nil {
+	if err := s.verifyPassword(u.PasswordHash(), pwd); err != nil {
 		return shared.ErrInvalidCredentials
 	}
 
-	// Verify TOTP code
-	if !s.totpService.Validate(u.TwoFactorSecret(), totpCode) {
-		return shared.ErrInvalid2FACode
+	// Verify TOTP code or recovery code
+	if !s.totpService.Validate(u.TwoFactorSecret(), verificationCode) {
+		// Try recovery code
+		if !s.verifyRecoveryCode(ctx, userID, verificationCode) {
+			return shared.ErrInvalid2FACode
+		}
 	}
 
 	if err := u.Disable2FA(userID.String()); err != nil {
@@ -510,12 +570,59 @@ func (s *Service) Disable2FA(ctx context.Context, userID uuid.UUID, password, to
 		return fmt.Errorf("failed to update user: %w", err)
 	}
 
+	// Delete recovery codes
+	if err := s.userRepo.DeleteRecoveryCodes(ctx, userID); err != nil {
+		log.Warn().Err(err).Msg("failed to delete recovery codes")
+	}
+
 	s.logAudit(ctx, u.ID(), "DISABLE_2FA", "Two-factor authentication disabled", "", "")
 
 	return nil
 }
 
 // Helper functions
+
+// verifyPassword verifies a password against a stored hash.
+// Supports both Argon2id (new) and bcrypt (legacy) formats.
+func (s *Service) verifyPassword(storedHash, plainPassword string) error {
+	// Check if hash is Argon2id format
+	if strings.HasPrefix(storedHash, "$argon2id$") {
+		match, err := password.Verify(plainPassword, storedHash)
+		if err != nil {
+			return fmt.Errorf("password verification failed: %w", err)
+		}
+		if !match {
+			return shared.ErrInvalidCredentials
+		}
+		return nil
+	}
+
+	// Legacy bcrypt support: try bcrypt for old hashes.
+	// This allows gradual migration from bcrypt to argon2id.
+	if strings.HasPrefix(storedHash, "$2a$") || strings.HasPrefix(storedHash, "$2b$") || strings.HasPrefix(storedHash, "$2y$") {
+		match, err := password.VerifyBcryptLegacy(plainPassword, storedHash)
+		if err != nil {
+			return fmt.Errorf("bcrypt verification failed: %w", err)
+		}
+		if !match {
+			return shared.ErrInvalidCredentials
+		}
+		return nil
+	}
+
+	return shared.ErrInvalidCredentials
+}
+
+// verifyRecoveryCode checks if a recovery code is valid and marks it as used.
+func (s *Service) verifyRecoveryCode(ctx context.Context, userID uuid.UUID, code string) bool {
+	codeHash := hashSingle(code)
+	used, err := s.userRepo.UseRecoveryCode(ctx, userID, codeHash)
+	if err != nil {
+		log.Warn().Err(err).Msg("failed to verify recovery code")
+		return false
+	}
+	return used
+}
 
 func (s *Service) recordFailedLogin(ctx context.Context, username string) {
 	if s.rateLimitCache != nil {
@@ -562,10 +669,24 @@ func generateResetToken() string {
 
 func generateRecoveryCodes(count int) []string {
 	codes := make([]string, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		b := make([]byte, 5)
 		_, _ = rand.Read(b) //nolint:errcheck // crypto/rand.Read never returns error on supported platforms
 		codes[i] = hex.EncodeToString(b)
 	}
 	return codes
+}
+
+// hashRecoveryCodes hashes recovery codes with SHA256 for secure storage.
+func hashRecoveryCodes(codes []string) []string {
+	hashed := make([]string, len(codes))
+	for i, code := range codes {
+		hashed[i] = hashSingle(code)
+	}
+	return hashed
+}
+
+func hashSingle(s string) string {
+	h := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(h[:])
 }

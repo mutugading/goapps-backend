@@ -12,15 +12,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"golang.org/x/crypto/bcrypt"
 
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/config"
+	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/password"
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/postgres"
 )
 
 const (
-	systemUser        = "system-seed"
-	defaultBcryptCost = bcrypt.DefaultCost
+	systemUser = "system-seed"
 )
 
 // role defines a role to seed.
@@ -51,60 +50,76 @@ func defaultRoles() []role {
 }
 
 // defaultPermissions returns the permissions to seed.
+// Permission codes MUST match the codes used in auth/permission interceptors.
 func defaultPermissions() []permission {
 	perms := []permission{
-		// IAM - User management
-		{Code: "iam.user.user.view", Name: "View Users", ServiceName: "iam", ModuleName: "user", ActionType: "view"},
-		{Code: "iam.user.user.create", Name: "Create User", ServiceName: "iam", ModuleName: "user", ActionType: "create"},
-		{Code: "iam.user.user.update", Name: "Update User", ServiceName: "iam", ModuleName: "user", ActionType: "update"},
-		{Code: "iam.user.user.delete", Name: "Delete User", ServiceName: "iam", ModuleName: "user", ActionType: "delete"},
-		{Code: "iam.user.user.export", Name: "Export Users", ServiceName: "iam", ModuleName: "user", ActionType: "export"},
-		{Code: "iam.user.user.import", Name: "Import Users", ServiceName: "iam", ModuleName: "user", ActionType: "import"},
+		// IAM - User Account management
+		{Code: "iam.user.account.view", Name: "View Users", ServiceName: "iam", ModuleName: "user", ActionType: "view"},
+		{Code: "iam.user.account.create", Name: "Create User", ServiceName: "iam", ModuleName: "user", ActionType: "create"},
+		{Code: "iam.user.account.update", Name: "Update User", ServiceName: "iam", ModuleName: "user", ActionType: "update"},
+		{Code: "iam.user.account.delete", Name: "Delete User", ServiceName: "iam", ModuleName: "user", ActionType: "delete"},
+		{Code: "iam.user.account.export", Name: "Export Users", ServiceName: "iam", ModuleName: "user", ActionType: "export"},
+		{Code: "iam.user.account.import", Name: "Import Users", ServiceName: "iam", ModuleName: "user", ActionType: "import"},
 
-		// IAM - Role management
-		{Code: "iam.role.role.view", Name: "View Roles", ServiceName: "iam", ModuleName: "role", ActionType: "view"},
-		{Code: "iam.role.role.create", Name: "Create Role", ServiceName: "iam", ModuleName: "role", ActionType: "create"},
-		{Code: "iam.role.role.update", Name: "Update Role", ServiceName: "iam", ModuleName: "role", ActionType: "update"},
-		{Code: "iam.role.role.delete", Name: "Delete Role", ServiceName: "iam", ModuleName: "role", ActionType: "delete"},
+		// IAM - RBAC Role management
+		{Code: "iam.rbac.role.view", Name: "View Roles", ServiceName: "iam", ModuleName: "rbac", ActionType: "view"},
+		{Code: "iam.rbac.role.create", Name: "Create Role", ServiceName: "iam", ModuleName: "rbac", ActionType: "create"},
+		{Code: "iam.rbac.role.update", Name: "Update Role", ServiceName: "iam", ModuleName: "rbac", ActionType: "update"},
+		{Code: "iam.rbac.role.delete", Name: "Delete Role", ServiceName: "iam", ModuleName: "rbac", ActionType: "delete"},
+		{Code: "iam.rbac.role.export", Name: "Export Roles", ServiceName: "iam", ModuleName: "rbac", ActionType: "export"},
+		{Code: "iam.rbac.role.import", Name: "Import Roles", ServiceName: "iam", ModuleName: "rbac", ActionType: "import"},
 
-		// IAM - Permission management
-		{Code: "iam.role.permission.view", Name: "View Permissions", ServiceName: "iam", ModuleName: "role", ActionType: "view"},
-		{Code: "iam.role.permission.create", Name: "Create Permission", ServiceName: "iam", ModuleName: "role", ActionType: "create"},
-		{Code: "iam.role.permission.update", Name: "Update Permission", ServiceName: "iam", ModuleName: "role", ActionType: "update"},
-		{Code: "iam.role.permission.delete", Name: "Delete Permission", ServiceName: "iam", ModuleName: "role", ActionType: "delete"},
+		// IAM - RBAC Permission management
+		{Code: "iam.rbac.permission.view", Name: "View Permissions", ServiceName: "iam", ModuleName: "rbac", ActionType: "view"},
+		{Code: "iam.rbac.permission.create", Name: "Create Permission", ServiceName: "iam", ModuleName: "rbac", ActionType: "create"},
+		{Code: "iam.rbac.permission.update", Name: "Update Permission", ServiceName: "iam", ModuleName: "rbac", ActionType: "update"},
+		{Code: "iam.rbac.permission.delete", Name: "Delete Permission", ServiceName: "iam", ModuleName: "rbac", ActionType: "delete"},
+		{Code: "iam.rbac.permission.export", Name: "Export Permissions", ServiceName: "iam", ModuleName: "rbac", ActionType: "export"},
+		{Code: "iam.rbac.permission.import", Name: "Import Permissions", ServiceName: "iam", ModuleName: "rbac", ActionType: "import"},
 
 		// IAM - Menu management
 		{Code: "iam.menu.menu.view", Name: "View Menus", ServiceName: "iam", ModuleName: "menu", ActionType: "view"},
 		{Code: "iam.menu.menu.create", Name: "Create Menu", ServiceName: "iam", ModuleName: "menu", ActionType: "create"},
 		{Code: "iam.menu.menu.update", Name: "Update Menu", ServiceName: "iam", ModuleName: "menu", ActionType: "update"},
 		{Code: "iam.menu.menu.delete", Name: "Delete Menu", ServiceName: "iam", ModuleName: "menu", ActionType: "delete"},
+		{Code: "iam.menu.menu.export", Name: "Export Menus", ServiceName: "iam", ModuleName: "menu", ActionType: "export"},
+		{Code: "iam.menu.menu.import", Name: "Import Menus", ServiceName: "iam", ModuleName: "menu", ActionType: "import"},
 
 		// IAM - Organization: Company
 		{Code: "iam.organization.company.view", Name: "View Companies", ServiceName: "iam", ModuleName: "organization", ActionType: "view"},
 		{Code: "iam.organization.company.create", Name: "Create Company", ServiceName: "iam", ModuleName: "organization", ActionType: "create"},
 		{Code: "iam.organization.company.update", Name: "Update Company", ServiceName: "iam", ModuleName: "organization", ActionType: "update"},
 		{Code: "iam.organization.company.delete", Name: "Delete Company", ServiceName: "iam", ModuleName: "organization", ActionType: "delete"},
+		{Code: "iam.organization.company.export", Name: "Export Companies", ServiceName: "iam", ModuleName: "organization", ActionType: "export"},
+		{Code: "iam.organization.company.import", Name: "Import Companies", ServiceName: "iam", ModuleName: "organization", ActionType: "import"},
 
 		// IAM - Organization: Division
 		{Code: "iam.organization.division.view", Name: "View Divisions", ServiceName: "iam", ModuleName: "organization", ActionType: "view"},
 		{Code: "iam.organization.division.create", Name: "Create Division", ServiceName: "iam", ModuleName: "organization", ActionType: "create"},
 		{Code: "iam.organization.division.update", Name: "Update Division", ServiceName: "iam", ModuleName: "organization", ActionType: "update"},
 		{Code: "iam.organization.division.delete", Name: "Delete Division", ServiceName: "iam", ModuleName: "organization", ActionType: "delete"},
+		{Code: "iam.organization.division.export", Name: "Export Divisions", ServiceName: "iam", ModuleName: "organization", ActionType: "export"},
+		{Code: "iam.organization.division.import", Name: "Import Divisions", ServiceName: "iam", ModuleName: "organization", ActionType: "import"},
 
 		// IAM - Organization: Department
 		{Code: "iam.organization.department.view", Name: "View Departments", ServiceName: "iam", ModuleName: "organization", ActionType: "view"},
 		{Code: "iam.organization.department.create", Name: "Create Department", ServiceName: "iam", ModuleName: "organization", ActionType: "create"},
 		{Code: "iam.organization.department.update", Name: "Update Department", ServiceName: "iam", ModuleName: "organization", ActionType: "update"},
 		{Code: "iam.organization.department.delete", Name: "Delete Department", ServiceName: "iam", ModuleName: "organization", ActionType: "delete"},
+		{Code: "iam.organization.department.export", Name: "Export Departments", ServiceName: "iam", ModuleName: "organization", ActionType: "export"},
+		{Code: "iam.organization.department.import", Name: "Import Departments", ServiceName: "iam", ModuleName: "organization", ActionType: "import"},
 
 		// IAM - Organization: Section
 		{Code: "iam.organization.section.view", Name: "View Sections", ServiceName: "iam", ModuleName: "organization", ActionType: "view"},
 		{Code: "iam.organization.section.create", Name: "Create Section", ServiceName: "iam", ModuleName: "organization", ActionType: "create"},
 		{Code: "iam.organization.section.update", Name: "Update Section", ServiceName: "iam", ModuleName: "organization", ActionType: "update"},
 		{Code: "iam.organization.section.delete", Name: "Delete Section", ServiceName: "iam", ModuleName: "organization", ActionType: "delete"},
+		{Code: "iam.organization.section.export", Name: "Export Sections", ServiceName: "iam", ModuleName: "organization", ActionType: "export"},
+		{Code: "iam.organization.section.import", Name: "Import Sections", ServiceName: "iam", ModuleName: "organization", ActionType: "import"},
 
 		// IAM - Audit
-		{Code: "iam.audit.audit.view", Name: "View Audit Logs", ServiceName: "iam", ModuleName: "audit", ActionType: "view"},
+		{Code: "iam.audit.log.view", Name: "View Audit Logs", ServiceName: "iam", ModuleName: "audit", ActionType: "view"},
+		{Code: "iam.audit.log.export", Name: "Export Audit Logs", ServiceName: "iam", ModuleName: "audit", ActionType: "export"},
 
 		// IAM - Session
 		{Code: "iam.session.session.view", Name: "View Sessions", ServiceName: "iam", ModuleName: "session", ActionType: "view"},
@@ -274,8 +289,8 @@ func seedRolePermissions(ctx context.Context, tx *sql.Tx, roleIDs map[string]uui
 
 	// ADMIN gets all permissions except delete on role and permission
 	adminExcluded := map[string]bool{
-		"iam.role.role.delete":       true,
-		"iam.role.permission.delete": true,
+		"iam.rbac.role.delete":       true,
+		"iam.rbac.permission.delete": true,
 	}
 	adminPerms := make([]string, 0, len(allPermCodes))
 	for _, code := range allPermCodes {
@@ -287,8 +302,8 @@ func seedRolePermissions(ctx context.Context, tx *sql.Tx, roleIDs map[string]uui
 	// USER gets all view permissions + create/update on non-admin resources
 	// Non-admin resources: everything except role and permission management
 	adminResources := map[string]bool{
-		"iam.role.role":       true,
-		"iam.role.permission": true,
+		"iam.rbac.role":       true,
+		"iam.rbac.permission": true,
 	}
 	userPerms := make([]string, 0)
 	for _, code := range allPermCodes {
@@ -357,8 +372,8 @@ func seedRolePermissions(ctx context.Context, tx *sql.Tx, roleIDs map[string]uui
 func seedAdminUser(ctx context.Context, tx *sql.Tx) (uuid.UUID, error) {
 	log.Info().Msg("Seeding admin user...")
 
-	// Hash the default password
-	passwordHash, err := bcrypt.GenerateFromPassword([]byte("admin123"), defaultBcryptCost)
+	// Hash the default password using Argon2id
+	passwordHash, err := password.Hash("admin123")
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("failed to hash password: %w", err)
 	}
@@ -368,7 +383,7 @@ func seedAdminUser(ctx context.Context, tx *sql.Tx) (uuid.UUID, error) {
 		INSERT INTO mst_user (user_id, username, email, password_hash, is_active, created_by)
 		VALUES ($1, $2, $3, $4, true, $5)
 		ON CONFLICT (username) DO NOTHING`,
-		userID, "admin", "admin@goapps.local", string(passwordHash), systemUser,
+		userID, "admin", "admin@goapps.local", passwordHash, systemUser,
 	)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("failed to insert admin user: %w", err)

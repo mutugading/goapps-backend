@@ -31,8 +31,9 @@ type LoginRequest struct {
 	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	// User password.
 	Password string `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
-	// Optional TOTP code if 2FA is enabled.
-	TotpCode *string `protobuf:"bytes,3,opt,name=totp_code,json=totpCode,proto3,oneof" json:"totp_code,omitempty"`
+	// TOTP code for 2FA login. Leave empty if 2FA is not enabled.
+	// Validation is skipped when empty; application layer handles the 2FA check.
+	TotpCode string `protobuf:"bytes,3,opt,name=totp_code,json=totpCode,proto3" json:"totp_code,omitempty"`
 	// Device info for session tracking.
 	DeviceInfo    string `protobuf:"bytes,4,opt,name=device_info,json=deviceInfo,proto3" json:"device_info,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -84,8 +85,8 @@ func (x *LoginRequest) GetPassword() string {
 }
 
 func (x *LoginRequest) GetTotpCode() string {
-	if x != nil && x.TotpCode != nil {
-		return *x.TotpCode
+	if x != nil {
+		return x.TotpCode
 	}
 	return ""
 }
@@ -1512,16 +1513,14 @@ var File_iam_v1_auth_proto protoreflect.FileDescriptor
 
 const file_iam_v1_auth_proto_rawDesc = "" +
 	"\n" +
-	"\x11iam/v1/auth.proto\x12\x06iam.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16common/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\"\xcc\x01\n" +
+	"\x11iam/v1/auth.proto\x12\x06iam.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16common/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\"\xbc\x01\n" +
 	"\fLoginRequest\x12%\n" +
 	"\busername\x18\x01 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18dR\busername\x12%\n" +
-	"\bpassword\x18\x02 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18dR\bpassword\x126\n" +
-	"\ttotp_code\x18\x03 \x01(\tB\x14\xbaH\x11r\x0f2\n" +
-	"^[0-9]{6}$\x98\x01\x06H\x00R\btotpCode\x88\x01\x01\x12(\n" +
+	"\bpassword\x18\x02 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18dR\bpassword\x124\n" +
+	"\ttotp_code\x18\x03 \x01(\tB\x17\xbaH\x14\xd8\x01\x01r\x0f2\n" +
+	"^[0-9]{6}$\x98\x01\x06R\btotpCode\x12(\n" +
 	"\vdevice_info\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x18dR\n" +
-	"deviceInfoB\f\n" +
-	"\n" +
-	"_totp_code\"c\n" +
+	"deviceInfo\"c\n" +
 	"\rLoginResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12%\n" +
 	"\x04data\x18\x02 \x01(\v2\x11.iam.v1.LoginDataR\x04data\"\xda\x01\n" +
@@ -1721,7 +1720,6 @@ func file_iam_v1_auth_proto_init() {
 	if File_iam_v1_auth_proto != nil {
 		return
 	}
-	file_iam_v1_auth_proto_msgTypes[0].OneofWrappers = []any{}
 	file_iam_v1_auth_proto_msgTypes[4].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

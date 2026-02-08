@@ -22,11 +22,26 @@ database:
   max_idle_conns: 5
   conn_max_lifetime: 5m
 
+jwt:
+  access_token_secret: "dev-access-secret-change-in-production"
+  issuer: "goapps-iam"
+
+cors:
+  allowed_origins:
+    - "http://localhost:3000"
+  max_age: 300
+
 redis:
   host: localhost
   port: 6379
   password: ""
   db: 0
+
+auth_redis:
+  host: localhost
+  port: 6379
+  password: ""
+  db: 1  # Same Redis DB as IAM for shared token blacklist
 
 tracing:
   enabled: true
