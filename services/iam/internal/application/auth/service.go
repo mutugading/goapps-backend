@@ -103,7 +103,7 @@ func (s *Service) Login(ctx context.Context, input domainAuth.LoginInput) (*doma
 		return nil, err
 	}
 
-	sess := session.NewSession(u.ID(), tokenPair.TokenID, input.IPAddress, input.UserAgent, input.DeviceInfo, tokenPair.RefreshExp)
+	sess := session.NewSession(u.ID(), tokenPair.TokenID, input.DeviceInfo, input.IPAddress, "goapps", tokenPair.RefreshExp)
 	if err := s.sessionRepo.Create(ctx, sess); err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}

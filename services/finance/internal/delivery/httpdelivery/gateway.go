@@ -250,7 +250,8 @@ const swaggerUIHTML = `<!DOCTYPE html>
                     SwaggerUIBundle.presets.apis,
                     SwaggerUIBundle.SwaggerUIStandalonePreset
                 ],
-                layout: "BaseLayout"
+                layout: "BaseLayout",
+                persistAuthorization: true
             });
         };
     </script>
