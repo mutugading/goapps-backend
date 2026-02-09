@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.3.0...finance-service/v0.4.0) (2026-02-09)
+
+
+### Features
+
+* Implement IAM audit log APIs, enhance Swagger documentation with security and persistent authorization, and add a swagger merge script. ([55c70c8](https://github.com/mutugading/goapps-backend/commit/55c70c82a410ec6dbc328a1f0c1bec7609c6b84d))
+
+
+### Bug Fixes
+
+* Implement IAM audit log APIs, enhance Swagger documentation with security and persistent authorization, and add a swagger merge script. ([3387841](https://github.com/mutugading/goapps-backend/commit/3387841280e082eded628ce235998d5e4721eccf))
+
 ## [0.3.0](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.2.0...finance-service/v0.3.0) (2026-02-09)
 
 
