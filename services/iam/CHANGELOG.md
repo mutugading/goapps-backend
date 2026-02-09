@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.2.0...iam-service/v0.3.0) (2026-02-08)
+
+
+### Features
+
+* Implement 2FA recovery codes in IAM, add gRPC authentication and permission interceptors to IAM and Finance, and update local development infrastructure. ([c82c258](https://github.com/mutugading/goapps-backend/commit/c82c258bd39279f31789b9635367b2e4cb34d19b))
+* Implement 2FA recovery codes in IAM, add gRPC authentication and permission interceptors to IAM and Finance, and update local development infrastructure. ([a1ad398](https://github.com/mutugading/goapps-backend/commit/a1ad3980e6594d80e4154b0ecf4dfcb8f42f09c1))
+
 ## [0.2.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.1.0...iam-service/v0.2.0) (2026-02-07)
 
 
