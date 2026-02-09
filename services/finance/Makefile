@@ -118,14 +118,20 @@ clean:
 # Proto/Swagger
 # =============================================================================
 
-# Copy swagger.json from generated proto to httpdelivery for embedding
+# Merge all swagger.json files from generated proto to httpdelivery for embedding
 # Run this after proto generation in goapps-shared-proto
 proto-copy-swagger:
-	@if [ -f "../../gen/openapi/finance/v1/uom.swagger.json" ]; then \
-		cp ../../gen/openapi/finance/v1/uom.swagger.json internal/delivery/httpdelivery/swagger.json; \
-		echo "✅ Copied swagger.json to internal/delivery/httpdelivery/"; \
+	@mkdir -p internal/delivery/httpdelivery
+	@echo "Merging Finance swagger files..."
+	@if [ -d "../../gen/openapi/finance/v1" ]; then \
+		python3 ../../scripts/merge-swagger.py \
+			--input-dir '../../gen/openapi/finance/v1/*.swagger.json' \
+			--output internal/delivery/httpdelivery/swagger.json \
+			--title 'Finance Service API' \
+			--description 'Finance Microservice' \
+			--host 'localhost:8080'; \
 	else \
-		echo "❌ Error: ../../gen/openapi/finance/v1/uom.swagger.json not found"; \
+		echo "Error: ../../gen/openapi/finance/v1/ not found"; \
 		echo "   Run 'buf generate' in goapps-shared-proto first"; \
 		exit 1; \
 	fi

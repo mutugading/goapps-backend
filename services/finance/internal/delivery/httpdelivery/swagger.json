@@ -1,19 +1,34 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "finance/v1/uom.proto",
-    "version": "version not set"
+    "title": "Finance Service API",
+    "version": "1.0.0",
+    "description": "Finance Microservice"
   },
-  "tags": [
-    {
-      "name": "UOMService"
-    }
+  "host": "localhost:8080",
+  "basePath": "/",
+  "schemes": [
+    "http",
+    "https"
   ],
   "consumes": [
     "application/json"
   ],
   "produces": [
     "application/json"
+  ],
+  "securityDefinitions": {
+    "Bearer": {
+      "type": "apiKey",
+      "name": "Authorization",
+      "in": "header",
+      "description": "Enter your Bearer token in the format: Bearer <token>"
+    }
+  },
+  "security": [
+    {
+      "Bearer": []
+    }
   ],
   "paths": {
     "/api/v1/finance/uoms": {
@@ -233,7 +248,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1DownloadTemplateResponse"
+              "$ref": "#/definitions/financeV1DownloadTemplateResponse"
             }
           },
           "default": {
@@ -754,5 +769,10 @@
       },
       "description": "ValidationError represents a single field validation error."
     }
-  }
+  },
+  "tags": [
+    {
+      "name": "UOMService"
+    }
+  ]
 }

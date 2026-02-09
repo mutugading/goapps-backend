@@ -124,12 +124,13 @@ proto-copy-swagger:
 	@mkdir -p internal/delivery/httpdelivery
 	@echo "Merging IAM swagger files..."
 	@if [ -d "../../gen/openapi/iam/v1" ]; then \
-		python3 -c " \
-import json, glob, os; \
-base = {'swagger':'2.0','info':{'title':'IAM Service API','version':'1.0.0','description':'Identity and Access Management Service'},'host':'localhost:8081','basePath':'/','schemes':['http','https'],'consumes':['application/json'],'produces':['application/json'],'paths':{},'definitions':{},'tags':[]}; \
-[((base['paths'].update(d.get('paths',{})), [base['definitions'].setdefault(k,v) for k,v in d.get('definitions',{}).items()])) for d in [json.load(open(f)) for f in sorted(glob.glob('../../gen/openapi/iam/v1/*.swagger.json'))]]; \
-json.dump(base, open('internal/delivery/httpdelivery/swagger.json','w'), indent=2); \
-print('Merged ' + str(len(base['paths'])) + ' paths, ' + str(len(base['definitions'])) + ' definitions')"; \
+		python3 ../../scripts/merge-swagger.py \
+			--input-dir '../../gen/openapi/iam/v1/*.swagger.json' \
+			--output internal/delivery/httpdelivery/swagger.json \
+			--title 'IAM Service API' \
+			--description 'Identity and Access Management Service' \
+			--host 'localhost:8081' \
+			--public-operations 'AuthService_Login,AuthService_RefreshToken,AuthService_ForgotPassword,AuthService_VerifyResetOTP,AuthService_ResetPassword,AuthService_Logout'; \
 	else \
 		echo "Error: ../../gen/openapi/iam/v1/ not found"; \
 		echo "   Run 'buf generate' in goapps-shared-proto first"; \
