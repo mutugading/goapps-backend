@@ -44,8 +44,8 @@ services:
     image: axllent/mailpit:latest
     container_name: iam-mailpit
     ports:
-      - "1025:1025"   # SMTP
-      - "8025:8025"   # Web UI
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: "true"
       MP_SMTP_AUTH_ALLOW_INSECURE: "true"
@@ -93,6 +93,9 @@ services:
   #     - JAEGER_ENDPOINT=http://jaeger:4319
   #   networks:
   #     - iam-network
+
+  # NOTE: MinIO is in the shared root docker-compose.yaml (../../docker-compose.yaml)
+  # All services share one MinIO instance, scoped by STORAGE_BASE_PATH per service.
 
 volumes:
   postgres_data:

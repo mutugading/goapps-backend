@@ -20,6 +20,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/jwt"
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/postgres"
 	redisinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/redis"
+	storageinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/storage"
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/totp"
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/tracing"
 )
@@ -102,9 +103,29 @@ func run() error {
 		return err
 	}
 
+	// Setup storage service (optional - graceful degradation)
+	var storageSvc storageinfra.Service
+	minioSvc, err := storageinfra.NewMinIOService(storageinfra.Config{
+		Endpoint:           cfg.Storage.Endpoint,
+		AccessKey:          cfg.Storage.AccessKey,
+		SecretKey:          cfg.Storage.SecretKey,
+		Bucket:             cfg.Storage.Bucket,
+		BasePath:           cfg.Storage.BasePath,
+		UseSSL:             cfg.Storage.UseSSL,
+		InsecureSkipVerify: cfg.Storage.InsecureSkipVerify,
+		Region:             cfg.Storage.Region,
+		PublicURL:          cfg.Storage.PublicURL,
+	})
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to connect to MinIO storage, avatar uploads disabled")
+		// storageSvc stays nil (interface nil, not concrete pointer nil)
+	} else {
+		storageSvc = minioSvc
+	}
+
 	// Setup gRPC handlers
 	authHandler := grpcdelivery.NewAuthHandler(authService, userRepo, sessionRepo, auditRepo, validationHelper)
-	userHandler := grpcdelivery.NewUserHandler(userRepo, userRoleRepo, userPermissionRepo, validationHelper)
+	userHandler := grpcdelivery.NewUserHandler(userRepo, userRoleRepo, userPermissionRepo, validationHelper, storageSvc)
 	roleHandler := grpcdelivery.NewRoleHandler(roleRepo, validationHelper)
 	permissionHandler := grpcdelivery.NewPermissionHandler(permRepo, validationHelper)
 	sessionHandler := grpcdelivery.NewSessionHandler(sessionRepo, validationHelper)

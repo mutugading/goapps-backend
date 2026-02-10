@@ -80,6 +80,17 @@ rate_limit:
   login_requests_per_minute: 10  # Stricter for auth endpoints
   login_burst_size: 5
 
+storage:
+  endpoint: localhost:9000
+  access_key: minioadmin
+  secret_key: minioadmin
+  bucket: goapps-staging           # Shared bucket: goapps-staging (dev/staging), goapps-production (prod)
+  base_path: iam                   # Service prefix inside bucket → objects at: iam/avatars/{user}/{file}
+  use_ssl: false                   # true in staging/production (MinIO TLS)
+  insecure_skip_verify: true       # Skip TLS verification for self-signed certs
+  region: us-east-1
+  public_url: ""                   # Override for external access URL, e.g., https://staging-goapps.mutugading.com/storage
+
 logging:
   level: debug  # debug, info, warn, error
   format: console  # console, json
