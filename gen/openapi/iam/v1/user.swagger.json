@@ -413,6 +413,46 @@
         ]
       }
     },
+    "/api/v1/iam/users/{userId}/avatar": {
+      "post": {
+        "summary": "UploadProfilePicture uploads or replaces a user's profile picture.\nOld picture is automatically deleted when a new one is uploaded.",
+        "operationId": "UserService_UploadProfilePicture",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UploadProfilePictureResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "userId",
+            "description": "User ID whose profile picture is being uploaded.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UserServiceUploadProfilePictureBody"
+            }
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      }
+    },
     "/api/v1/iam/users/{userId}/detail": {
       "get": {
         "summary": "GetUserDetail retrieves user with full employee details.",
@@ -764,6 +804,25 @@
         }
       },
       "description": "UpdateUserDetailRequest updates employee details."
+    },
+    "UserServiceUploadProfilePictureBody": {
+      "type": "object",
+      "properties": {
+        "fileData": {
+          "type": "string",
+          "format": "byte",
+          "description": "Raw file data (binary).\n\n2MB max"
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Original file name (e.g., \"avatar.jpg\")."
+        },
+        "contentType": {
+          "type": "string",
+          "description": "MIME content type (image/jpeg, image/png, image/webp)."
+        }
+      },
+      "description": "UploadProfilePictureRequest is the request for uploading a profile picture."
     },
     "protobufAny": {
       "type": "object",
@@ -1295,6 +1354,19 @@
         }
       },
       "description": "UpdateUserResponse is the response for updating a user."
+    },
+    "v1UploadProfilePictureResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "profilePictureUrl": {
+          "type": "string",
+          "description": "The public URL of the uploaded profile picture."
+        }
+      },
+      "description": "UploadProfilePictureResponse is the response for profile picture upload."
     },
     "v1User": {
       "type": "object",

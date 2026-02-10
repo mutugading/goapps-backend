@@ -316,11 +316,76 @@ func (r *MenuRepository) GetTree(ctx context.Context, serviceName string, includ
 	return buildMenuTree(allMenus), nil
 }
 
-// GetTreeForUser gets the menu tree for a specific user.
-func (r *MenuRepository) GetTreeForUser(ctx context.Context, _ uuid.UUID, serviceName string) ([]*menu.WithChildren, error) {
-	// For now, return all active visible menus
-	// TODO: filter by user permissions
-	return r.GetTree(ctx, serviceName, false, false)
+// GetTreeForUser gets the menu tree filtered by user permissions.
+// Menus without any required permissions are visible to all authenticated users.
+// Menus with required permissions are only visible if the user has at least one of them.
+func (r *MenuRepository) GetTreeForUser(ctx context.Context, userID uuid.UUID, serviceName string) ([]*menu.WithChildren, error) {
+	conditions := []string{"m.deleted_at IS NULL", "m.is_active = true", "m.is_visible = true"}
+	args := []interface{}{userID}
+	argIndex := 2
+
+	if serviceName != "" {
+		conditions = append(conditions, fmt.Sprintf("m.service_name = $%d", argIndex))
+		args = append(args, serviceName)
+	}
+
+	// Query returns menus where either:
+	// 1. The menu has no required permissions (open to all authenticated users), OR
+	// 2. The user has at least one of the menu's required permissions
+	//    (via role_permissions or direct user_permissions).
+	query := fmt.Sprintf(`
+		SELECT DISTINCT m.menu_id, m.parent_id, m.menu_code, m.menu_title, m.menu_url, m.icon_name,
+			m.service_name, m.menu_level, m.sort_order, m.is_visible, m.is_active,
+			m.created_at, m.created_by, m.updated_at, m.updated_by, m.deleted_at, m.deleted_by
+		FROM mst_menu m
+		WHERE %s
+		AND (
+			-- Menus with no permission requirements (accessible to all)
+			NOT EXISTS (
+				SELECT 1 FROM menu_permissions mp WHERE mp.menu_id = m.menu_id
+			)
+			OR
+			-- Menus where user has at least one required permission
+			EXISTS (
+				SELECT 1 FROM menu_permissions mp
+				WHERE mp.menu_id = m.menu_id
+				AND mp.permission_id IN (
+					-- Permissions from user's roles
+					SELECT rp.permission_id
+					FROM user_roles ur
+					JOIN role_permissions rp ON rp.role_id = ur.role_id
+					WHERE ur.user_id = $1
+					UNION
+					-- Direct user permissions
+					SELECT up.permission_id
+					FROM user_permissions up
+					WHERE up.user_id = $1
+				)
+			)
+		)
+		ORDER BY m.menu_level, m.sort_order
+	`, strings.Join(conditions, " AND "))
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get menu tree for user: %w", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Warn().Err(err).Msg("failed to close rows in GetTreeForUser")
+		}
+	}()
+
+	var allMenus []*menu.Menu
+	for rows.Next() {
+		m, err := r.scanMenuFromRows(rows)
+		if err != nil {
+			return nil, err
+		}
+		allMenus = append(allMenus, m)
+	}
+
+	return buildMenuTree(allMenus), nil
 }
 
 // AssignPermissions assigns permissions to a menu.

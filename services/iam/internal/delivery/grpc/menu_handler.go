@@ -243,7 +243,11 @@ func (h *MenuHandler) GetMenuTree(ctx context.Context, req *iamv1.GetMenuTreeReq
 		return &iamv1.GetMenuTreeResponse{Base: baseResp}, nil
 	}
 
-	userID := uuid.Nil // TODO: get from context
+	userID, err := getUserIDFromContext(ctx)
+	if err != nil {
+		// Unauthenticated: will still see menus that have no permission requirements
+		userID = uuid.Nil
+	}
 
 	tree, err := h.menuRepo.GetTreeForUser(ctx, userID, req.GetServiceName())
 	if err != nil {

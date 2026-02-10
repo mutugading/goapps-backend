@@ -8,6 +8,7 @@ import (
 
 	"buf.build/go/protovalidate"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/proto"
 
 	commonv1 "github.com/mutugading/goapps-backend/gen/common/v1"
@@ -178,6 +179,7 @@ func domainErrorToBaseResponse(err error) *commonv1.BaseResponse {
 		case strings.Contains(errMsg, "already exists"):
 			return ConflictResponse(errMsg)
 		default:
+			log.Error().Err(err).Msg("unhandled domain error mapped to 500")
 			return InternalErrorResponse("internal server error")
 		}
 	}

@@ -2,16 +2,19 @@
 package grpc
 
 import (
+	"bytes"
 	"context"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 
 	commonv1 "github.com/mutugading/goapps-backend/gen/common/v1"
 	iamv1 "github.com/mutugading/goapps-backend/gen/iam/v1"
 	userapp "github.com/mutugading/goapps-backend/services/iam/internal/application/user"
 	"github.com/mutugading/goapps-backend/services/iam/internal/domain/role"
 	"github.com/mutugading/goapps-backend/services/iam/internal/domain/user"
+	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/storage"
 )
 
 // UserHandler implements the UserService gRPC service.
@@ -30,6 +33,8 @@ type UserHandler struct {
 	removePermissionsHandler   *userapp.RemovePermissionsHandler
 	getRolesPermissionsHandler *userapp.GetRolesPermissionsHandler
 	validationHelper           *ValidationHelper
+	storageService             storage.Service
+	userRepo                   user.Repository
 }
 
 // NewUserHandler creates a new UserHandler.
@@ -38,6 +43,7 @@ func NewUserHandler(
 	userRoleRepo role.UserRoleRepository,
 	userPermissionRepo role.UserPermissionRepository,
 	validationHelper *ValidationHelper,
+	storageSvc storage.Service,
 ) *UserHandler {
 	return &UserHandler{
 		createHandler:              userapp.NewCreateHandler(userRepo),
@@ -53,6 +59,8 @@ func NewUserHandler(
 		removePermissionsHandler:   userapp.NewRemovePermissionsHandler(userRepo, userPermissionRepo),
 		getRolesPermissionsHandler: userapp.NewGetRolesPermissionsHandler(userRepo),
 		validationHelper:           validationHelper,
+		storageService:             storageSvc,
+		userRepo:                   userRepo,
 	}
 }
 
@@ -483,4 +491,78 @@ func (h *UserHandler) toUserDetailProto(d *user.Detail) *iamv1.UserDetail {
 	}
 
 	return proto
+}
+
+// UploadProfilePicture uploads or replaces a user's profile picture.
+func (h *UserHandler) UploadProfilePicture(ctx context.Context, req *iamv1.UploadProfilePictureRequest) (*iamv1.UploadProfilePictureResponse, error) {
+	if baseResp := h.validationHelper.ValidateRequest(req); baseResp != nil {
+		return &iamv1.UploadProfilePictureResponse{Base: baseResp}, nil
+	}
+
+	// Check if storage service is available.
+	if h.storageService == nil {
+		return &iamv1.UploadProfilePictureResponse{ //nolint:nilerr // error returned in response body
+			Base: ErrorResponse("503", "Storage service not configured"),
+		}, nil
+	}
+
+	userID := req.GetUserId()
+
+	// Get existing detail to check for old profile picture.
+	parsedUserID, err := uuid.Parse(userID)
+	if err != nil {
+		return &iamv1.UploadProfilePictureResponse{ //nolint:nilerr // error returned in response body
+			Base: ErrorResponse("400", "Invalid user ID"),
+		}, nil
+	}
+
+	detail, err := h.userRepo.GetDetailByUserID(ctx, parsedUserID)
+	if err != nil {
+		return &iamv1.UploadProfilePictureResponse{Base: domainErrorToBaseResponse(err)}, nil
+	}
+
+	// Upload new profile picture to MinIO.
+	reader := bytes.NewReader(req.GetFileData())
+	newURL, err := h.storageService.UploadProfilePicture(
+		ctx, userID, req.GetFileName(), reader, int64(len(req.GetFileData())), req.GetContentType(),
+	)
+	if err != nil {
+		log.Error().Err(err).Str("user_id", userID).Msg("failed to upload profile picture to storage")
+		return &iamv1.UploadProfilePictureResponse{ //nolint:nilerr // error returned in response body
+			Base: InternalErrorResponse("failed to upload profile picture"),
+		}, nil
+	}
+
+	// Delete old profile picture if it exists.
+	if oldURL := detail.ProfilePicture(); oldURL != "" {
+		oldKey := h.storageService.ExtractObjectKey(oldURL)
+		// Best-effort delete: log error but don't fail the upload.
+		_ = h.storageService.DeleteObject(ctx, oldKey) //nolint:errcheck // best-effort cleanup
+	}
+
+	// Update user detail with new profile picture URL.
+	if err := detail.Update(
+		nil, // sectionID
+		nil, // fullName
+		nil, // firstName
+		nil, // lastName
+		nil, // phone
+		&newURL,
+		nil, // position
+		nil, // dateOfBirth
+		nil, // address
+		nil, // extraData
+		h.getActorID(ctx),
+	); err != nil {
+		return &iamv1.UploadProfilePictureResponse{Base: domainErrorToBaseResponse(err)}, nil
+	}
+
+	if err := h.userRepo.UpdateDetail(ctx, detail); err != nil {
+		return &iamv1.UploadProfilePictureResponse{Base: domainErrorToBaseResponse(err)}, nil
+	}
+
+	return &iamv1.UploadProfilePictureResponse{
+		Base:              SuccessResponse("Profile picture uploaded successfully"),
+		ProfilePictureUrl: newURL,
+	}, nil
 }

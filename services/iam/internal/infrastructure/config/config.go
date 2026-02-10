@@ -21,6 +21,7 @@ type Config struct {
 	TOTP      TOTPConfig      `mapstructure:"totp"`
 	Security  SecurityConfig  `mapstructure:"security"`
 	CORS      CORSConfig      `mapstructure:"cors"`
+	Storage   StorageConfig   `mapstructure:"storage"`
 	Tracing   TracingConfig   `mapstructure:"tracing"`
 	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
 	Logger    LoggerConfig    `mapstructure:"logging"`
@@ -146,6 +147,19 @@ type LoggerConfig struct {
 	Format string `mapstructure:"format"`
 }
 
+// StorageConfig holds MinIO/S3 object storage configuration.
+type StorageConfig struct {
+	Endpoint           string `mapstructure:"endpoint"`
+	AccessKey          string `mapstructure:"access_key"`
+	SecretKey          string `mapstructure:"secret_key"`
+	Bucket             string `mapstructure:"bucket"`
+	BasePath           string `mapstructure:"base_path"`
+	UseSSL             bool   `mapstructure:"use_ssl"`
+	InsecureSkipVerify bool   `mapstructure:"insecure_skip_verify"` // Skip TLS verification for self-signed certs
+	Region             string `mapstructure:"region"`
+	PublicURL          string `mapstructure:"public_url"`
+}
+
 // Load reads configuration from file and environment variables.
 func Load() (*Config, error) {
 	v := viper.New()
@@ -266,6 +280,17 @@ func setDefaults(v *viper.Viper) {
 	// Logger defaults
 	v.SetDefault("logging.level", "debug")
 	v.SetDefault("logging.format", "console")
+
+	// Storage (MinIO/S3) defaults
+	v.SetDefault("storage.endpoint", "localhost:9000")
+	v.SetDefault("storage.access_key", "minioadmin")
+	v.SetDefault("storage.secret_key", "minioadmin")
+	v.SetDefault("storage.bucket", "goapps-staging")
+	v.SetDefault("storage.base_path", "iam")
+	v.SetDefault("storage.use_ssl", false)
+	v.SetDefault("storage.insecure_skip_verify", true)
+	v.SetDefault("storage.region", "us-east-1")
+	v.SetDefault("storage.public_url", "")
 }
 
 func bindEnvVars(v *viper.Viper) {
@@ -304,6 +329,16 @@ func bindEnvVars(v *viper.Viper) {
 		// App
 		{"app.env", "APP_ENV"},
 		{"logging.level", "LOG_LEVEL"},
+		// Storage (MinIO/S3)
+		{"storage.endpoint", "STORAGE_ENDPOINT"},
+		{"storage.access_key", "STORAGE_ACCESS_KEY"},
+		{"storage.secret_key", "STORAGE_SECRET_KEY"},
+		{"storage.bucket", "STORAGE_BUCKET"},
+		{"storage.base_path", "STORAGE_BASE_PATH"},
+		{"storage.use_ssl", "STORAGE_USE_SSL"},
+		{"storage.insecure_skip_verify", "STORAGE_INSECURE_SKIP_VERIFY"},
+		{"storage.region", "STORAGE_REGION"},
+		{"storage.public_url", "STORAGE_PUBLIC_URL"},
 	}
 
 	for _, binding := range envBindings {

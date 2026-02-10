@@ -58,7 +58,7 @@ func (r *UserRepository) Create(ctx context.Context, u *user.User, detail *user.
 			query = `
 				INSERT INTO mst_user_detail (
 					detail_id, user_id, section_id, employee_code, full_name, first_name, last_name,
-					phone, profile_picture, position, date_of_birth, address, extra_data,
+					phone, profile_picture_url, position, date_of_birth, address, extra_data,
 					created_at, created_by
 				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 			`
@@ -222,7 +222,7 @@ func (r *UserRepository) Delete(ctx context.Context, id uuid.UUID, deletedBy str
 func (r *UserRepository) GetDetailByUserID(ctx context.Context, userID uuid.UUID) (*user.Detail, error) {
 	query := `
 		SELECT detail_id, user_id, section_id, employee_code, full_name, first_name, last_name,
-			phone, profile_picture, position, date_of_birth, address, extra_data,
+			phone, profile_picture_url, position, date_of_birth, address, extra_data,
 			created_at, created_by, updated_at, updated_by
 		FROM mst_user_detail
 		WHERE user_id = $1
@@ -253,7 +253,7 @@ func (r *UserRepository) UpdateDetail(ctx context.Context, detail *user.Detail) 
 	query := `
 		UPDATE mst_user_detail SET
 			section_id = $2, full_name = $3, first_name = $4, last_name = $5,
-			phone = $6, profile_picture = $7, position = $8, date_of_birth = $9,
+			phone = $6, profile_picture_url = $7, position = $8, date_of_birth = $9,
 			address = $10, extra_data = $11, updated_at = $12, updated_by = $13
 		WHERE user_id = $1
 	`
@@ -566,7 +566,7 @@ func (r *UserRepository) BatchCreate(ctx context.Context, users []*user.User, de
 				query = `
 					INSERT INTO mst_user_detail (
 						detail_id, user_id, section_id, employee_code, full_name, first_name, last_name,
-						phone, profile_picture, position, date_of_birth, address, extra_data,
+						phone, profile_picture_url, position, date_of_birth, address, extra_data,
 						created_at, created_by
 					) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 				`

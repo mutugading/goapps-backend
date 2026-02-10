@@ -1,6 +1,6 @@
 # Shared Infrastructure for GoApps Local Development
 # Usage: docker compose up -d
-# This starts ALL infrastructure needed by both IAM and Finance services.
+# This starts ALL infrastructure needed by all services (IAM, Finance, etc).
 name: goapps-infra
 
 services:
@@ -17,7 +17,7 @@ services:
     volumes:
       - iam_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U iam -d iam_db"]
+      test: [ "CMD-SHELL", "pg_isready -U iam -d iam_db" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -37,7 +37,7 @@ services:
     volumes:
       - finance_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U finance -d finance_db"]
+      test: [ "CMD-SHELL", "pg_isready -U finance -d finance_db" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -55,7 +55,7 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -68,8 +68,8 @@ services:
     image: axllent/mailpit:latest
     container_name: goapps-mailpit
     ports:
-      - "1025:1025"   # SMTP
-      - "8025:8025"   # Web UI
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: "true"
       MP_SMTP_AUTH_ALLOW_INSECURE: "true"
@@ -82,12 +82,48 @@ services:
     image: jaegertracing/all-in-one:1.55
     container_name: goapps-jaeger
     ports:
-      - "16686:16686"  # Jaeger UI
-      - "14268:14268"  # Collector HTTP
-      - "4317:4317"    # OTLP gRPC
-      - "4318:4318"    # OTLP HTTP
+      - "16686:16686" # Jaeger UI
+      - "14268:14268" # Collector HTTP
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
     environment:
       - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - goapps
+  # Shared MinIO - S3-compatible Object Storage
+  # API: localhost:9000 | Console: http://localhost:9001
+  # All services share one bucket (goapps-staging), scoped by STORAGE_BASE_PATH:
+  #   IAM     → goapps-staging/iam/...
+  #   Finance → goapps-staging/finance/...
+  minio:
+    image: minio/minio:latest
+    container_name: goapps-minio
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # Console Web UI
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: [ "CMD", "mc", "ready", "local" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - goapps
+
+  # Auto-create shared bucket on startup
+  minio-init:
+    image: minio/mc:latest
+    container_name: goapps-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c " mc alias set local http://minio:9000 minioadmin minioadmin; mc mb --ignore-existing local/goapps-staging; mc anonymous set download local/goapps-staging; echo 'Bucket goapps-staging created with public read policy'; "
     networks:
       - goapps
 
@@ -95,6 +131,8 @@ volumes:
   iam_postgres_data:
   finance_postgres_data:
   redis_data:
+  minio_data:
+
 
 networks:
   goapps:

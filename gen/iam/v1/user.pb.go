@@ -7,14 +7,15 @@
 package iamv1
 
 import (
+	reflect "reflect"
+	sync "sync"
+	unsafe "unsafe"
+
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	v1 "github.com/mutugading/goapps-backend/gen/common/v1"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	reflect "reflect"
-	sync "sync"
-	unsafe "unsafe"
 )
 
 const (
@@ -2772,6 +2773,133 @@ func (x *Permission) GetActionType() string {
 	return ""
 }
 
+// UploadProfilePictureRequest is the request for uploading a profile picture.
+type UploadProfilePictureRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// User ID whose profile picture is being uploaded.
+	UserId string `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// Raw file data (binary).
+	FileData []byte `protobuf:"bytes,2,opt,name=file_data,json=fileData,proto3" json:"file_data,omitempty"` // 2MB max
+	// Original file name (e.g., "avatar.jpg").
+	FileName string `protobuf:"bytes,3,opt,name=file_name,json=fileName,proto3" json:"file_name,omitempty"`
+	// MIME content type (image/jpeg, image/png, image/webp).
+	ContentType   string `protobuf:"bytes,4,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UploadProfilePictureRequest) Reset() {
+	*x = UploadProfilePictureRequest{}
+	mi := &file_iam_v1_user_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UploadProfilePictureRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UploadProfilePictureRequest) ProtoMessage() {}
+
+func (x *UploadProfilePictureRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_iam_v1_user_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UploadProfilePictureRequest.ProtoReflect.Descriptor instead.
+func (*UploadProfilePictureRequest) Descriptor() ([]byte, []int) {
+	return file_iam_v1_user_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *UploadProfilePictureRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *UploadProfilePictureRequest) GetFileData() []byte {
+	if x != nil {
+		return x.FileData
+	}
+	return nil
+}
+
+func (x *UploadProfilePictureRequest) GetFileName() string {
+	if x != nil {
+		return x.FileName
+	}
+	return ""
+}
+
+func (x *UploadProfilePictureRequest) GetContentType() string {
+	if x != nil {
+		return x.ContentType
+	}
+	return ""
+}
+
+// UploadProfilePictureResponse is the response for profile picture upload.
+type UploadProfilePictureResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Base  *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	// The public URL of the uploaded profile picture.
+	ProfilePictureUrl string `protobuf:"bytes,2,opt,name=profile_picture_url,json=profilePictureUrl,proto3" json:"profile_picture_url,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *UploadProfilePictureResponse) Reset() {
+	*x = UploadProfilePictureResponse{}
+	mi := &file_iam_v1_user_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UploadProfilePictureResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UploadProfilePictureResponse) ProtoMessage() {}
+
+func (x *UploadProfilePictureResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_iam_v1_user_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UploadProfilePictureResponse.ProtoReflect.Descriptor instead.
+func (*UploadProfilePictureResponse) Descriptor() ([]byte, []int) {
+	return file_iam_v1_user_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *UploadProfilePictureResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *UploadProfilePictureResponse) GetProfilePictureUrl() string {
+	if x != nil {
+		return x.ProfilePictureUrl
+	}
+	return ""
+}
+
 var File_iam_v1_user_proto protoreflect.FileDescriptor
 
 const file_iam_v1_user_proto_rawDesc = "" +
@@ -3034,11 +3162,22 @@ const file_iam_v1_user_proto_rawDesc = "" +
 	"\vmodule_name\x18\x05 \x01(\tR\n" +
 	"moduleName\x12\x1f\n" +
 	"\vaction_type\x18\x06 \x01(\tR\n" +
-	"actionType*c\n" +
+	"actionType\"\xdc\x01\n" +
+	"\x1bUploadProfilePictureRequest\x12!\n" +
+	"\auser_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x06userId\x12'\n" +
+	"\tfile_data\x18\x02 \x01(\fB\n" +
+	"\xbaH\az\x05\x18\x80\x80\x80\x01R\bfileData\x12$\n" +
+	"\tfile_name\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\bfileName\x12K\n" +
+	"\fcontent_type\x18\x04 \x01(\tB(\xbaH%r#R\n" +
+	"image/jpegR\timage/pngR\n" +
+	"image/webpR\vcontentType\"{\n" +
+	"\x1cUploadProfilePictureResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12.\n" +
+	"\x13profile_picture_url\x18\x02 \x01(\tR\x11profilePictureUrl*c\n" +
 	"\fActiveFilter\x12\x1d\n" +
 	"\x19ACTIVE_FILTER_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14ACTIVE_FILTER_ACTIVE\x10\x01\x12\x1a\n" +
-	"\x16ACTIVE_FILTER_INACTIVE\x10\x022\xc4\x0e\n" +
+	"\x16ACTIVE_FILTER_INACTIVE\x10\x022\xd7\x0f\n" +
 	"\vUserService\x12a\n" +
 	"\n" +
 	"CreateUser\x12\x19.iam.v1.CreateUserRequest\x1a\x1a.iam.v1.CreateUserResponse\"\x1c\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/api/v1/iam/users\x12_\n" +
@@ -3057,7 +3196,8 @@ const file_iam_v1_user_proto_rawDesc = "" +
 	"\x0fRemoveUserRoles\x12\x1e.iam.v1.RemoveUserRolesRequest\x1a\x1f.iam.v1.RemoveUserRolesResponse\"3\x82\xd3\xe4\x93\x02-:\x01*\"(/api/v1/iam/users/{user_id}/roles/remove\x12\x98\x01\n" +
 	"\x15AssignUserPermissions\x12$.iam.v1.AssignUserPermissionsRequest\x1a%.iam.v1.AssignUserPermissionsResponse\"2\x82\xd3\xe4\x93\x02,:\x01*\"'/api/v1/iam/users/{user_id}/permissions\x12\x9f\x01\n" +
 	"\x15RemoveUserPermissions\x12$.iam.v1.RemoveUserPermissionsRequest\x1a%.iam.v1.RemoveUserPermissionsResponse\"9\x82\xd3\xe4\x93\x023:\x01*\"./api/v1/iam/users/{user_id}/permissions/remove\x12\x9f\x01\n" +
-	"\x1aGetUserRolesAndPermissions\x12).iam.v1.GetUserRolesAndPermissionsRequest\x1a*.iam.v1.GetUserRolesAndPermissionsResponse\"*\x82\xd3\xe4\x93\x02$\x12\"/api/v1/iam/users/{user_id}/accessB\x87\x01\n" +
+	"\x1aGetUserRolesAndPermissions\x12).iam.v1.GetUserRolesAndPermissionsRequest\x1a*.iam.v1.GetUserRolesAndPermissionsResponse\"*\x82\xd3\xe4\x93\x02$\x12\"/api/v1/iam/users/{user_id}/access\x12\x90\x01\n" +
+	"\x14UploadProfilePicture\x12#.iam.v1.UploadProfilePictureRequest\x1a$.iam.v1.UploadProfilePictureResponse\"-\x82\xd3\xe4\x93\x02':\x01*\"\"/api/v1/iam/users/{user_id}/avatarB\x87\x01\n" +
 	"\n" +
 	"com.iam.v1B\tUserProtoP\x01Z5github.com/mutugading/goapps-backend/gen/iam/v1;iamv1\xa2\x02\x03IXX\xaa\x02\x06Iam.V1\xca\x02\x06Iam\\V1\xe2\x02\x12Iam\\V1\\GPBMetadata\xea\x02\aIam::V1b\x06proto3"
 
@@ -3074,7 +3214,7 @@ func file_iam_v1_user_proto_rawDescGZIP() []byte {
 }
 
 var file_iam_v1_user_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_iam_v1_user_proto_msgTypes = make([]protoimpl.MessageInfo, 38)
+var file_iam_v1_user_proto_msgTypes = make([]protoimpl.MessageInfo, 40)
 var file_iam_v1_user_proto_goTypes = []any{
 	(ActiveFilter)(0),                          // 0: iam.v1.ActiveFilter
 	(*User)(nil),                               // 1: iam.v1.User
@@ -3115,80 +3255,85 @@ var file_iam_v1_user_proto_goTypes = []any{
 	(*UserAccessInfo)(nil),                     // 36: iam.v1.UserAccessInfo
 	(*RoleWithPermissions)(nil),                // 37: iam.v1.RoleWithPermissions
 	(*Permission)(nil),                         // 38: iam.v1.Permission
-	(*v1.AuditInfo)(nil),                       // 39: common.v1.AuditInfo
-	(*v1.BaseResponse)(nil),                    // 40: common.v1.BaseResponse
-	(*v1.PaginationResponse)(nil),              // 41: common.v1.PaginationResponse
+	(*UploadProfilePictureRequest)(nil),        // 39: iam.v1.UploadProfilePictureRequest
+	(*UploadProfilePictureResponse)(nil),       // 40: iam.v1.UploadProfilePictureResponse
+	(*v1.AuditInfo)(nil),                       // 41: common.v1.AuditInfo
+	(*v1.BaseResponse)(nil),                    // 42: common.v1.BaseResponse
+	(*v1.PaginationResponse)(nil),              // 43: common.v1.PaginationResponse
 }
 var file_iam_v1_user_proto_depIdxs = []int32{
-	39, // 0: iam.v1.User.audit:type_name -> common.v1.AuditInfo
+	41, // 0: iam.v1.User.audit:type_name -> common.v1.AuditInfo
 	3,  // 1: iam.v1.UserDetail.section:type_name -> iam.v1.SectionInfo
-	39, // 2: iam.v1.UserDetail.audit:type_name -> common.v1.AuditInfo
+	41, // 2: iam.v1.UserDetail.audit:type_name -> common.v1.AuditInfo
 	1,  // 3: iam.v1.UserWithDetail.user:type_name -> iam.v1.User
 	2,  // 4: iam.v1.UserWithDetail.detail:type_name -> iam.v1.UserDetail
-	40, // 5: iam.v1.CreateUserResponse.base:type_name -> common.v1.BaseResponse
+	42, // 5: iam.v1.CreateUserResponse.base:type_name -> common.v1.BaseResponse
 	4,  // 6: iam.v1.CreateUserResponse.data:type_name -> iam.v1.UserWithDetail
-	40, // 7: iam.v1.GetUserResponse.base:type_name -> common.v1.BaseResponse
+	42, // 7: iam.v1.GetUserResponse.base:type_name -> common.v1.BaseResponse
 	1,  // 8: iam.v1.GetUserResponse.data:type_name -> iam.v1.User
-	40, // 9: iam.v1.GetUserDetailResponse.base:type_name -> common.v1.BaseResponse
+	42, // 9: iam.v1.GetUserDetailResponse.base:type_name -> common.v1.BaseResponse
 	4,  // 10: iam.v1.GetUserDetailResponse.data:type_name -> iam.v1.UserWithDetail
-	40, // 11: iam.v1.UpdateUserResponse.base:type_name -> common.v1.BaseResponse
+	42, // 11: iam.v1.UpdateUserResponse.base:type_name -> common.v1.BaseResponse
 	1,  // 12: iam.v1.UpdateUserResponse.data:type_name -> iam.v1.User
-	40, // 13: iam.v1.UpdateUserDetailResponse.base:type_name -> common.v1.BaseResponse
+	42, // 13: iam.v1.UpdateUserDetailResponse.base:type_name -> common.v1.BaseResponse
 	2,  // 14: iam.v1.UpdateUserDetailResponse.data:type_name -> iam.v1.UserDetail
-	40, // 15: iam.v1.DeleteUserResponse.base:type_name -> common.v1.BaseResponse
+	42, // 15: iam.v1.DeleteUserResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 16: iam.v1.ListUsersRequest.active_filter:type_name -> iam.v1.ActiveFilter
-	40, // 17: iam.v1.ListUsersResponse.base:type_name -> common.v1.BaseResponse
+	42, // 17: iam.v1.ListUsersResponse.base:type_name -> common.v1.BaseResponse
 	4,  // 18: iam.v1.ListUsersResponse.data:type_name -> iam.v1.UserWithDetail
-	41, // 19: iam.v1.ListUsersResponse.pagination:type_name -> common.v1.PaginationResponse
+	43, // 19: iam.v1.ListUsersResponse.pagination:type_name -> common.v1.PaginationResponse
 	0,  // 20: iam.v1.ExportUsersRequest.active_filter:type_name -> iam.v1.ActiveFilter
-	40, // 21: iam.v1.ExportUsersResponse.base:type_name -> common.v1.BaseResponse
-	40, // 22: iam.v1.ImportUsersResponse.base:type_name -> common.v1.BaseResponse
+	42, // 21: iam.v1.ExportUsersResponse.base:type_name -> common.v1.BaseResponse
+	42, // 22: iam.v1.ImportUsersResponse.base:type_name -> common.v1.BaseResponse
 	23, // 23: iam.v1.ImportUsersResponse.errors:type_name -> iam.v1.ImportError
-	40, // 24: iam.v1.DownloadTemplateResponse.base:type_name -> common.v1.BaseResponse
-	40, // 25: iam.v1.AssignUserRolesResponse.base:type_name -> common.v1.BaseResponse
-	40, // 26: iam.v1.RemoveUserRolesResponse.base:type_name -> common.v1.BaseResponse
-	40, // 27: iam.v1.AssignUserPermissionsResponse.base:type_name -> common.v1.BaseResponse
-	40, // 28: iam.v1.RemoveUserPermissionsResponse.base:type_name -> common.v1.BaseResponse
-	40, // 29: iam.v1.GetUserRolesAndPermissionsResponse.base:type_name -> common.v1.BaseResponse
+	42, // 24: iam.v1.DownloadTemplateResponse.base:type_name -> common.v1.BaseResponse
+	42, // 25: iam.v1.AssignUserRolesResponse.base:type_name -> common.v1.BaseResponse
+	42, // 26: iam.v1.RemoveUserRolesResponse.base:type_name -> common.v1.BaseResponse
+	42, // 27: iam.v1.AssignUserPermissionsResponse.base:type_name -> common.v1.BaseResponse
+	42, // 28: iam.v1.RemoveUserPermissionsResponse.base:type_name -> common.v1.BaseResponse
+	42, // 29: iam.v1.GetUserRolesAndPermissionsResponse.base:type_name -> common.v1.BaseResponse
 	36, // 30: iam.v1.GetUserRolesAndPermissionsResponse.data:type_name -> iam.v1.UserAccessInfo
 	37, // 31: iam.v1.UserAccessInfo.roles:type_name -> iam.v1.RoleWithPermissions
 	38, // 32: iam.v1.UserAccessInfo.direct_permissions:type_name -> iam.v1.Permission
 	38, // 33: iam.v1.RoleWithPermissions.permissions:type_name -> iam.v1.Permission
-	5,  // 34: iam.v1.UserService.CreateUser:input_type -> iam.v1.CreateUserRequest
-	7,  // 35: iam.v1.UserService.GetUser:input_type -> iam.v1.GetUserRequest
-	9,  // 36: iam.v1.UserService.GetUserDetail:input_type -> iam.v1.GetUserDetailRequest
-	11, // 37: iam.v1.UserService.UpdateUser:input_type -> iam.v1.UpdateUserRequest
-	13, // 38: iam.v1.UserService.UpdateUserDetail:input_type -> iam.v1.UpdateUserDetailRequest
-	15, // 39: iam.v1.UserService.DeleteUser:input_type -> iam.v1.DeleteUserRequest
-	17, // 40: iam.v1.UserService.ListUsers:input_type -> iam.v1.ListUsersRequest
-	19, // 41: iam.v1.UserService.ExportUsers:input_type -> iam.v1.ExportUsersRequest
-	21, // 42: iam.v1.UserService.ImportUsers:input_type -> iam.v1.ImportUsersRequest
-	24, // 43: iam.v1.UserService.DownloadTemplate:input_type -> iam.v1.DownloadTemplateRequest
-	26, // 44: iam.v1.UserService.AssignUserRoles:input_type -> iam.v1.AssignUserRolesRequest
-	28, // 45: iam.v1.UserService.RemoveUserRoles:input_type -> iam.v1.RemoveUserRolesRequest
-	30, // 46: iam.v1.UserService.AssignUserPermissions:input_type -> iam.v1.AssignUserPermissionsRequest
-	32, // 47: iam.v1.UserService.RemoveUserPermissions:input_type -> iam.v1.RemoveUserPermissionsRequest
-	34, // 48: iam.v1.UserService.GetUserRolesAndPermissions:input_type -> iam.v1.GetUserRolesAndPermissionsRequest
-	6,  // 49: iam.v1.UserService.CreateUser:output_type -> iam.v1.CreateUserResponse
-	8,  // 50: iam.v1.UserService.GetUser:output_type -> iam.v1.GetUserResponse
-	10, // 51: iam.v1.UserService.GetUserDetail:output_type -> iam.v1.GetUserDetailResponse
-	12, // 52: iam.v1.UserService.UpdateUser:output_type -> iam.v1.UpdateUserResponse
-	14, // 53: iam.v1.UserService.UpdateUserDetail:output_type -> iam.v1.UpdateUserDetailResponse
-	16, // 54: iam.v1.UserService.DeleteUser:output_type -> iam.v1.DeleteUserResponse
-	18, // 55: iam.v1.UserService.ListUsers:output_type -> iam.v1.ListUsersResponse
-	20, // 56: iam.v1.UserService.ExportUsers:output_type -> iam.v1.ExportUsersResponse
-	22, // 57: iam.v1.UserService.ImportUsers:output_type -> iam.v1.ImportUsersResponse
-	25, // 58: iam.v1.UserService.DownloadTemplate:output_type -> iam.v1.DownloadTemplateResponse
-	27, // 59: iam.v1.UserService.AssignUserRoles:output_type -> iam.v1.AssignUserRolesResponse
-	29, // 60: iam.v1.UserService.RemoveUserRoles:output_type -> iam.v1.RemoveUserRolesResponse
-	31, // 61: iam.v1.UserService.AssignUserPermissions:output_type -> iam.v1.AssignUserPermissionsResponse
-	33, // 62: iam.v1.UserService.RemoveUserPermissions:output_type -> iam.v1.RemoveUserPermissionsResponse
-	35, // 63: iam.v1.UserService.GetUserRolesAndPermissions:output_type -> iam.v1.GetUserRolesAndPermissionsResponse
-	49, // [49:64] is the sub-list for method output_type
-	34, // [34:49] is the sub-list for method input_type
-	34, // [34:34] is the sub-list for extension type_name
-	34, // [34:34] is the sub-list for extension extendee
-	0,  // [0:34] is the sub-list for field type_name
+	42, // 34: iam.v1.UploadProfilePictureResponse.base:type_name -> common.v1.BaseResponse
+	5,  // 35: iam.v1.UserService.CreateUser:input_type -> iam.v1.CreateUserRequest
+	7,  // 36: iam.v1.UserService.GetUser:input_type -> iam.v1.GetUserRequest
+	9,  // 37: iam.v1.UserService.GetUserDetail:input_type -> iam.v1.GetUserDetailRequest
+	11, // 38: iam.v1.UserService.UpdateUser:input_type -> iam.v1.UpdateUserRequest
+	13, // 39: iam.v1.UserService.UpdateUserDetail:input_type -> iam.v1.UpdateUserDetailRequest
+	15, // 40: iam.v1.UserService.DeleteUser:input_type -> iam.v1.DeleteUserRequest
+	17, // 41: iam.v1.UserService.ListUsers:input_type -> iam.v1.ListUsersRequest
+	19, // 42: iam.v1.UserService.ExportUsers:input_type -> iam.v1.ExportUsersRequest
+	21, // 43: iam.v1.UserService.ImportUsers:input_type -> iam.v1.ImportUsersRequest
+	24, // 44: iam.v1.UserService.DownloadTemplate:input_type -> iam.v1.DownloadTemplateRequest
+	26, // 45: iam.v1.UserService.AssignUserRoles:input_type -> iam.v1.AssignUserRolesRequest
+	28, // 46: iam.v1.UserService.RemoveUserRoles:input_type -> iam.v1.RemoveUserRolesRequest
+	30, // 47: iam.v1.UserService.AssignUserPermissions:input_type -> iam.v1.AssignUserPermissionsRequest
+	32, // 48: iam.v1.UserService.RemoveUserPermissions:input_type -> iam.v1.RemoveUserPermissionsRequest
+	34, // 49: iam.v1.UserService.GetUserRolesAndPermissions:input_type -> iam.v1.GetUserRolesAndPermissionsRequest
+	39, // 50: iam.v1.UserService.UploadProfilePicture:input_type -> iam.v1.UploadProfilePictureRequest
+	6,  // 51: iam.v1.UserService.CreateUser:output_type -> iam.v1.CreateUserResponse
+	8,  // 52: iam.v1.UserService.GetUser:output_type -> iam.v1.GetUserResponse
+	10, // 53: iam.v1.UserService.GetUserDetail:output_type -> iam.v1.GetUserDetailResponse
+	12, // 54: iam.v1.UserService.UpdateUser:output_type -> iam.v1.UpdateUserResponse
+	14, // 55: iam.v1.UserService.UpdateUserDetail:output_type -> iam.v1.UpdateUserDetailResponse
+	16, // 56: iam.v1.UserService.DeleteUser:output_type -> iam.v1.DeleteUserResponse
+	18, // 57: iam.v1.UserService.ListUsers:output_type -> iam.v1.ListUsersResponse
+	20, // 58: iam.v1.UserService.ExportUsers:output_type -> iam.v1.ExportUsersResponse
+	22, // 59: iam.v1.UserService.ImportUsers:output_type -> iam.v1.ImportUsersResponse
+	25, // 60: iam.v1.UserService.DownloadTemplate:output_type -> iam.v1.DownloadTemplateResponse
+	27, // 61: iam.v1.UserService.AssignUserRoles:output_type -> iam.v1.AssignUserRolesResponse
+	29, // 62: iam.v1.UserService.RemoveUserRoles:output_type -> iam.v1.RemoveUserRolesResponse
+	31, // 63: iam.v1.UserService.AssignUserPermissions:output_type -> iam.v1.AssignUserPermissionsResponse
+	33, // 64: iam.v1.UserService.RemoveUserPermissions:output_type -> iam.v1.RemoveUserPermissionsResponse
+	35, // 65: iam.v1.UserService.GetUserRolesAndPermissions:output_type -> iam.v1.GetUserRolesAndPermissionsResponse
+	40, // 66: iam.v1.UserService.UploadProfilePicture:output_type -> iam.v1.UploadProfilePictureResponse
+	51, // [51:67] is the sub-list for method output_type
+	35, // [35:51] is the sub-list for method input_type
+	35, // [35:35] is the sub-list for extension type_name
+	35, // [35:35] is the sub-list for extension extendee
+	0,  // [0:35] is the sub-list for field type_name
 }
 
 func init() { file_iam_v1_user_proto_init() }
@@ -3209,7 +3354,7 @@ func file_iam_v1_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_iam_v1_user_proto_rawDesc), len(file_iam_v1_user_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   38,
+			NumMessages:   40,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

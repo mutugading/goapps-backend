@@ -34,6 +34,7 @@ const (
 	UserService_AssignUserPermissions_FullMethodName      = "/iam.v1.UserService/AssignUserPermissions"
 	UserService_RemoveUserPermissions_FullMethodName      = "/iam.v1.UserService/RemoveUserPermissions"
 	UserService_GetUserRolesAndPermissions_FullMethodName = "/iam.v1.UserService/GetUserRolesAndPermissions"
+	UserService_UploadProfilePicture_FullMethodName       = "/iam.v1.UserService/UploadProfilePicture"
 )
 
 // UserServiceClient is the client API for UserService service.
@@ -72,6 +73,9 @@ type UserServiceClient interface {
 	RemoveUserPermissions(ctx context.Context, in *RemoveUserPermissionsRequest, opts ...grpc.CallOption) (*RemoveUserPermissionsResponse, error)
 	// GetUserRolesAndPermissions gets all roles and permissions for a user.
 	GetUserRolesAndPermissions(ctx context.Context, in *GetUserRolesAndPermissionsRequest, opts ...grpc.CallOption) (*GetUserRolesAndPermissionsResponse, error)
+	// UploadProfilePicture uploads or replaces a user's profile picture.
+	// Old picture is automatically deleted when a new one is uploaded.
+	UploadProfilePicture(ctx context.Context, in *UploadProfilePictureRequest, opts ...grpc.CallOption) (*UploadProfilePictureResponse, error)
 }
 
 type userServiceClient struct {
@@ -232,6 +236,16 @@ func (c *userServiceClient) GetUserRolesAndPermissions(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *userServiceClient) UploadProfilePicture(ctx context.Context, in *UploadProfilePictureRequest, opts ...grpc.CallOption) (*UploadProfilePictureResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UploadProfilePictureResponse)
+	err := c.cc.Invoke(ctx, UserService_UploadProfilePicture_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserServiceServer is the server API for UserService service.
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility.
@@ -268,6 +282,9 @@ type UserServiceServer interface {
 	RemoveUserPermissions(context.Context, *RemoveUserPermissionsRequest) (*RemoveUserPermissionsResponse, error)
 	// GetUserRolesAndPermissions gets all roles and permissions for a user.
 	GetUserRolesAndPermissions(context.Context, *GetUserRolesAndPermissionsRequest) (*GetUserRolesAndPermissionsResponse, error)
+	// UploadProfilePicture uploads or replaces a user's profile picture.
+	// Old picture is automatically deleted when a new one is uploaded.
+	UploadProfilePicture(context.Context, *UploadProfilePictureRequest) (*UploadProfilePictureResponse, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
 
@@ -322,6 +339,9 @@ func (UnimplementedUserServiceServer) RemoveUserPermissions(context.Context, *Re
 }
 func (UnimplementedUserServiceServer) GetUserRolesAndPermissions(context.Context, *GetUserRolesAndPermissionsRequest) (*GetUserRolesAndPermissionsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetUserRolesAndPermissions not implemented")
+}
+func (UnimplementedUserServiceServer) UploadProfilePicture(context.Context, *UploadProfilePictureRequest) (*UploadProfilePictureResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UploadProfilePicture not implemented")
 }
 func (UnimplementedUserServiceServer) mustEmbedUnimplementedUserServiceServer() {}
 func (UnimplementedUserServiceServer) testEmbeddedByValue()                     {}
@@ -614,6 +634,24 @@ func _UserService_GetUserRolesAndPermissions_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_UploadProfilePicture_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UploadProfilePictureRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).UploadProfilePicture(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_UploadProfilePicture_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).UploadProfilePicture(ctx, req.(*UploadProfilePictureRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UserService_ServiceDesc is the grpc.ServiceDesc for UserService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -680,6 +718,10 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetUserRolesAndPermissions",
 			Handler:    _UserService_GetUserRolesAndPermissions_Handler,
+		},
+		{
+			MethodName: "UploadProfilePicture",
+			Handler:    _UserService_UploadProfilePicture_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
