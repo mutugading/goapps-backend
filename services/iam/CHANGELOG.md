@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.4.0...iam-service/v0.5.0) (2026-02-10)
+
+
+### Features
+
+* Add MinIO storage integration and user profile picture upload functionality. ([2754734](https://github.com/mutugading/goapps-backend/commit/27547346f3a6096fe3d4672a8fa7508f9835f2c3))
+* Add MinIO storage integration and user profile picture upload functionality. ([8c8d7c0](https://github.com/mutugading/goapps-backend/commit/8c8d7c042e497002579b078fb57c6d2fb3ef9ff4))
+
 ## [0.4.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.3.0...iam-service/v0.4.0) (2026-02-09)
 
 
