@@ -5,6 +5,8 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
+
 	commonv1 "github.com/mutugading/goapps-backend/gen/common/v1"
 	iamv1 "github.com/mutugading/goapps-backend/gen/iam/v1"
 	roleapp "github.com/mutugading/goapps-backend/services/iam/internal/application/role"
@@ -173,7 +175,10 @@ func (h *RoleHandler) ListRoles(ctx context.Context, req *iamv1.ListRolesRequest
 	}
 
 	// Get user counts per role.
-	userCounts, _ := h.roleRepo.CountUsersByRoles(ctx, roleIDs)
+	userCounts, err := h.roleRepo.CountUsersByRoles(ctx, roleIDs)
+	if err != nil {
+		log.Warn().Err(err).Msg("failed to fetch user counts per role")
+	}
 
 	protoRoles := make([]*iamv1.Role, len(result.Roles))
 	for i, r := range result.Roles {

@@ -83,6 +83,7 @@ func (h *UserHandler) CreateUser(ctx context.Context, req *iamv1.CreateUserReque
 
 	// Validate password against policy.
 	if err := password.Validate(req.GetPassword(), password.DefaultPolicy()); err != nil {
+		//nolint:nilerr // error returned in structured Base response, not as gRPC error
 		return &iamv1.CreateUserResponse{
 			Base: ErrorResponse("400", "Password too weak: "+err.Error()),
 		}, nil
@@ -91,6 +92,7 @@ func (h *UserHandler) CreateUser(ctx context.Context, req *iamv1.CreateUserReque
 	// Hash the password before storing.
 	hashedPassword, err := password.Hash(req.GetPassword())
 	if err != nil {
+		//nolint:nilerr // error returned in structured Base response, not as gRPC error
 		return &iamv1.CreateUserResponse{
 			Base: InternalErrorResponse("failed to hash password"),
 		}, nil
