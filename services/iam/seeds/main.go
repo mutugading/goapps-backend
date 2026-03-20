@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -487,7 +488,7 @@ func seedAdminUser(ctx context.Context, tx *sql.Tx, creds adminCredentials) (uui
 		`SELECT user_id FROM mst_user WHERE username = $1 AND deleted_at IS NULL`, creds.Username,
 	).Scan(&existingID)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		// Admin doesn't exist — insert
 		existingID = uuid.New()
 		_, err = tx.ExecContext(ctx, `

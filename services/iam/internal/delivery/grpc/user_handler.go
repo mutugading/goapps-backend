@@ -85,7 +85,7 @@ func (h *UserHandler) CreateUser(ctx context.Context, req *iamv1.CreateUserReque
 	if err := password.Validate(req.GetPassword(), password.DefaultPolicy()); err != nil {
 		return &iamv1.CreateUserResponse{
 			Base: ErrorResponse("400", "Password too weak: "+err.Error()),
-		}, nil
+		}, nil //nolint:nilerr // error returned in structured Base response
 	}
 
 	// Hash the password before storing.
@@ -93,7 +93,7 @@ func (h *UserHandler) CreateUser(ctx context.Context, req *iamv1.CreateUserReque
 	if err != nil {
 		return &iamv1.CreateUserResponse{
 			Base: InternalErrorResponse("failed to hash password"),
-		}, nil
+		}, nil //nolint:nilerr // error returned in structured Base response
 	}
 
 	entity, err := h.createHandler.Handle(ctx, userapp.CreateCommand{

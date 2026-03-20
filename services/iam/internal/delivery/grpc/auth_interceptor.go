@@ -50,6 +50,36 @@ func isPublicMethod(fullMethod string) bool {
 	return false
 }
 
+// checkTokenBlacklist checks if the token is blacklisted in Redis.
+// Returns true if the token is revoked. Fails open if Redis is unavailable.
+func checkTokenBlacklist(ctx context.Context, cache *redis.SessionCache, tokenID string) bool {
+	if cache == nil {
+		return false
+	}
+	blacklisted, err := cache.IsBlacklisted(ctx, tokenID)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to check token blacklist")
+		return false
+	}
+	return blacklisted
+}
+
+// updateSessionActivity fires a non-blocking goroutine to update session last_activity_at.
+func updateSessionActivity(repo session.Repository, userIDStr string) {
+	if repo == nil {
+		return
+	}
+	go func() {
+		userID, err := uuid.Parse(userIDStr)
+		if err != nil {
+			return
+		}
+		if updateErr := repo.UpdateActivity(context.Background(), userID); updateErr != nil {
+			log.Debug().Err(updateErr).Msg("failed to update session activity")
+		}
+	}()
+}
+
 // AuthInterceptor creates a unary interceptor that validates JWT tokens
 // and populates the context with user information.
 // sessionRepo is optional — when provided, it updates last_activity_at on each request.
@@ -85,17 +115,9 @@ func AuthInterceptor(jwtService *jwt.Service, sessionCache *redis.SessionCache, 
 			return nil, status.Error(codes.Unauthenticated, "invalid or expired token")
 		}
 
-		// Check token blacklist (if Redis is available)
-		if sessionCache != nil {
-			blacklisted, blErr := sessionCache.IsBlacklisted(ctx, claims.ID)
-			if blErr != nil {
-				log.Warn().Err(blErr).Msg("Failed to check token blacklist")
-				// Continue even if blacklist check fails — fail-open for reads,
-				// but the short access token TTL (15min) limits exposure.
-			}
-			if blacklisted {
-				return nil, status.Error(codes.Unauthenticated, "token has been revoked")
-			}
+		// Check token blacklist
+		if checkTokenBlacklist(ctx, sessionCache, claims.ID) {
+			return nil, status.Error(codes.Unauthenticated, "token has been revoked")
 		}
 
 		// Populate context with user information from JWT claims
@@ -106,17 +128,7 @@ func AuthInterceptor(jwtService *jwt.Service, sessionCache *redis.SessionCache, 
 		ctx = context.WithValue(ctx, PermissionsKey, claims.Permissions)
 
 		// Update session last_activity_at (fire-and-forget, non-blocking)
-		if sessionRepo != nil {
-			go func() {
-				userID, parseErr := uuid.Parse(claims.UserID)
-				if parseErr != nil {
-					return
-				}
-				if updateErr := sessionRepo.UpdateActivity(context.Background(), userID); updateErr != nil {
-					log.Debug().Err(updateErr).Msg("failed to update session activity")
-				}
-			}()
-		}
+		updateSessionActivity(sessionRepo, claims.UserID)
 
 		return handler(ctx, req)
 	}
