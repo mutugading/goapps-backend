@@ -127,9 +127,9 @@ func (r *RMCategoryRepository) List(ctx context.Context, filter rmcategory.ListF
 	if mapped, ok := sortColumnMap[filter.SortBy]; ok {
 		orderColumn = mapped
 	}
-	orderDir := "ASC"
-	if strings.ToUpper(filter.SortOrder) == "DESC" {
-		orderDir = "DESC"
+	orderDir := sortASC
+	if strings.ToUpper(filter.SortOrder) == sortDESC {
+		orderDir = sortDESC
 	}
 
 	// Data query with pagination

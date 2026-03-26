@@ -21,6 +21,12 @@ type uomSeed struct {
 	description string
 }
 
+type rmCategorySeed struct {
+	code        string
+	name        string
+	description string
+}
+
 var uomSeeds = []uomSeed{
 	// Weight
 	{"KG", "Kilogram", "WEIGHT", "Weight in kilograms"},
@@ -57,6 +63,19 @@ var uomSeeds = []uomSeed{
 	{"DRUM", "Drum", "QUANTITY", "Count in drums (container)"},
 }
 
+var rmCategorySeeds = []rmCategorySeed{
+	{"CHIP", "Chips", "Chip-based raw materials"},
+	{"OIL", "Oil", "Oil-based raw materials"},
+	{"DYES", "Dyes", "Dye and coloring raw materials"},
+	{"CHEM", "Chemicals", "Chemical raw materials"},
+	{"FIBER", "Fiber", "Fiber and textile raw materials"},
+	{"RESIN", "Resin", "Resin and polymer raw materials"},
+	{"SOLV", "Solvent", "Solvent raw materials"},
+	{"ADD", "Additives", "Additive and auxiliary raw materials"},
+	{"PACK", "Packaging", "Packaging raw materials"},
+	{"MISC", "Miscellaneous", "Other raw materials"},
+}
+
 func main() {
 	// Load configuration
 	cfg, err := config.Load()
@@ -67,7 +86,7 @@ func main() {
 	// Setup logger
 	logger.Setup(cfg.Logger.Level, cfg.Logger.Format, cfg.Logger.PrettyJSON)
 
-	log.Info().Msg("Starting UOM seeder")
+	log.Info().Msg("Starting Finance seeder")
 
 	// Connect to database
 	db, err := sql.Open("postgres", cfg.Database.ConnectionString())
@@ -125,8 +144,54 @@ func main() {
 		inserted++
 	}
 
-	fmt.Printf("\n✅ Seeding completed!\n")
+	fmt.Printf("\n✅ UOM seeding completed!\n")
 	fmt.Printf("   Inserted: %d\n", inserted)
 	fmt.Printf("   Skipped:  %d\n", skipped)
 	fmt.Printf("   Total:    %d\n", len(uomSeeds))
+
+	// Seed RM Categories
+	seedRMCategories(ctx, db)
+}
+
+func seedRMCategories(ctx context.Context, db *sql.DB) {
+	log.Info().Msg("Seeding RM Categories")
+
+	inserted := 0
+	skipped := 0
+
+	for _, seed := range rmCategorySeeds {
+		var exists bool
+		err := db.QueryRowContext(ctx,
+			"SELECT EXISTS(SELECT 1 FROM mst_rm_category WHERE category_code = $1 AND deleted_at IS NULL)",
+			seed.code,
+		).Scan(&exists)
+		if err != nil {
+			log.Error().Err(err).Str("code", seed.code).Msg("Failed to check RM Category existence")
+			continue
+		}
+
+		if exists {
+			log.Debug().Str("code", seed.code).Msg("RM Category already exists, skipping")
+			skipped++
+			continue
+		}
+
+		_, err = db.ExecContext(ctx,
+			`INSERT INTO mst_rm_category (category_code, category_name, description, is_active, created_by)
+			 VALUES ($1, $2, $3, true, 'seeder')`,
+			seed.code, seed.name, seed.description,
+		)
+		if err != nil {
+			log.Error().Err(err).Str("code", seed.code).Msg("Failed to insert RM Category")
+			continue
+		}
+
+		log.Info().Str("code", seed.code).Str("name", seed.name).Msg("Inserted RM Category")
+		inserted++
+	}
+
+	fmt.Printf("\n✅ RM Category seeding completed!\n")
+	fmt.Printf("   Inserted: %d\n", inserted)
+	fmt.Printf("   Skipped:  %d\n", skipped)
+	fmt.Printf("   Total:    %d\n", len(rmCategorySeeds))
 }

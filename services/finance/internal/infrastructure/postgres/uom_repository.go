@@ -133,9 +133,9 @@ func (r *UOMRepository) List(ctx context.Context, filter uom.ListFilter) ([]*uom
 	case "created_at":
 		orderColumn = "created_at"
 	}
-	orderDir := "ASC"
-	if strings.ToUpper(filter.SortOrder) == "DESC" {
-		orderDir = "DESC"
+	orderDir := sortASC
+	if strings.ToUpper(filter.SortOrder) == sortDESC {
+		orderDir = sortDESC
 	}
 
 	// Data query with pagination
