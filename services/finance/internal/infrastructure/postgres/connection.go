@@ -14,6 +14,12 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/config"
 )
 
+// Sort order constants for ORDER BY clauses.
+const (
+	sortASC  = "ASC"
+	sortDESC = "DESC"
+)
+
 // DB wraps the SQL database connection.
 type DB struct {
 	*sql.DB
