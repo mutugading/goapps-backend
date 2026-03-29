@@ -178,6 +178,8 @@ func domainErrorToBaseResponse(err error) *commonv1.BaseResponse {
 			return NotFoundResponse(errMsg)
 		case strings.Contains(errMsg, "already exists"):
 			return ConflictResponse(errMsg)
+		case strings.Contains(errMsg, "not editable"):
+			return ErrorResponse("422", errMsg)
 		default:
 			log.Error().Err(err).Msg("unhandled domain error mapped to 500")
 			return InternalErrorResponse("internal server error")
