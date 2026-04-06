@@ -54,6 +54,14 @@ var (
 		[]string{"operation", "status"},
 	)
 
+	parameterOperationsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "parameter_operations_total",
+			Help: "Total number of Parameter operations",
+		},
+		[]string{"operation", "status"},
+	)
+
 	cacheHitsTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "cache_hits_total",
