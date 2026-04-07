@@ -43,4 +43,7 @@ var (
 
 	// ErrInvalidMinMax is returned when min_value is greater than max_value.
 	ErrInvalidMinMax = errors.New("min_value cannot be greater than max_value")
+
+	// ErrUOMNotFound is returned when a referenced UOM code does not exist.
+	ErrUOMNotFound = errors.New("referenced UOM not found")
 )

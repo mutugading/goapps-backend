@@ -104,13 +104,21 @@ func MetricsInterceptor() grpc.UnaryServerInterceptor {
 	}
 }
 
+const (
+	metricStatusSuccess = "success"
+	metricStatusFailure = "failure"
+)
+
+func metricStatus(success bool) string {
+	if success {
+		return metricStatusSuccess
+	}
+	return metricStatusFailure
+}
+
 // RecordUOMOperation records a UOM operation metric.
 func RecordUOMOperation(operation string, success bool) {
-	status := "success"
-	if !success {
-		status = "failure"
-	}
-	uomOperationsTotal.WithLabelValues(operation, status).Inc()
+	uomOperationsTotal.WithLabelValues(operation, metricStatus(success)).Inc()
 }
 
 // RecordCacheHit records a cache hit.

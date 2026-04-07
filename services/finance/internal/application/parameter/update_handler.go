@@ -36,96 +36,96 @@ func NewUpdateHandler(repo parameter.Repository) *UpdateHandler {
 
 // Handle executes the update Parameter command.
 func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*parameter.Parameter, error) {
-	// 1. Parse ID
 	id, err := uuid.Parse(cmd.ParamID)
 	if err != nil {
 		return nil, parameter.ErrNotFound
 	}
 
-	// 2. Get existing entity
 	entity, err := h.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	// 3. Prepare DataType if provided
-	var dataType *parameter.DataType
-	if cmd.DataType != nil {
-		dt, err := parameter.NewDataType(*cmd.DataType)
-		if err != nil {
-			return nil, err
-		}
-		dataType = &dt
+	dataType, err := parseOptionalDataType(cmd.DataType)
+	if err != nil {
+		return nil, err
 	}
 
-	// 4. Prepare ParamCategory if provided
-	var paramCategory *parameter.ParamCategory
-	if cmd.ParamCategory != nil {
-		cat, err := parameter.NewParamCategory(*cmd.ParamCategory)
-		if err != nil {
-			return nil, err
-		}
-		paramCategory = &cat
+	paramCategory, err := parseOptionalParamCategory(cmd.ParamCategory)
+	if err != nil {
+		return nil, err
 	}
 
-	// 5. Prepare UOM ID (double pointer: nil=not set, *nil=clear, *uuid=set)
-	var uomID **uuid.UUID
-	if cmd.UOMID != nil {
-		if *cmd.UOMID == "" {
-			// Clear UOM reference
-			var nilUOM *uuid.UUID
-			uomID = &nilUOM
-		} else {
-			parsed, err := uuid.Parse(*cmd.UOMID)
-			if err != nil {
-				return nil, parameter.ErrNotFound
-			}
-			parsedPtr := &parsed
-			uomID = &parsedPtr
-		}
+	uomID, err := parseOptionalUOMID(cmd.UOMID)
+	if err != nil {
+		return nil, err
 	}
 
-	// 6. Prepare optional string fields (double pointer pattern)
-	var defaultValue, minValue, maxValue **string
-	if cmd.DefaultValue != nil {
-		if *cmd.DefaultValue == "" {
-			var nilStr *string
-			defaultValue = &nilStr
-		} else {
-			defaultValue = &cmd.DefaultValue
-		}
-	}
-	if cmd.MinValue != nil {
-		if *cmd.MinValue == "" {
-			var nilStr *string
-			minValue = &nilStr
-		} else {
-			minValue = &cmd.MinValue
-		}
-	}
-	if cmd.MaxValue != nil {
-		if *cmd.MaxValue == "" {
-			var nilStr *string
-			maxValue = &nilStr
-		} else {
-			maxValue = &cmd.MaxValue
-		}
-	}
-
-	// 7. Update domain entity
 	if err := entity.Update(
 		cmd.ParamName, cmd.ParamShortName,
 		dataType, paramCategory, uomID,
-		defaultValue, minValue, maxValue,
+		toDoublePointer(cmd.DefaultValue),
+		toDoublePointer(cmd.MinValue),
+		toDoublePointer(cmd.MaxValue),
 		cmd.IsActive, cmd.UpdatedBy,
 	); err != nil {
 		return nil, err
 	}
 
-	// 8. Persist
 	if err := h.repo.Update(ctx, entity); err != nil {
 		return nil, err
 	}
 
 	return entity, nil
+}
+
+func parseOptionalDataType(dt *string) (*parameter.DataType, error) {
+	if dt == nil {
+		return nil, nil //nolint:nilnil // nil means "not set" — intentional sentinel-free design
+	}
+	parsed, err := parameter.NewDataType(*dt)
+	if err != nil {
+		return nil, err
+	}
+	return &parsed, nil
+}
+
+func parseOptionalParamCategory(cat *string) (*parameter.ParamCategory, error) {
+	if cat == nil {
+		return nil, nil //nolint:nilnil // nil means "not set" — intentional sentinel-free design
+	}
+	parsed, err := parameter.NewParamCategory(*cat)
+	if err != nil {
+		return nil, err
+	}
+	return &parsed, nil
+}
+
+func parseOptionalUOMID(uomID *string) (**uuid.UUID, error) {
+	if uomID == nil {
+		return nil, nil //nolint:nilnil // nil means "not set" — intentional sentinel-free design
+	}
+	if *uomID == "" {
+		var nilUOM *uuid.UUID
+		return &nilUOM, nil
+	}
+	parsed, err := uuid.Parse(*uomID)
+	if err != nil {
+		return nil, parameter.ErrNotFound
+	}
+	parsedPtr := &parsed
+	return &parsedPtr, nil
+}
+
+// toDoublePointer converts *string to **string for the domain Update method.
+// nil=not set, *nil=clear, *value=set.
+func toDoublePointer(val *string) **string {
+	if val == nil {
+		return nil
+	}
+	if *val == "" {
+		var nilStr *string
+		return &nilStr
+	}
+	return &val
 }

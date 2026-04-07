@@ -352,14 +352,14 @@ func (r *ParameterRepository) ListAll(ctx context.Context, filter parameter.Expo
 	return params, nil
 }
 
-// ResolveUOMCode resolves a UOM code to its UUID. Returns nil if not found.
+// ResolveUOMCode resolves a UOM code to its UUID. Returns ErrUOMNotFound if not found.
 func (r *ParameterRepository) ResolveUOMCode(ctx context.Context, uomCode string) (*uuid.UUID, error) {
 	query := `SELECT uom_id FROM mst_uom WHERE uom_code = $1 AND deleted_at IS NULL`
 
 	var id uuid.UUID
 	err := r.db.QueryRowContext(ctx, query, uomCode).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
+		return nil, parameter.ErrUOMNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve uom code: %w", err)
@@ -478,13 +478,16 @@ func (d *parameterDTO) ToEntity() (*parameter.Parameter, error) {
 
 	var defaultValue, minValue, maxValue *string
 	if d.DefaultValue.Valid {
-		defaultValue = &d.DefaultValue.String
+		v := trimDecimalZeros(d.DefaultValue.String)
+		defaultValue = &v
 	}
 	if d.MinValue.Valid {
-		minValue = &d.MinValue.String
+		v := trimDecimalZeros(d.MinValue.String)
+		minValue = &v
 	}
 	if d.MaxValue.Valid {
-		maxValue = &d.MaxValue.String
+		v := trimDecimalZeros(d.MaxValue.String)
+		maxValue = &v
 	}
 
 	var updatedAt *time.Time
@@ -534,4 +537,15 @@ func isParameterUniqueViolation(err error) bool {
 		return pqErr.Code == "23505" // unique_violation
 	}
 	return false
+}
+
+// trimDecimalZeros trims trailing zeros from a decimal string.
+// "100.500000" → "100.5", "0.000000" → "0", "999.000000" → "999".
+func trimDecimalZeros(s string) string {
+	if !strings.Contains(s, ".") {
+		return s
+	}
+	s = strings.TrimRight(s, "0")
+	s = strings.TrimRight(s, ".")
+	return s
 }

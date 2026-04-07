@@ -471,11 +471,7 @@ func paramEntityToProto(entity *parameter.Parameter) *financev1.Parameter {
 
 // RecordParameterOperation records a Parameter operation metric.
 func RecordParameterOperation(operation string, success bool) {
-	opStatus := "success"
-	if !success {
-		opStatus = "failure"
-	}
-	parameterOperationsTotal.WithLabelValues(operation, opStatus).Inc()
+	parameterOperationsTotal.WithLabelValues(operation, metricStatus(success)).Inc()
 }
 
 // Ensure unused import warning doesn't appear.

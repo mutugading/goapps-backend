@@ -210,62 +210,97 @@ func (p *Parameter) Update(
 		return ErrAlreadyDeleted
 	}
 
-	if name != nil {
-		if *name == "" {
-			return ErrEmptyName
-		}
-		if len(*name) > 200 {
-			return ErrNameTooLong
-		}
-		p.name = *name
+	if err := p.updateName(name); err != nil {
+		return err
+	}
+	if err := p.updateShortName(shortName); err != nil {
+		return err
+	}
+	if err := p.updateDataType(dataType); err != nil {
+		return err
+	}
+	if err := p.updateParamCategory(paramCategory); err != nil {
+		return err
 	}
 
-	if shortName != nil {
-		if len(*shortName) > 50 {
-			return ErrShortNameTooLong
-		}
-		p.shortName = *shortName
-	}
-
-	if dataType != nil {
-		if !dataType.IsValid() {
-			return ErrInvalidDataType
-		}
-		p.dataType = *dataType
-	}
-
-	if paramCategory != nil {
-		if !paramCategory.IsValid() {
-			return ErrInvalidParamCategory
-		}
-		p.paramCategory = *paramCategory
-	}
-
-	if uomID != nil {
-		p.uomID = *uomID
-	}
-
-	if defaultValue != nil {
-		p.defaultValue = *defaultValue
-	}
-
-	if minValue != nil {
-		p.minValue = *minValue
-	}
-
-	if maxValue != nil {
-		p.maxValue = *maxValue
-	}
-
-	if isActive != nil {
-		p.isActive = *isActive
-	}
+	p.applyOptionalFields(uomID, defaultValue, minValue, maxValue, isActive)
 
 	now := time.Now()
 	p.updatedAt = &now
 	p.updatedBy = &updatedBy
 
 	return nil
+}
+
+func (p *Parameter) updateName(name *string) error {
+	if name == nil {
+		return nil
+	}
+	if *name == "" {
+		return ErrEmptyName
+	}
+	if len(*name) > 200 {
+		return ErrNameTooLong
+	}
+	p.name = *name
+	return nil
+}
+
+func (p *Parameter) updateShortName(shortName *string) error {
+	if shortName == nil {
+		return nil
+	}
+	if len(*shortName) > 50 {
+		return ErrShortNameTooLong
+	}
+	p.shortName = *shortName
+	return nil
+}
+
+func (p *Parameter) updateDataType(dataType *DataType) error {
+	if dataType == nil {
+		return nil
+	}
+	if !dataType.IsValid() {
+		return ErrInvalidDataType
+	}
+	p.dataType = *dataType
+	return nil
+}
+
+func (p *Parameter) updateParamCategory(paramCategory *ParamCategory) error {
+	if paramCategory == nil {
+		return nil
+	}
+	if !paramCategory.IsValid() {
+		return ErrInvalidParamCategory
+	}
+	p.paramCategory = *paramCategory
+	return nil
+}
+
+func (p *Parameter) applyOptionalFields(
+	uomID **uuid.UUID,
+	defaultValue **string,
+	minValue **string,
+	maxValue **string,
+	isActive *bool,
+) {
+	if uomID != nil {
+		p.uomID = *uomID
+	}
+	if defaultValue != nil {
+		p.defaultValue = *defaultValue
+	}
+	if minValue != nil {
+		p.minValue = *minValue
+	}
+	if maxValue != nil {
+		p.maxValue = *maxValue
+	}
+	if isActive != nil {
+		p.isActive = *isActive
+	}
 }
 
 // SoftDelete marks the parameter as deleted.

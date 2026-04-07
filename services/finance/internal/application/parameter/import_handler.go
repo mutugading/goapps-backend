@@ -4,6 +4,7 @@ package parameter
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -254,14 +255,14 @@ func (h *ImportHandler) updateExisting(ctx context.Context, code parameter.Code,
 	var uomIDPtr **uuid.UUID
 	if data.uomCode != "" {
 		resolvedID, resolveErr := h.repo.ResolveUOMCode(ctx, data.uomCode)
+		if errors.Is(resolveErr, parameter.ErrUOMNotFound) {
+			result.FailedCount++
+			result.Errors = append(result.Errors, ImportError{RowNumber: rowNum, Field: "uom_code", Message: fmt.Sprintf("UOM code '%s' not found", data.uomCode)})
+			return
+		}
 		if resolveErr != nil {
 			result.FailedCount++
 			result.Errors = append(result.Errors, ImportError{RowNumber: rowNum, Field: "uom_code", Message: fmt.Sprintf("failed to resolve UOM code: %v", resolveErr)})
-			return
-		}
-		if resolvedID == nil {
-			result.FailedCount++
-			result.Errors = append(result.Errors, ImportError{RowNumber: rowNum, Field: "uom_code", Message: fmt.Sprintf("UOM code '%s' not found", data.uomCode)})
 			return
 		}
 		uomIDPtr = &resolvedID
@@ -308,14 +309,14 @@ func (h *ImportHandler) createParameter(
 	var uomID *uuid.UUID
 	if data.uomCode != "" {
 		resolvedID, resolveErr := h.repo.ResolveUOMCode(ctx, data.uomCode)
+		if errors.Is(resolveErr, parameter.ErrUOMNotFound) {
+			result.FailedCount++
+			result.Errors = append(result.Errors, ImportError{RowNumber: rowNum, Field: "uom_code", Message: fmt.Sprintf("UOM code '%s' not found", data.uomCode)})
+			return
+		}
 		if resolveErr != nil {
 			result.FailedCount++
 			result.Errors = append(result.Errors, ImportError{RowNumber: rowNum, Field: "uom_code", Message: fmt.Sprintf("failed to resolve UOM code: %v", resolveErr)})
-			return
-		}
-		if resolvedID == nil {
-			result.FailedCount++
-			result.Errors = append(result.Errors, ImportError{RowNumber: rowNum, Field: "uom_code", Message: fmt.Sprintf("UOM code '%s' not found", data.uomCode)})
 			return
 		}
 		uomID = resolvedID
