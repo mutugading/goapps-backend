@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.6.0](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.5.0...finance-service/v0.6.0) (2026-04-07)
+
+
+### Features
+
+* implement CMS module with CRUD operations, database schema, and gRPC gateway support ([5eb8515](https://github.com/mutugading/goapps-backend/commit/5eb8515c646e89a934bbd5694c4b9833c6accad8))
+* implement CMS module with CRUD operations, database schema, and gRPC gateway support ([c0df3b4](https://github.com/mutugading/goapps-backend/commit/c0df3b47eb36a97bf1eec792ac114ffa4d9571a8))
+* implement finance parameter management module with CRUD, import/export, and UI components ([9505fd1](https://github.com/mutugading/goapps-backend/commit/9505fd10daa3aedf88a101e1aea7d0dfe572bcd3))
+* Implement Raw Material Category (RMCategory) management within the finance service. ([c10603a](https://github.com/mutugading/goapps-backend/commit/c10603a71e3760a309da86b58725f93c07d6b9d5))
+* Introduce finance service seed and migrate jobs, and add an infrastructure stability guide. ([41fa0fc](https://github.com/mutugading/goapps-backend/commit/41fa0fcebbb2593fa0456be73039079a97be2a4d))
+
+
+### Bug Fixes
+
+* **finance:** resolve golangci-lint v2 errors for parameter module ([96996cf](https://github.com/mutugading/goapps-backend/commit/96996cf6fb3a2e4faaf6b12f57cbd0cb962b96f8))
+* Seed raw material categories with IAM menu and permissions, and refactor sort order strings to constants. ([1330c63](https://github.com/mutugading/goapps-backend/commit/1330c630b279efc4302ca31758489ba44f712ad3))
+
 ## [0.5.0](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.4.0...finance-service/v0.5.0) (2026-03-20)
 
 
