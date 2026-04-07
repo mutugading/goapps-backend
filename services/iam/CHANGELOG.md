@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.6.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.5.0...iam-service/v0.6.0) (2026-04-07)
+
+
+### Features
+
+* Add build and copy steps for the `iam-seed` binary. ([b55b3f8](https://github.com/mutugading/goapps-backend/commit/b55b3f89c6b4a66511a944ae7ad1ec9933793110))
+* Add golang-migrate and migration files to the IAM service Dockerfile for database migrations. ([1de4a14](https://github.com/mutugading/goapps-backend/commit/1de4a147c48dc90e56e40c0fd0e1ee4f00834e05))
+* implement CMS module with CRUD operations, database schema, and gRPC gateway support ([5eb8515](https://github.com/mutugading/goapps-backend/commit/5eb8515c646e89a934bbd5694c4b9833c6accad8))
+* implement CMS module with CRUD operations, database schema, and gRPC gateway support ([c0df3b4](https://github.com/mutugading/goapps-backend/commit/c0df3b47eb36a97bf1eec792ac114ffa4d9571a8))
+* implement finance parameter management module with CRUD, import/export, and UI components ([9505fd1](https://github.com/mutugading/goapps-backend/commit/9505fd10daa3aedf88a101e1aea7d0dfe572bcd3))
+
+
+### Bug Fixes
+
+* lint check. ([84ef101](https://github.com/mutugading/goapps-backend/commit/84ef10161e9a600e55b3679c6c82cce33003eb2c))
+* Seed raw material categories with IAM menu and permissions, and refactor sort order strings to constants. ([1330c63](https://github.com/mutugading/goapps-backend/commit/1330c630b279efc4302ca31758489ba44f712ad3))
+
 ## [0.5.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.4.0...iam-service/v0.5.0) (2026-03-20)
 
 
