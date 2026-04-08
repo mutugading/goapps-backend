@@ -72,6 +72,7 @@ func run() error {
 	uomRepo := postgres.NewUOMRepository(db)
 	rmCategoryRepo := postgres.NewRMCategoryRepository(db)
 	parameterRepo := postgres.NewParameterRepository(db)
+	formulaRepo := postgres.NewFormulaRepository(db)
 
 	// Setup gRPC handlers
 	uomHandler, err := grpcdelivery.NewUOMHandler(uomRepo, uomCache)
@@ -89,8 +90,13 @@ func run() error {
 		return err
 	}
 
+	formulaHandler, err := grpcdelivery.NewFormulaHandler(formulaRepo)
+	if err != nil {
+		return err
+	}
+
 	// Setup and start servers
-	return startServers(ctx, cfg, uomHandler, rmCategoryHandler, parameterHandler, tokenBlacklist)
+	return startServers(ctx, cfg, uomHandler, rmCategoryHandler, parameterHandler, formulaHandler, tokenBlacklist)
 }
 
 // setupLogger configures the application logger.
@@ -187,7 +193,7 @@ func closeAuthRedis(bl *redisinfra.TokenBlacklist) {
 }
 
 // startServers starts the gRPC and HTTP servers and handles graceful shutdown.
-func startServers(ctx context.Context, cfg *config.Config, uomHandler *grpcdelivery.UOMHandler, rmCategoryHandler *grpcdelivery.RMCategoryHandler, parameterHandler *grpcdelivery.ParameterHandler, tokenBlacklist *redisinfra.TokenBlacklist) error {
+func startServers(ctx context.Context, cfg *config.Config, uomHandler *grpcdelivery.UOMHandler, rmCategoryHandler *grpcdelivery.RMCategoryHandler, parameterHandler *grpcdelivery.ParameterHandler, formulaHandler *grpcdelivery.FormulaHandler, tokenBlacklist *redisinfra.TokenBlacklist) error {
 	// Setup gRPC server with JWT auth and token blacklist
 	grpcServer, err := grpcdelivery.NewServer(&cfg.Server, nil, &cfg.JWT, tokenBlacklist)
 	if err != nil {
@@ -198,6 +204,7 @@ func startServers(ctx context.Context, cfg *config.Config, uomHandler *grpcdeliv
 	financev1.RegisterUOMServiceServer(grpcServer.GRPCServer(), uomHandler)
 	financev1.RegisterRMCategoryServiceServer(grpcServer.GRPCServer(), rmCategoryHandler)
 	financev1.RegisterParameterServiceServer(grpcServer.GRPCServer(), parameterHandler)
+	financev1.RegisterFormulaServiceServer(grpcServer.GRPCServer(), formulaHandler)
 
 	// Start gRPC server
 	go func() {

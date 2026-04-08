@@ -537,7 +537,7 @@ logging: { level, format }
 
 ### Code Style
 
-5. **No type stuttering**: use `uom.Code` not `uom.UOMCode`
+5. **No type stuttering**: use `uom.Code` not `uom.UOMCode`, `formula.Type` not `formula.FormulaType`, `formula.Param` not `formula.FormulaParam`. The `revive` linter enforces this -- if a type is inside package `foo`, its name must NOT start with `Foo`.
 6. **Comments on exported types must end with a period.**
 7. **Do not shadow builtins** (`min`, `max`, `len`, `cap`)
 8. **Exhaustive switch** on all enum types
@@ -548,32 +548,41 @@ logging: { level, format }
 
 11. **Always use `errors.Is()` / `errors.As()`** -- never type assertions
 12. **Always wrap errors** with context: `fmt.Errorf("doing X: %w", err)`
-13. **Handle every error** -- never `_, _ = someFunc()`
+13. **Handle every error** -- never `result, _ := someFunc()`. This includes:
+    - `tx.Rollback()` in deferred functions -- use `if rbErr := tx.Rollback(); rbErr != nil { ... }`
+    - Value object constructors in repository mapping (`NewCode`, `NewType`, etc.) -- handle the error, don't ignore with `_`
+    - The `errcheck` linter catches ALL of these
+
+### Complexity & Safety
+
+14. **Function cognitive complexity must stay under 20** (`gocognit`). Extract helper methods to reduce complexity -- e.g., `validateResultParam()`, `parseFormulaType()` instead of inline validation blocks.
+15. **Max nesting depth is 4** (`nestif`). Flatten nested `if` blocks by extracting to separate functions.
+16. **Safe integer conversions** (`gosec` G115). Never use bare `int32(someInt)` -- use a bounds-checking helper like `safeIntToInt32()` with `math.MaxInt32`/`math.MinInt32` clamping.
 
 ### Security
 
-14. **Never commit secrets** -- use environment variables / config
-15. **Always use parameterized queries** -- never string concatenation in SQL
-16. **Never hardcode credentials** -- not even in dev configs (use config.yaml defaults)
-17. **Super admin** bypasses RBAC via `IsSuperAdmin()` check in permission interceptor
+17. **Never commit secrets** -- use environment variables / config
+18. **Always use parameterized queries** -- never string concatenation in SQL
+19. **Never hardcode credentials** -- not even in dev configs (use config.yaml defaults)
+20. **Super admin** bypasses RBAC via `IsSuperAdmin()` check in permission interceptor
 
 ### Database
 
-18. **Master tables**: `mst_` prefix. **Junction tables**: no prefix
-19. **Soft deletes**: `deleted_at` / `deleted_by` columns with partial indexes
-20. **Migrations are immutable** once merged -- create new ones to fix issues
+21. **Master tables**: `mst_` prefix. **Junction tables**: no prefix
+22. **Soft deletes**: `deleted_at` / `deleted_by` columns with partial indexes
+23. **Migrations are immutable** once merged -- create new ones to fix issues
 
 ### Proto / Generated Code
 
-21. **Never edit files in `gen/`** -- they are generated from `goapps-shared-proto`
-22. **Never change proto field numbers**
-23. **Never remove fields without `reserved`**
-24. Regenerate: `cd ../goapps-shared-proto && ./scripts/gen-go.sh`
+24. **Never edit files in `gen/`** -- they are generated from `goapps-shared-proto`
+25. **Never change proto field numbers**
+26. **Never remove fields without `reserved`**
+27. Regenerate: `cd ../goapps-shared-proto && ./scripts/gen-go.sh`
 
 ### Git
 
-25. Branch naming: `feat/`, `fix/`, `docs/`, `refactor/`, `chore/` + description
-26. Commit format: `type(scope): description` (e.g., `feat(finance): add currency CRUD`)
+28. Branch naming: `feat/`, `fix/`, `docs/`, `refactor/`, `chore/` + description
+29. Commit format: `type(scope): description` (e.g., `feat(finance): add currency CRUD`)
 
 ---
 
@@ -584,13 +593,20 @@ For a new CRUD entity in an existing service:
 1. **Proto** (in `goapps-shared-proto/`): define messages, service RPCs, HTTP annotations, validation
 2. **Generate**: `./scripts/gen-go.sh`
 3. **Domain**: `entity.go`, `value_objects.go`, `repository.go`, `errors.go`
+   - **No type stuttering**: if package is `formula`, use `Type` not `FormulaType`, `Param` not `FormulaParam`
 4. **Migration**: `make migrate-create NAME=create_mst_xxx`
 5. **Infrastructure**: `postgres/xxx_repository.go` implementing domain interface
+   - **Handle ALL errors**: including `tx.Rollback()` in defers, and value object constructors in DTO mappers
+   - **Transactions**: use `if rbErr := tx.Rollback(); rbErr != nil { err = fmt.Errorf(...) }` pattern
 6. **Application**: one handler file per operation (create, get, list, update, delete)
+   - **Keep cognitive complexity under 20**: extract validation helpers (e.g., `validateResultParam`, `parseFormulaType`)
+   - **Keep nesting under 4 levels**: split deeply nested `if` blocks into helper methods
 7. **Delivery**: `grpc/xxx_handler.go` mapping proto <-> application
+   - **Safe int conversions**: never bare `int32(someInt)` -- use `safeIntToInt32()` with bounds checking
 8. **Wire**: register in `cmd/server/main.go` (create repo, handlers, register gRPC service)
 9. **Swagger**: `make proto-copy-swagger`
 10. **Tests**: domain unit tests, application handler tests with mocked repo, integration tests
+11. **Lint**: run `make lint` (or `golangci-lint run ./...`) and fix ALL issues before committing
 
 ### File Size Guidelines
 
