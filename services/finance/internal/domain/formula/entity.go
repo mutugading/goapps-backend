@@ -7,8 +7,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// FormulaParam represents an input parameter within a formula.
-type FormulaParam struct {
+// Param represents an input parameter within a formula.
+type Param struct {
 	id        uuid.UUID
 	paramID   uuid.UUID
 	paramCode string
@@ -16,18 +16,18 @@ type FormulaParam struct {
 	sortOrder int
 }
 
-// NewFormulaParam creates a new FormulaParam.
-func NewFormulaParam(paramID uuid.UUID, sortOrder int) *FormulaParam {
-	return &FormulaParam{
+// NewParam creates a new Param.
+func NewParam(paramID uuid.UUID, sortOrder int) *Param {
+	return &Param{
 		id:        uuid.New(),
 		paramID:   paramID,
 		sortOrder: sortOrder,
 	}
 }
 
-// ReconstructFormulaParam reconstructs a FormulaParam from persistence.
-func ReconstructFormulaParam(id, paramID uuid.UUID, paramCode, paramName string, sortOrder int) *FormulaParam {
-	return &FormulaParam{
+// ReconstructParam reconstructs a Param from persistence.
+func ReconstructParam(id, paramID uuid.UUID, paramCode, paramName string, sortOrder int) *Param {
+	return &Param{
 		id:        id,
 		paramID:   paramID,
 		paramCode: paramCode,
@@ -37,19 +37,19 @@ func ReconstructFormulaParam(id, paramID uuid.UUID, paramCode, paramName string,
 }
 
 // ID returns the formula param ID.
-func (fp *FormulaParam) ID() uuid.UUID { return fp.id }
+func (fp *Param) ID() uuid.UUID { return fp.id }
 
 // ParamID returns the parameter reference ID.
-func (fp *FormulaParam) ParamID() uuid.UUID { return fp.paramID }
+func (fp *Param) ParamID() uuid.UUID { return fp.paramID }
 
 // ParamCode returns the resolved parameter code.
-func (fp *FormulaParam) ParamCode() string { return fp.paramCode }
+func (fp *Param) ParamCode() string { return fp.paramCode }
 
 // ParamName returns the resolved parameter name.
-func (fp *FormulaParam) ParamName() string { return fp.paramName }
+func (fp *Param) ParamName() string { return fp.paramName }
 
 // SortOrder returns the display order.
-func (fp *FormulaParam) SortOrder() int { return fp.sortOrder }
+func (fp *Param) SortOrder() int { return fp.sortOrder }
 
 // =============================================================================
 // Formula Aggregate Root
@@ -60,7 +60,7 @@ type Formula struct {
 	id              uuid.UUID
 	code            Code
 	name            string
-	formulaType     FormulaType
+	formulaType     Type
 	expression      string
 	resultParamID   uuid.UUID
 	resultParamCode string
@@ -68,7 +68,7 @@ type Formula struct {
 	description     string
 	version         int
 	isActive        bool
-	inputParams     []*FormulaParam
+	inputParams     []*Param
 	createdAt       time.Time
 	createdBy       string
 	updatedAt       *time.Time
@@ -81,7 +81,7 @@ type Formula struct {
 func NewFormula(
 	code Code,
 	name string,
-	formulaType FormulaType,
+	formulaType Type,
 	expression string,
 	resultParamID uuid.UUID,
 	inputParamIDs []uuid.UUID,
@@ -96,9 +96,9 @@ func NewFormula(
 		return nil, err
 	}
 
-	params := make([]*FormulaParam, len(inputParamIDs))
+	params := make([]*Param, len(inputParamIDs))
 	for i, pid := range inputParamIDs {
-		params[i] = NewFormulaParam(pid, i+1)
+		params[i] = NewParam(pid, i+1)
 	}
 
 	return &Formula{
@@ -158,7 +158,7 @@ func ReconstructFormula(
 	id uuid.UUID,
 	code Code,
 	name string,
-	formulaType FormulaType,
+	formulaType Type,
 	expression string,
 	resultParamID uuid.UUID,
 	resultParamCode string,
@@ -166,7 +166,7 @@ func ReconstructFormula(
 	description string,
 	version int,
 	isActive bool,
-	inputParams []*FormulaParam,
+	inputParams []*Param,
 	createdAt time.Time,
 	createdBy string,
 	updatedAt *time.Time,
@@ -210,7 +210,7 @@ func (f *Formula) Code() Code { return f.code }
 func (f *Formula) Name() string { return f.name }
 
 // FormulaType returns the formula type.
-func (f *Formula) FormulaType() FormulaType { return f.formulaType }
+func (f *Formula) FormulaType() Type { return f.formulaType }
 
 // Expression returns the expression.
 func (f *Formula) Expression() string { return f.expression }
@@ -234,7 +234,7 @@ func (f *Formula) Version() int { return f.version }
 func (f *Formula) IsActive() bool { return f.isActive }
 
 // InputParams returns the input parameters.
-func (f *Formula) InputParams() []*FormulaParam { return f.inputParams }
+func (f *Formula) InputParams() []*Param { return f.inputParams }
 
 // CreatedAt returns the creation timestamp.
 func (f *Formula) CreatedAt() time.Time { return f.createdAt }
@@ -264,7 +264,7 @@ func (f *Formula) IsDeleted() bool { return f.deletedAt != nil }
 // Update updates the Formula with new values.
 func (f *Formula) Update(
 	name *string,
-	formulaType *FormulaType,
+	formulaType *Type,
 	expression *string,
 	resultParamID *uuid.UUID,
 	inputParamIDs []uuid.UUID,
@@ -297,9 +297,9 @@ func (f *Formula) Update(
 		if err := validateInputParams(f.resultParamID, inputParamIDs); err != nil {
 			return err
 		}
-		params := make([]*FormulaParam, len(inputParamIDs))
+		params := make([]*Param, len(inputParamIDs))
 		for i, pid := range inputParamIDs {
-			params[i] = NewFormulaParam(pid, i+1)
+			params[i] = NewParam(pid, i+1)
 		}
 		f.inputParams = params
 	}
@@ -330,7 +330,7 @@ func (f *Formula) updateName(name *string) error {
 	return nil
 }
 
-func (f *Formula) updateFormulaType(ft *FormulaType) error {
+func (f *Formula) updateFormulaType(ft *Type) error {
 	if ft == nil {
 		return nil
 	}

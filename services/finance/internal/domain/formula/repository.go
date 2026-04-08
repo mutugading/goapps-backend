@@ -49,7 +49,7 @@ type Repository interface {
 // ListFilter contains filtering options for listing Formulas.
 type ListFilter struct {
 	Search      string
-	FormulaType *FormulaType
+	FormulaType *Type
 	IsActive    *bool
 	Page        int
 	PageSize    int
@@ -59,7 +59,7 @@ type ListFilter struct {
 
 // ExportFilter contains filtering options for exporting Formulas.
 type ExportFilter struct {
-	FormulaType *FormulaType
+	FormulaType *Type
 	IsActive    *bool
 }
 

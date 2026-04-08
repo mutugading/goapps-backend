@@ -49,7 +49,7 @@ func (h *ListHandler) Handle(ctx context.Context, query ListQuery) (*ListResult,
 	}
 
 	if query.FormulaType != nil {
-		ft, err := formula.NewFormulaType(*query.FormulaType)
+		ft, err := formula.NewType(*query.FormulaType)
 		if err != nil {
 			return nil, err
 		}

@@ -139,7 +139,7 @@ func (h *ImportHandler) processRow(ctx context.Context, row []string, rowNum int
 		return
 	}
 
-	_, err = formula.NewFormulaType(data.formulaType)
+	_, err = formula.NewType(data.formulaType)
 	if err != nil {
 		result.FailedCount++
 		result.Errors = append(result.Errors, ImportError{RowNumber: rowNum, Field: "formula_type", Message: err.Error()})
@@ -238,7 +238,7 @@ func (h *ImportHandler) updateExisting(ctx context.Context, code formula.Code, d
 		return
 	}
 
-	ft, err := formula.NewFormulaType(data.formulaType)
+	ft, err := formula.NewType(data.formulaType)
 	if err != nil {
 		result.FailedCount++
 		result.Errors = append(result.Errors, ImportError{RowNumber: rowNum, Field: "formula_type", Message: err.Error()})
@@ -262,7 +262,7 @@ func (h *ImportHandler) updateExisting(ctx context.Context, code formula.Code, d
 }
 
 func (h *ImportHandler) createFormula(ctx context.Context, code formula.Code, data formulaRowData, resultParamID uuid.UUID, inputParamIDs []uuid.UUID, rowNum int32, createdBy string, result *ImportResult) {
-	ft, err := formula.NewFormulaType(data.formulaType)
+	ft, err := formula.NewType(data.formulaType)
 	if err != nil {
 		result.FailedCount++
 		result.Errors = append(result.Errors, ImportError{RowNumber: rowNum, Field: "formula_type", Message: err.Error()})

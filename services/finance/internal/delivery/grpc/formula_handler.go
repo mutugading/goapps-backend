@@ -3,6 +3,7 @@ package grpc
 
 import (
 	"context"
+	"math"
 	"strings"
 	"time"
 
@@ -400,7 +401,7 @@ func formulaEntityToProto(entity *formula.Formula) *financev1.Formula {
 		ResultParamCode: entity.ResultParamCode(),
 		ResultParamName: entity.ResultParamName(),
 		Description:     entity.Description(),
-		Version:         int32(entity.Version()),
+		Version:         safeIntToInt32(entity.Version()),
 		IsActive:        entity.IsActive(),
 		Audit: &commonv1.AuditInfo{
 			CreatedAt: entity.CreatedAt().Format(time.RFC3339),
@@ -421,7 +422,7 @@ func formulaEntityToProto(entity *formula.Formula) *financev1.Formula {
 			ParamId:        fp.ParamID().String(),
 			ParamCode:      fp.ParamCode(),
 			ParamName:      fp.ParamName(),
-			SortOrder:      int32(fp.SortOrder()),
+			SortOrder:      safeIntToInt32(fp.SortOrder()),
 		})
 	}
 
@@ -431,6 +432,17 @@ func formulaEntityToProto(entity *formula.Formula) *financev1.Formula {
 // RecordFormulaOperation records a Formula operation metric.
 func RecordFormulaOperation(operation string, success bool) {
 	formulaOperationsTotal.WithLabelValues(operation, metricStatus(success)).Inc()
+}
+
+// safeIntToInt32 converts int to int32 with bounds clamping to prevent overflow.
+func safeIntToInt32(v int) int32 {
+	if v > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	if v < math.MinInt32 {
+		return math.MinInt32
+	}
+	return int32(v) //nolint:gosec // bounds checked above
 }
 
 // Ensure unused import warning doesn't appear.

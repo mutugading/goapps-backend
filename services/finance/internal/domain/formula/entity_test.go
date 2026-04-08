@@ -60,10 +60,10 @@ func TestNewCode_Invalid(t *testing.T) {
 }
 
 // =============================================================================
-// FormulaType Value Object Tests
+// Type Value Object Tests
 // =============================================================================
 
-func TestNewFormulaType_Valid(t *testing.T) {
+func TestNewType_Valid(t *testing.T) {
 	tests := []struct {
 		input string
 		want  string
@@ -77,7 +77,7 @@ func TestNewFormulaType_Valid(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			ft, err := NewFormulaType(tt.input)
+			ft, err := NewType(tt.input)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, ft.String())
 			assert.True(t, ft.IsValid())
@@ -85,12 +85,12 @@ func TestNewFormulaType_Valid(t *testing.T) {
 	}
 }
 
-func TestNewFormulaType_Invalid(t *testing.T) {
+func TestNewType_Invalid(t *testing.T) {
 	tests := []string{"", "INVALID", "CALC", "SQL"}
 
 	for _, input := range tests {
 		t.Run(input, func(t *testing.T) {
-			_, err := NewFormulaType(input)
+			_, err := NewType(input)
 			assert.ErrorIs(t, err, ErrInvalidFormulaType)
 		})
 	}
@@ -105,7 +105,7 @@ func TestNewFormula_Success(t *testing.T) {
 	resultID := uuid.New()
 	inputIDs := []uuid.UUID{uuid.New(), uuid.New()}
 
-	f, err := NewFormula(code, "Electricity Cost", FormulaTypeCalculation,
+	f, err := NewFormula(code, "Electricity Cost", TypeCalculation,
 		"ELEC_CONSUMPTION * ELEC_RATE", resultID, inputIDs, "Test formula", "admin")
 
 	require.NoError(t, err)
@@ -127,37 +127,37 @@ func TestNewFormula_Success(t *testing.T) {
 
 func TestNewFormula_EmptyName(t *testing.T) {
 	code, _ := NewCode("COST_ELEC")
-	_, err := NewFormula(code, "", FormulaTypeCalculation, "expr", uuid.New(), nil, "", "admin")
+	_, err := NewFormula(code, "", TypeCalculation, "expr", uuid.New(), nil, "", "admin")
 	assert.ErrorIs(t, err, ErrEmptyName)
 }
 
 func TestNewFormula_NameTooLong(t *testing.T) {
 	code, _ := NewCode("COST_ELEC")
-	_, err := NewFormula(code, strings.Repeat("a", 201), FormulaTypeCalculation, "expr", uuid.New(), nil, "", "admin")
+	_, err := NewFormula(code, strings.Repeat("a", 201), TypeCalculation, "expr", uuid.New(), nil, "", "admin")
 	assert.ErrorIs(t, err, ErrNameTooLong)
 }
 
 func TestNewFormula_EmptyExpression(t *testing.T) {
 	code, _ := NewCode("COST_ELEC")
-	_, err := NewFormula(code, "Test", FormulaTypeCalculation, "", uuid.New(), nil, "", "admin")
+	_, err := NewFormula(code, "Test", TypeCalculation, "", uuid.New(), nil, "", "admin")
 	assert.ErrorIs(t, err, ErrEmptyExpression)
 }
 
 func TestNewFormula_ExpressionTooLong(t *testing.T) {
 	code, _ := NewCode("COST_ELEC")
-	_, err := NewFormula(code, "Test", FormulaTypeCalculation, strings.Repeat("x", 5001), uuid.New(), nil, "", "admin")
+	_, err := NewFormula(code, "Test", TypeCalculation, strings.Repeat("x", 5001), uuid.New(), nil, "", "admin")
 	assert.ErrorIs(t, err, ErrExpressionTooLong)
 }
 
 func TestNewFormula_DescriptionTooLong(t *testing.T) {
 	code, _ := NewCode("COST_ELEC")
-	_, err := NewFormula(code, "Test", FormulaTypeCalculation, "expr", uuid.New(), nil, strings.Repeat("x", 1001), "admin")
+	_, err := NewFormula(code, "Test", TypeCalculation, "expr", uuid.New(), nil, strings.Repeat("x", 1001), "admin")
 	assert.ErrorIs(t, err, ErrDescriptionTooLong)
 }
 
 func TestNewFormula_EmptyCreatedBy(t *testing.T) {
 	code, _ := NewCode("COST_ELEC")
-	_, err := NewFormula(code, "Test", FormulaTypeCalculation, "expr", uuid.New(), nil, "", "")
+	_, err := NewFormula(code, "Test", TypeCalculation, "expr", uuid.New(), nil, "", "")
 	assert.ErrorIs(t, err, ErrEmptyCreatedBy)
 }
 
@@ -166,7 +166,7 @@ func TestNewFormula_CircularReference(t *testing.T) {
 	resultID := uuid.New()
 	inputIDs := []uuid.UUID{uuid.New(), resultID} // result param also in input
 
-	_, err := NewFormula(code, "Test", FormulaTypeCalculation, "expr", resultID, inputIDs, "", "admin")
+	_, err := NewFormula(code, "Test", TypeCalculation, "expr", resultID, inputIDs, "", "admin")
 	assert.ErrorIs(t, err, ErrCircularReference)
 }
 
@@ -175,13 +175,13 @@ func TestNewFormula_DuplicateInputParam(t *testing.T) {
 	inputID := uuid.New()
 	inputIDs := []uuid.UUID{inputID, inputID} // duplicate
 
-	_, err := NewFormula(code, "Test", FormulaTypeCalculation, "expr", uuid.New(), inputIDs, "", "admin")
+	_, err := NewFormula(code, "Test", TypeCalculation, "expr", uuid.New(), inputIDs, "", "admin")
 	assert.ErrorIs(t, err, ErrDuplicateInputParam)
 }
 
 func TestNewFormula_NoInputParams(t *testing.T) {
 	code, _ := NewCode("CONSTANT_VAL")
-	f, err := NewFormula(code, "Constant", FormulaTypeConstant, "42", uuid.New(), nil, "", "admin")
+	f, err := NewFormula(code, "Constant", TypeConstant, "42", uuid.New(), nil, "", "admin")
 	require.NoError(t, err)
 	assert.Empty(t, f.InputParams())
 }
@@ -192,7 +192,7 @@ func TestNewFormula_NoInputParams(t *testing.T) {
 
 func TestFormula_Update_Success(t *testing.T) {
 	code, _ := NewCode("COST_ELEC")
-	f, _ := NewFormula(code, "Old Name", FormulaTypeCalculation, "old_expr", uuid.New(), nil, "", "admin")
+	f, _ := NewFormula(code, "Old Name", TypeCalculation, "old_expr", uuid.New(), nil, "", "admin")
 
 	newName := "New Name"
 	newExpr := "new_expr"
@@ -213,7 +213,7 @@ func TestFormula_Update_Success(t *testing.T) {
 
 func TestFormula_Update_NilFields_NoChange(t *testing.T) {
 	code, _ := NewCode("COST_ELEC")
-	f, _ := NewFormula(code, "Original", FormulaTypeCalculation, "expr", uuid.New(), nil, "desc", "admin")
+	f, _ := NewFormula(code, "Original", TypeCalculation, "expr", uuid.New(), nil, "desc", "admin")
 
 	err := f.Update(nil, nil, nil, nil, nil, nil, nil, "editor")
 	require.NoError(t, err)
@@ -226,7 +226,7 @@ func TestFormula_Update_NilFields_NoChange(t *testing.T) {
 
 func TestFormula_Update_InvalidName(t *testing.T) {
 	code, _ := NewCode("COST_ELEC")
-	f, _ := NewFormula(code, "Name", FormulaTypeCalculation, "expr", uuid.New(), nil, "", "admin")
+	f, _ := NewFormula(code, "Name", TypeCalculation, "expr", uuid.New(), nil, "", "admin")
 
 	empty := ""
 	err := f.Update(&empty, nil, nil, nil, nil, nil, nil, "editor")
@@ -235,9 +235,9 @@ func TestFormula_Update_InvalidName(t *testing.T) {
 
 func TestFormula_Update_InvalidFormulaType(t *testing.T) {
 	code, _ := NewCode("COST_ELEC")
-	f, _ := NewFormula(code, "Name", FormulaTypeCalculation, "expr", uuid.New(), nil, "", "admin")
+	f, _ := NewFormula(code, "Name", TypeCalculation, "expr", uuid.New(), nil, "", "admin")
 
-	invalid := FormulaType{value: "INVALID"}
+	invalid := Type{value: "INVALID"}
 	err := f.Update(nil, &invalid, nil, nil, nil, nil, nil, "editor")
 	assert.ErrorIs(t, err, ErrInvalidFormulaType)
 }
@@ -245,7 +245,7 @@ func TestFormula_Update_InvalidFormulaType(t *testing.T) {
 func TestFormula_Update_WithInputParams(t *testing.T) {
 	code, _ := NewCode("COST_ELEC")
 	resultID := uuid.New()
-	f, _ := NewFormula(code, "Name", FormulaTypeCalculation, "expr", resultID, nil, "", "admin")
+	f, _ := NewFormula(code, "Name", TypeCalculation, "expr", resultID, nil, "", "admin")
 
 	newInputIDs := []uuid.UUID{uuid.New(), uuid.New()}
 	err := f.Update(nil, nil, nil, nil, newInputIDs, nil, nil, "editor")
@@ -256,7 +256,7 @@ func TestFormula_Update_WithInputParams(t *testing.T) {
 func TestFormula_Update_CircularReference(t *testing.T) {
 	code, _ := NewCode("COST_ELEC")
 	resultID := uuid.New()
-	f, _ := NewFormula(code, "Name", FormulaTypeCalculation, "expr", resultID, nil, "", "admin")
+	f, _ := NewFormula(code, "Name", TypeCalculation, "expr", resultID, nil, "", "admin")
 
 	inputIDs := []uuid.UUID{resultID} // circular
 	err := f.Update(nil, nil, nil, nil, inputIDs, nil, nil, "editor")
@@ -265,7 +265,7 @@ func TestFormula_Update_CircularReference(t *testing.T) {
 
 func TestFormula_Update_AlreadyDeleted(t *testing.T) {
 	code, _ := NewCode("COST_ELEC")
-	f, _ := NewFormula(code, "Name", FormulaTypeCalculation, "expr", uuid.New(), nil, "", "admin")
+	f, _ := NewFormula(code, "Name", TypeCalculation, "expr", uuid.New(), nil, "", "admin")
 	_ = f.SoftDelete("admin")
 
 	name := "New"
@@ -279,7 +279,7 @@ func TestFormula_Update_AlreadyDeleted(t *testing.T) {
 
 func TestFormula_SoftDelete_Success(t *testing.T) {
 	code, _ := NewCode("COST_ELEC")
-	f, _ := NewFormula(code, "Name", FormulaTypeCalculation, "expr", uuid.New(), nil, "", "admin")
+	f, _ := NewFormula(code, "Name", TypeCalculation, "expr", uuid.New(), nil, "", "admin")
 
 	err := f.SoftDelete("admin")
 	require.NoError(t, err)
@@ -292,7 +292,7 @@ func TestFormula_SoftDelete_Success(t *testing.T) {
 
 func TestFormula_SoftDelete_AlreadyDeleted(t *testing.T) {
 	code, _ := NewCode("COST_ELEC")
-	f, _ := NewFormula(code, "Name", FormulaTypeCalculation, "expr", uuid.New(), nil, "", "admin")
+	f, _ := NewFormula(code, "Name", TypeCalculation, "expr", uuid.New(), nil, "", "admin")
 	_ = f.SoftDelete("admin")
 
 	err := f.SoftDelete("admin")
@@ -300,12 +300,12 @@ func TestFormula_SoftDelete_AlreadyDeleted(t *testing.T) {
 }
 
 // =============================================================================
-// FormulaParam Tests
+// Param Tests
 // =============================================================================
 
-func TestNewFormulaParam(t *testing.T) {
+func TestNewParam(t *testing.T) {
 	paramID := uuid.New()
-	fp := NewFormulaParam(paramID, 1)
+	fp := NewParam(paramID, 1)
 
 	assert.NotEqual(t, uuid.Nil, fp.ID())
 	assert.Equal(t, paramID, fp.ParamID())
@@ -314,10 +314,10 @@ func TestNewFormulaParam(t *testing.T) {
 	assert.Empty(t, fp.ParamName())
 }
 
-func TestReconstructFormulaParam(t *testing.T) {
+func TestReconstructParam(t *testing.T) {
 	id := uuid.New()
 	paramID := uuid.New()
-	fp := ReconstructFormulaParam(id, paramID, "ELEC_RATE", "Electricity Rate", 3)
+	fp := ReconstructParam(id, paramID, "ELEC_RATE", "Electricity Rate", 3)
 
 	assert.Equal(t, id, fp.ID())
 	assert.Equal(t, paramID, fp.ParamID())

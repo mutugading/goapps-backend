@@ -36,40 +36,40 @@ func NewCode(s string) (Code, error) {
 func (c Code) String() string { return c.value }
 
 // =============================================================================
-// FormulaType Value Object
+// Type Value Object
 // =============================================================================
 
-// FormulaType represents the type of a formula.
-type FormulaType struct {
+// Type represents the type of a formula.
+type Type struct {
 	value string
 }
 
 // Valid formula types.
 var (
-	FormulaTypeCalculation = FormulaType{value: "CALCULATION"}
-	FormulaTypeSQLQuery    = FormulaType{value: "SQL_QUERY"}
-	FormulaTypeConstant    = FormulaType{value: "CONSTANT"}
+	TypeCalculation = Type{value: "CALCULATION"}
+	TypeSQLQuery    = Type{value: "SQL_QUERY"}
+	TypeConstant    = Type{value: "CONSTANT"}
 )
 
-// NewFormulaType creates a FormulaType from a string.
-func NewFormulaType(s string) (FormulaType, error) {
+// NewType creates a Type from a string.
+func NewType(s string) (Type, error) {
 	s = strings.TrimSpace(strings.ToUpper(s))
 	switch s {
 	case "CALCULATION":
-		return FormulaTypeCalculation, nil
+		return TypeCalculation, nil
 	case "SQL_QUERY":
-		return FormulaTypeSQLQuery, nil
+		return TypeSQLQuery, nil
 	case "CONSTANT":
-		return FormulaTypeConstant, nil
+		return TypeConstant, nil
 	default:
-		return FormulaType{}, ErrInvalidFormulaType
+		return Type{}, ErrInvalidFormulaType
 	}
 }
 
 // String returns the formula type string.
-func (f FormulaType) String() string { return f.value }
+func (f Type) String() string { return f.value }
 
 // IsValid returns true if the formula type is valid.
-func (f FormulaType) IsValid() bool {
+func (f Type) IsValid() bool {
 	return f.value == "CALCULATION" || f.value == "SQL_QUERY" || f.value == "CONSTANT"
 }

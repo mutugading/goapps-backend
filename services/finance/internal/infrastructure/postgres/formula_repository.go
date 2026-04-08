@@ -36,7 +36,9 @@ func (r *FormulaRepository) Create(ctx context.Context, entity *formula.Formula)
 	}
 	defer func() {
 		if err != nil {
-			_ = tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil {
+				err = fmt.Errorf("rollback failed: %w (original: %w)", rbErr, err)
+			}
 		}
 	}()
 
@@ -82,7 +84,7 @@ func (r *FormulaRepository) Create(ctx context.Context, entity *formula.Formula)
 }
 
 // insertFormulaParams inserts formula_param rows within a transaction.
-func (r *FormulaRepository) insertFormulaParams(ctx context.Context, tx *sql.Tx, formulaID uuid.UUID, params []*formula.FormulaParam) error {
+func (r *FormulaRepository) insertFormulaParams(ctx context.Context, tx *sql.Tx, formulaID uuid.UUID, params []*formula.Param) error {
 	if len(params) == 0 {
 		return nil
 	}
@@ -243,7 +245,9 @@ func (r *FormulaRepository) Update(ctx context.Context, entity *formula.Formula)
 	}
 	defer func() {
 		if err != nil {
-			_ = tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil {
+				err = fmt.Errorf("rollback failed: %w (original: %w)", rbErr, err)
+			}
 		}
 	}()
 
@@ -459,7 +463,7 @@ func formulaSelectQuery() string {
 	`
 }
 
-func (r *FormulaRepository) loadFormulaParams(ctx context.Context, formulaID uuid.UUID) ([]*formula.FormulaParam, error) {
+func (r *FormulaRepository) loadFormulaParams(ctx context.Context, formulaID uuid.UUID) ([]*formula.Param, error) {
 	query := `
 		SELECT fp.id, fp.param_id,
 			   COALESCE(p.param_code, '') AS param_code,
@@ -481,7 +485,7 @@ func (r *FormulaRepository) loadFormulaParams(ctx context.Context, formulaID uui
 		}
 	}()
 
-	var params []*formula.FormulaParam
+	var params []*formula.Param
 	for rows.Next() {
 		var id, paramID uuid.UUID
 		var paramCode, paramName string
@@ -491,7 +495,7 @@ func (r *FormulaRepository) loadFormulaParams(ctx context.Context, formulaID uui
 			return nil, fmt.Errorf("failed to scan formula param: %w", err)
 		}
 
-		params = append(params, formula.ReconstructFormulaParam(id, paramID, paramCode, paramName, sortOrder))
+		params = append(params, formula.ReconstructParam(id, paramID, paramCode, paramName, sortOrder))
 	}
 
 	if err := rows.Err(); err != nil {
@@ -522,9 +526,15 @@ type formulaDTO struct {
 	DeletedBy       sql.NullString
 }
 
-func (d *formulaDTO) toEntity(inputParams []*formula.FormulaParam) *formula.Formula {
-	code, _ := formula.NewCode(d.Code)
-	ft, _ := formula.NewFormulaType(d.FormulaType)
+func (d *formulaDTO) toEntity(inputParams []*formula.Param) (*formula.Formula, error) {
+	code, err := formula.NewCode(d.Code)
+	if err != nil {
+		return nil, fmt.Errorf("invalid formula code from DB: %w", err)
+	}
+	ft, err := formula.NewType(d.FormulaType)
+	if err != nil {
+		return nil, fmt.Errorf("invalid formula type from DB: %w", err)
+	}
 
 	var updatedAt *time.Time
 	if d.UpdatedAt.Valid {
@@ -550,7 +560,7 @@ func (d *formulaDTO) toEntity(inputParams []*formula.FormulaParam) *formula.Form
 		inputParams,
 		d.CreatedAt, d.CreatedBy,
 		updatedAt, updatedBy, deletedAt, deletedBy,
-	)
+	), nil
 }
 
 func (r *FormulaRepository) scanFormula(row *sql.Row) (*formula.Formula, error) {
@@ -569,7 +579,7 @@ func (r *FormulaRepository) scanFormula(row *sql.Row) (*formula.Formula, error) 
 		return nil, fmt.Errorf("failed to scan formula: %w", err)
 	}
 
-	return dto.toEntity(nil), nil
+	return dto.toEntity(nil)
 }
 
 func (r *FormulaRepository) scanFormulaFromRows(rows *sql.Rows) (*formula.Formula, error) {
@@ -585,15 +595,13 @@ func (r *FormulaRepository) scanFormulaFromRows(rows *sql.Rows) (*formula.Formul
 		return nil, fmt.Errorf("failed to scan formula row: %w", err)
 	}
 
-	return dto.toEntity(nil), nil
+	return dto.toEntity(nil)
 }
 
-func (r *FormulaRepository) reconstructWithParams(entity *formula.Formula, params []*formula.FormulaParam) *formula.Formula {
-	code, _ := formula.NewCode(entity.Code().String())
-	ft, _ := formula.NewFormulaType(entity.FormulaType().String())
-
+func (r *FormulaRepository) reconstructWithParams(entity *formula.Formula, params []*formula.Param) *formula.Formula {
+	// Code and Type are already validated from the original entity — safe to reuse directly.
 	return formula.ReconstructFormula(
-		entity.ID(), code, entity.Name(), ft, entity.Expression(),
+		entity.ID(), entity.Code(), entity.Name(), entity.FormulaType(), entity.Expression(),
 		entity.ResultParamID(), entity.ResultParamCode(), entity.ResultParamName(),
 		entity.Description(), entity.Version(), entity.IsActive(),
 		params,

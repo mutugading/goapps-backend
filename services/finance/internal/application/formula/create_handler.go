@@ -39,7 +39,7 @@ func (h *CreateHandler) Handle(ctx context.Context, cmd CreateCommand) (*formula
 		return nil, err
 	}
 
-	formulaType, err := formula.NewFormulaType(cmd.FormulaType)
+	formulaType, err := formula.NewType(cmd.FormulaType)
 	if err != nil {
 		return nil, err
 	}

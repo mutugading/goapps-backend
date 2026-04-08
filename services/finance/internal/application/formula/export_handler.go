@@ -97,7 +97,7 @@ func buildFormulaExportFilter(query ExportQuery) (formula.ExportFilter, error) {
 	filter := formula.ExportFilter{}
 
 	if query.FormulaType != nil {
-		ft, err := formula.NewFormulaType(*query.FormulaType)
+		ft, err := formula.NewType(*query.FormulaType)
 		if err != nil {
 			return filter, err
 		}

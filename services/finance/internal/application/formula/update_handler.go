@@ -44,66 +44,21 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*formula
 		return nil, err
 	}
 
-	// Parse optional FormulaType
-	var formulaType *formula.FormulaType
-	if cmd.FormulaType != nil {
-		ft, ftErr := formula.NewFormulaType(*cmd.FormulaType)
-		if ftErr != nil {
-			return nil, ftErr
-		}
-		formulaType = &ft
+	formulaType, err := h.parseFormulaType(cmd.FormulaType)
+	if err != nil {
+		return nil, err
 	}
 
-	// Parse optional ResultParamID
-	var resultParamID *uuid.UUID
-	if cmd.ResultParamID != nil {
-		rpID, rpErr := uuid.Parse(*cmd.ResultParamID)
-		if rpErr != nil {
-			return nil, formula.ErrResultParamNotFound
-		}
-
-		// Validate param exists
-		exists, existsErr := h.repo.ParamExistsByID(ctx, rpID)
-		if existsErr != nil {
-			return nil, existsErr
-		}
-		if !exists {
-			return nil, formula.ErrResultParamNotFound
-		}
-
-		// Check not used by another formula
-		used, usedErr := h.repo.ResultParamUsedByOther(ctx, rpID, entity.ID())
-		if usedErr != nil {
-			return nil, usedErr
-		}
-		if used {
-			return nil, formula.ErrResultParamAlreadyUsed
-		}
-
-		resultParamID = &rpID
+	resultParamID, err := h.validateResultParam(ctx, cmd.ResultParamID, entity.ID())
+	if err != nil {
+		return nil, err
 	}
 
-	// Parse InputParamIDs
-	var inputParamIDs []uuid.UUID
-	if cmd.InputParamIDs != nil {
-		inputParamIDs = make([]uuid.UUID, 0, len(cmd.InputParamIDs))
-		for _, idStr := range cmd.InputParamIDs {
-			paramID, parseErr := uuid.Parse(idStr)
-			if parseErr != nil {
-				return nil, formula.ErrInputParamNotFound
-			}
-			exists, existsErr := h.repo.ParamExistsByID(ctx, paramID)
-			if existsErr != nil {
-				return nil, existsErr
-			}
-			if !exists {
-				return nil, formula.ErrInputParamNotFound
-			}
-			inputParamIDs = append(inputParamIDs, paramID)
-		}
+	inputParamIDs, err := h.validateInputParams(ctx, cmd.InputParamIDs)
+	if err != nil {
+		return nil, err
 	}
 
-	// Apply update
 	if err := entity.Update(
 		cmd.FormulaName, formulaType, cmd.Expression,
 		resultParamID, inputParamIDs, cmd.Description,
@@ -117,4 +72,71 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*formula
 	}
 
 	return h.repo.GetByID(ctx, entity.ID())
+}
+
+// parseFormulaType parses an optional FormulaType string.
+func (h *UpdateHandler) parseFormulaType(ft *string) (*formula.Type, error) {
+	if ft == nil {
+		return nil, nil
+	}
+	parsed, err := formula.NewType(*ft)
+	if err != nil {
+		return nil, err
+	}
+	return &parsed, nil
+}
+
+// validateResultParam validates and parses the optional result parameter ID.
+func (h *UpdateHandler) validateResultParam(ctx context.Context, resultParamIDStr *string, entityID uuid.UUID) (*uuid.UUID, error) {
+	if resultParamIDStr == nil {
+		return nil, nil
+	}
+
+	rpID, err := uuid.Parse(*resultParamIDStr)
+	if err != nil {
+		return nil, formula.ErrResultParamNotFound
+	}
+
+	exists, err := h.repo.ParamExistsByID(ctx, rpID)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, formula.ErrResultParamNotFound
+	}
+
+	used, err := h.repo.ResultParamUsedByOther(ctx, rpID, entityID)
+	if err != nil {
+		return nil, err
+	}
+	if used {
+		return nil, formula.ErrResultParamAlreadyUsed
+	}
+
+	return &rpID, nil
+}
+
+// validateInputParams validates and parses input parameter IDs.
+func (h *UpdateHandler) validateInputParams(ctx context.Context, inputParamIDStrs []string) ([]uuid.UUID, error) {
+	if inputParamIDStrs == nil {
+		return nil, nil
+	}
+
+	inputParamIDs := make([]uuid.UUID, 0, len(inputParamIDStrs))
+	for _, idStr := range inputParamIDStrs {
+		paramID, err := uuid.Parse(idStr)
+		if err != nil {
+			return nil, formula.ErrInputParamNotFound
+		}
+		exists, err := h.repo.ParamExistsByID(ctx, paramID)
+		if err != nil {
+			return nil, err
+		}
+		if !exists {
+			return nil, formula.ErrInputParamNotFound
+		}
+		inputParamIDs = append(inputParamIDs, paramID)
+	}
+
+	return inputParamIDs, nil
 }
