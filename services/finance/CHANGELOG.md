@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.7.0](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.6.0...finance-service/v0.7.0) (2026-04-08)
+
+
+### Features
+
+* implement formula management service with CRUD operations, gRPC definitions, and database schema ([ee9831c](https://github.com/mutugading/goapps-backend/commit/ee9831c156013d0b81b3634645934392dffef324))
+* implement formula management service with CRUD operations, gRPC definitions, and database schema ([1faa10c](https://github.com/mutugading/goapps-backend/commit/1faa10ce43da4772131957ef9f53ce95987e5038))
+
+
+### Bug Fixes
+
+* enforce unique result parameters per formula and add validation constraints for description and input parameters ([5f8dea5](https://github.com/mutugading/goapps-backend/commit/5f8dea554ace536e7d949f7ac46c76ca1b1a19f5))
+* update formula parsing methods to return change status alongside values ([b5e5d75](https://github.com/mutugading/goapps-backend/commit/b5e5d75abc5c228236589f4abdd5639942a38d35))
+
 ## [0.6.0](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.5.0...finance-service/v0.6.0) (2026-04-07)
 
 
