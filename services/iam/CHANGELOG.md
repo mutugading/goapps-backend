@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.6.0...iam-service/v0.7.0) (2026-04-08)
+
+
+### Features
+
+* implement formula management service with CRUD operations, gRPC definitions, and database schema ([ee9831c](https://github.com/mutugading/goapps-backend/commit/ee9831c156013d0b81b3634645934392dffef324))
+* implement formula management service with CRUD operations, gRPC definitions, and database schema ([1faa10c](https://github.com/mutugading/goapps-backend/commit/1faa10ce43da4772131957ef9f53ce95987e5038))
+
 ## [0.6.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.5.0...iam-service/v0.6.0) (2026-04-07)
 
 
