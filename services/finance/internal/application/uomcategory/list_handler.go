@@ -1,73 +1,59 @@
-// Package uom provides application layer handlers for UOM operations.
-package uom
+// Package uomcategory provides application layer handlers for UOM Category operations.
+package uomcategory
 
 import (
 	"context"
 
-	"github.com/google/uuid"
-
-	"github.com/mutugading/goapps-backend/services/finance/internal/domain/uom"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/uomcategory"
 	"github.com/mutugading/goapps-backend/services/finance/pkg/safeconv"
 )
 
-// ListQuery represents the list UOMs query.
+// ListQuery represents the list UOM Categories query.
 type ListQuery struct {
-	Page       int
-	PageSize   int
-	Search     string
-	CategoryID *string
-	IsActive   *bool
-	SortBy     string
-	SortOrder  string
+	Page      int
+	PageSize  int
+	Search    string
+	IsActive  *bool
+	SortBy    string
+	SortOrder string
 }
 
-// ListResult represents the list UOMs result.
+// ListResult represents the list UOM Categories result.
 type ListResult struct {
-	UOMs        []*uom.UOM
+	Categories  []*uomcategory.Category
 	TotalItems  int64
 	TotalPages  int32
 	CurrentPage int32
 	PageSize    int32
 }
 
-// ListHandler handles the ListUOMs query.
+// ListHandler handles the ListUOMCategories query.
 type ListHandler struct {
-	repo uom.Repository
+	repo uomcategory.Repository
 }
 
 // NewListHandler creates a new ListHandler.
-func NewListHandler(repo uom.Repository) *ListHandler {
+func NewListHandler(repo uomcategory.Repository) *ListHandler {
 	return &ListHandler{repo: repo}
 }
 
-// Handle executes the list UOMs query.
+// Handle executes the list UOM Categories query.
 func (h *ListHandler) Handle(ctx context.Context, query ListQuery) (*ListResult, error) {
 	// Build filter
-	filter := uom.ListFilter{
+	filter := uomcategory.ListFilter{
 		Search:    query.Search,
 		Page:      query.Page,
 		PageSize:  query.PageSize,
 		SortBy:    query.SortBy,
 		SortOrder: query.SortOrder,
+		IsActive:  query.IsActive,
 	}
-
-	// Category filter
-	if query.CategoryID != nil && *query.CategoryID != "" {
-		parsed, parseErr := uuid.Parse(*query.CategoryID)
-		if parseErr != nil {
-			return nil, uom.ErrInvalidCategory
-		}
-		filter.CategoryID = &parsed
-	}
-
-	// IsActive filter
-	filter.IsActive = query.IsActive
 
 	// Validate filter
 	filter.Validate()
 
 	// Execute query
-	uoms, total, err := h.repo.List(ctx, filter)
+	categories, total, err := h.repo.List(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +66,7 @@ func (h *ListHandler) Handle(ctx context.Context, query ListQuery) (*ListResult,
 	}
 
 	return &ListResult{
-		UOMs:        uoms,
+		Categories:  categories,
 		TotalItems:  total,
 		TotalPages:  totalPages,
 		CurrentPage: safeconv.IntToInt32(filter.Page),
