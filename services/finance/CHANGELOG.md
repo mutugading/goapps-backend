@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.8.0](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.7.0...finance-service/v0.8.0) (2026-04-13)
+
+
+### Features
+
+* add UOM category management with CRUD, import/export, and seed migration ([29e4c43](https://github.com/mutugading/goapps-backend/commit/29e4c432fdaf2ac13f81dd548488ed6d5596c75f))
+* add UOM category management with CRUD, import/export, and seed migration ([f4cbaaa](https://github.com/mutugading/goapps-backend/commit/f4cbaaaed866fec031f8a0af05bdb98970d99254))
+
+
+### Bug Fixes
+
+* **lint:** add nolint:dupl directives to category repositories and handlers ([035d9d1](https://github.com/mutugading/goapps-backend/commit/035d9d1343b0817174f562e9221f1271fce37909))
+* **test:** update UOM E2E tests to use dynamic category IDs via UOMCategoryService ([6412c0f](https://github.com/mutugading/goapps-backend/commit/6412c0f97a18df609d932f933a2942ae053693cf))
+
 ## [0.7.0](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.6.0...finance-service/v0.7.0) (2026-04-08)
 
 

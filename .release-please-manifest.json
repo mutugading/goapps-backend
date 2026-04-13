@@ -1,5 +1,5 @@
 {
-    "services/finance": "0.7.0",
+    "services/finance": "0.8.0",
     "services/iam": "0.7.0",
     "services/hr": "0.1.0"
 }
