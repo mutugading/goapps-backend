@@ -1,5 +1,5 @@
-// Package uom provides application layer handlers for UOM operations.
-package uom
+// Package uomcategory provides application layer handlers for UOM Category operations.
+package uomcategory
 
 import (
 	"errors"
@@ -15,7 +15,7 @@ type TemplateResult struct {
 	FileName    string
 }
 
-// TemplateHandler handles the DownloadTemplate query.
+// TemplateHandler handles the DownloadUOMCategoryTemplate query.
 type TemplateHandler struct{}
 
 // NewTemplateHandler creates a new TemplateHandler.
@@ -23,34 +23,34 @@ func NewTemplateHandler() *TemplateHandler {
 	return &TemplateHandler{}
 }
 
-// templateExcelWriter wraps excelize file with error collection for template generation.
-type templateExcelWriter struct {
+// templateWriter wraps excelize file with error collection for template generation.
+type templateWriter struct {
 	f         *excelize.File
 	sheetName string
 	errs      []error
 }
 
 // setCellValue sets a cell value and collects any error.
-func (tw *templateExcelWriter) setCellValue(cell string, value interface{}) {
+func (tw *templateWriter) setCellValue(cell string, value interface{}) {
 	if err := tw.f.SetCellValue(tw.sheetName, cell, value); err != nil {
 		tw.errs = append(tw.errs, fmt.Errorf("cell %s: %w", cell, err))
 	}
 }
 
 // setColWidth sets column width and collects any error.
-func (tw *templateExcelWriter) setColWidth(startCol, endCol string, width float64) {
+func (tw *templateWriter) setColWidth(startCol, endCol string, width float64) {
 	if err := tw.f.SetColWidth(tw.sheetName, startCol, endCol, width); err != nil {
 		tw.errs = append(tw.errs, fmt.Errorf("column %s-%s: %w", startCol, endCol, err))
 	}
 }
 
 // hasErrors returns true if any errors were collected.
-func (tw *templateExcelWriter) hasErrors() bool {
+func (tw *templateWriter) hasErrors() bool {
 	return len(tw.errs) > 0
 }
 
 // error returns combined errors or nil.
-func (tw *templateExcelWriter) error() error {
+func (tw *templateWriter) error() error {
 	if len(tw.errs) == 0 {
 		return nil
 	}
@@ -70,7 +70,7 @@ func (h *TemplateHandler) Handle() (result *TemplateResult, err error) {
 		}
 	}()
 
-	sheetName := "UOM Import Template"
+	sheetName := "UOM Category Import Template"
 	index, err := f.NewSheet(sheetName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create sheet: %w", err)
@@ -83,14 +83,14 @@ func (h *TemplateHandler) Handle() (result *TemplateResult, err error) {
 	}
 
 	// Set headers
-	headers := []string{"Code", "Name", "Category Code", "Description"}
+	headers := []string{"Code", "Name", "Description"}
 	for col, header := range headers {
-		cell, err := excelize.CoordinatesToCellName(col+1, 1)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get cell name: %w", err)
+		cell, cellErr := excelize.CoordinatesToCellName(col+1, 1)
+		if cellErr != nil {
+			return nil, fmt.Errorf("failed to get cell name: %w", cellErr)
 		}
-		if err := f.SetCellValue(sheetName, cell, header); err != nil {
-			return nil, fmt.Errorf("failed to set header %s: %w", header, err)
+		if setErr := f.SetCellValue(sheetName, cell, header); setErr != nil {
+			return nil, fmt.Errorf("failed to set header %s: %w", header, setErr)
 		}
 	}
 
@@ -103,19 +103,19 @@ func (h *TemplateHandler) Handle() (result *TemplateResult, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create header style: %w", err)
 	}
-	if err := f.SetCellStyle(sheetName, "A1", "D1", headerStyle); err != nil {
+	if err := f.SetCellStyle(sheetName, "A1", "C1", headerStyle); err != nil {
 		return nil, fmt.Errorf("failed to set header style: %w", err)
 	}
 
 	// Create writer for data rows (non-critical errors are collected)
-	writer := &templateExcelWriter{f: f, sheetName: sheetName}
+	writer := &templateWriter{f: f, sheetName: sheetName}
 
 	// Add sample data
 	sampleData := [][]string{
-		{"KG", "Kilogram", "WEIGHT", "Weight in kilograms"},
-		{"MTR", "Meter", "LENGTH", "Length in meters"},
-		{"LTR", "Liter", "VOLUME", "Volume in liters"},
-		{"PCS", "Pieces", "QUANTITY", "Count in pieces"},
+		{"WEIGHT", "Weight", "Weight-based units (e.g., KG, GR, TON)"},
+		{"LENGTH", "Length", "Length-based units (e.g., MTR, CM, YARD)"},
+		{"VOLUME", "Volume", "Volume-based units (e.g., LTR, ML)"},
+		{"QUANTITY", "Quantity", "Quantity-based units (e.g., PCS, BOX, SET)"},
 	}
 
 	for i, row := range sampleData {
@@ -123,29 +123,26 @@ func (h *TemplateHandler) Handle() (result *TemplateResult, err error) {
 		writer.setCellValue(fmt.Sprintf("A%d", rowNum), row[0])
 		writer.setCellValue(fmt.Sprintf("B%d", rowNum), row[1])
 		writer.setCellValue(fmt.Sprintf("C%d", rowNum), row[2])
-		writer.setCellValue(fmt.Sprintf("D%d", rowNum), row[3])
 	}
 
 	// Set column widths
 	writer.setColWidth("A", "A", 15)
 	writer.setColWidth("B", "B", 25)
-	writer.setColWidth("C", "C", 15)
-	writer.setColWidth("D", "D", 40)
+	writer.setColWidth("C", "C", 50)
 
 	// Add validation note sheet
 	notesSheet := "Instructions"
 	if _, sheetErr := f.NewSheet(notesSheet); sheetErr != nil {
 		log.Debug().Err(sheetErr).Msg("Could not create Instructions sheet")
 	} else {
-		notesWriter := &templateExcelWriter{f: f, sheetName: notesSheet}
+		notesWriter := &templateWriter{f: f, sheetName: notesSheet}
 		notesWriter.setCellValue("A1", "Import Instructions")
-		notesWriter.setCellValue("A3", "1. Code: Unique, uppercase letters/numbers/underscores (e.g., KG, MTR_SQ)")
-		notesWriter.setCellValue("A4", "2. Name: Display name (required)")
-		notesWriter.setCellValue("A5", "3. Category Code: Must match an existing UOM Category code (e.g., WEIGHT, LENGTH)")
-		notesWriter.setCellValue("A6", "4. Description: Optional description")
-		notesWriter.setCellValue("A8", "Notes:")
-		notesWriter.setCellValue("A9", "- Delete sample data rows before importing")
-		notesWriter.setCellValue("A10", "- Save file as .xlsx format")
+		notesWriter.setCellValue("A3", "1. Code: Unique, uppercase letters/numbers/underscores (e.g., WEIGHT, TIME_UNIT)")
+		notesWriter.setCellValue("A4", "2. Name: Display name (required, max 100 chars)")
+		notesWriter.setCellValue("A5", "3. Description: Optional description")
+		notesWriter.setCellValue("A7", "Notes:")
+		notesWriter.setCellValue("A8", "- Delete sample data rows before importing")
+		notesWriter.setCellValue("A9", "- Save file as .xlsx format")
 
 		if notesWriter.hasErrors() {
 			log.Warn().Err(notesWriter.error()).Msg("Some Instructions sheet operations failed")
@@ -165,6 +162,6 @@ func (h *TemplateHandler) Handle() (result *TemplateResult, err error) {
 
 	return &TemplateResult{
 		FileContent: buffer.Bytes(),
-		FileName:    "uom_import_template.xlsx",
+		FileName:    "uom_category_import_template.xlsx",
 	}, nil
 }

@@ -12,27 +12,43 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 
-	"github.com/mutugading/goapps-backend/services/finance/internal/domain/rmcategory"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/uomcategory"
 )
 
-// RMCategoryRepository implements rmcategory.Repository interface using PostgreSQL.
-type RMCategoryRepository struct {
+// UOMCategoryRepository implements uomcategory.Repository interface using PostgreSQL.
+type UOMCategoryRepository struct {
 	db *DB
 }
 
-// NewRMCategoryRepository creates a new RMCategoryRepository instance.
-func NewRMCategoryRepository(db *DB) *RMCategoryRepository {
-	return &RMCategoryRepository{db: db}
+// NewUOMCategoryRepository creates a new UOMCategoryRepository instance.
+func NewUOMCategoryRepository(db *DB) *UOMCategoryRepository {
+	return &UOMCategoryRepository{db: db}
 }
 
 // Verify interface implementation at compile time.
-var _ rmcategory.Repository = (*RMCategoryRepository)(nil)
+var _ uomcategory.Repository = (*UOMCategoryRepository)(nil)
 
-// Create persists a new RMCategory to the database.
-func (r *RMCategoryRepository) Create(ctx context.Context, entity *rmcategory.RMCategory) error {
+// GetCategoryIDByCode resolves a category code to its UUID.
+// Implements uom.CategoryRepository interface.
+func (r *UOMCategoryRepository) GetCategoryIDByCode(ctx context.Context, code string) (uuid.UUID, error) {
+	query := `SELECT uom_category_id FROM mst_uom_category WHERE category_code = $1 AND deleted_at IS NULL`
+
+	var id uuid.UUID
+	if err := r.db.QueryRowContext(ctx, query, code).Scan(&id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return uuid.Nil, uomcategory.ErrNotFound
+		}
+		return uuid.Nil, fmt.Errorf("failed to get category id by code: %w", err)
+	}
+
+	return id, nil
+}
+
+// Create persists a new UOM Category to the database.
+func (r *UOMCategoryRepository) Create(ctx context.Context, entity *uomcategory.Category) error {
 	query := `
-		INSERT INTO mst_rm_category (
-			rm_category_id, category_code, category_name, description,
+		INSERT INTO mst_uom_category (
+			uom_category_id, category_code, category_name, description,
 			is_active, created_at, created_by
 		) VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
@@ -48,49 +64,48 @@ func (r *RMCategoryRepository) Create(ctx context.Context, entity *rmcategory.RM
 	)
 
 	if err != nil {
-		if isRMCategoryUniqueViolation(err) {
-			return rmcategory.ErrAlreadyExists
+		if isUOMCategoryUniqueViolation(err) {
+			return uomcategory.ErrAlreadyExists
 		}
-		return fmt.Errorf("failed to create rm category: %w", err)
+		return fmt.Errorf("failed to create uom category: %w", err)
 	}
 
 	return nil
 }
 
-// GetByID retrieves an RMCategory by its ID.
-func (r *RMCategoryRepository) GetByID(ctx context.Context, id uuid.UUID) (*rmcategory.RMCategory, error) {
+// GetByID retrieves a UOM Category by its ID.
+func (r *UOMCategoryRepository) GetByID(ctx context.Context, id uuid.UUID) (*uomcategory.Category, error) {
 	query := `
-		SELECT rm_category_id, category_code, category_name, description,
+		SELECT uom_category_id, category_code, category_name, description,
 			   is_active, created_at, created_by, updated_at, updated_by,
 			   deleted_at, deleted_by
-		FROM mst_rm_category
-		WHERE rm_category_id = $1 AND deleted_at IS NULL
+		FROM mst_uom_category
+		WHERE uom_category_id = $1 AND deleted_at IS NULL
 	`
 
-	return r.scanRMCategory(r.db.QueryRowContext(ctx, query, id))
+	return r.scanCategory(r.db.QueryRowContext(ctx, query, id))
 }
 
-// GetByCode retrieves an RMCategory by its code.
-func (r *RMCategoryRepository) GetByCode(ctx context.Context, code rmcategory.Code) (*rmcategory.RMCategory, error) {
+// GetByCode retrieves a UOM Category by its code.
+func (r *UOMCategoryRepository) GetByCode(ctx context.Context, code uomcategory.Code) (*uomcategory.Category, error) {
 	query := `
-		SELECT rm_category_id, category_code, category_name, description,
+		SELECT uom_category_id, category_code, category_name, description,
 			   is_active, created_at, created_by, updated_at, updated_by,
 			   deleted_at, deleted_by
-		FROM mst_rm_category
+		FROM mst_uom_category
 		WHERE category_code = $1 AND deleted_at IS NULL
 	`
 
-	return r.scanRMCategory(r.db.QueryRowContext(ctx, query, code.String()))
+	return r.scanCategory(r.db.QueryRowContext(ctx, query, code.String()))
 }
 
-// List retrieves RMCategories with filtering, searching, and pagination.
+// List retrieves UOM Categories with filtering, searching, and pagination.
 //
-//nolint:dupl // Mirrors UOMCategoryRepository.List — different table/types prevent shared code.
-func (r *RMCategoryRepository) List(ctx context.Context, filter rmcategory.ListFilter) ([]*rmcategory.RMCategory, int64, error) {
+//nolint:dupl // Mirrors RMCategoryRepository.List — different table/types prevent shared code.
+func (r *UOMCategoryRepository) List(ctx context.Context, filter uomcategory.ListFilter) ([]*uomcategory.Category, int64, error) {
 	filter.Validate()
 
-	// Build dynamic query
-	baseQuery := `FROM mst_rm_category WHERE deleted_at IS NULL`
+	baseQuery := `FROM mst_uom_category WHERE deleted_at IS NULL`
 	args := []interface{}{}
 	argIndex := 1
 
@@ -116,7 +131,7 @@ func (r *RMCategoryRepository) List(ctx context.Context, filter rmcategory.ListF
 	var total int64
 	countQuery := `SELECT COUNT(*) ` + baseQuery
 	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
-		return nil, 0, fmt.Errorf("failed to count rm categories: %w", err)
+		return nil, 0, fmt.Errorf("failed to count uom categories: %w", err)
 	}
 
 	// Build order clause with sort column mapping
@@ -134,9 +149,8 @@ func (r *RMCategoryRepository) List(ctx context.Context, filter rmcategory.ListF
 		orderDir = sortDESC
 	}
 
-	// Data query with pagination
 	selectQuery := `
-		SELECT rm_category_id, category_code, category_name, description,
+		SELECT uom_category_id, category_code, category_name, description,
 			   is_active, created_at, created_by, updated_at, updated_by,
 			   deleted_at, deleted_by
 	` + baseQuery + fmt.Sprintf(
@@ -148,7 +162,7 @@ func (r *RMCategoryRepository) List(ctx context.Context, filter rmcategory.ListF
 
 	rows, err := r.db.QueryContext(ctx, selectQuery, args...)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to list rm categories: %w", err)
+		return nil, 0, fmt.Errorf("failed to list uom categories: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
@@ -156,9 +170,9 @@ func (r *RMCategoryRepository) List(ctx context.Context, filter rmcategory.ListF
 		}
 	}()
 
-	var categories []*rmcategory.RMCategory
+	var categories []*uomcategory.Category
 	for rows.Next() {
-		entity, err := r.scanRMCategoryFromRows(rows)
+		entity, err := r.scanCategoryFromRows(rows)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -166,22 +180,22 @@ func (r *RMCategoryRepository) List(ctx context.Context, filter rmcategory.ListF
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, 0, fmt.Errorf("error iterating rm category rows: %w", err)
+		return nil, 0, fmt.Errorf("error iterating uom category rows: %w", err)
 	}
 
 	return categories, total, nil
 }
 
-// Update persists changes to an existing RMCategory.
-func (r *RMCategoryRepository) Update(ctx context.Context, entity *rmcategory.RMCategory) error {
+// Update persists changes to an existing UOM Category.
+func (r *UOMCategoryRepository) Update(ctx context.Context, entity *uomcategory.Category) error {
 	query := `
-		UPDATE mst_rm_category SET
+		UPDATE mst_uom_category SET
 			category_name = $2,
 			description = $3,
 			is_active = $4,
 			updated_at = $5,
 			updated_by = $6
-		WHERE rm_category_id = $1 AND deleted_at IS NULL
+		WHERE uom_category_id = $1 AND deleted_at IS NULL
 	`
 
 	result, err := r.db.ExecContext(ctx, query,
@@ -193,7 +207,7 @@ func (r *RMCategoryRepository) Update(ctx context.Context, entity *rmcategory.RM
 		entity.UpdatedBy(),
 	)
 	if err != nil {
-		return fmt.Errorf("failed to update rm category: %w", err)
+		return fmt.Errorf("failed to update uom category: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
@@ -201,25 +215,25 @@ func (r *RMCategoryRepository) Update(ctx context.Context, entity *rmcategory.RM
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 	if rowsAffected == 0 {
-		return rmcategory.ErrNotFound
+		return uomcategory.ErrNotFound
 	}
 
 	return nil
 }
 
-// SoftDelete marks an RMCategory as deleted.
-func (r *RMCategoryRepository) SoftDelete(ctx context.Context, id uuid.UUID, deletedBy string) error {
+// SoftDelete marks a UOM Category as deleted.
+func (r *UOMCategoryRepository) SoftDelete(ctx context.Context, id uuid.UUID, deletedBy string) error {
 	query := `
-		UPDATE mst_rm_category SET
+		UPDATE mst_uom_category SET
 			deleted_at = $2,
 			deleted_by = $3,
 			is_active = false
-		WHERE rm_category_id = $1 AND deleted_at IS NULL
+		WHERE uom_category_id = $1 AND deleted_at IS NULL
 	`
 
 	result, err := r.db.ExecContext(ctx, query, id, time.Now(), deletedBy)
 	if err != nil {
-		return fmt.Errorf("failed to soft delete rm category: %w", err)
+		return fmt.Errorf("failed to soft delete uom category: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
@@ -227,49 +241,48 @@ func (r *RMCategoryRepository) SoftDelete(ctx context.Context, id uuid.UUID, del
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 	if rowsAffected == 0 {
-		return rmcategory.ErrNotFound
+		return uomcategory.ErrNotFound
 	}
 
 	return nil
 }
 
-// ExistsByCode checks if an RMCategory with the given code exists.
-func (r *RMCategoryRepository) ExistsByCode(ctx context.Context, code rmcategory.Code) (bool, error) {
-	query := `SELECT EXISTS(SELECT 1 FROM mst_rm_category WHERE category_code = $1 AND deleted_at IS NULL)`
+// ExistsByCode checks if a UOM Category with the given code exists.
+func (r *UOMCategoryRepository) ExistsByCode(ctx context.Context, code uomcategory.Code) (bool, error) {
+	query := `SELECT EXISTS(SELECT 1 FROM mst_uom_category WHERE category_code = $1 AND deleted_at IS NULL)`
 
 	var exists bool
 	if err := r.db.QueryRowContext(ctx, query, code.String()).Scan(&exists); err != nil {
-		return false, fmt.Errorf("failed to check rm category existence: %w", err)
+		return false, fmt.Errorf("failed to check uom category existence: %w", err)
 	}
 
 	return exists, nil
 }
 
-// ExistsByID checks if an RMCategory with the given ID exists.
-func (r *RMCategoryRepository) ExistsByID(ctx context.Context, id uuid.UUID) (bool, error) {
-	query := `SELECT EXISTS(SELECT 1 FROM mst_rm_category WHERE rm_category_id = $1 AND deleted_at IS NULL)`
+// ExistsByID checks if a UOM Category with the given ID exists.
+func (r *UOMCategoryRepository) ExistsByID(ctx context.Context, id uuid.UUID) (bool, error) {
+	query := `SELECT EXISTS(SELECT 1 FROM mst_uom_category WHERE uom_category_id = $1 AND deleted_at IS NULL)`
 
 	var exists bool
 	if err := r.db.QueryRowContext(ctx, query, id).Scan(&exists); err != nil {
-		return false, fmt.Errorf("failed to check rm category existence: %w", err)
+		return false, fmt.Errorf("failed to check uom category existence: %w", err)
 	}
 
 	return exists, nil
 }
 
-// ListAll retrieves all non-deleted RMCategories (for export).
-func (r *RMCategoryRepository) ListAll(ctx context.Context, filter rmcategory.ExportFilter) ([]*rmcategory.RMCategory, error) {
+// ListAll retrieves all non-deleted UOM Categories (for export).
+func (r *UOMCategoryRepository) ListAll(ctx context.Context, filter uomcategory.ExportFilter) ([]*uomcategory.Category, error) {
 	query := `
-		SELECT rm_category_id, category_code, category_name, description,
+		SELECT uom_category_id, category_code, category_name, description,
 			   is_active, created_at, created_by, updated_at, updated_by,
 			   deleted_at, deleted_by
-		FROM mst_rm_category
+		FROM mst_uom_category
 		WHERE deleted_at IS NULL
 	`
 	args := []interface{}{}
 	argIndex := 1
 
-	// IsActive filter
 	if filter.IsActive != nil {
 		query += fmt.Sprintf(` AND is_active = $%d`, argIndex)
 		args = append(args, *filter.IsActive)
@@ -279,7 +292,7 @@ func (r *RMCategoryRepository) ListAll(ctx context.Context, filter rmcategory.Ex
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list all rm categories: %w", err)
+		return nil, fmt.Errorf("failed to list all uom categories: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
@@ -287,9 +300,9 @@ func (r *RMCategoryRepository) ListAll(ctx context.Context, filter rmcategory.Ex
 		}
 	}()
 
-	var categories []*rmcategory.RMCategory
+	var categories []*uomcategory.Category
 	for rows.Next() {
-		entity, err := r.scanRMCategoryFromRows(rows)
+		entity, err := r.scanCategoryFromRows(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -297,18 +310,30 @@ func (r *RMCategoryRepository) ListAll(ctx context.Context, filter rmcategory.Ex
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating rm category rows: %w", err)
+		return nil, fmt.Errorf("error iterating uom category rows: %w", err)
 	}
 
 	return categories, nil
+}
+
+// IsInUse checks if a UOM Category is referenced by any UOM.
+func (r *UOMCategoryRepository) IsInUse(ctx context.Context, id uuid.UUID) (bool, error) {
+	query := `SELECT EXISTS(SELECT 1 FROM mst_uom WHERE uom_category_id = $1 AND deleted_at IS NULL)`
+
+	var inUse bool
+	if err := r.db.QueryRowContext(ctx, query, id).Scan(&inUse); err != nil {
+		return false, fmt.Errorf("failed to check uom category usage: %w", err)
+	}
+
+	return inUse, nil
 }
 
 // =============================================================================
 // Helper functions
 // =============================================================================
 
-func (r *RMCategoryRepository) scanRMCategory(row *sql.Row) (*rmcategory.RMCategory, error) {
-	var dto rmCategoryDTO
+func (r *UOMCategoryRepository) scanCategory(row *sql.Row) (*uomcategory.Category, error) {
+	var dto uomCategoryDTO
 	err := row.Scan(
 		&dto.ID,
 		&dto.Code,
@@ -324,17 +349,17 @@ func (r *RMCategoryRepository) scanRMCategory(row *sql.Row) (*rmcategory.RMCateg
 	)
 
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, rmcategory.ErrNotFound
+		return nil, uomcategory.ErrNotFound
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to scan rm category: %w", err)
+		return nil, fmt.Errorf("failed to scan uom category: %w", err)
 	}
 
 	return dto.ToEntity()
 }
 
-func (r *RMCategoryRepository) scanRMCategoryFromRows(rows *sql.Rows) (*rmcategory.RMCategory, error) {
-	var dto rmCategoryDTO
+func (r *UOMCategoryRepository) scanCategoryFromRows(rows *sql.Rows) (*uomcategory.Category, error) {
+	var dto uomCategoryDTO
 	err := rows.Scan(
 		&dto.ID,
 		&dto.Code,
@@ -349,14 +374,14 @@ func (r *RMCategoryRepository) scanRMCategoryFromRows(rows *sql.Rows) (*rmcatego
 		&dto.DeletedBy,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to scan rm category row: %w", err)
+		return nil, fmt.Errorf("failed to scan uom category row: %w", err)
 	}
 
 	return dto.ToEntity()
 }
 
-// rmCategoryDTO is a data transfer object for database operations.
-type rmCategoryDTO struct {
+// uomCategoryDTO is a data transfer object for database operations.
+type uomCategoryDTO struct {
 	ID          uuid.UUID
 	Code        string
 	Name        string
@@ -371,8 +396,8 @@ type rmCategoryDTO struct {
 }
 
 // ToEntity converts DTO to domain entity.
-func (d *rmCategoryDTO) ToEntity() (*rmcategory.RMCategory, error) {
-	code, err := rmcategory.NewCode(d.Code)
+func (d *uomCategoryDTO) ToEntity() (*uomcategory.Category, error) {
+	code, err := uomcategory.NewCode(d.Code)
 	if err != nil {
 		return nil, fmt.Errorf("invalid code from db: %w", err)
 	}
@@ -402,7 +427,7 @@ func (d *rmCategoryDTO) ToEntity() (*rmcategory.RMCategory, error) {
 		deletedBy = &d.DeletedBy.String
 	}
 
-	return rmcategory.ReconstructRMCategory(
+	return uomcategory.ReconstructCategory(
 		d.ID,
 		code,
 		d.Name,
@@ -417,8 +442,8 @@ func (d *rmCategoryDTO) ToEntity() (*rmcategory.RMCategory, error) {
 	), nil
 }
 
-// isRMCategoryUniqueViolation checks if the error is a PostgreSQL unique violation.
-func isRMCategoryUniqueViolation(err error) bool {
+// isUOMCategoryUniqueViolation checks if the error is a PostgreSQL unique violation.
+func isUOMCategoryUniqueViolation(err error) bool {
 	var pqErr *pq.Error
 	if errors.As(err, &pqErr) {
 		return pqErr.Code == "23505" // unique_violation

@@ -73,9 +73,10 @@ func run() error {
 	rmCategoryRepo := postgres.NewRMCategoryRepository(db)
 	parameterRepo := postgres.NewParameterRepository(db)
 	formulaRepo := postgres.NewFormulaRepository(db)
+	uomCategoryRepo := postgres.NewUOMCategoryRepository(db)
 
 	// Setup gRPC handlers
-	uomHandler, err := grpcdelivery.NewUOMHandler(uomRepo, uomCache)
+	uomHandler, err := grpcdelivery.NewUOMHandler(uomRepo, uomCategoryRepo, uomCache)
 	if err != nil {
 		return err
 	}
@@ -95,8 +96,13 @@ func run() error {
 		return err
 	}
 
+	uomCategoryHandler, err := grpcdelivery.NewUOMCategoryHandler(uomCategoryRepo)
+	if err != nil {
+		return err
+	}
+
 	// Setup and start servers
-	return startServers(ctx, cfg, uomHandler, rmCategoryHandler, parameterHandler, formulaHandler, tokenBlacklist)
+	return startServers(ctx, cfg, uomHandler, rmCategoryHandler, parameterHandler, formulaHandler, uomCategoryHandler, tokenBlacklist)
 }
 
 // setupLogger configures the application logger.
@@ -193,7 +199,7 @@ func closeAuthRedis(bl *redisinfra.TokenBlacklist) {
 }
 
 // startServers starts the gRPC and HTTP servers and handles graceful shutdown.
-func startServers(ctx context.Context, cfg *config.Config, uomHandler *grpcdelivery.UOMHandler, rmCategoryHandler *grpcdelivery.RMCategoryHandler, parameterHandler *grpcdelivery.ParameterHandler, formulaHandler *grpcdelivery.FormulaHandler, tokenBlacklist *redisinfra.TokenBlacklist) error {
+func startServers(ctx context.Context, cfg *config.Config, uomHandler *grpcdelivery.UOMHandler, rmCategoryHandler *grpcdelivery.RMCategoryHandler, parameterHandler *grpcdelivery.ParameterHandler, formulaHandler *grpcdelivery.FormulaHandler, uomCategoryHandler *grpcdelivery.UOMCategoryHandler, tokenBlacklist *redisinfra.TokenBlacklist) error {
 	// Setup gRPC server with JWT auth and token blacklist
 	grpcServer, err := grpcdelivery.NewServer(&cfg.Server, nil, &cfg.JWT, tokenBlacklist)
 	if err != nil {
@@ -205,6 +211,7 @@ func startServers(ctx context.Context, cfg *config.Config, uomHandler *grpcdeliv
 	financev1.RegisterRMCategoryServiceServer(grpcServer.GRPCServer(), rmCategoryHandler)
 	financev1.RegisterParameterServiceServer(grpcServer.GRPCServer(), parameterHandler)
 	financev1.RegisterFormulaServiceServer(grpcServer.GRPCServer(), formulaHandler)
+	financev1.RegisterUOMCategoryServiceServer(grpcServer.GRPCServer(), uomCategoryHandler)
 
 	// Start gRPC server
 	go func() {

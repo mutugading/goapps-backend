@@ -1,12 +1,12 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "finance/v1/uom.proto",
+    "title": "finance/v1/uom_category.proto",
     "version": "version not set"
   },
   "tags": [
     {
-      "name": "UOMService"
+      "name": "UOMCategoryService"
     }
   ],
   "consumes": [
@@ -16,15 +16,15 @@
     "application/json"
   ],
   "paths": {
-    "/api/v1/finance/uoms": {
+    "/api/v1/finance/uom-categories": {
       "get": {
-        "summary": "ListUOMs lists UOMs with search, filter, and pagination.",
-        "operationId": "UOMService_ListUOMs",
+        "summary": "ListUOMCategories lists UOM categories with search, filter, and pagination.",
+        "operationId": "UOMCategoryService_ListUOMCategories",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1ListUOMsResponse"
+              "$ref": "#/definitions/v1ListUOMCategoriesResponse"
             }
           },
           "default": {
@@ -73,7 +73,7 @@
           },
           {
             "name": "sortBy",
-            "description": "Sort field: \"code\", \"name\", \"category\", \"created_at\" (default: \"code\").",
+            "description": "Sort field: \"code\", \"name\", \"created_at\" (default: \"code\").",
             "in": "query",
             "required": false,
             "type": "string"
@@ -84,27 +84,20 @@
             "in": "query",
             "required": false,
             "type": "string"
-          },
-          {
-            "name": "uomCategoryId",
-            "description": "Filter by category ID (empty = no filter).",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
-          "UOMService"
+          "UOMCategoryService"
         ]
       },
       "post": {
-        "summary": "CreateUOM creates a new UOM.",
-        "operationId": "UOMService_CreateUOM",
+        "summary": "CreateUOMCategory creates a new UOM category.",
+        "operationId": "UOMCategoryService_CreateUOMCategory",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1CreateUOMResponse"
+              "$ref": "#/definitions/v1CreateUOMCategoryResponse"
             }
           },
           "default": {
@@ -117,28 +110,28 @@
         "parameters": [
           {
             "name": "body",
-            "description": "CreateUOMRequest is the request for creating a new UOM.",
+            "description": "CreateUOMCategoryRequest is the request for creating a new UOM category.",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/v1CreateUOMRequest"
+              "$ref": "#/definitions/v1CreateUOMCategoryRequest"
             }
           }
         ],
         "tags": [
-          "UOMService"
+          "UOMCategoryService"
         ]
       }
     },
-    "/api/v1/finance/uoms/export": {
+    "/api/v1/finance/uom-categories/export": {
       "get": {
-        "summary": "ExportUOMs exports UOMs to Excel file.",
-        "operationId": "UOMService_ExportUOMs",
+        "summary": "ExportUOMCategories exports UOM categories to Excel file.",
+        "operationId": "UOMCategoryService_ExportUOMCategories",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1ExportUOMsResponse"
+              "$ref": "#/definitions/v1ExportUOMCategoriesResponse"
             }
           },
           "default": {
@@ -161,29 +154,22 @@
               "ACTIVE_FILTER_INACTIVE"
             ],
             "default": "ACTIVE_FILTER_UNSPECIFIED"
-          },
-          {
-            "name": "uomCategoryId",
-            "description": "Filter by category ID (empty = export all categories).",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
-          "UOMService"
+          "UOMCategoryService"
         ]
       }
     },
-    "/api/v1/finance/uoms/import": {
+    "/api/v1/finance/uom-categories/import": {
       "post": {
-        "summary": "ImportUOMs imports UOMs from Excel file.",
-        "operationId": "UOMService_ImportUOMs",
+        "summary": "ImportUOMCategories imports UOM categories from Excel file.",
+        "operationId": "UOMCategoryService_ImportUOMCategories",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1ImportUOMsResponse"
+              "$ref": "#/definitions/v1ImportUOMCategoriesResponse"
             }
           },
           "default": {
@@ -196,28 +182,28 @@
         "parameters": [
           {
             "name": "body",
-            "description": "ImportUOMsRequest is the request for importing UOMs from Excel.",
+            "description": "ImportUOMCategoriesRequest is the request for importing UOM categories from Excel.",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/v1ImportUOMsRequest"
+              "$ref": "#/definitions/v1ImportUOMCategoriesRequest"
             }
           }
         ],
         "tags": [
-          "UOMService"
+          "UOMCategoryService"
         ]
       }
     },
-    "/api/v1/finance/uoms/template": {
+    "/api/v1/finance/uom-categories/template": {
       "get": {
-        "summary": "DownloadTemplate downloads the Excel import template.",
-        "operationId": "UOMService_DownloadTemplate",
+        "summary": "DownloadUOMCategoryTemplate downloads the Excel import template.",
+        "operationId": "UOMCategoryService_DownloadUOMCategoryTemplate",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1DownloadTemplateResponse"
+              "$ref": "#/definitions/v1DownloadUOMCategoryTemplateResponse"
             }
           },
           "default": {
@@ -228,19 +214,19 @@
           }
         },
         "tags": [
-          "UOMService"
+          "UOMCategoryService"
         ]
       }
     },
-    "/api/v1/finance/uoms/{uomId}": {
+    "/api/v1/finance/uom-categories/{uomCategoryId}": {
       "get": {
-        "summary": "GetUOM retrieves a UOM by ID.",
-        "operationId": "UOMService_GetUOM",
+        "summary": "GetUOMCategory retrieves a UOM category by ID.",
+        "operationId": "UOMCategoryService_GetUOMCategory",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1GetUOMResponse"
+              "$ref": "#/definitions/v1GetUOMCategoryResponse"
             }
           },
           "default": {
@@ -252,25 +238,25 @@
         },
         "parameters": [
           {
-            "name": "uomId",
-            "description": "UOM ID (UUID format).",
+            "name": "uomCategoryId",
+            "description": "UOM category ID (UUID format).",
             "in": "path",
             "required": true,
             "type": "string"
           }
         ],
         "tags": [
-          "UOMService"
+          "UOMCategoryService"
         ]
       },
       "delete": {
-        "summary": "DeleteUOM soft deletes a UOM.",
-        "operationId": "UOMService_DeleteUOM",
+        "summary": "DeleteUOMCategory soft deletes a UOM category.",
+        "operationId": "UOMCategoryService_DeleteUOMCategory",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1DeleteUOMResponse"
+              "$ref": "#/definitions/v1DeleteUOMCategoryResponse"
             }
           },
           "default": {
@@ -282,25 +268,25 @@
         },
         "parameters": [
           {
-            "name": "uomId",
-            "description": "UOM ID to delete (UUID format).",
+            "name": "uomCategoryId",
+            "description": "UOM category ID to delete (UUID format).",
             "in": "path",
             "required": true,
             "type": "string"
           }
         ],
         "tags": [
-          "UOMService"
+          "UOMCategoryService"
         ]
       },
       "put": {
-        "summary": "UpdateUOM updates an existing UOM.\nNote: uom_code is immutable and cannot be changed.",
-        "operationId": "UOMService_UpdateUOM",
+        "summary": "UpdateUOMCategory updates an existing UOM category.\nNote: category_code is immutable and cannot be changed.",
+        "operationId": "UOMCategoryService_UpdateUOMCategory",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1UpdateUOMResponse"
+              "$ref": "#/definitions/v1UpdateUOMCategoryResponse"
             }
           },
           "default": {
@@ -312,8 +298,8 @@
         },
         "parameters": [
           {
-            "name": "uomId",
-            "description": "UOM ID to update (UUID format).",
+            "name": "uomCategoryId",
+            "description": "UOM category ID to update (UUID format).",
             "in": "path",
             "required": true,
             "type": "string"
@@ -323,23 +309,23 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/UOMServiceUpdateUOMBody"
+              "$ref": "#/definitions/UOMCategoryServiceUpdateUOMCategoryBody"
             }
           }
         ],
         "tags": [
-          "UOMService"
+          "UOMCategoryService"
         ]
       }
     }
   },
   "definitions": {
-    "UOMServiceUpdateUOMBody": {
+    "UOMCategoryServiceUpdateUOMCategoryBody": {
       "type": "object",
       "properties": {
-        "uomName": {
+        "categoryName": {
           "type": "string",
-          "description": "New display name (optional, 1-100 chars if provided).\nEmpty string means no change."
+          "description": "New display name (optional, 1-100 chars if provided)."
         },
         "description": {
           "type": "string",
@@ -348,13 +334,9 @@
         "isActive": {
           "type": "boolean",
           "description": "New active status (optional)."
-        },
-        "uomCategoryId": {
-          "type": "string",
-          "description": "New category ID (optional, UUID format)."
         }
       },
-      "description": "UpdateUOMRequest is the request for updating a UOM.\nNote: uom_code is immutable and cannot be changed after creation."
+      "description": "UpdateUOMCategoryRequest is the request for updating a UOM category.\nNote: category_code is immutable and cannot be changed after creation."
     },
     "protobufAny": {
       "type": "object",
@@ -442,29 +424,25 @@
       },
       "description": "BaseResponse is the standard response wrapper for all API responses."
     },
-    "v1CreateUOMRequest": {
+    "v1CreateUOMCategoryRequest": {
       "type": "object",
       "properties": {
-        "uomCode": {
+        "categoryCode": {
           "type": "string",
           "description": "Unique code (uppercase, alphanumeric with underscore, 1-20 chars).\nMust start with an uppercase letter. Immutable after creation."
         },
-        "uomName": {
+        "categoryName": {
           "type": "string",
           "description": "Display name (1-100 chars)."
         },
         "description": {
           "type": "string",
           "description": "Optional description (max 500 chars)."
-        },
-        "uomCategoryId": {
-          "type": "string",
-          "description": "Category ID (UUID, required - FK to mst_uom_category)."
         }
       },
-      "description": "CreateUOMRequest is the request for creating a new UOM."
+      "description": "CreateUOMCategoryRequest is the request for creating a new UOM category."
     },
-    "v1CreateUOMResponse": {
+    "v1CreateUOMCategoryResponse": {
       "type": "object",
       "properties": {
         "base": {
@@ -472,13 +450,13 @@
           "description": "Standard response metadata."
         },
         "data": {
-          "$ref": "#/definitions/v1UOM",
-          "description": "Created UOM data."
+          "$ref": "#/definitions/v1UOMCategory",
+          "description": "Created UOM category data."
         }
       },
-      "description": "CreateUOMResponse is the response for creating a UOM."
+      "description": "CreateUOMCategoryResponse is the response for creating a UOM category."
     },
-    "v1DeleteUOMResponse": {
+    "v1DeleteUOMCategoryResponse": {
       "type": "object",
       "properties": {
         "base": {
@@ -486,9 +464,9 @@
           "description": "Standard response metadata."
         }
       },
-      "description": "DeleteUOMResponse is the response for deleting a UOM."
+      "description": "DeleteUOMCategoryResponse is the response for deleting a UOM category."
     },
-    "v1DownloadTemplateResponse": {
+    "v1DownloadUOMCategoryTemplateResponse": {
       "type": "object",
       "properties": {
         "base": {
@@ -505,9 +483,9 @@
           "description": "Suggested filename."
         }
       },
-      "description": "DownloadTemplateResponse is the response containing the template file."
+      "description": "DownloadUOMCategoryTemplateResponse is the response containing the template file."
     },
-    "v1ExportUOMsResponse": {
+    "v1ExportUOMCategoriesResponse": {
       "type": "object",
       "properties": {
         "base": {
@@ -524,9 +502,9 @@
           "description": "Suggested filename."
         }
       },
-      "description": "ExportUOMsResponse is the response containing the Excel file."
+      "description": "ExportUOMCategoriesResponse is the response containing the Excel file."
     },
-    "v1GetUOMResponse": {
+    "v1GetUOMCategoryResponse": {
       "type": "object",
       "properties": {
         "base": {
@@ -534,11 +512,11 @@
           "description": "Standard response metadata."
         },
         "data": {
-          "$ref": "#/definitions/v1UOM",
-          "description": "UOM data."
+          "$ref": "#/definitions/v1UOMCategory",
+          "description": "UOM category data."
         }
       },
-      "description": "GetUOMResponse is the response for getting a UOM."
+      "description": "GetUOMCategoryResponse is the response for getting a UOM category."
     },
     "v1ImportError": {
       "type": "object",
@@ -559,7 +537,7 @@
       },
       "description": "ImportError represents a single import error."
     },
-    "v1ImportUOMsRequest": {
+    "v1ImportUOMCategoriesRequest": {
       "type": "object",
       "properties": {
         "fileContent": {
@@ -576,9 +554,9 @@
           "description": "Required. How to handle duplicates: \"skip\", \"update\", \"error\"."
         }
       },
-      "description": "ImportUOMsRequest is the request for importing UOMs from Excel."
+      "description": "ImportUOMCategoriesRequest is the request for importing UOM categories from Excel."
     },
-    "v1ImportUOMsResponse": {
+    "v1ImportUOMCategoriesResponse": {
       "type": "object",
       "properties": {
         "base": {
@@ -614,9 +592,9 @@
           "description": "Details of failed records."
         }
       },
-      "description": "ImportUOMsResponse is the response for importing UOMs."
+      "description": "ImportUOMCategoriesResponse is the response for importing UOM categories."
     },
-    "v1ListUOMsResponse": {
+    "v1ListUOMCategoriesResponse": {
       "type": "object",
       "properties": {
         "base": {
@@ -627,16 +605,16 @@
           "type": "array",
           "items": {
             "type": "object",
-            "$ref": "#/definitions/v1UOM"
+            "$ref": "#/definitions/v1UOMCategory"
           },
-          "description": "List of UOMs."
+          "description": "List of UOM categories."
         },
         "pagination": {
           "$ref": "#/definitions/v1PaginationResponse",
           "description": "Pagination metadata."
         }
       },
-      "description": "ListUOMsResponse is the response for listing UOMs."
+      "description": "ListUOMCategoriesResponse is the response for listing UOM categories."
     },
     "v1PaginationResponse": {
       "type": "object",
@@ -664,20 +642,20 @@
       },
       "description": "PaginationResponse contains pagination metadata for list responses."
     },
-    "v1UOM": {
+    "v1UOMCategory": {
       "type": "object",
       "properties": {
-        "uomId": {
+        "uomCategoryId": {
           "type": "string",
           "description": "Unique identifier (UUID)."
         },
-        "uomCode": {
+        "categoryCode": {
           "type": "string",
-          "description": "Unique code (e.g., \"KG\", \"MTR\", \"PCS\"). Immutable after creation."
+          "description": "Unique code (e.g., \"WEIGHT\", \"LENGTH\", \"VOLUME\"). Immutable after creation."
         },
-        "uomName": {
+        "categoryName": {
           "type": "string",
-          "description": "Display name (e.g., \"Kilogram\", \"Meter\", \"Pieces\")."
+          "description": "Display name (e.g., \"Weight\", \"Length\", \"Volume\")."
         },
         "description": {
           "type": "string",
@@ -685,28 +663,16 @@
         },
         "isActive": {
           "type": "boolean",
-          "description": "Whether the UOM is active."
+          "description": "Whether the category is active."
         },
         "audit": {
           "$ref": "#/definitions/v1AuditInfo",
           "description": "Audit information."
-        },
-        "uomCategoryId": {
-          "type": "string",
-          "description": "Category ID (FK to mst_uom_category)."
-        },
-        "uomCategoryCode": {
-          "type": "string",
-          "description": "Category code (denormalized for display, e.g., \"WEIGHT\")."
-        },
-        "uomCategoryName": {
-          "type": "string",
-          "description": "Category name (denormalized for display, e.g., \"Weight\")."
         }
       },
-      "description": "UOM represents a Unit of Measure entity."
+      "description": "UOMCategory represents a Unit of Measure Category entity.\nUsed to classify UOMs (e.g., Weight, Length, Volume, Quantity, Time, Energy)."
     },
-    "v1UpdateUOMResponse": {
+    "v1UpdateUOMCategoryResponse": {
       "type": "object",
       "properties": {
         "base": {
@@ -714,11 +680,11 @@
           "description": "Standard response metadata."
         },
         "data": {
-          "$ref": "#/definitions/v1UOM",
-          "description": "Updated UOM data."
+          "$ref": "#/definitions/v1UOMCategory",
+          "description": "Updated UOM category data."
         }
       },
-      "description": "UpdateUOMResponse is the response for updating a UOM."
+      "description": "UpdateUOMCategoryResponse is the response for updating a UOM category."
     },
     "v1ValidationError": {
       "type": "object",

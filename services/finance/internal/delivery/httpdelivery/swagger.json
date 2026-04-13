@@ -31,6 +31,336 @@
     }
   ],
   "paths": {
+    "/api/v1/finance/formulas": {
+      "get": {
+        "summary": "ListFormulas lists formulas with search, filter, and pagination.",
+        "operationId": "FormulaService_ListFormulas",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListFormulasResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "description": "Page number (1-indexed, default 1, min 1).",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pageSize",
+            "description": "Items per page (1-100, default 10).",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "search",
+            "description": "Search query (searches in code, name, expression).",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "formulaType",
+            "description": "Filter by formula type.\nFORMULA_TYPE_UNSPECIFIED (0) means \"show all types\" (no filter).\n\n - FORMULA_TYPE_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - FORMULA_TYPE_CALCULATION: Mathematical calculation using parameter codes (e.g., \"ELEC_CONSUMPTION * ELEC_RATE\").\n - FORMULA_TYPE_SQL_QUERY: SQL query to fetch data from other tables.\n - FORMULA_TYPE_CONSTANT: Constant value (no calculation).",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "FORMULA_TYPE_UNSPECIFIED",
+              "FORMULA_TYPE_CALCULATION",
+              "FORMULA_TYPE_SQL_QUERY",
+              "FORMULA_TYPE_CONSTANT"
+            ],
+            "default": "FORMULA_TYPE_UNSPECIFIED"
+          },
+          {
+            "name": "activeFilter",
+            "description": "Filter by active status.\n\n - ACTIVE_FILTER_UNSPECIFIED: Show all records regardless of active status (default).\n - ACTIVE_FILTER_ACTIVE: Show only active records.\n - ACTIVE_FILTER_INACTIVE: Show only inactive records.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "ACTIVE_FILTER_UNSPECIFIED",
+              "ACTIVE_FILTER_ACTIVE",
+              "ACTIVE_FILTER_INACTIVE"
+            ],
+            "default": "ACTIVE_FILTER_UNSPECIFIED"
+          },
+          {
+            "name": "sortBy",
+            "description": "Sort field: \"code\", \"name\", \"type\", \"version\", \"created_at\" (default: \"code\").",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sortOrder",
+            "description": "Sort order: \"asc\", \"desc\" (default: \"asc\").",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "FormulaService"
+        ]
+      },
+      "post": {
+        "summary": "CreateFormula creates a new formula.",
+        "operationId": "FormulaService_CreateFormula",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateFormulaResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "CreateFormulaRequest is the request for creating a new formula.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateFormulaRequest"
+            }
+          }
+        ],
+        "tags": [
+          "FormulaService"
+        ]
+      }
+    },
+    "/api/v1/finance/formulas/export": {
+      "get": {
+        "summary": "ExportFormulas exports formulas to Excel file.",
+        "operationId": "FormulaService_ExportFormulas",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ExportFormulasResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "formulaType",
+            "description": "Filter by formula type.\n\n - FORMULA_TYPE_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - FORMULA_TYPE_CALCULATION: Mathematical calculation using parameter codes (e.g., \"ELEC_CONSUMPTION * ELEC_RATE\").\n - FORMULA_TYPE_SQL_QUERY: SQL query to fetch data from other tables.\n - FORMULA_TYPE_CONSTANT: Constant value (no calculation).",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "FORMULA_TYPE_UNSPECIFIED",
+              "FORMULA_TYPE_CALCULATION",
+              "FORMULA_TYPE_SQL_QUERY",
+              "FORMULA_TYPE_CONSTANT"
+            ],
+            "default": "FORMULA_TYPE_UNSPECIFIED"
+          },
+          {
+            "name": "activeFilter",
+            "description": "Filter by active status.\n\n - ACTIVE_FILTER_UNSPECIFIED: Show all records regardless of active status (default).\n - ACTIVE_FILTER_ACTIVE: Show only active records.\n - ACTIVE_FILTER_INACTIVE: Show only inactive records.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "ACTIVE_FILTER_UNSPECIFIED",
+              "ACTIVE_FILTER_ACTIVE",
+              "ACTIVE_FILTER_INACTIVE"
+            ],
+            "default": "ACTIVE_FILTER_UNSPECIFIED"
+          }
+        ],
+        "tags": [
+          "FormulaService"
+        ]
+      }
+    },
+    "/api/v1/finance/formulas/import": {
+      "post": {
+        "summary": "ImportFormulas imports formulas from Excel file.",
+        "operationId": "FormulaService_ImportFormulas",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ImportFormulasResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "ImportFormulasRequest is the request for importing formulas from Excel.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ImportFormulasRequest"
+            }
+          }
+        ],
+        "tags": [
+          "FormulaService"
+        ]
+      }
+    },
+    "/api/v1/finance/formulas/template": {
+      "get": {
+        "summary": "DownloadFormulaTemplate downloads the Excel import template.",
+        "operationId": "FormulaService_DownloadFormulaTemplate",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DownloadFormulaTemplateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "FormulaService"
+        ]
+      }
+    },
+    "/api/v1/finance/formulas/{formulaId}": {
+      "get": {
+        "summary": "GetFormula retrieves a formula by ID.",
+        "operationId": "FormulaService_GetFormula",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetFormulaResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "formulaId",
+            "description": "Formula ID (UUID format).",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "FormulaService"
+        ]
+      },
+      "delete": {
+        "summary": "DeleteFormula soft deletes a formula.",
+        "operationId": "FormulaService_DeleteFormula",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteFormulaResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "formulaId",
+            "description": "Formula ID to delete (UUID format).",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "FormulaService"
+        ]
+      },
+      "put": {
+        "summary": "UpdateFormula updates an existing formula.\nNote: formula_code is immutable and cannot be changed.",
+        "operationId": "FormulaService_UpdateFormula",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateFormulaResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "formulaId",
+            "description": "Formula ID to update (UUID format).",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/FormulaServiceUpdateFormulaBody"
+            }
+          }
+        ],
+        "tags": [
+          "FormulaService"
+        ]
+      }
+    },
     "/api/v1/finance/parameters": {
       "get": {
         "summary": "ListParameters lists parameters with search, filter, and pagination.",
@@ -734,21 +1064,6 @@
             "type": "string"
           },
           {
-            "name": "category",
-            "description": "Filter by category.\nUOM_CATEGORY_UNSPECIFIED (0) means \"show all categories\" (no filter).\n\n - UOM_CATEGORY_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - UOM_CATEGORY_WEIGHT: Weight-based units (e.g., KG, GR, TON).\n - UOM_CATEGORY_LENGTH: Length-based units (e.g., MTR, CM, YARD).\n - UOM_CATEGORY_VOLUME: Volume-based units (e.g., LTR, ML).\n - UOM_CATEGORY_QUANTITY: Quantity-based units (e.g., PCS, BOX, SET).",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "enum": [
-              "UOM_CATEGORY_UNSPECIFIED",
-              "UOM_CATEGORY_WEIGHT",
-              "UOM_CATEGORY_LENGTH",
-              "UOM_CATEGORY_VOLUME",
-              "UOM_CATEGORY_QUANTITY"
-            ],
-            "default": "UOM_CATEGORY_UNSPECIFIED"
-          },
-          {
             "name": "activeFilter",
             "description": "Filter by active status.\nACTIVE_FILTER_UNSPECIFIED (0) = show all, ACTIVE_FILTER_ACTIVE (1) = only active,\nACTIVE_FILTER_INACTIVE (2) = only inactive.\n\n - ACTIVE_FILTER_UNSPECIFIED: Show all records regardless of active status (default).\n - ACTIVE_FILTER_ACTIVE: Show only active records.\n - ACTIVE_FILTER_INACTIVE: Show only inactive records.",
             "in": "query",
@@ -763,7 +1078,7 @@
           },
           {
             "name": "sortBy",
-            "description": "Sort field: \"code\", \"name\", \"created_at\" (default: \"code\").",
+            "description": "Sort field: \"code\", \"name\", \"category\", \"created_at\" (default: \"code\").",
             "in": "query",
             "required": false,
             "type": "string"
@@ -771,6 +1086,13 @@
           {
             "name": "sortOrder",
             "description": "Sort order: \"asc\", \"desc\" (default: \"asc\").",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "uomCategoryId",
+            "description": "Filter by category ID (empty = no filter).",
             "in": "query",
             "required": false,
             "type": "string"
@@ -833,21 +1155,6 @@
         },
         "parameters": [
           {
-            "name": "category",
-            "description": "Filter by category.\nUOM_CATEGORY_UNSPECIFIED (0) means \"export all categories\".\n\n - UOM_CATEGORY_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - UOM_CATEGORY_WEIGHT: Weight-based units (e.g., KG, GR, TON).\n - UOM_CATEGORY_LENGTH: Length-based units (e.g., MTR, CM, YARD).\n - UOM_CATEGORY_VOLUME: Volume-based units (e.g., LTR, ML).\n - UOM_CATEGORY_QUANTITY: Quantity-based units (e.g., PCS, BOX, SET).",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "enum": [
-              "UOM_CATEGORY_UNSPECIFIED",
-              "UOM_CATEGORY_WEIGHT",
-              "UOM_CATEGORY_LENGTH",
-              "UOM_CATEGORY_VOLUME",
-              "UOM_CATEGORY_QUANTITY"
-            ],
-            "default": "UOM_CATEGORY_UNSPECIFIED"
-          },
-          {
             "name": "activeFilter",
             "description": "Filter by active status.\nACTIVE_FILTER_UNSPECIFIED (0) = export all, ACTIVE_FILTER_ACTIVE (1) = only active,\nACTIVE_FILTER_INACTIVE (2) = only inactive.\n\n - ACTIVE_FILTER_UNSPECIFIED: Show all records regardless of active status (default).\n - ACTIVE_FILTER_ACTIVE: Show only active records.\n - ACTIVE_FILTER_INACTIVE: Show only inactive records.",
             "in": "query",
@@ -859,6 +1166,13 @@
               "ACTIVE_FILTER_INACTIVE"
             ],
             "default": "ACTIVE_FILTER_UNSPECIFIED"
+          },
+          {
+            "name": "uomCategoryId",
+            "description": "Filter by category ID (empty = export all categories).",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -1022,50 +1336,347 @@
           "UOMService"
         ]
       }
+    },
+    "/api/v1/finance/uom-categories": {
+      "get": {
+        "summary": "ListUOMCategories lists UOM categories with search, filter, and pagination.",
+        "operationId": "UOMCategoryService_ListUOMCategories",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListUOMCategoriesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "description": "Page number (1-indexed, default 1, min 1).",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pageSize",
+            "description": "Items per page (1-100, default 10).",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "search",
+            "description": "Search query (searches in code, name, description).",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "activeFilter",
+            "description": "Filter by active status.\nACTIVE_FILTER_UNSPECIFIED (0) = show all, ACTIVE_FILTER_ACTIVE (1) = only active,\nACTIVE_FILTER_INACTIVE (2) = only inactive.\n\n - ACTIVE_FILTER_UNSPECIFIED: Show all records regardless of active status (default).\n - ACTIVE_FILTER_ACTIVE: Show only active records.\n - ACTIVE_FILTER_INACTIVE: Show only inactive records.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "ACTIVE_FILTER_UNSPECIFIED",
+              "ACTIVE_FILTER_ACTIVE",
+              "ACTIVE_FILTER_INACTIVE"
+            ],
+            "default": "ACTIVE_FILTER_UNSPECIFIED"
+          },
+          {
+            "name": "sortBy",
+            "description": "Sort field: \"code\", \"name\", \"created_at\" (default: \"code\").",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sortOrder",
+            "description": "Sort order: \"asc\", \"desc\" (default: \"asc\").",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "UOMCategoryService"
+        ]
+      },
+      "post": {
+        "summary": "CreateUOMCategory creates a new UOM category.",
+        "operationId": "UOMCategoryService_CreateUOMCategory",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateUOMCategoryResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "CreateUOMCategoryRequest is the request for creating a new UOM category.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateUOMCategoryRequest"
+            }
+          }
+        ],
+        "tags": [
+          "UOMCategoryService"
+        ]
+      }
+    },
+    "/api/v1/finance/uom-categories/export": {
+      "get": {
+        "summary": "ExportUOMCategories exports UOM categories to Excel file.",
+        "operationId": "UOMCategoryService_ExportUOMCategories",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ExportUOMCategoriesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "activeFilter",
+            "description": "Filter by active status.\nACTIVE_FILTER_UNSPECIFIED (0) = export all, ACTIVE_FILTER_ACTIVE (1) = only active,\nACTIVE_FILTER_INACTIVE (2) = only inactive.\n\n - ACTIVE_FILTER_UNSPECIFIED: Show all records regardless of active status (default).\n - ACTIVE_FILTER_ACTIVE: Show only active records.\n - ACTIVE_FILTER_INACTIVE: Show only inactive records.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "ACTIVE_FILTER_UNSPECIFIED",
+              "ACTIVE_FILTER_ACTIVE",
+              "ACTIVE_FILTER_INACTIVE"
+            ],
+            "default": "ACTIVE_FILTER_UNSPECIFIED"
+          }
+        ],
+        "tags": [
+          "UOMCategoryService"
+        ]
+      }
+    },
+    "/api/v1/finance/uom-categories/import": {
+      "post": {
+        "summary": "ImportUOMCategories imports UOM categories from Excel file.",
+        "operationId": "UOMCategoryService_ImportUOMCategories",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ImportUOMCategoriesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "ImportUOMCategoriesRequest is the request for importing UOM categories from Excel.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ImportUOMCategoriesRequest"
+            }
+          }
+        ],
+        "tags": [
+          "UOMCategoryService"
+        ]
+      }
+    },
+    "/api/v1/finance/uom-categories/template": {
+      "get": {
+        "summary": "DownloadUOMCategoryTemplate downloads the Excel import template.",
+        "operationId": "UOMCategoryService_DownloadUOMCategoryTemplate",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DownloadUOMCategoryTemplateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "UOMCategoryService"
+        ]
+      }
+    },
+    "/api/v1/finance/uom-categories/{uomCategoryId}": {
+      "get": {
+        "summary": "GetUOMCategory retrieves a UOM category by ID.",
+        "operationId": "UOMCategoryService_GetUOMCategory",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetUOMCategoryResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "uomCategoryId",
+            "description": "UOM category ID (UUID format).",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "UOMCategoryService"
+        ]
+      },
+      "delete": {
+        "summary": "DeleteUOMCategory soft deletes a UOM category.",
+        "operationId": "UOMCategoryService_DeleteUOMCategory",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteUOMCategoryResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "uomCategoryId",
+            "description": "UOM category ID to delete (UUID format).",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "UOMCategoryService"
+        ]
+      },
+      "put": {
+        "summary": "UpdateUOMCategory updates an existing UOM category.\nNote: category_code is immutable and cannot be changed.",
+        "operationId": "UOMCategoryService_UpdateUOMCategory",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateUOMCategoryResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "uomCategoryId",
+            "description": "UOM category ID to update (UUID format).",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UOMCategoryServiceUpdateUOMCategoryBody"
+            }
+          }
+        ],
+        "tags": [
+          "UOMCategoryService"
+        ]
+      }
     }
   },
   "definitions": {
-    "ParameterServiceUpdateParameterBody": {
+    "FormulaServiceUpdateFormulaBody": {
       "type": "object",
       "properties": {
-        "paramName": {
+        "formulaName": {
           "type": "string",
           "description": "New display name (optional, 1-200 chars if provided)."
         },
-        "paramShortName": {
+        "formulaType": {
+          "$ref": "#/definitions/v1FormulaType",
+          "description": "New formula type (optional)."
+        },
+        "expression": {
           "type": "string",
-          "description": "New short name (optional, max 50 chars)."
+          "description": "New expression (optional, 1-5000 chars if provided)."
         },
-        "dataType": {
-          "$ref": "#/definitions/v1DataType",
-          "description": "New data type (optional, cannot be UNSPECIFIED if provided)."
-        },
-        "paramCategory": {
-          "$ref": "#/definitions/v1ParamCategory",
-          "description": "New category (optional, cannot be UNSPECIFIED if provided)."
-        },
-        "uomId": {
+        "resultParamId": {
           "type": "string",
-          "description": "New UOM reference (optional, UUID format, empty string to clear)."
+          "description": "New result parameter ID (optional, UUID)."
         },
-        "defaultValue": {
-          "type": "string",
-          "description": "New default value (optional)."
+        "inputParamIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "New input parameter IDs (optional, replaces all existing)."
         },
-        "minValue": {
+        "description": {
           "type": "string",
-          "description": "New minimum value (optional)."
-        },
-        "maxValue": {
-          "type": "string",
-          "description": "New maximum value (optional)."
+          "description": "New description (optional, max 1000 chars)."
         },
         "isActive": {
           "type": "boolean",
           "description": "New active status (optional)."
         }
       },
-      "description": "UpdateParameterRequest is the request for updating a parameter.\nNote: param_code is immutable and cannot be changed after creation."
+      "description": "UpdateFormulaRequest is the request for updating a formula.\nNote: formula_code is immutable and cannot be changed after creation."
     },
     "protobufAny": {
       "type": "object",
@@ -1152,6 +1763,414 @@
         }
       },
       "description": "BaseResponse is the standard response wrapper for all API responses."
+    },
+    "v1CreateFormulaRequest": {
+      "type": "object",
+      "properties": {
+        "formulaCode": {
+          "type": "string",
+          "description": "Unique code (uppercase, alphanumeric with underscore, 1-50 chars)."
+        },
+        "formulaName": {
+          "type": "string",
+          "description": "Display name (1-200 chars)."
+        },
+        "formulaType": {
+          "$ref": "#/definitions/v1FormulaType",
+          "description": "Formula type (required, cannot be UNSPECIFIED)."
+        },
+        "expression": {
+          "type": "string",
+          "description": "Expression (required, 1-5000 chars)."
+        },
+        "resultParamId": {
+          "type": "string",
+          "description": "Result parameter ID (UUID, required)."
+        },
+        "inputParamIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Input parameter IDs (at least 1 for CALCULATION type)."
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional description (max 1000 chars)."
+        }
+      },
+      "description": "CreateFormulaRequest is the request for creating a new formula."
+    },
+    "v1CreateFormulaResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1Formula",
+          "description": "Created formula data."
+        }
+      },
+      "description": "CreateFormulaResponse is the response for creating a formula."
+    },
+    "v1DeleteFormulaResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        }
+      },
+      "description": "DeleteFormulaResponse is the response for deleting a formula."
+    },
+    "v1DownloadFormulaTemplateResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "Excel template file content as bytes (.xlsx format)."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Suggested filename."
+        }
+      },
+      "description": "DownloadFormulaTemplateResponse is the response containing the template file."
+    },
+    "v1ExportFormulasResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "Excel file content as bytes (.xlsx format)."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Suggested filename."
+        }
+      },
+      "description": "ExportFormulasResponse is the response containing the Excel file."
+    },
+    "v1Formula": {
+      "type": "object",
+      "properties": {
+        "formulaId": {
+          "type": "string",
+          "description": "Unique identifier (UUID)."
+        },
+        "formulaCode": {
+          "type": "string",
+          "description": "Unique code (e.g., \"COST_ELEC_STD\"). Immutable after creation."
+        },
+        "formulaName": {
+          "type": "string",
+          "description": "Display name (e.g., \"Electricity Cost Standard\")."
+        },
+        "formulaType": {
+          "$ref": "#/definitions/v1FormulaType",
+          "description": "Type of formula expression."
+        },
+        "expression": {
+          "type": "string",
+          "description": "Expression text (e.g., \"ELEC_CONSUMPTION * ELEC_RATE\" or SQL query)."
+        },
+        "resultParamId": {
+          "type": "string",
+          "description": "Result/output parameter ID (UUID FK to mst_parameter)."
+        },
+        "resultParamCode": {
+          "type": "string",
+          "description": "Resolved result parameter code (read-only, from join)."
+        },
+        "resultParamName": {
+          "type": "string",
+          "description": "Resolved result parameter name (read-only, from join)."
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional description."
+        },
+        "version": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Formula version number."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether the formula is active."
+        },
+        "audit": {
+          "$ref": "#/definitions/v1AuditInfo",
+          "description": "Audit information."
+        },
+        "inputParams": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1FormulaParam"
+          },
+          "description": "Input parameters (from junction table)."
+        }
+      },
+      "description": "Formula represents a master formula entity for costing calculations."
+    },
+    "v1FormulaParam": {
+      "type": "object",
+      "properties": {
+        "formulaParamId": {
+          "type": "string",
+          "description": "Unique identifier (UUID)."
+        },
+        "paramId": {
+          "type": "string",
+          "description": "Parameter ID reference (UUID)."
+        },
+        "paramCode": {
+          "type": "string",
+          "description": "Resolved parameter code (read-only, from join)."
+        },
+        "paramName": {
+          "type": "string",
+          "description": "Resolved parameter name (read-only, from join)."
+        },
+        "sortOrder": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Display order of the parameter in the formula."
+        }
+      },
+      "description": "FormulaParam represents an input parameter reference within a formula."
+    },
+    "v1FormulaType": {
+      "type": "string",
+      "enum": [
+        "FORMULA_TYPE_UNSPECIFIED",
+        "FORMULA_TYPE_CALCULATION",
+        "FORMULA_TYPE_SQL_QUERY",
+        "FORMULA_TYPE_CONSTANT"
+      ],
+      "default": "FORMULA_TYPE_UNSPECIFIED",
+      "description": "FormulaType represents the type of a formula expression.\n\n - FORMULA_TYPE_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - FORMULA_TYPE_CALCULATION: Mathematical calculation using parameter codes (e.g., \"ELEC_CONSUMPTION * ELEC_RATE\").\n - FORMULA_TYPE_SQL_QUERY: SQL query to fetch data from other tables.\n - FORMULA_TYPE_CONSTANT: Constant value (no calculation)."
+    },
+    "v1GetFormulaResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1Formula",
+          "description": "Formula data."
+        }
+      },
+      "description": "GetFormulaResponse is the response for getting a formula."
+    },
+    "v1ImportError": {
+      "type": "object",
+      "properties": {
+        "rowNumber": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Row number in the Excel file."
+        },
+        "field": {
+          "type": "string",
+          "description": "Field that caused the error."
+        },
+        "message": {
+          "type": "string",
+          "description": "Error message."
+        }
+      },
+      "description": "ImportError represents a single import error."
+    },
+    "v1ImportFormulasRequest": {
+      "type": "object",
+      "properties": {
+        "fileContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "Excel file content as bytes (.xlsx or .xls format)."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Original filename (for format detection)."
+        },
+        "duplicateAction": {
+          "type": "string",
+          "description": "Required. How to handle duplicates: \"skip\", \"update\", \"error\"."
+        }
+      },
+      "description": "ImportFormulasRequest is the request for importing formulas from Excel."
+    },
+    "v1ImportFormulasResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "successCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of successfully imported records."
+        },
+        "skippedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of skipped records (duplicates with skip action)."
+        },
+        "updatedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of updated records (duplicates with update action)."
+        },
+        "failedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of failed records."
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ImportError"
+          },
+          "description": "Details of failed records."
+        }
+      },
+      "description": "ImportFormulasResponse is the response for importing formulas."
+    },
+    "v1ListFormulasResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Formula"
+          },
+          "description": "List of formulas."
+        },
+        "pagination": {
+          "$ref": "#/definitions/v1PaginationResponse",
+          "description": "Pagination metadata."
+        }
+      },
+      "description": "ListFormulasResponse is the response for listing formulas."
+    },
+    "v1PaginationResponse": {
+      "type": "object",
+      "properties": {
+        "currentPage": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Current page number."
+        },
+        "pageSize": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of items per page."
+        },
+        "totalItems": {
+          "type": "string",
+          "format": "int64",
+          "description": "Total number of items across all pages."
+        },
+        "totalPages": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Total number of pages."
+        }
+      },
+      "description": "PaginationResponse contains pagination metadata for list responses."
+    },
+    "v1UpdateFormulaResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1Formula",
+          "description": "Updated formula data."
+        }
+      },
+      "description": "UpdateFormulaResponse is the response for updating a formula."
+    },
+    "v1ValidationError": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "description": "The field name that failed validation."
+        },
+        "message": {
+          "type": "string",
+          "description": "The validation error message."
+        }
+      },
+      "description": "ValidationError represents a single field validation error."
+    },
+    "ParameterServiceUpdateParameterBody": {
+      "type": "object",
+      "properties": {
+        "paramName": {
+          "type": "string",
+          "description": "New display name (optional, 1-200 chars if provided)."
+        },
+        "paramShortName": {
+          "type": "string",
+          "description": "New short name (optional, max 50 chars)."
+        },
+        "dataType": {
+          "$ref": "#/definitions/v1DataType",
+          "description": "New data type (optional, cannot be UNSPECIFIED if provided)."
+        },
+        "paramCategory": {
+          "$ref": "#/definitions/v1ParamCategory",
+          "description": "New category (optional, cannot be UNSPECIFIED if provided)."
+        },
+        "uomId": {
+          "type": "string",
+          "description": "New UOM reference (optional, UUID format, empty string to clear)."
+        },
+        "defaultValue": {
+          "type": "string",
+          "description": "New default value (optional)."
+        },
+        "minValue": {
+          "type": "string",
+          "description": "New minimum value (optional)."
+        },
+        "maxValue": {
+          "type": "string",
+          "description": "New maximum value (optional)."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "New active status (optional)."
+        }
+      },
+      "description": "UpdateParameterRequest is the request for updating a parameter.\nNote: param_code is immutable and cannot be changed after creation."
     },
     "v1CreateParameterRequest": {
       "type": "object",
@@ -1282,25 +2301,6 @@
       },
       "description": "GetParameterResponse is the response for getting a parameter."
     },
-    "v1ImportError": {
-      "type": "object",
-      "properties": {
-        "rowNumber": {
-          "type": "integer",
-          "format": "int32",
-          "description": "Row number in the Excel file."
-        },
-        "field": {
-          "type": "string",
-          "description": "Field that caused the error."
-        },
-        "message": {
-          "type": "string",
-          "description": "Error message."
-        }
-      },
-      "description": "ImportError represents a single import error."
-    },
     "v1ImportParametersRequest": {
       "type": "object",
       "properties": {
@@ -1379,32 +2379,6 @@
         }
       },
       "description": "ListParametersResponse is the response for listing parameters."
-    },
-    "v1PaginationResponse": {
-      "type": "object",
-      "properties": {
-        "currentPage": {
-          "type": "integer",
-          "format": "int32",
-          "description": "Current page number."
-        },
-        "pageSize": {
-          "type": "integer",
-          "format": "int32",
-          "description": "Number of items per page."
-        },
-        "totalItems": {
-          "type": "string",
-          "format": "int64",
-          "description": "Total number of items across all pages."
-        },
-        "totalPages": {
-          "type": "integer",
-          "format": "int32",
-          "description": "Total number of pages."
-        }
-      },
-      "description": "PaginationResponse contains pagination metadata for list responses."
     },
     "v1ParamCategory": {
       "type": "string",
@@ -1492,20 +2466,6 @@
         }
       },
       "description": "UpdateParameterResponse is the response for updating a parameter."
-    },
-    "v1ValidationError": {
-      "type": "object",
-      "properties": {
-        "field": {
-          "type": "string",
-          "description": "The field name that failed validation."
-        },
-        "message": {
-          "type": "string",
-          "description": "The validation error message."
-        }
-      },
-      "description": "ValidationError represents a single field validation error."
     },
     "RMCategoryServiceUpdateRMCategoryBody": {
       "type": "object",
@@ -1749,10 +2709,6 @@
           "type": "string",
           "description": "New display name (optional, 1-100 chars if provided).\nEmpty string means no change."
         },
-        "uomCategory": {
-          "$ref": "#/definitions/v1UOMCategory",
-          "description": "New category (optional, cannot be UNSPECIFIED if provided).\nUse has_uom_category to check if this field is set."
-        },
         "description": {
           "type": "string",
           "description": "New description (optional, max 500 chars)."
@@ -1760,6 +2716,10 @@
         "isActive": {
           "type": "boolean",
           "description": "New active status (optional)."
+        },
+        "uomCategoryId": {
+          "type": "string",
+          "description": "New category ID (optional, UUID format)."
         }
       },
       "description": "UpdateUOMRequest is the request for updating a UOM.\nNote: uom_code is immutable and cannot be changed after creation."
@@ -1775,13 +2735,13 @@
           "type": "string",
           "description": "Display name (1-100 chars)."
         },
-        "uomCategory": {
-          "$ref": "#/definitions/v1UOMCategory",
-          "description": "Category (required, cannot be UNSPECIFIED)."
-        },
         "description": {
           "type": "string",
           "description": "Optional description (max 500 chars)."
+        },
+        "uomCategoryId": {
+          "type": "string",
+          "description": "Category ID (UUID, required - FK to mst_uom_category)."
         }
       },
       "description": "CreateUOMRequest is the request for creating a new UOM."
@@ -1956,10 +2916,6 @@
           "type": "string",
           "description": "Display name (e.g., \"Kilogram\", \"Meter\", \"Pieces\")."
         },
-        "uomCategory": {
-          "$ref": "#/definitions/v1UOMCategory",
-          "description": "Category of the UOM."
-        },
         "description": {
           "type": "string",
           "description": "Optional description."
@@ -1971,21 +2927,21 @@
         "audit": {
           "$ref": "#/definitions/v1AuditInfo",
           "description": "Audit information."
+        },
+        "uomCategoryId": {
+          "type": "string",
+          "description": "Category ID (FK to mst_uom_category)."
+        },
+        "uomCategoryCode": {
+          "type": "string",
+          "description": "Category code (denormalized for display, e.g., \"WEIGHT\")."
+        },
+        "uomCategoryName": {
+          "type": "string",
+          "description": "Category name (denormalized for display, e.g., \"Weight\")."
         }
       },
       "description": "UOM represents a Unit of Measure entity."
-    },
-    "v1UOMCategory": {
-      "type": "string",
-      "enum": [
-        "UOM_CATEGORY_UNSPECIFIED",
-        "UOM_CATEGORY_WEIGHT",
-        "UOM_CATEGORY_LENGTH",
-        "UOM_CATEGORY_VOLUME",
-        "UOM_CATEGORY_QUANTITY"
-      ],
-      "default": "UOM_CATEGORY_UNSPECIFIED",
-      "description": "UOMCategory represents the category of a unit of measure.\n\n - UOM_CATEGORY_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - UOM_CATEGORY_WEIGHT: Weight-based units (e.g., KG, GR, TON).\n - UOM_CATEGORY_LENGTH: Length-based units (e.g., MTR, CM, YARD).\n - UOM_CATEGORY_VOLUME: Volume-based units (e.g., LTR, ML).\n - UOM_CATEGORY_QUANTITY: Quantity-based units (e.g., PCS, BOX, SET)."
     },
     "v1UpdateUOMResponse": {
       "type": "object",
@@ -2000,9 +2956,247 @@
         }
       },
       "description": "UpdateUOMResponse is the response for updating a UOM."
+    },
+    "UOMCategoryServiceUpdateUOMCategoryBody": {
+      "type": "object",
+      "properties": {
+        "categoryName": {
+          "type": "string",
+          "description": "New display name (optional, 1-100 chars if provided)."
+        },
+        "description": {
+          "type": "string",
+          "description": "New description (optional, max 500 chars)."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "New active status (optional)."
+        }
+      },
+      "description": "UpdateUOMCategoryRequest is the request for updating a UOM category.\nNote: category_code is immutable and cannot be changed after creation."
+    },
+    "v1CreateUOMCategoryRequest": {
+      "type": "object",
+      "properties": {
+        "categoryCode": {
+          "type": "string",
+          "description": "Unique code (uppercase, alphanumeric with underscore, 1-20 chars).\nMust start with an uppercase letter. Immutable after creation."
+        },
+        "categoryName": {
+          "type": "string",
+          "description": "Display name (1-100 chars)."
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional description (max 500 chars)."
+        }
+      },
+      "description": "CreateUOMCategoryRequest is the request for creating a new UOM category."
+    },
+    "v1CreateUOMCategoryResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1UOMCategory",
+          "description": "Created UOM category data."
+        }
+      },
+      "description": "CreateUOMCategoryResponse is the response for creating a UOM category."
+    },
+    "v1DeleteUOMCategoryResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        }
+      },
+      "description": "DeleteUOMCategoryResponse is the response for deleting a UOM category."
+    },
+    "v1DownloadUOMCategoryTemplateResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "Excel template file content as bytes (.xlsx format)."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Suggested filename."
+        }
+      },
+      "description": "DownloadUOMCategoryTemplateResponse is the response containing the template file."
+    },
+    "v1ExportUOMCategoriesResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "Excel file content as bytes (.xlsx format)."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Suggested filename."
+        }
+      },
+      "description": "ExportUOMCategoriesResponse is the response containing the Excel file."
+    },
+    "v1GetUOMCategoryResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1UOMCategory",
+          "description": "UOM category data."
+        }
+      },
+      "description": "GetUOMCategoryResponse is the response for getting a UOM category."
+    },
+    "v1ImportUOMCategoriesRequest": {
+      "type": "object",
+      "properties": {
+        "fileContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "Excel file content as bytes (.xlsx or .xls format)."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Original filename (for format detection).\nMust be a simple filename without path separators."
+        },
+        "duplicateAction": {
+          "type": "string",
+          "description": "Required. How to handle duplicates: \"skip\", \"update\", \"error\"."
+        }
+      },
+      "description": "ImportUOMCategoriesRequest is the request for importing UOM categories from Excel."
+    },
+    "v1ImportUOMCategoriesResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "successCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of successfully imported records."
+        },
+        "skippedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of skipped records (duplicates with skip action)."
+        },
+        "updatedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of updated records (duplicates with update action)."
+        },
+        "failedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of failed records."
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ImportError"
+          },
+          "description": "Details of failed records."
+        }
+      },
+      "description": "ImportUOMCategoriesResponse is the response for importing UOM categories."
+    },
+    "v1ListUOMCategoriesResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1UOMCategory"
+          },
+          "description": "List of UOM categories."
+        },
+        "pagination": {
+          "$ref": "#/definitions/v1PaginationResponse",
+          "description": "Pagination metadata."
+        }
+      },
+      "description": "ListUOMCategoriesResponse is the response for listing UOM categories."
+    },
+    "v1UOMCategory": {
+      "type": "object",
+      "properties": {
+        "uomCategoryId": {
+          "type": "string",
+          "description": "Unique identifier (UUID)."
+        },
+        "categoryCode": {
+          "type": "string",
+          "description": "Unique code (e.g., \"WEIGHT\", \"LENGTH\", \"VOLUME\"). Immutable after creation."
+        },
+        "categoryName": {
+          "type": "string",
+          "description": "Display name (e.g., \"Weight\", \"Length\", \"Volume\")."
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional description."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether the category is active."
+        },
+        "audit": {
+          "$ref": "#/definitions/v1AuditInfo",
+          "description": "Audit information."
+        }
+      },
+      "description": "UOMCategory represents a Unit of Measure Category entity.\nUsed to classify UOMs (e.g., Weight, Length, Volume, Quantity, Time, Energy)."
+    },
+    "v1UpdateUOMCategoryResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1UOMCategory",
+          "description": "Updated UOM category data."
+        }
+      },
+      "description": "UpdateUOMCategoryResponse is the response for updating a UOM category."
     }
   },
   "tags": [
+    {
+      "name": "FormulaService"
+    },
     {
       "name": "ParameterService"
     },
@@ -2011,6 +3205,9 @@
     },
     {
       "name": "UOMService"
+    },
+    {
+      "name": "UOMCategoryService"
     }
   ]
 }

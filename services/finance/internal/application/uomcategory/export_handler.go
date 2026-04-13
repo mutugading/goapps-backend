@@ -1,68 +1,66 @@
-// Package uom provides application layer handlers for UOM operations.
-package uom
+// Package uomcategory provides application layer handlers for UOM Category operations.
+package uomcategory
 
 import (
 	"context"
 	"errors"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"github.com/xuri/excelize/v2"
 
-	"github.com/mutugading/goapps-backend/services/finance/internal/domain/uom"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/uomcategory"
 )
 
-// ExportQuery represents the export UOMs query.
+// ExportQuery represents the export UOM Categories query.
 type ExportQuery struct {
-	CategoryID *string
-	IsActive   *bool
+	IsActive *bool
 }
 
-// ExportResult represents the export UOMs result.
+// ExportResult represents the export UOM Categories result.
 type ExportResult struct {
 	FileContent []byte
 	FileName    string
 }
 
-// ExportHandler handles the ExportUOMs query.
+// ExportHandler handles the ExportUOMCategories query.
 type ExportHandler struct {
-	repo uom.Repository
+	repo uomcategory.Repository
 }
 
 // NewExportHandler creates a new ExportHandler.
-func NewExportHandler(repo uom.Repository) *ExportHandler {
+func NewExportHandler(repo uomcategory.Repository) *ExportHandler {
 	return &ExportHandler{repo: repo}
 }
 
-// excelWriter wraps excelize file with error collection for non-critical operations.
-type excelWriter struct {
+// exportExcelWriter wraps excelize file with error collection for non-critical operations.
+type exportExcelWriter struct {
 	f         *excelize.File
 	sheetName string
 	errs      []error
 }
 
 // setCellValue sets a cell value and collects any error.
-func (ew *excelWriter) setCellValue(cell string, value interface{}) {
+func (ew *exportExcelWriter) setCellValue(cell string, value interface{}) {
 	if err := ew.f.SetCellValue(ew.sheetName, cell, value); err != nil {
 		ew.errs = append(ew.errs, fmt.Errorf("cell %s: %w", cell, err))
 	}
 }
 
 // setColWidth sets column width and collects any error.
-func (ew *excelWriter) setColWidth(startCol, endCol string, width float64) {
+func (ew *exportExcelWriter) setColWidth(startCol, endCol string, width float64) {
 	if err := ew.f.SetColWidth(ew.sheetName, startCol, endCol, width); err != nil {
 		ew.errs = append(ew.errs, fmt.Errorf("column %s-%s: %w", startCol, endCol, err))
 	}
 }
 
 // hasErrors returns true if any errors were collected.
-func (ew *excelWriter) hasErrors() bool {
+func (ew *exportExcelWriter) hasErrors() bool {
 	return len(ew.errs) > 0
 }
 
 // error returns combined errors or nil.
-func (ew *excelWriter) error() error {
+func (ew *exportExcelWriter) error() error {
 	if len(ew.errs) == 0 {
 		return nil
 	}
@@ -70,23 +68,14 @@ func (ew *excelWriter) error() error {
 }
 
 // buildExportFilter creates an export filter from the query.
-func buildExportFilter(query ExportQuery) (uom.ExportFilter, error) {
-	filter := uom.ExportFilter{}
-
-	if query.CategoryID != nil && *query.CategoryID != "" {
-		parsed, err := uuid.Parse(*query.CategoryID)
-		if err != nil {
-			return filter, uom.ErrInvalidCategory
-		}
-		filter.CategoryID = &parsed
+func buildExportFilter(query ExportQuery) uomcategory.ExportFilter {
+	return uomcategory.ExportFilter{
+		IsActive: query.IsActive,
 	}
-	filter.IsActive = query.IsActive
-
-	return filter, nil
 }
 
-// setupExcelSheet creates and configures the export sheet.
-func setupExcelSheet(f *excelize.File, sheetName string) error {
+// setupExportSheet creates and configures the export sheet.
+func setupExportSheet(f *excelize.File, sheetName string) error {
 	index, err := f.NewSheet(sheetName)
 	if err != nil {
 		return fmt.Errorf("failed to create sheet: %w", err)
@@ -99,14 +88,14 @@ func setupExcelSheet(f *excelize.File, sheetName string) error {
 	}
 
 	// Set headers
-	headers := []string{"No", "Code", "Name", "Category", "Description", "Active", "Created At", "Created By"}
+	headers := []string{"No", "Code", "Name", "Description", "Active", "Created At", "Created By"}
 	for col, header := range headers {
-		cell, err := excelize.CoordinatesToCellName(col+1, 1)
-		if err != nil {
-			return fmt.Errorf("failed to get cell name: %w", err)
+		cell, cellErr := excelize.CoordinatesToCellName(col+1, 1)
+		if cellErr != nil {
+			return fmt.Errorf("failed to get cell name: %w", cellErr)
 		}
-		if err := f.SetCellValue(sheetName, cell, header); err != nil {
-			return fmt.Errorf("failed to set header %s: %w", header, err)
+		if setErr := f.SetCellValue(sheetName, cell, header); setErr != nil {
+			return fmt.Errorf("failed to set header %s: %w", header, setErr)
 		}
 	}
 
@@ -119,25 +108,22 @@ func setupExcelSheet(f *excelize.File, sheetName string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create header style: %w", err)
 	}
-	if err := f.SetCellStyle(sheetName, "A1", "H1", headerStyle); err != nil {
+	if err := f.SetCellStyle(sheetName, "A1", "G1", headerStyle); err != nil {
 		return fmt.Errorf("failed to set header style: %w", err)
 	}
 
 	return nil
 }
 
-// Handle executes the export UOMs query.
+// Handle executes the export UOM Categories query.
 func (h *ExportHandler) Handle(ctx context.Context, query ExportQuery) (result *ExportResult, err error) {
 	// Build filter
-	filter, err := buildExportFilter(query)
-	if err != nil {
-		return nil, err
-	}
+	filter := buildExportFilter(query)
 
-	// Get all UOMs
-	uoms, err := h.repo.ListAll(ctx, filter)
+	// Get all categories
+	categories, err := h.repo.ListAll(ctx, filter)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get uoms for export: %w", err)
+		return nil, fmt.Errorf("failed to get uom categories for export: %w", err)
 	}
 
 	// Create Excel file
@@ -151,36 +137,34 @@ func (h *ExportHandler) Handle(ctx context.Context, query ExportQuery) (result *
 		}
 	}()
 
-	sheetName := "UOMs"
-	if err := setupExcelSheet(f, sheetName); err != nil {
+	sheetName := "UOM Categories"
+	if err := setupExportSheet(f, sheetName); err != nil {
 		return nil, err
 	}
 
 	// Create writer for data rows (non-critical errors are collected)
-	writer := &excelWriter{f: f, sheetName: sheetName}
+	writer := &exportExcelWriter{f: f, sheetName: sheetName}
 
 	// Write data rows
-	for i, u := range uoms {
+	for i, c := range categories {
 		row := i + 2
 		writer.setCellValue(fmt.Sprintf("A%d", row), i+1)
-		writer.setCellValue(fmt.Sprintf("B%d", row), u.Code().String())
-		writer.setCellValue(fmt.Sprintf("C%d", row), u.Name())
-		writer.setCellValue(fmt.Sprintf("D%d", row), u.CategoryInfo().Code())
-		writer.setCellValue(fmt.Sprintf("E%d", row), u.Description())
-		writer.setCellValue(fmt.Sprintf("F%d", row), u.IsActive())
-		writer.setCellValue(fmt.Sprintf("G%d", row), u.CreatedAt().Format("2006-01-02 15:04:05"))
-		writer.setCellValue(fmt.Sprintf("H%d", row), u.CreatedBy())
+		writer.setCellValue(fmt.Sprintf("B%d", row), c.Code().String())
+		writer.setCellValue(fmt.Sprintf("C%d", row), c.Name())
+		writer.setCellValue(fmt.Sprintf("D%d", row), c.Description())
+		writer.setCellValue(fmt.Sprintf("E%d", row), c.IsActive())
+		writer.setCellValue(fmt.Sprintf("F%d", row), c.CreatedAt().Format("2006-01-02 15:04:05"))
+		writer.setCellValue(fmt.Sprintf("G%d", row), c.CreatedBy())
 	}
 
 	// Set column widths
 	writer.setColWidth("A", "A", 5)
 	writer.setColWidth("B", "B", 15)
 	writer.setColWidth("C", "C", 25)
-	writer.setColWidth("D", "D", 15)
-	writer.setColWidth("E", "E", 40)
-	writer.setColWidth("F", "F", 10)
+	writer.setColWidth("D", "D", 40)
+	writer.setColWidth("E", "E", 10)
+	writer.setColWidth("F", "F", 20)
 	writer.setColWidth("G", "G", 20)
-	writer.setColWidth("H", "H", 20)
 
 	// Log any non-critical errors but continue
 	if writer.hasErrors() {
@@ -195,6 +179,6 @@ func (h *ExportHandler) Handle(ctx context.Context, query ExportQuery) (result *
 
 	return &ExportResult{
 		FileContent: buffer.Bytes(),
-		FileName:    "uom_export.xlsx",
+		FileName:    "uom_category_export.xlsx",
 	}, nil
 }
