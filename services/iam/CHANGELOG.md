@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.7.0...iam-service/v0.8.0) (2026-04-13)
+
+
+### Features
+
+* add UOM category management with CRUD, import/export, and seed migration ([29e4c43](https://github.com/mutugading/goapps-backend/commit/29e4c432fdaf2ac13f81dd548488ed6d5596c75f))
+* add UOM category management with CRUD, import/export, and seed migration ([f4cbaaa](https://github.com/mutugading/goapps-backend/commit/f4cbaaaed866fec031f8a0af05bdb98970d99254))
+
 ## [0.7.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.6.0...iam-service/v0.7.0) (2026-04-08)
 
 
