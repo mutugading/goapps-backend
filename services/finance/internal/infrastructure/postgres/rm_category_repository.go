@@ -84,6 +84,8 @@ func (r *RMCategoryRepository) GetByCode(ctx context.Context, code rmcategory.Co
 }
 
 // List retrieves RMCategories with filtering, searching, and pagination.
+//
+//nolint:dupl // Mirrors UOMCategoryRepository.List — different table/types prevent shared code.
 func (r *RMCategoryRepository) List(ctx context.Context, filter rmcategory.ListFilter) ([]*rmcategory.RMCategory, int64, error) {
 	filter.Validate()
 
