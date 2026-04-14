@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.8.2](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.8.1...iam-service/v0.8.2) (2026-04-14)
+
+
+### Bug Fixes
+
+* **iam:** consolidate error mapping logic into mapUnknownError helper and include ErrEmailAlreadyVerified in conflict checks ([2f7d0ab](https://github.com/mutugading/goapps-backend/commit/2f7d0abf2263fc45863cc5a3a294c7e12f29a8b3))
+* **iam:** implement email verification flow including database schema, cache storage, and gRPC service methods ([084bcac](https://github.com/mutugading/goapps-backend/commit/084bcac2d1f86c8cc28215d5ee503874a258ff0e))
+* **iam:** implement email verification flow including database schema, cache storage, and gRPC service methods ([b1b0b3d](https://github.com/mutugading/goapps-backend/commit/b1b0b3d785b56b3ebc0c69c051dca02fba8bddfd))
+
 ## [0.8.1](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.8.0...iam-service/v0.8.1) (2026-04-14)
 
 
