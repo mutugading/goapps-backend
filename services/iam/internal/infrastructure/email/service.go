@@ -128,7 +128,9 @@ func (s *Service) sendTLS(ctx context.Context, addr string, auth smtp.Auth, to, 
 	// After dial, TCP-level deadlines prevent a stalled server from hanging reads/writes.
 	if deadline, ok := ctx.Deadline(); ok {
 		if err := conn.SetDeadline(deadline); err != nil {
-			_ = conn.Close()
+			if closeErr := conn.Close(); closeErr != nil {
+				log.Warn().Err(closeErr).Msg("failed to close SMTP connection after SetDeadline error")
+			}
 			return fmt.Errorf("failed to set SMTP connection deadline: %w", err)
 		}
 	}
