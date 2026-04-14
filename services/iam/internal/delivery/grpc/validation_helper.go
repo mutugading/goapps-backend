@@ -159,6 +159,14 @@ func domainErrorToBaseResponse(err error) *commonv1.BaseResponse {
 	case errors.Is(err, shared.ErrTOTPRequired),
 		errors.Is(err, shared.ErrTwoFARequired):
 		return ErrorResponse("428", "2FA required")
+	case errors.Is(err, shared.ErrEmailNotVerified):
+		return ErrorResponse("412", err.Error())
+	case errors.Is(err, shared.ErrEmailAlreadyVerified):
+		return ConflictResponse(err.Error())
+	case errors.Is(err, shared.ErrVerificationCooldown):
+		return ErrorResponse("429", err.Error())
+	case errors.Is(err, shared.ErrInvalidVerifyCode):
+		return ErrorResponse("400", err.Error())
 	case errors.Is(err, shared.ErrNotActive),
 		errors.Is(err, shared.ErrTOTPInvalid),
 		errors.Is(err, shared.ErrInvalid2FACode),

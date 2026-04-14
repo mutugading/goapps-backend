@@ -49,6 +49,7 @@ type User struct {
 	lastLoginAt         *time.Time
 	lastLoginIP         string
 	passwordChangedAt   *time.Time
+	emailVerifiedAt     *time.Time
 	audit               shared.AuditInfo
 }
 
@@ -89,6 +90,7 @@ func ReconstructUser(
 	lastLoginAt *time.Time,
 	lastLoginIP string,
 	passwordChangedAt *time.Time,
+	emailVerifiedAt *time.Time,
 	audit shared.AuditInfo,
 ) *User {
 	return &User{
@@ -105,6 +107,7 @@ func ReconstructUser(
 		lastLoginAt:         lastLoginAt,
 		lastLoginIP:         lastLoginIP,
 		passwordChangedAt:   passwordChangedAt,
+		emailVerifiedAt:     emailVerifiedAt,
 		audit:               audit,
 	}
 }
@@ -147,6 +150,23 @@ func (u *User) LastLoginIP() string { return u.lastLoginIP }
 
 // PasswordChangedAt returns when the password was last changed.
 func (u *User) PasswordChangedAt() *time.Time { return u.passwordChangedAt }
+
+// EmailVerifiedAt returns when the email was verified.
+func (u *User) EmailVerifiedAt() *time.Time { return u.emailVerifiedAt }
+
+// IsEmailVerified returns whether the user's email has been verified.
+func (u *User) IsEmailVerified() bool { return u.emailVerifiedAt != nil }
+
+// VerifyEmail marks the user's email as verified.
+func (u *User) VerifyEmail() {
+	now := time.Now()
+	u.emailVerifiedAt = &now
+}
+
+// ClearEmailVerification clears the email verification (e.g., on email change).
+func (u *User) ClearEmailVerification() {
+	u.emailVerifiedAt = nil
+}
 
 // Audit returns the audit information.
 func (u *User) Audit() shared.AuditInfo { return u.audit }

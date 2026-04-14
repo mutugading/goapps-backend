@@ -35,14 +35,14 @@ func (r *UserRepository) Create(ctx context.Context, u *user.User, detail *user.
 			INSERT INTO mst_user (
 				user_id, username, email, password_hash, is_active, is_locked,
 				failed_login_attempts, locked_until, two_factor_enabled, two_factor_secret,
-				last_login_at, last_login_ip, password_changed_at,
+				last_login_at, last_login_ip, password_changed_at, email_verified_at,
 				created_at, created_by
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		`
 		_, err := tx.ExecContext(ctx, query,
 			u.ID(), u.Username(), u.Email(), u.PasswordHash(), u.IsActive(), u.IsLocked(),
 			u.FailedLoginAttempts(), u.LockedUntil(), u.TwoFactorEnabled(), u.TwoFactorSecret(),
-			u.LastLoginAt(), u.LastLoginIP(), u.PasswordChangedAt(),
+			u.LastLoginAt(), u.LastLoginIP(), u.PasswordChangedAt(), u.EmailVerifiedAt(),
 			u.Audit().CreatedAt, u.Audit().CreatedBy,
 		)
 		if err != nil {
@@ -83,7 +83,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*user.User,
 	query := `
 		SELECT user_id, username, email, password_hash, is_active, is_locked,
 			failed_login_attempts, locked_until, two_factor_enabled, two_factor_secret,
-			last_login_at, last_login_ip, password_changed_at,
+			last_login_at, last_login_ip, password_changed_at, email_verified_at,
 			created_at, created_by, updated_at, updated_by, deleted_at, deleted_by
 		FROM mst_user
 		WHERE user_id = $1 AND deleted_at IS NULL
@@ -93,7 +93,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*user.User,
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.IsActive, &u.IsLocked,
 		&u.FailedLoginAttempts, &u.LockedUntil, &u.TwoFactorEnabled, &u.TwoFactorSecret,
-		&u.LastLoginAt, &u.LastLoginIP, &u.PasswordChangedAt,
+		&u.LastLoginAt, &u.LastLoginIP, &u.PasswordChangedAt, &u.EmailVerifiedAt,
 		&u.CreatedAt, &u.CreatedBy, &u.UpdatedAt, &u.UpdatedBy, &u.DeletedAt, &u.DeletedBy,
 	)
 	if err != nil {
@@ -111,7 +111,7 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*u
 	query := `
 		SELECT user_id, username, email, password_hash, is_active, is_locked,
 			failed_login_attempts, locked_until, two_factor_enabled, two_factor_secret,
-			last_login_at, last_login_ip, password_changed_at,
+			last_login_at, last_login_ip, password_changed_at, email_verified_at,
 			created_at, created_by, updated_at, updated_by, deleted_at, deleted_by
 		FROM mst_user
 		WHERE username = $1 AND deleted_at IS NULL
@@ -121,7 +121,7 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*u
 	err := r.db.QueryRowContext(ctx, query, username).Scan(
 		&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.IsActive, &u.IsLocked,
 		&u.FailedLoginAttempts, &u.LockedUntil, &u.TwoFactorEnabled, &u.TwoFactorSecret,
-		&u.LastLoginAt, &u.LastLoginIP, &u.PasswordChangedAt,
+		&u.LastLoginAt, &u.LastLoginIP, &u.PasswordChangedAt, &u.EmailVerifiedAt,
 		&u.CreatedAt, &u.CreatedBy, &u.UpdatedAt, &u.UpdatedBy, &u.DeletedAt, &u.DeletedBy,
 	)
 	if err != nil {
@@ -139,7 +139,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*user.Us
 	query := `
 		SELECT user_id, username, email, password_hash, is_active, is_locked,
 			failed_login_attempts, locked_until, two_factor_enabled, two_factor_secret,
-			last_login_at, last_login_ip, password_changed_at,
+			last_login_at, last_login_ip, password_changed_at, email_verified_at,
 			created_at, created_by, updated_at, updated_by, deleted_at, deleted_by
 		FROM mst_user
 		WHERE email = $1 AND deleted_at IS NULL
@@ -149,7 +149,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*user.Us
 	err := r.db.QueryRowContext(ctx, query, email).Scan(
 		&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.IsActive, &u.IsLocked,
 		&u.FailedLoginAttempts, &u.LockedUntil, &u.TwoFactorEnabled, &u.TwoFactorSecret,
-		&u.LastLoginAt, &u.LastLoginIP, &u.PasswordChangedAt,
+		&u.LastLoginAt, &u.LastLoginIP, &u.PasswordChangedAt, &u.EmailVerifiedAt,
 		&u.CreatedAt, &u.CreatedBy, &u.UpdatedAt, &u.UpdatedBy, &u.DeletedAt, &u.DeletedBy,
 	)
 	if err != nil {
@@ -169,7 +169,8 @@ func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
 			email = $2, password_hash = $3, is_active = $4, is_locked = $5,
 			failed_login_attempts = $6, locked_until = $7, two_factor_enabled = $8,
 			two_factor_secret = $9, last_login_at = $10, last_login_ip = $11,
-			password_changed_at = $12, updated_at = $13, updated_by = $14
+			password_changed_at = $12, email_verified_at = $13,
+			updated_at = $14, updated_by = $15
 		WHERE user_id = $1 AND deleted_at IS NULL
 	`
 
@@ -177,7 +178,8 @@ func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
 		u.ID(), u.Email(), u.PasswordHash(), u.IsActive(), u.IsLocked(),
 		u.FailedLoginAttempts(), u.LockedUntil(), u.TwoFactorEnabled(),
 		u.TwoFactorSecret(), u.LastLoginAt(), u.LastLoginIP(),
-		u.PasswordChangedAt(), u.Audit().UpdatedAt, u.Audit().UpdatedBy,
+		u.PasswordChangedAt(), u.EmailVerifiedAt(),
+		u.Audit().UpdatedAt, u.Audit().UpdatedBy,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update user: %w", err)
@@ -336,7 +338,7 @@ func (r *UserRepository) List(ctx context.Context, params user.ListParams) ([]*u
 	query := fmt.Sprintf(`
 		SELECT user_id, username, email, password_hash, is_active, is_locked,
 			failed_login_attempts, locked_until, two_factor_enabled, two_factor_secret,
-			last_login_at, last_login_ip, password_changed_at,
+			last_login_at, last_login_ip, password_changed_at, email_verified_at,
 			created_at, created_by, updated_at, updated_by, deleted_at, deleted_by
 		FROM mst_user
 		WHERE %s
@@ -362,7 +364,7 @@ func (r *UserRepository) List(ctx context.Context, params user.ListParams) ([]*u
 		if err := rows.Scan(
 			&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.IsActive, &u.IsLocked,
 			&u.FailedLoginAttempts, &u.LockedUntil, &u.TwoFactorEnabled, &u.TwoFactorSecret,
-			&u.LastLoginAt, &u.LastLoginIP, &u.PasswordChangedAt,
+			&u.LastLoginAt, &u.LastLoginIP, &u.PasswordChangedAt, &u.EmailVerifiedAt,
 			&u.CreatedAt, &u.CreatedBy, &u.UpdatedAt, &u.UpdatedBy, &u.DeletedAt, &u.DeletedBy,
 		); err != nil {
 			return nil, 0, fmt.Errorf("failed to scan user: %w", err)
@@ -559,14 +561,14 @@ func (r *UserRepository) BatchCreate(ctx context.Context, users []*user.User, de
 				INSERT INTO mst_user (
 					user_id, username, email, password_hash, is_active, is_locked,
 					failed_login_attempts, locked_until, two_factor_enabled, two_factor_secret,
-					last_login_at, last_login_ip, password_changed_at,
+					last_login_at, last_login_ip, password_changed_at, email_verified_at,
 					created_at, created_by
-				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 			`
 			_, err := tx.ExecContext(ctx, query,
 				u.ID(), u.Username(), u.Email(), u.PasswordHash(), u.IsActive(), u.IsLocked(),
 				u.FailedLoginAttempts(), u.LockedUntil(), u.TwoFactorEnabled(), u.TwoFactorSecret(),
-				u.LastLoginAt(), u.LastLoginIP(), u.PasswordChangedAt(),
+				u.LastLoginAt(), u.LastLoginIP(), u.PasswordChangedAt(), u.EmailVerifiedAt(),
 				u.Audit().CreatedAt, u.Audit().CreatedBy,
 			)
 			if err != nil {
@@ -668,6 +670,7 @@ type userRow struct {
 	LastLoginAt         *time.Time
 	LastLoginIP         sql.NullString
 	PasswordChangedAt   *time.Time
+	EmailVerifiedAt     *time.Time
 	CreatedAt           time.Time
 	CreatedBy           string
 	UpdatedAt           *time.Time
@@ -698,7 +701,7 @@ func (r *userRow) toDomain() *user.User {
 		r.ID, r.Username, r.Email, r.PasswordHash,
 		r.IsActive, r.IsLocked, r.FailedLoginAttempts, r.LockedUntil,
 		r.TwoFactorEnabled, secret, r.LastLoginAt, ip, r.PasswordChangedAt,
-		audit,
+		r.EmailVerifiedAt, audit,
 	)
 }
 
