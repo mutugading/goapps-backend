@@ -21,11 +21,14 @@ type PermissionRequirement struct {
 // Methods not listed here and not in publicMethods will be denied by default.
 var methodPermissions = map[string]PermissionRequirement{
 	// Auth Service — authenticated only (no specific permission)
-	"/iam.v1.AuthService/GetCurrentUser": {Permission: ""},
-	"/iam.v1.AuthService/UpdatePassword": {Permission: ""},
-	"/iam.v1.AuthService/Enable2FA":      {Permission: ""},
-	"/iam.v1.AuthService/Verify2FA":      {Permission: ""},
-	"/iam.v1.AuthService/Disable2FA":     {Permission: ""},
+	"/iam.v1.AuthService/GetCurrentUser":          {Permission: ""},
+	"/iam.v1.AuthService/UpdatePassword":          {Permission: ""},
+	"/iam.v1.AuthService/Enable2FA":               {Permission: ""},
+	"/iam.v1.AuthService/Verify2FA":               {Permission: ""},
+	"/iam.v1.AuthService/Disable2FA":              {Permission: ""},
+	"/iam.v1.AuthService/SendEmailVerification":   {Permission: ""},
+	"/iam.v1.AuthService/VerifyEmail":             {Permission: ""},
+	"/iam.v1.AuthService/ResendEmailVerification": {Permission: ""},
 
 	// User Service
 	"/iam.v1.UserService/CreateUser":                 {Permission: "iam.user.account.create"},

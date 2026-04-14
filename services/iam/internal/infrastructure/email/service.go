@@ -50,6 +50,25 @@ func (s *Service) SendOTP(ctx context.Context, email, otp string, expiryMinutes 
 	return s.send(ctx, email, subject, body)
 }
 
+// SendEmailVerification sends an email verification OTP to the user's email.
+func (s *Service) SendEmailVerification(ctx context.Context, email, otp string, expiryMinutes int) error {
+	subject := "GoApps - Email Verification"
+	body := fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+  <h2 style="color: #333;">Verify Your Email</h2>
+  <p>Your email verification code is:</p>
+  <div style="background: #f4f4f4; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px;">
+    <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #2563eb;">%s</span>
+  </div>
+  <p>This code expires in <strong>%d minutes</strong>.</p>
+  <p style="color: #666; font-size: 12px;">If you did not request this, please ignore this email.</p>
+</body>
+</html>`, otp, expiryMinutes)
+
+	return s.send(ctx, email, subject, body)
+}
+
 // Send2FANotification sends a notification about 2FA status change.
 func (s *Service) Send2FANotification(ctx context.Context, email, action string) error {
 	subject := "GoApps - Two-Factor Authentication Update"

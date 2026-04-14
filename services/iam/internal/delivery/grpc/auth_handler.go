@@ -84,9 +84,11 @@ func (h *AuthHandler) Login(ctx context.Context, req *iamv1.LoginRequest) (*iamv
 				Email:            result.User.Email,
 				FullName:         result.User.FullName,
 				TwoFactorEnabled: result.User.TwoFactorEnabled,
+				EmailVerified:    result.User.EmailVerified,
 				Roles:            result.User.Roles,
 				Permissions:      result.User.Permissions,
 			},
+			RequiresEmailVerification: result.RequiresEmailVerification,
 		},
 	}, nil
 }
@@ -293,16 +295,83 @@ func (h *AuthHandler) GetCurrentUser(ctx context.Context, _ *iamv1.GetCurrentUse
 		permissionNames[i] = p.Code()
 	}
 
+	// Get full name from detail if available.
+	var fullName string
+	detail, detailErr := h.userRepo.GetDetailByUserID(ctx, userID)
+	if detailErr == nil && detail != nil {
+		fullName = detail.FullName()
+	}
+
 	return &iamv1.GetCurrentUserResponse{
 		Base: SuccessResponse("User retrieved successfully"),
 		Data: &iamv1.AuthUser{
 			UserId:           u.ID().String(),
 			Username:         u.Username(),
 			Email:            u.Email(),
+			FullName:         fullName,
 			TwoFactorEnabled: u.TwoFactorEnabled(),
+			EmailVerified:    u.IsEmailVerified(),
 			Roles:            roleNames,
 			Permissions:      permissionNames,
 		},
+	}, nil
+}
+
+// SendEmailVerification sends a verification code to the authenticated user's email.
+func (h *AuthHandler) SendEmailVerification(ctx context.Context, _ *iamv1.SendEmailVerificationRequest) (*iamv1.SendEmailVerificationResponse, error) {
+	userID, err := getUserIDFromContext(ctx)
+	if err != nil {
+		return &iamv1.SendEmailVerificationResponse{Base: UnauthorizedResponse("not authenticated")}, nil //nolint:nilerr // error returned in response body
+	}
+
+	result, err := h.authService.SendEmailVerification(ctx, userID)
+	if err != nil {
+		return &iamv1.SendEmailVerificationResponse{Base: domainErrorToBaseResponse(err)}, nil //nolint:nilerr // error returned in response body
+	}
+
+	return &iamv1.SendEmailVerificationResponse{
+		Base:      SuccessResponse("Verification code sent"),
+		Message:   result.Message,
+		ExpiresIn: safeconv.IntToInt32(result.ExpiresIn),
+	}, nil
+}
+
+// VerifyEmail consumes a verification code and marks the user's email as verified.
+func (h *AuthHandler) VerifyEmail(ctx context.Context, req *iamv1.VerifyEmailRequest) (*iamv1.VerifyEmailResponse, error) {
+	if baseResp := h.validationHelper.ValidateRequest(req); baseResp != nil {
+		return &iamv1.VerifyEmailResponse{Base: baseResp}, nil
+	}
+
+	userID, err := getUserIDFromContext(ctx)
+	if err != nil {
+		return &iamv1.VerifyEmailResponse{Base: UnauthorizedResponse("not authenticated")}, nil //nolint:nilerr // error returned in response body
+	}
+
+	if err := h.authService.VerifyEmail(ctx, userID, req.GetCode()); err != nil {
+		return &iamv1.VerifyEmailResponse{Base: domainErrorToBaseResponse(err)}, nil //nolint:nilerr // error returned in response body
+	}
+
+	return &iamv1.VerifyEmailResponse{
+		Base: SuccessResponse("Email verified successfully"),
+	}, nil
+}
+
+// ResendEmailVerification re-sends the verification code.
+func (h *AuthHandler) ResendEmailVerification(ctx context.Context, _ *iamv1.ResendEmailVerificationRequest) (*iamv1.ResendEmailVerificationResponse, error) {
+	userID, err := getUserIDFromContext(ctx)
+	if err != nil {
+		return &iamv1.ResendEmailVerificationResponse{Base: UnauthorizedResponse("not authenticated")}, nil //nolint:nilerr // error returned in response body
+	}
+
+	result, err := h.authService.ResendEmailVerification(ctx, userID)
+	if err != nil {
+		return &iamv1.ResendEmailVerificationResponse{Base: domainErrorToBaseResponse(err)}, nil //nolint:nilerr // error returned in response body
+	}
+
+	return &iamv1.ResendEmailVerificationResponse{
+		Base:      SuccessResponse("Verification code re-sent"),
+		Message:   result.Message,
+		ExpiresIn: safeconv.IntToInt32(result.ExpiresIn),
 	}, nil
 }
 
