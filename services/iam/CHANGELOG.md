@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.8.1](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.8.0...iam-service/v0.8.1) (2026-04-14)
+
+
+### Bug Fixes
+
+* **email:** add SMTP client timeouts to prevent indefinite hanging ([020a81a](https://github.com/mutugading/goapps-backend/commit/020a81ae0a25ffca4b307d1ef4e41fa6a93e39c7))
+* **email:** add SMTP client timeouts to prevent indefinite hanging ([331f073](https://github.com/mutugading/goapps-backend/commit/331f073c93f0fd9cf3632dcc2b6d750a81ebad25))
+* **email:** handle errors when closing SMTP connection after SetDeadline failure ([9e1b2c3](https://github.com/mutugading/goapps-backend/commit/9e1b2c3b74ddeeafd904eb76fb14d59dc9f24325))
+
 ## [0.8.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.7.0...iam-service/v0.8.0) (2026-04-13)
 
 
