@@ -7,12 +7,26 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math"
 	"path/filepath"
 	"strings"
 
 	"github.com/rs/zerolog/log"
 	"github.com/xuri/excelize/v2"
 )
+
+// safeRowNumber converts an Excel row index (int) to int32 with bounds clamping.
+// Excel's maximum row count is ~1M, well under int32 max, so in practice no clamping
+// is needed — but gosec G115 requires the explicit guard.
+func safeRowNumber(v int) int32 {
+	if v > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	if v < 0 {
+		return 0
+	}
+	return int32(v) //nolint:gosec // bounds checked above
+}
 
 // Column defines a single column in an export/template sheet.
 type Column struct {
@@ -119,7 +133,7 @@ func Template(sheetName string, columns []Column, samples []SampleRow, instructi
 
 // ParsedRow is a row from an imported file — map of column index to trimmed string value.
 type ParsedRow struct {
-	RowNumber int
+	RowNumber int32
 	Cells     []string
 }
 
@@ -163,7 +177,7 @@ func ParseFile(content []byte, fileName string) ([]ParsedRow, error) {
 		for j, cell := range row {
 			trimmed[j] = strings.TrimSpace(cell)
 		}
-		parsed = append(parsed, ParsedRow{RowNumber: i + 2, Cells: trimmed})
+		parsed = append(parsed, ParsedRow{RowNumber: safeRowNumber(i + 2), Cells: trimmed})
 	}
 	return parsed, nil
 }

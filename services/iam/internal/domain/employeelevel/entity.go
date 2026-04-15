@@ -107,43 +107,83 @@ func (e *EmployeeLevel) Update(name *string, grade *int32, typ *Type, sequence *
 	if e.IsDeleted() {
 		return shared.ErrAlreadyDeleted
 	}
-	if name != nil {
-		if *name == "" {
-			return shared.ErrEmptyName
-		}
-		if len(*name) > 100 {
-			return shared.ErrNameTooLong
-		}
-		e.name = *name
+	if err := e.applyName(name); err != nil {
+		return err
 	}
-	if grade != nil {
-		if *grade < 0 || *grade > maxGrade {
-			return ErrInvalidGrade
-		}
-		e.grade = *grade
+	if err := e.applyGrade(grade); err != nil {
+		return err
 	}
-	if typ != nil {
-		if !typ.IsValid() {
-			return ErrInvalidType
-		}
-		e.typ = *typ
+	if err := e.applyType(typ); err != nil {
+		return err
 	}
-	if sequence != nil {
-		if *sequence < 0 || *sequence > maxSeq {
-			return ErrInvalidSequence
-		}
-		e.sequence = *sequence
+	if err := e.applySequence(sequence); err != nil {
+		return err
 	}
-	if workflow != nil {
-		if !workflow.IsValid() {
-			return ErrInvalidWorkflow
-		}
-		e.workflow = *workflow
+	if err := e.applyWorkflow(workflow); err != nil {
+		return err
 	}
 	if isActive != nil {
 		e.isActive = *isActive
 	}
 	e.audit.Update(updatedBy)
+	return nil
+}
+
+func (e *EmployeeLevel) applyName(name *string) error {
+	if name == nil {
+		return nil
+	}
+	if *name == "" {
+		return shared.ErrEmptyName
+	}
+	if len(*name) > 100 {
+		return shared.ErrNameTooLong
+	}
+	e.name = *name
+	return nil
+}
+
+func (e *EmployeeLevel) applyGrade(grade *int32) error {
+	if grade == nil {
+		return nil
+	}
+	if *grade < 0 || *grade > maxGrade {
+		return ErrInvalidGrade
+	}
+	e.grade = *grade
+	return nil
+}
+
+func (e *EmployeeLevel) applyType(typ *Type) error {
+	if typ == nil {
+		return nil
+	}
+	if !typ.IsValid() {
+		return ErrInvalidType
+	}
+	e.typ = *typ
+	return nil
+}
+
+func (e *EmployeeLevel) applySequence(sequence *int32) error {
+	if sequence == nil {
+		return nil
+	}
+	if *sequence < 0 || *sequence > maxSeq {
+		return ErrInvalidSequence
+	}
+	e.sequence = *sequence
+	return nil
+}
+
+func (e *EmployeeLevel) applyWorkflow(workflow *Workflow) error {
+	if workflow == nil {
+		return nil
+	}
+	if !workflow.IsValid() {
+		return ErrInvalidWorkflow
+	}
+	e.workflow = *workflow
 	return nil
 }
 

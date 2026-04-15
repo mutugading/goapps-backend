@@ -12,6 +12,9 @@ const (
 	maxCodeLen = 20
 	maxGrade   = 99
 	maxSeq     = 999
+
+	// unspecifiedLabel is the canonical string for unspecified enum values.
+	unspecifiedLabel = "UNSPECIFIED"
 )
 
 // codePattern validates code format: starts with uppercase letter,
@@ -93,9 +96,9 @@ func (t Type) String() string {
 	case TypeOther:
 		return "OTHER"
 	case TypeUnspecified:
-		return "UNSPECIFIED"
+		return unspecifiedLabel
 	default:
-		return "UNSPECIFIED"
+		return unspecifiedLabel
 	}
 }
 
@@ -164,9 +167,9 @@ func (w Workflow) String() string {
 	case WorkflowApproved:
 		return "APPROVED"
 	case WorkflowUnspecified:
-		return "UNSPECIFIED"
+		return unspecifiedLabel
 	default:
-		return "UNSPECIFIED"
+		return unspecifiedLabel
 	}
 }
 

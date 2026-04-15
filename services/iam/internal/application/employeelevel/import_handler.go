@@ -18,7 +18,7 @@ type ImportCommand struct {
 	CreatedBy       string
 }
 
-// ImportResult summarises import outcomes.
+// ImportResult summarizes import outcomes.
 type ImportResult struct {
 	SuccessCount int32
 	SkippedCount int32
@@ -65,7 +65,7 @@ func (h *ImportHandler) processRow(ctx context.Context, row excel.ParsedRow, cmd
 	if err != nil {
 		result.FailedCount++
 		result.Errors = append(result.Errors, excel.ImportError{
-			RowNumber: int32(row.RowNumber), Field: "code",
+			RowNumber: row.RowNumber, Field: "code",
 			Message: fmt.Sprintf("check duplicate: %v", err),
 		})
 		return
@@ -80,14 +80,14 @@ func (h *ImportHandler) processRow(ctx context.Context, row excel.ParsedRow, cmd
 	if err != nil {
 		result.FailedCount++
 		result.Errors = append(result.Errors, excel.ImportError{
-			RowNumber: int32(row.RowNumber), Field: "create", Message: err.Error(),
+			RowNumber: row.RowNumber, Field: "create", Message: err.Error(),
 		})
 		return
 	}
 	if err := h.repo.Create(ctx, entity); err != nil {
 		result.FailedCount++
 		result.Errors = append(result.Errors, excel.ImportError{
-			RowNumber: int32(row.RowNumber), Field: "create",
+			RowNumber: row.RowNumber, Field: "create",
 			Message: fmt.Sprintf("failed to create: %v", err),
 		})
 		return
@@ -98,7 +98,7 @@ func (h *ImportHandler) processRow(ctx context.Context, row excel.ParsedRow, cmd
 func (h *ImportHandler) handleDuplicate(
 	ctx context.Context, code employeelevel.Code,
 	name string, grade int32, typ employeelevel.Type, seq int32, wf employeelevel.Workflow,
-	rowNum int, cmd ImportCommand, result *ImportResult,
+	rowNum int32, cmd ImportCommand, result *ImportResult,
 ) {
 	switch cmd.DuplicateAction {
 	case "skip":
@@ -108,7 +108,7 @@ func (h *ImportHandler) handleDuplicate(
 		if err != nil {
 			result.FailedCount++
 			result.Errors = append(result.Errors, excel.ImportError{
-				RowNumber: int32(rowNum), Field: "code",
+				RowNumber: rowNum, Field: "code",
 				Message: fmt.Sprintf("failed to get existing: %v", err),
 			})
 			return
@@ -116,14 +116,14 @@ func (h *ImportHandler) handleDuplicate(
 		if err := existing.Update(&name, &grade, &typ, &seq, &wf, nil, cmd.CreatedBy); err != nil {
 			result.FailedCount++
 			result.Errors = append(result.Errors, excel.ImportError{
-				RowNumber: int32(rowNum), Field: "update", Message: err.Error(),
+				RowNumber: rowNum, Field: "update", Message: err.Error(),
 			})
 			return
 		}
 		if err := h.repo.Update(ctx, existing); err != nil {
 			result.FailedCount++
 			result.Errors = append(result.Errors, excel.ImportError{
-				RowNumber: int32(rowNum), Field: "update",
+				RowNumber: rowNum, Field: "update",
 				Message: fmt.Sprintf("failed to update: %v", err),
 			})
 			return
@@ -132,7 +132,7 @@ func (h *ImportHandler) handleDuplicate(
 	case "error":
 		result.FailedCount++
 		result.Errors = append(result.Errors, excel.ImportError{
-			RowNumber: int32(rowNum), Field: "code", Message: "duplicate code already exists",
+			RowNumber: rowNum, Field: "code", Message: "duplicate code already exists",
 		})
 	default:
 		result.SkippedCount++
@@ -144,7 +144,7 @@ func (h *ImportHandler) handleDuplicate(
 func parseImportRow(row excel.ParsedRow, result *ImportResult) (
 	employeelevel.Code, string, int32, employeelevel.Type, int32, employeelevel.Workflow, bool,
 ) {
-	rn := int32(row.RowNumber)
+	rn := row.RowNumber
 
 	code, err := employeelevel.NewCode(row.Cell(0))
 	if err != nil {
@@ -188,5 +188,6 @@ func parseImportRow(row excel.ParsedRow, result *ImportResult) (
 		return employeelevel.Code{}, "", 0, 0, 0, 0, false
 	}
 
-	return code, name, int32(grade), typ, int32(seq), wf, true
+	// grade and seq are bounds-checked above (0-99 and 0-999, well within int32 range).
+	return code, name, int32(grade), typ, int32(seq), wf, true //nolint:gosec // bounds checked above
 }
