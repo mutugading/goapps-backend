@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.1](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.10.0...iam-service/v0.10.1) (2026-04-15)
+
+
+### Bug Fixes
+
+* **chore:** add shared module copy step to Dockerfile iam and finance svc for dependency resolution ([ea159be](https://github.com/mutugading/goapps-backend/commit/ea159bee99c871929bc6dda7fc060a23c5431843))
+
 ## [0.10.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.9.0...iam-service/v0.10.0) (2026-04-15)
 
 
