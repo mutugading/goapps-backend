@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.2](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.10.1...iam-service/v0.10.2) (2026-04-15)
+
+
+### Bug Fixes
+
+* **iam:** include role-based permissions in GetRolesAndPermissions query ([1b659bb](https://github.com/mutugading/goapps-backend/commit/1b659bb9c23e77f0c66ced6dabdb5aae9a5ac573))
+* **iam:** include role-based permissions in GetRolesAndPermissions query ([0d457ef](https://github.com/mutugading/goapps-backend/commit/0d457efd27baa383108ffeea30467a0579cbce55))
+
 ## [0.10.1](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.10.0...iam-service/v0.10.1) (2026-04-15)
 
 
