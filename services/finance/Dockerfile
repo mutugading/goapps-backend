@@ -11,6 +11,11 @@ RUN apk add --no-cache git ca-certificates tzdata
 # Copy gen module first (needed for replace directive)
 COPY gen/ ./gen/
 
+# Copy shared module (preemptive — future replace directive: services/shared => ../shared).
+# Adding now keeps the Dockerfile consistent with IAM and avoids CI breakage when
+# Finance starts importing from services/shared.
+COPY services/shared/ ./services/shared/
+
 # Copy finance service
 COPY services/finance/ ./services/finance/
 
