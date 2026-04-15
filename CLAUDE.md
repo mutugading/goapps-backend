@@ -359,6 +359,24 @@ Receives external requests, maps to application commands/queries, returns respon
 - Every up migration must have a corresponding down migration
 - Tool: golang-migrate v4
 
+### Seed Migration Guardrails
+
+**Permission codes** must match the `chk_permission_code_format` CHECK constraint:
+```
+^[a-z][a-z0-9]*\.[a-z][a-z0-9]*\.[a-z][a-z0-9]*\.[a-z]+$
+```
+Each dot-separated segment allows only lowercase letters and digits -- **no underscores, no hyphens**. Multi-word entities are concatenated: `employeelevel` not `employee_level`, `companymap` not `company_map`.
+
+**Menu UUIDs** follow a deterministic convention per level. Before picking a UUID for a new menu seed, check what's already taken:
+```bash
+# Check existing level-2 menu UUIDs (section headers like "Master Data", "CMS"):
+grep -h "00000000-0000-0000-0002-" migrations/postgres/*.up.sql | sort -u
+
+# Check existing level-3 menu UUIDs (leaf pages like "Employee Level", "Roles"):
+grep -h "00000000-0000-0000-0003-" migrations/postgres/*.up.sql | sort -u
+```
+Pick the next sequential number that is not already used. The `ON CONFLICT (menu_code) DO NOTHING` clause does NOT protect against `menu_id` collisions -- a new `menu_code` with a reused `menu_id` will fail with a primary key violation.
+
 ### Queries
 
 - Always use parameterized queries (`$1`, `$2`) -- never string concatenation
@@ -557,7 +575,9 @@ logging: { level, format }
 
 14. **Function cognitive complexity must stay under 20** (`gocognit`). Extract helper methods to reduce complexity -- e.g., `validateResultParam()`, `parseFormulaType()` instead of inline validation blocks.
 15. **Max nesting depth is 4** (`nestif`). Flatten nested `if` blocks by extracting to separate functions.
-16. **Safe integer conversions** (`gosec` G115). Never use bare `int32(someInt)` -- use a bounds-checking helper like `safeIntToInt32()` with `math.MaxInt32`/`math.MinInt32` clamping.
+16. **Safe integer conversions** (`gosec` G115). Never use bare `int32(someInt)` -- use a bounds-checking helper like `safeIntToInt32()` with `math.MaxInt32`/`math.MinInt32` clamping. **For int→int32 that is already bounds-checked earlier in the function**, add `//nolint:gosec // bounds checked above` on the same line as the cast.
+17. **Repeated string literals ≥ 3 occurrences must be constants** (`goconst`, min length 3). When the same literal (e.g., `"UNSPECIFIED"`, `"create"`, `"update"`) appears 3+ times in a file, extract it to a `const` block. Common spots: enum `String()` methods, import error field names, duplicate action types.
+18. **American English spelling in comments and identifiers** (`misspell`). Use `summarizes` (not `summarises`), `organization` (not `organisation`), `behavior` (not `behaviour`), `color` (not `colour`), `customize`, `authorize`, `initialize`. The linter runs on ALL comments including doc comments.
 
 ### Security
 
@@ -586,7 +606,131 @@ logging: { level, format }
 
 ---
 
-## 14. Adding a New Feature (Checklist)
+## 14. Lint Pre-Flight Checklist (MANDATORY before declaring work complete)
+
+> CI runs golangci-lint v2.3.0. Local binary is v1.62.2, so `make lint` will not catch everything -- **manually review every new file** against this checklist. The most common CI failures are listed below with copy-pasteable fixes.
+
+### Pattern 1 — int→int32 conversions (gosec G115)
+
+```go
+// ❌ FAILS CI
+RowNumber: int32(row.RowNumber),
+SortOrder: int32(fp.SortOrder()),
+
+// ✅ Option A — use typed field upstream (preferred): declare RowNumber as int32 from the source.
+// ✅ Option B — use bounds-checking helper:
+func safeIntToInt32(v int) int32 {
+    if v > math.MaxInt32 { return math.MaxInt32 }
+    if v < math.MinInt32 { return math.MinInt32 }
+    return int32(v) //nolint:gosec // bounds checked above
+}
+
+// ✅ Option C — if bounds were validated earlier in the same function, suppress with reason:
+if grade < 0 || grade > 99 { return ErrInvalidGrade }
+return int32(grade) //nolint:gosec // bounds checked above
+```
+
+Never suppress without a bounds check somewhere. The `//nolint` comment must cite the guarantee.
+
+### Pattern 2 — repeated string literals (goconst, threshold 3)
+
+If the SAME literal (length ≥ 3 chars) appears **3 or more times** in a single file, extract a const. Hotspots:
+- Enum `String()` methods returning `"UNSPECIFIED"` for Unspecified + default case — duplicate across Type + Workflow + Status enums in the same file.
+- Field names in `excel.ImportError{Field: "code", ...}` repeated for each error path.
+- Action strings: `"create"`, `"update"`, `"skip"` in import handlers.
+
+```go
+// ❌ FAILS CI
+case TypeUnspecified: return "UNSPECIFIED"
+default: return "UNSPECIFIED"
+// (and same string also used 2+ more times in another enum in the file)
+
+// ✅ Fix
+const unspecifiedLabel = "UNSPECIFIED"
+case TypeUnspecified: return unspecifiedLabel
+default: return unspecifiedLabel
+```
+
+### Pattern 3 — cognitive complexity ≤ 20 (gocognit)
+
+Each `if`, `switch case`, `for`, `&&`, `||` adds to the score (nested blocks multiply). `Update` methods with 6+ optional field pointers almost always exceed 20. **Rule of thumb**: if a function has 5+ `if X != nil { validate; assign }` blocks, split each into `applyX()` helper method.
+
+```go
+// ❌ FAILS CI — complexity 21
+func (e *Entity) Update(name *string, grade *int32, typ *Type, ...) error {
+    if e.IsDeleted() { return ErrDeleted }
+    if name != nil { if *name == "" { return ErrEmpty }; if len(*name) > 100 { return ErrTooLong }; e.name = *name }
+    if grade != nil { if *grade < 0 { return ErrInvalidGrade }; e.grade = *grade }
+    if typ != nil { if !typ.IsValid() { return ErrInvalidType }; e.typ = *typ }
+    // ... 3 more blocks
+}
+
+// ✅ Fix — delegate to per-field helpers
+func (e *Entity) Update(name *string, grade *int32, typ *Type, ...) error {
+    if e.IsDeleted() { return ErrDeleted }
+    if err := e.applyName(name); err != nil { return err }
+    if err := e.applyGrade(grade); err != nil { return err }
+    if err := e.applyType(typ); err != nil { return err }
+    // ...
+    return nil
+}
+func (e *Entity) applyName(name *string) error {
+    if name == nil { return nil }
+    if *name == "" { return ErrEmpty }
+    if len(*name) > 100 { return ErrTooLong }
+    e.name = *name
+    return nil
+}
+```
+
+### Pattern 4 — misspellings in comments (misspell, American English)
+
+Accept: `summarizes`, `organization`, `behavior`, `color`, `customize`, `authorize`, `initialize`, `analyze`, `optimize`, `serialize`.
+Reject: `summarises`, `organisation`, `behaviour`, `colour`, `customise`, `authorise`, `initialise`, `analyse`, `optimise`, `serialise`.
+
+Runs on ALL comments (package, function, inline). Common offenders: doc comments on handlers (`// summarises outcomes`), inline comments (`// normalise input`).
+
+### Pattern 5 — unhandled errors (errcheck)
+
+```go
+// ❌ FAILS CI
+defer tx.Rollback()
+code, _ := NewCode(row.Code)
+_, _ = someCall()
+
+// ✅ Fix
+defer func() {
+    if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+        log.Warn().Err(rbErr).Msg("rollback")
+    }
+}()
+code, err := NewCode(row.Code)
+if err != nil { return fmt.Errorf("parse code: %w", err) }
+```
+
+### Pattern 6 — nesting depth > 4 (nestif)
+
+`if → for → if → if → if` = 5 levels = FAILS. Extract the inner block to a helper function.
+
+### Pre-Commit Verification
+
+Before declaring any backend task complete, run **all** of these. Finding even one issue blocks completion:
+
+```bash
+cd services/<service>
+go build ./...                      # 0 compile errors
+go vet ./...                        # 0 vet warnings
+go test -race -count=1 ./...        # all tests pass
+goimports -w .                      # formatting
+# Visual review of new files: walk through Pattern 1-6 above manually,
+# since local golangci-lint v1.62.2 will not catch v2-only rules.
+```
+
+If a handler or domain file adds new int32 casts, repeated strings, or enum `String()` methods, **always** inspect them against Patterns 1-3 before committing.
+
+---
+
+## 15. Adding a New Feature (Checklist)
 
 For a new CRUD entity in an existing service:
 
