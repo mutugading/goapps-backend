@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.10.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.9.0...iam-service/v0.10.0) (2026-04-15)
+
+
+### Features
+
+* implement employee level management module and fix admin email verification migration ([45cff67](https://github.com/mutugading/goapps-backend/commit/45cff67eb0cbc83cbc910b912c2437ae62cfd6eb))
+* implement employee level management module and fix admin email verification migration ([92428c6](https://github.com/mutugading/goapps-backend/commit/92428c61869c42b1333f3aa9ac440f4891d63f4b))
+
+
+### Bug Fixes
+
+* improve code safety and maintainability by implementing safe integer conversions, extracting entity validation methods, and enforcing linting standards. ([bf248da](https://github.com/mutugading/goapps-backend/commit/bf248dad4e2f6c56e130ed8fba454aaaee0092ec))
+
 ## [0.9.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.8.2...iam-service/v0.9.0) (2026-04-14)
 
 
