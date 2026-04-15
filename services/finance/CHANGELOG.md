@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.1](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.8.0...finance-service/v0.8.1) (2026-04-15)
+
+
+### Bug Fixes
+
+* **chore:** add shared module copy step to Dockerfile iam and finance svc for dependency resolution ([ea159be](https://github.com/mutugading/goapps-backend/commit/ea159bee99c871929bc6dda7fc060a23c5431843))
+* **chore:** add shared module copy step to Dockerfile iam and finance svc for dependency resolution ([a0e2c65](https://github.com/mutugading/goapps-backend/commit/a0e2c65578d70838ca78c6f3b833e2abd92bca22))
+
 ## [0.8.0](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.7.0...finance-service/v0.8.0) (2026-04-13)
 
 
