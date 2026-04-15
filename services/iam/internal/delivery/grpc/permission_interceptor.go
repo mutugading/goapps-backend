@@ -161,6 +161,20 @@ var methodPermissions = map[string]PermissionRequirement{
 	"/iam.v1.CMSSettingService/UpdateCMSSetting":      {Permission: "iam.cms.setting.update"},
 	"/iam.v1.CMSSettingService/ListCMSSettings":       {Permission: "iam.cms.setting.view"},
 	"/iam.v1.CMSSettingService/BulkUpdateCMSSettings": {Permission: "iam.cms.setting.update"},
+
+	// Employee Level Service
+	"/iam.v1.EmployeeLevelService/CreateEmployeeLevel":           {Permission: "iam.master.employeelevel.create"},
+	"/iam.v1.EmployeeLevelService/GetEmployeeLevel":              {Permission: "iam.master.employeelevel.view"},
+	"/iam.v1.EmployeeLevelService/UpdateEmployeeLevel":           {Permission: "iam.master.employeelevel.update"},
+	"/iam.v1.EmployeeLevelService/DeleteEmployeeLevel":           {Permission: "iam.master.employeelevel.delete"},
+	"/iam.v1.EmployeeLevelService/ListEmployeeLevels":            {Permission: "iam.master.employeelevel.view"},
+	"/iam.v1.EmployeeLevelService/ExportEmployeeLevels":          {Permission: "iam.master.employeelevel.export"},
+	"/iam.v1.EmployeeLevelService/ImportEmployeeLevels":          {Permission: "iam.master.employeelevel.import"},
+	"/iam.v1.EmployeeLevelService/DownloadEmployeeLevelTemplate": {Permission: "iam.master.employeelevel.view"},
+	"/iam.v1.EmployeeLevelService/SubmitEmployeeLevel":           {Permission: "iam.master.employeelevel.submit"},
+	"/iam.v1.EmployeeLevelService/ApproveEmployeeLevel":          {Permission: "iam.master.employeelevel.approve"},
+	"/iam.v1.EmployeeLevelService/ReleaseEmployeeLevel":          {Permission: "iam.master.employeelevel.release"},
+	"/iam.v1.EmployeeLevelService/BypassReleaseEmployeeLevel":    {Permission: "iam.master.employeelevel.bypass"},
 }
 
 // PermissionInterceptor creates a unary interceptor that checks if the

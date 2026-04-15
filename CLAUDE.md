@@ -359,6 +359,24 @@ Receives external requests, maps to application commands/queries, returns respon
 - Every up migration must have a corresponding down migration
 - Tool: golang-migrate v4
 
+### Seed Migration Guardrails
+
+**Permission codes** must match the `chk_permission_code_format` CHECK constraint:
+```
+^[a-z][a-z0-9]*\.[a-z][a-z0-9]*\.[a-z][a-z0-9]*\.[a-z]+$
+```
+Each dot-separated segment allows only lowercase letters and digits -- **no underscores, no hyphens**. Multi-word entities are concatenated: `employeelevel` not `employee_level`, `companymap` not `company_map`.
+
+**Menu UUIDs** follow a deterministic convention per level. Before picking a UUID for a new menu seed, check what's already taken:
+```bash
+# Check existing level-2 menu UUIDs (section headers like "Master Data", "CMS"):
+grep -h "00000000-0000-0000-0002-" migrations/postgres/*.up.sql | sort -u
+
+# Check existing level-3 menu UUIDs (leaf pages like "Employee Level", "Roles"):
+grep -h "00000000-0000-0000-0003-" migrations/postgres/*.up.sql | sort -u
+```
+Pick the next sequential number that is not already used. The `ON CONFLICT (menu_code) DO NOTHING` clause does NOT protect against `menu_id` collisions -- a new `menu_code` with a reused `menu_id` will fail with a primary key violation.
+
 ### Queries
 
 - Always use parameterized queries (`$1`, `$2`) -- never string concatenation
