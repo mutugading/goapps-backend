@@ -96,7 +96,9 @@ func (s *Service) Login(ctx context.Context, input domainAuth.LoginInput) (*doma
 		return nil, err
 	}
 
-	tokenPair, err := s.jwtService.GenerateTokenPair(u.ID(), u.Username(), u.Email(), roleNames, permNames, nil)
+	// Only embed roles in JWT (not permissions) to keep token size small.
+	// Permissions are returned in the response body and loaded via /me endpoint.
+	tokenPair, err := s.jwtService.GenerateTokenPair(u.ID(), u.Username(), u.Email(), roleNames, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate tokens: %w", err)
 	}
@@ -294,12 +296,13 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (*domai
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
-	roleNames, permNames, err := s.getUserRolePermNames(ctx, u.ID())
+	roleNames, _, err := s.getUserRolePermNames(ctx, u.ID())
 	if err != nil {
 		log.Warn().Err(err).Str("userID", u.ID().String()).Msg("failed to get user role/permission names during token refresh")
 	}
 
-	tokenPair, err := s.jwtService.GenerateTokenPair(u.ID(), u.Username(), u.Email(), roleNames, permNames, nil)
+	// Only embed roles in JWT (not permissions) to keep token size small.
+	tokenPair, err := s.jwtService.GenerateTokenPair(u.ID(), u.Username(), u.Email(), roleNames, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate tokens: %w", err)
 	}
