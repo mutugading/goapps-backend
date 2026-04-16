@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.10.3...iam-service/v0.11.0) (2026-04-16)
+
+
+### Features
+
+* **iam:** add Employee Group management module with migrations, handlers, gRPC, and protobuf changes ([00581ce](https://github.com/mutugading/goapps-backend/commit/00581ceedda8f7787ee41977b68b96ddb0f5ebb5))
+* **iam:** add Employee Group management module with migrations, handlers, gRPC, and protobuf changes ([18e9d06](https://github.com/mutugading/goapps-backend/commit/18e9d06edd8eeaa49f54186cdab3e8a5985b3e80))
+
 ## [0.10.3](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.10.2...iam-service/v0.10.3) (2026-04-16)
 
 
