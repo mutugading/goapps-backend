@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.3](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.10.2...iam-service/v0.10.3) (2026-04-16)
+
+
+### Bug Fixes
+
+* **iam:** exclude permissions from JWT to prevent oversized cookie ([fd9cbce](https://github.com/mutugading/goapps-backend/commit/fd9cbceba24be76dffffac54dfd46ec5d26e0a26))
+* **iam:** exclude permissions from JWT to prevent oversized cookie ([d7c3f81](https://github.com/mutugading/goapps-backend/commit/d7c3f813972f5da93c768e6d16936188595dcb6c))
+
 ## [0.10.2](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.10.1...iam-service/v0.10.2) (2026-04-15)
 
 
