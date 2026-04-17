@@ -2,8 +2,8 @@ package grpc
 
 import (
 	"context"
+	"errors"
 	"math"
-	"strings"
 	"time"
 
 	commonv1 "github.com/mutugading/goapps-backend/gen/common/v1"
@@ -235,21 +235,24 @@ func syncErrorToBaseResponse(err error) *commonv1.BaseResponse {
 		return successResponse("")
 	}
 
-	errMsg := err.Error()
-
 	switch {
-	case strings.Contains(errMsg, "not found"):
-		return NotFoundResponse(errMsg)
-	case strings.Contains(errMsg, "duplicate active job"):
+	case errors.Is(err, job.ErrNotFound):
+		return NotFoundResponse(err.Error())
+	case errors.Is(err, job.ErrDuplicateActiveJob):
 		return ConflictResponse("A sync job for this period is already queued or processing")
-	case strings.Contains(errMsg, "already cancelled"):
-		return ConflictResponse(errMsg)
-	case strings.Contains(errMsg, "not cancellable"):
-		return ErrorResponse("400", errMsg)
-	case strings.Contains(errMsg, "invalid"):
-		return ErrorResponse("400", errMsg)
+	case errors.Is(err, job.ErrAlreadyCancelled): //nolint:misspell // domain identifier
+		return ConflictResponse(err.Error())
+	case errors.Is(err, job.ErrNotCancellable):
+		return ErrorResponse("400", err.Error())
+	case errors.Is(err, job.ErrInvalidStatus), errors.Is(err, job.ErrInvalidPriority):
+		return ErrorResponse("400", err.Error())
+	case errors.Is(err, syncdata.ErrProcedureFailed),
+		errors.Is(err, syncdata.ErrFetchFailed),
+		errors.Is(err, syncdata.ErrUpsertFailed),
+		errors.Is(err, syncdata.ErrOracleConnectionFailed):
+		return InternalErrorResponse(err.Error())
 	default:
-		return InternalErrorResponse(errMsg)
+		return InternalErrorResponse(err.Error())
 	}
 }
 

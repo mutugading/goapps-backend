@@ -32,15 +32,25 @@ func (r *ItemConsStockPORepository) ExecuteProcedureWithParam(ctx context.Contex
 	return r.client.ExecuteProcedureWithParam(ctx, schema, procedure, param)
 }
 
+// oracleColumns lists the explicit columns to SELECT from Oracle (matches scanItemConsStockPO order).
+const oracleColumns = `MICSP_PERIOD, MICSP_ITEM_CODE, MICSP_GRADE_CODE,
+	MICSP_GRADE_NAME, MICSP_ITEM_NAME, MICSP_UOM,
+	MICSP_CONS_QTY, MICSP_CONS_VAL, MICSP_CONS_RATE,
+	MICSP_STORES_QTY, MICSP_STORES_VAL, MICSP_STORES_RATE,
+	MICSP_DEPT_QTY, MICSP_DEPT_VAL, MICSP_DEPT_RATE,
+	MICSP_LAST_PO_QTY1, MICSP_LAST_PO_VAL1, MICSP_LAST_PO_RATE1, MICSP_LAST_PO_DT1,
+	MICSP_LAST_PO_QTY2, MICSP_LAST_PO_VAL2, MICSP_LAST_PO_RATE2, MICSP_LAST_PO_DT2,
+	MICSP_LAST_PO_QTY3, MICSP_LAST_PO_VAL3, MICSP_LAST_PO_RATE3, MICSP_LAST_PO_DT3`
+
 // FetchItemConsStockPO fetches records for a specific period.
 func (r *ItemConsStockPORepository) FetchItemConsStockPO(ctx context.Context, period string) ([]*syncdata.ItemConsStockPO, error) {
-	query := `SELECT * FROM MGTDAT.MGT_ITEM_CONS_STK_PO WHERE MICSP_PERIOD = :1`
+	query := `SELECT ` + oracleColumns + ` FROM MGTDAT.MGT_ITEM_CONS_STK_PO WHERE MICSP_PERIOD = :1`
 	return r.fetchRows(ctx, query, period)
 }
 
 // FetchAllItemConsStockPO fetches all records.
 func (r *ItemConsStockPORepository) FetchAllItemConsStockPO(ctx context.Context) ([]*syncdata.ItemConsStockPO, error) {
-	query := `SELECT * FROM MGTDAT.MGT_ITEM_CONS_STK_PO`
+	query := `SELECT ` + oracleColumns + ` FROM MGTDAT.MGT_ITEM_CONS_STK_PO`
 	return r.fetchRows(ctx, query)
 }
 

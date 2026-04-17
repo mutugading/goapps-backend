@@ -73,10 +73,10 @@ func (h *TriggerHandler) Handle(ctx context.Context, cmd TriggerCommand) (*Trigg
 	if err := h.publisher.PublishOracleSync(ctx, exec.ID().String(), period, cmd.CreatedBy); err != nil {
 		// Job is persisted but not published — mark as failed.
 		if failErr := exec.Fail("failed to publish to queue: " + err.Error()); failErr != nil {
-			return nil, fmt.Errorf("fail job after publish error: %w (publish: %v)", failErr, err)
+			return nil, fmt.Errorf("fail job after publish error: %w (publish: %w)", failErr, err)
 		}
 		if updateErr := h.jobRepo.UpdateStatus(ctx, exec); updateErr != nil {
-			return nil, fmt.Errorf("update failed status: %w (publish: %v)", updateErr, err)
+			return nil, fmt.Errorf("update failed status: %w (publish: %w)", updateErr, err)
 		}
 		return nil, fmt.Errorf("publish job: %w", err)
 	}

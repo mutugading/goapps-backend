@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
@@ -102,7 +101,7 @@ func (r *JobRepository) GetByCode(ctx context.Context, code string) (*job.Execut
 // List retrieves a paginated list of job executions.
 //
 //nolint:misspell // SQL column names cancelled_by/cancelled_at match migration schema
-func (r *JobRepository) List(ctx context.Context, filter job.ListFilter) ([]*job.Execution, int64, error) {
+func (r *JobRepository) List(ctx context.Context, filter job.ListFilter) (_ []*job.Execution, _ int64, err error) {
 	var conditions []string
 	var args []any
 	argIdx := 1
@@ -224,8 +223,11 @@ func (r *JobRepository) UpdateStatus(ctx context.Context, exec *job.Execution) e
 
 // UpdateProgress atomically updates a job execution's progress.
 func (r *JobRepository) UpdateProgress(ctx context.Context, id uuid.UUID, progress int) error {
-	if progress > math.MaxInt32 || progress < math.MinInt32 {
+	if progress < 0 {
 		progress = 0
+	}
+	if progress > 100 {
+		progress = 100
 	}
 	query := `UPDATE job_execution SET progress = $2 WHERE job_id = $1`
 	_, err := r.db.ExecContext(ctx, query, id, progress)
@@ -438,7 +440,7 @@ func (r *JobRepository) scanExecutionRow(rows *sql.Rows) (*job.Execution, error)
 }
 
 // getLogsByJobID retrieves all log entries for a given job.
-func (r *JobRepository) getLogsByJobID(ctx context.Context, jobID uuid.UUID) ([]*job.ExecutionLog, error) {
+func (r *JobRepository) getLogsByJobID(ctx context.Context, jobID uuid.UUID) (_ []*job.ExecutionLog, err error) {
 	query := `
 		SELECT log_id, job_id, step, status, message, metadata, started_at, completed_at, duration_ms
 		FROM job_execution_log

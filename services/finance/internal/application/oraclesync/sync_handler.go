@@ -56,6 +56,15 @@ func (h *SyncHandler) Execute(ctx context.Context, jobID uuid.UUID) error {
 		return fmt.Errorf("get job %s: %w", jobID, err)
 	}
 
+	// If the job was canceled or already completed before the worker picked it up, ACK silently.
+	if exec.Status().IsTerminal() {
+		h.logger.Info().
+			Str("job_id", jobID.String()).
+			Str("status", exec.Status().String()).
+			Msg("Skipping job — already in terminal state")
+		return nil
+	}
+
 	// Transition to processing.
 	if err := exec.Start(); err != nil {
 		return fmt.Errorf("start job %s: %w", jobID, err)
@@ -244,11 +253,11 @@ func (h *SyncHandler) completeJob(ctx context.Context, exec *job.Execution, resu
 func (h *SyncHandler) failJob(ctx context.Context, exec *job.Execution, syncErr error) error {
 	if failErr := exec.Fail(syncErr.Error()); failErr != nil {
 		h.logger.Error().Err(failErr).Msg("Failed to transition job to failed state")
-		return fmt.Errorf("fail job: %w (original: %v)", failErr, syncErr)
+		return fmt.Errorf("fail job: %w (original: %w)", failErr, syncErr)
 	}
 	if err := h.jobRepo.UpdateStatus(ctx, exec); err != nil {
 		h.logger.Error().Err(err).Msg("Failed to persist job failure status")
-		return fmt.Errorf("update status to failed: %w (original: %v)", err, syncErr)
+		return fmt.Errorf("update status to failed: %w (original: %w)", err, syncErr)
 	}
 	return syncErr
 }

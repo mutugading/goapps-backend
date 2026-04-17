@@ -71,7 +71,8 @@ func run() error {
 	}
 
 	// Setup RabbitMQ (optional - graceful degradation for publisher)
-	rmqPublisher := setupRabbitMQ(cfg)
+	rmqPublisher, closeRabbitMQ := setupRabbitMQ(cfg)
+	defer closeRabbitMQ()
 
 	// Setup repositories
 	uomRepo := postgres.NewUOMRepository(db)
@@ -278,14 +279,20 @@ func startServers(ctx context.Context, cfg *config.Config, uomHandler *grpcdeliv
 }
 
 // setupRabbitMQ creates a RabbitMQ connection and publisher (optional - graceful degradation).
-// Returns a JobPublisherAdapter that implements oraclesync.JobPublisher.
-func setupRabbitMQ(cfg *config.Config) *rabbitmq.JobPublisherAdapter {
+// Returns a JobPublisherAdapter and a close function for graceful shutdown.
+func setupRabbitMQ(cfg *config.Config) (*rabbitmq.JobPublisherAdapter, func()) {
 	rmqConn, err := rabbitmq.NewConnection(cfg.RabbitMQ, log.Logger)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to connect to RabbitMQ, sync trigger will fail")
-		return nil
+		return nil, func() {}
 	}
 
 	publisher := rabbitmq.NewPublisher(rmqConn, log.Logger)
-	return rabbitmq.NewJobPublisherAdapter(publisher, log.Logger)
+	adapter := rabbitmq.NewJobPublisherAdapter(publisher, log.Logger)
+	closeFunc := func() {
+		if closeErr := rmqConn.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("Failed to close RabbitMQ connection")
+		}
+	}
+	return adapter, closeFunc
 }

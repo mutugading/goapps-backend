@@ -3,6 +3,7 @@ package rabbitmq
 
 import (
 	"fmt"
+	"net/url"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -24,7 +25,7 @@ const (
 	DeadLetterQueue = "finance.jobs.dlq"
 )
 
-// Connection wraps an AMQP connection and channel with reconnect support.
+// Connection wraps an AMQP connection and channel.
 type Connection struct {
 	conn    *amqp.Connection
 	channel *amqp.Channel
@@ -147,10 +148,11 @@ func (c *Connection) declareTopology() error {
 }
 
 // sanitizeURL removes credentials from the AMQP URL for logging.
-func sanitizeURL(url string) string {
-	// Simple: just show host portion.
-	if len(url) > 20 {
-		return url[:7] + "***@" + url[len(url)-15:]
+func sanitizeURL(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return "amqp://***"
 	}
-	return "amqp://***"
+	parsed.User = url.User("***")
+	return parsed.String()
 }

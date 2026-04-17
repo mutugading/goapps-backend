@@ -94,7 +94,7 @@ func run() error {
 	// Start consumer.
 	consumer := rabbitmq.NewConsumer(rmqConn, rabbitmq.QueueOracleSync, handler, log.Logger)
 
-	// Handle reconnection in a goroutine.
+	// Log connection close events.
 	go watchConnection(ctx, rmqConn)
 
 	// Start consuming in a goroutine.

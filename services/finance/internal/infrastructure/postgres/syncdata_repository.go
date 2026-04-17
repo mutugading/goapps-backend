@@ -65,9 +65,9 @@ func (r *SyncDataRepository) upsertBatch(
 	}
 
 	// Build batch INSERT with ON CONFLICT DO UPDATE.
-	const cols = 30 // columns per row
+	const colsPerRow = 29 // placeholders per row (matches INSERT column count)
 	var sb strings.Builder
-	args := make([]any, 0, len(items)*cols)
+	args := make([]any, 0, len(items)*colsPerRow)
 
 	sb.WriteString(`
 		INSERT INTO cst_item_cons_stk_po (

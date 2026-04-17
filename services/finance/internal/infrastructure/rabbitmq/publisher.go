@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -20,7 +21,9 @@ type JobMessage struct {
 }
 
 // Publisher publishes messages to RabbitMQ exchanges.
+// Methods are safe for concurrent use.
 type Publisher struct {
+	mu     sync.Mutex
 	conn   *Connection
 	logger zerolog.Logger
 }
@@ -34,7 +37,11 @@ func NewPublisher(conn *Connection, logger zerolog.Logger) *Publisher {
 }
 
 // PublishJob publishes a job message to the finance jobs exchange.
+// Thread-safe: serializes access to the underlying AMQP channel.
 func (p *Publisher) PublishJob(ctx context.Context, routingKey string, msg JobMessage) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	body, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("marshal job message: %w", err)
