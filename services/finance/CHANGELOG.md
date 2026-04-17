@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.9.0](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.8.1...finance-service/v0.9.0) (2026-04-17)
+
+
+### Features
+
+* **finance:** implement job execution tracking, Oracle sync, and RabbitMQ integration with migrations and handlers ([8f9896c](https://github.com/mutugading/goapps-backend/commit/8f9896c2de11dbb5428a71cb20430bec773a7a05))
+* **finance:** implement job execution tracking, Oracle sync, and RabbitMQ integration with migrations and handlers ([02db90f](https://github.com/mutugading/goapps-backend/commit/02db90f9eee87a72611700192d10614266cd65b8))
+
+
+### Bug Fixes
+
+* **finance:** enhance Oracle sync system with improved error handling, concurrency safety, and refined data validation ([4ce67ee](https://github.com/mutugading/goapps-backend/commit/4ce67eeb620dd423b9dab6a77bfe52ad3c21c839))
+* **finance:** standardize "canceled" spelling, update identifiers and comments to match proto/DB conventions ([3747f0a](https://github.com/mutugading/goapps-backend/commit/3747f0a154d62bc7558a394e241041b8d37b473a))
+* **finance:** update Oracle sync procedure and schema, align period logic, and refine tests ([fe45bc0](https://github.com/mutugading/goapps-backend/commit/fe45bc07519e1ae19dded630c2c46c42304346e7))
+
 ## [0.8.1](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.8.0...finance-service/v0.8.1) (2026-04-15)
 
 
