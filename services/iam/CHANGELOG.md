@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.12.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.11.0...iam-service/v0.12.0) (2026-04-17)
+
+
+### Features
+
+* **finance:** implement job execution tracking, Oracle sync, and RabbitMQ integration with migrations and handlers ([8f9896c](https://github.com/mutugading/goapps-backend/commit/8f9896c2de11dbb5428a71cb20430bec773a7a05))
+* **finance:** implement job execution tracking, Oracle sync, and RabbitMQ integration with migrations and handlers ([02db90f](https://github.com/mutugading/goapps-backend/commit/02db90f9eee87a72611700192d10614266cd65b8))
+
+
+### Bug Fixes
+
+* **finance:** enhance Oracle sync system with improved error handling, concurrency safety, and refined data validation ([4ce67ee](https://github.com/mutugading/goapps-backend/commit/4ce67eeb620dd423b9dab6a77bfe52ad3c21c839))
+
 ## [0.11.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.10.3...iam-service/v0.11.0) (2026-04-16)
 
 
