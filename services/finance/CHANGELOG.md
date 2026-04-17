@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.1](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.9.0...finance-service/v0.9.1) (2026-04-17)
+
+
+### Bug Fixes
+
+* **finance:** correct Oracle column mappings and update comments for consistency and accuracy ([8caee5d](https://github.com/mutugading/goapps-backend/commit/8caee5de40dd82417fa5040f09d95e93505b177b))
+* **finance:** correct Oracle column mappings and update comments for consistency and accuracy ([6b87199](https://github.com/mutugading/goapps-backend/commit/6b871998cd18f34edfa8f45ab612d2e5fea7c91d))
+
 ## [0.9.0](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.8.1...finance-service/v0.9.0) (2026-04-17)
 
 
