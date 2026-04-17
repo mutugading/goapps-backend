@@ -130,7 +130,7 @@ func (h *SyncHandler) executeProcedure(ctx context.Context, jobID uuid.UUID, per
 		if logErr := h.jobRepo.UpdateLog(ctx, logEntry); logErr != nil {
 			h.logger.Warn().Err(logErr).Msg("Failed to update procedure failure log")
 		}
-		return fmt.Errorf("%w: %v", syncdata.ErrProcedureFailed, err)
+		return fmt.Errorf("%w: %w", syncdata.ErrProcedureFailed, err)
 	}
 
 	logEntry.MarkCompleted(job.LogSuccess, fmt.Sprintf("Procedure completed in %s", duration))
@@ -162,7 +162,7 @@ func (h *SyncHandler) fetchData(ctx context.Context, jobID uuid.UUID, period str
 		if logErr := h.jobRepo.UpdateLog(ctx, logEntry); logErr != nil {
 			h.logger.Warn().Err(logErr).Msg("Failed to update fetch failure log")
 		}
-		return nil, fmt.Errorf("%w: %v", syncdata.ErrFetchFailed, err)
+		return nil, fmt.Errorf("%w: %w", syncdata.ErrFetchFailed, err)
 	}
 
 	logEntry.MarkCompleted(job.LogSuccess, fmt.Sprintf("Fetched %d rows in %s", len(items), duration))
@@ -195,7 +195,7 @@ func (h *SyncHandler) upsertData(ctx context.Context, jobID uuid.UUID, items []*
 		if logErr := h.jobRepo.UpdateLog(ctx, logEntry); logErr != nil {
 			h.logger.Warn().Err(logErr).Msg("Failed to update upsert failure log")
 		}
-		return nil, fmt.Errorf("%w: %v", syncdata.ErrUpsertFailed, err)
+		return nil, fmt.Errorf("%w: %w", syncdata.ErrUpsertFailed, err)
 	}
 
 	logEntry.MarkCompleted(job.LogSuccess,

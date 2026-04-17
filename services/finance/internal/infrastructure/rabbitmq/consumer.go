@@ -31,7 +31,7 @@ func NewConsumer(conn *Connection, queueName string, handler MessageHandler, log
 	}
 }
 
-// Start begins consuming messages. Blocks until ctx is cancelled.
+// Start begins consuming messages. Blocks until ctx is canceled.
 func (c *Consumer) Start(ctx context.Context) error {
 	deliveries, err := c.conn.Channel().Consume(
 		c.queueName,

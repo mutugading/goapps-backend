@@ -100,6 +100,8 @@ func (r *JobRepository) GetByCode(ctx context.Context, code string) (*job.Execut
 }
 
 // List retrieves a paginated list of job executions.
+//
+//nolint:misspell // SQL column names cancelled_by/cancelled_at match migration schema
 func (r *JobRepository) List(ctx context.Context, filter job.ListFilter) ([]*job.Execution, int64, error) {
 	var conditions []string
 	var args []any
@@ -181,6 +183,8 @@ func (r *JobRepository) List(ctx context.Context, filter job.ListFilter) ([]*job
 }
 
 // UpdateStatus atomically updates a job execution's status fields.
+//
+//nolint:misspell // SQL column names cancelled_by/cancelled_at match migration schema
 func (r *JobRepository) UpdateStatus(ctx context.Context, exec *job.Execution) error {
 	query := `
 		UPDATE job_execution SET
@@ -317,6 +321,8 @@ func (r *JobRepository) GetNextSequence(ctx context.Context, jobType job.Type, p
 }
 
 // scanExecution retrieves a single execution by a WHERE clause.
+//
+//nolint:misspell // SQL column names and Go vars match domain field names (cancelledBy/cancelledAt)
 func (r *JobRepository) scanExecution(ctx context.Context, whereClause string, args ...any) (*job.Execution, error) {
 	query := fmt.Sprintf(`
 		SELECT je.job_id, je.job_code, je.job_type, je.job_subtype, je.period,
@@ -380,6 +386,8 @@ func (r *JobRepository) scanExecution(ctx context.Context, whereClause string, a
 }
 
 // scanExecutionRow scans a job execution from a rows iterator.
+//
+//nolint:misspell // Go vars match domain field names (cancelledBy/cancelledAt)
 func (r *JobRepository) scanExecutionRow(rows *sql.Rows) (*job.Execution, error) {
 	var (
 		id            uuid.UUID

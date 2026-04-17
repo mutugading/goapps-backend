@@ -9,7 +9,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/job"
 )
 
-// CancelJobCommand holds the input for cancelling a job.
+// CancelJobCommand holds the input for canceling a job.
 type CancelJobCommand struct {
 	JobID       string
 	CancelledBy string

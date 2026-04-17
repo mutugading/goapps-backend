@@ -158,7 +158,7 @@ func (h *OracleSyncHandler) CancelSyncJob(ctx context.Context, req *financev1.Ca
 	}
 
 	return &financev1.CancelSyncJobResponse{
-		Base: successResponse("Sync job cancelled"),
+		Base: successResponse("Sync job canceled"),
 		Data: executionToProto(exec),
 	}, nil
 }
@@ -214,7 +214,7 @@ func (h *OracleSyncHandler) ListItemConsStockPO(ctx context.Context, req *financ
 }
 
 // ListSyncPeriods retrieves all available sync periods.
-func (h *OracleSyncHandler) ListSyncPeriods(ctx context.Context, req *financev1.ListSyncPeriodsRequest) (*financev1.ListSyncPeriodsResponse, error) {
+func (h *OracleSyncHandler) ListSyncPeriods(ctx context.Context, _ *financev1.ListSyncPeriodsRequest) (*financev1.ListSyncPeriodsResponse, error) {
 	periods, err := h.listPeriodsHandler.Handle(ctx)
 	if err != nil {
 		return &financev1.ListSyncPeriodsResponse{Base: syncErrorToBaseResponse(err)}, nil
@@ -375,18 +375,24 @@ func formatTimePtr(t *time.Time) string {
 	return t.Format(time.RFC3339)
 }
 
+// Status string constants (shared across job status and log status mappers).
+const (
+	statusSuccess = "SUCCESS"
+	statusFailed  = "FAILED"
+)
+
 func stringToJobStatus(s string) financev1.JobStatus {
 	switch s {
 	case "QUEUED":
 		return financev1.JobStatus_JOB_STATUS_QUEUED
 	case "PROCESSING":
 		return financev1.JobStatus_JOB_STATUS_PROCESSING
-	case "SUCCESS":
+	case statusSuccess:
 		return financev1.JobStatus_JOB_STATUS_SUCCESS
-	case "FAILED":
+	case statusFailed:
 		return financev1.JobStatus_JOB_STATUS_FAILED
-	case "CANCELLED":
-		return financev1.JobStatus_JOB_STATUS_CANCELLED
+	case "CANCELLED": //nolint:misspell // domain status value
+		return financev1.JobStatus_JOB_STATUS_CANCELLED //nolint:misspell // proto enum
 	default:
 		return financev1.JobStatus_JOB_STATUS_UNSPECIFIED
 	}
@@ -399,11 +405,11 @@ func jobStatusToString(s financev1.JobStatus) string {
 	case financev1.JobStatus_JOB_STATUS_PROCESSING:
 		return "PROCESSING"
 	case financev1.JobStatus_JOB_STATUS_SUCCESS:
-		return "SUCCESS"
+		return statusSuccess
 	case financev1.JobStatus_JOB_STATUS_FAILED:
-		return "FAILED"
-	case financev1.JobStatus_JOB_STATUS_CANCELLED:
-		return "CANCELLED"
+		return statusFailed
+	case financev1.JobStatus_JOB_STATUS_CANCELLED: //nolint:misspell // proto enum
+		return "CANCELLED" //nolint:misspell // domain status value
 	case financev1.JobStatus_JOB_STATUS_UNSPECIFIED:
 		return ""
 	default:
@@ -415,9 +421,9 @@ func stringToLogStatus(s string) financev1.JobLogStatus {
 	switch s {
 	case "STARTED":
 		return financev1.JobLogStatus_JOB_LOG_STATUS_STARTED
-	case "SUCCESS":
+	case statusSuccess:
 		return financev1.JobLogStatus_JOB_LOG_STATUS_SUCCESS
-	case "FAILED":
+	case statusFailed:
 		return financev1.JobLogStatus_JOB_LOG_STATUS_FAILED
 	case "SKIPPED":
 		return financev1.JobLogStatus_JOB_LOG_STATUS_SKIPPED

@@ -150,7 +150,9 @@ func (e *Execution) Fail(errorMessage string) error {
 	return nil
 }
 
-// Cancel transitions the job to cancelled state.
+// Cancel transitions the job to canceled state.
+//
+//nolint:misspell // cancelledBy field and CancelledBy getter match proto/DB convention
 func (e *Execution) Cancel(cancelledBy string) error {
 	if e.status == StatusCancelled {
 		return ErrAlreadyCancelled
@@ -240,11 +242,11 @@ func (e *Execution) CompletedAt() *time.Time { return e.completedAt }
 // CreatedBy returns who created the job.
 func (e *Execution) CreatedBy() string { return e.createdBy }
 
-// CancelledBy returns who cancelled the job.
-func (e *Execution) CancelledBy() string { return e.cancelledBy }
+// CancelledBy returns who canceled the job. //nolint:misspell // matches proto field name
+func (e *Execution) CancelledBy() string { return e.cancelledBy } //nolint:misspell // matches proto field
 
-// CancelledAt returns the cancellation timestamp.
-func (e *Execution) CancelledAt() *time.Time { return e.cancelledAt }
+// CancelledAt returns the cancellation timestamp. //nolint:misspell // matches proto field name
+func (e *Execution) CancelledAt() *time.Time { return e.cancelledAt } //nolint:misspell // matches proto field
 
 // Logs returns the execution logs.
 func (e *Execution) Logs() []*ExecutionLog { return e.logs }

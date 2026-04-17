@@ -11,14 +11,14 @@ var (
 	// ErrDuplicateActiveJob is returned when an active job already exists for the same type and period.
 	ErrDuplicateActiveJob = errors.New("an active job already exists for this type and period")
 
-	// ErrAlreadyCancelled is returned when attempting to cancel a job that is already cancelled.
-	ErrAlreadyCancelled = errors.New("job is already cancelled")
+	// ErrAlreadyCancelled is returned when attempting to cancel a job that is already canceled. //nolint:misspell // identifier matches proto enum convention
+	ErrAlreadyCancelled = errors.New("job is already canceled")
 
 	// ErrAlreadyCompleted is returned when attempting to modify a completed job.
 	ErrAlreadyCompleted = errors.New("job is already completed")
 
-	// ErrNotCancellable is returned when a job is in a state that cannot be cancelled.
-	ErrNotCancellable = errors.New("job can only be cancelled when queued or processing")
+	// ErrNotCancellable is returned when a job is in a state that cannot be canceled. //nolint:misspell // identifier matches proto enum convention
+	ErrNotCancellable = errors.New("job can only be canceled when queued or processing")
 
 	// ErrInvalidStatus is returned when an invalid status transition is attempted.
 	ErrInvalidStatus = errors.New("invalid job status transition")

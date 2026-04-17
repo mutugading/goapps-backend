@@ -272,8 +272,8 @@ func bindEnvVars(v *viper.Viper) {
 		{"oracle.host", "ORACLE_HOST"},
 		{"oracle.port", "ORACLE_PORT"},
 		{"oracle.service", "ORACLE_SERVICE"},
-		{"oracle.user", "ORACLE_MGTDAT_USER"},
-		{"oracle.password", "ORACLE_MGTDAT_PASSWORD"},
+		{"oracle.user", "ORACLE_USER"},
+		{"oracle.password", "ORACLE_PASSWORD"},
 		// RabbitMQ
 		{"rabbitmq.url", "RABBITMQ_URL"},
 		// CORS

@@ -14,7 +14,7 @@ const (
 	StatusProcessing Status = "PROCESSING"
 	StatusSuccess    Status = "SUCCESS"
 	StatusFailed     Status = "FAILED"
-	StatusCancelled  Status = "CANCELLED"
+	StatusCancelled  Status = "CANCELLED" //nolint:misspell // matches proto enum and DB CHECK constraint
 )
 
 // IsTerminal returns true if the status is a final state.
