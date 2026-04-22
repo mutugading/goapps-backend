@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.10.0](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.9.1...finance-service/v0.10.0) (2026-04-22)
+
+
+### Features
+
+* implement raw material grouping and cost management modules with associated gRPC services and database migrations ([f67d111](https://github.com/mutugading/goapps-backend/commit/f67d111cb998323e80f8d3a8b9b93859227af4fa))
+* implement raw material grouping and cost management modules with associated gRPC services and database migrations ([a24776a](https://github.com/mutugading/goapps-backend/commit/a24776a45003a72248a9c45c0d35dd776d23ada8))
+
+
+### Bug Fixes
+
+* centralize group head ID parsing and apply consistent formatting to colourant field labels ([cbeb463](https://github.com/mutugading/goapps-backend/commit/cbeb4630294606260fa63daab98579c32f904ea2))
+* improve file handling, add linting annotations, and fix formatting across finance services ([365f51b](https://github.com/mutugading/goapps-backend/commit/365f51bd7c7885e5e4c4ef9d5ca8934241cee861))
+* rename Colourant to Colorant throughout the codebase and update minor internal helpers ([25e8f5c](https://github.com/mutugading/goapps-backend/commit/25e8f5cc1cef2276107e42f9aab375634dbbb91f))
+
 ## [0.9.1](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.9.0...finance-service/v0.9.1) (2026-04-17)
 
 
