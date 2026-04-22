@@ -30,7 +30,7 @@ func insertHeadAudit(ctx context.Context, exec sqlExecutor, head *rmgroup.Head, 
 	query := `
 		INSERT INTO aud_rm_group (
 			group_head_id, action,
-			group_code, group_name, description, colour` + `ant, ci_name,
+			group_code, group_name, description, colourant, ci_name,
 			cost_percentage, cost_per_kg,
 			flag_valuation, flag_marketing, flag_simulation,
 			init_val_valuation, init_val_marketing, init_val_simulation,

@@ -64,6 +64,9 @@ linters:
         - G104
     misspell:
       locale: US
+      ignore-words:
+        - colourant
+        - colour
     nestif:
       min-complexity: 4
     exhaustive:
