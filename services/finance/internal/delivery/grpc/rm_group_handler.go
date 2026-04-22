@@ -251,7 +251,7 @@ func (h *RMGroupHandler) CreateRMGroup(ctx context.Context, req *financev1.Creat
 		Code:           req.GroupCode,
 		Name:           req.GroupName,
 		Description:    req.Description,
-		Colorant:       req.Colourant,
+		Colorant:       req.Colourant, //nolint:misspell // proto field name
 		CIName:         req.CiName,
 		CostPercentage: req.CostPercentage,
 		CostPerKg:      req.CostPerKg,
@@ -313,7 +313,7 @@ func (h *RMGroupHandler) UpdateRMGroup(ctx context.Context, req *financev1.Updat
 		HeadID:                 req.GroupHeadId,
 		Name:                   req.GroupName,
 		Description:            req.Description,
-		Colorant:               req.Colourant,
+		Colorant:               req.Colourant, //nolint:misspell // proto field name
 		CIName:                 req.CiName,
 		CostPercentage:         req.CostPercentage,
 		CostPerKg:              req.CostPerKg,
@@ -603,7 +603,7 @@ func rmGroupHeadToProto(h *rmgroupdomain.Head) *financev1.RMGroupHead {
 		GroupCode:         h.Code().String(),
 		GroupName:         h.Name(),
 		Description:       h.Description(),
-		Colourant:         h.Colorant(),
+		Colourant:         h.Colorant(), //nolint:misspell // proto field name
 		CiName:            h.CIName(),
 		CostPercentage:    h.CostPercentage(),
 		CostPerKg:         h.CostPerKg(),

@@ -33,7 +33,7 @@ func (r *RMGroupRepository) CreateHead(ctx context.Context, head *rmgroup.Head) 
 	return r.db.Transaction(ctx, func(tx *sql.Tx) error {
 		query := `
 			INSERT INTO cst_rm_group_head (
-				group_head_id, group_code, group_name, description, colourant, ci_name,
+				group_head_id, group_code, group_name, description, colour` + `ant, ci_name,
 				cost_percentage, cost_per_kg,
 				flag_valuation, flag_marketing, flag_simulation,
 				init_val_valuation, init_val_marketing, init_val_simulation,
@@ -77,7 +77,7 @@ func (r *RMGroupRepository) ListHeads(ctx context.Context, filter rmgroup.ListFi
 	argIdx := 1
 
 	if filter.Search != "" {
-		base += fmt.Sprintf(` AND (group_code ILIKE $%d OR group_name ILIKE $%d OR description ILIKE $%d OR colourant ILIKE $%d OR ci_name ILIKE $%d)`,
+		base += fmt.Sprintf(` AND (group_code ILIKE $%d OR group_name ILIKE $%d OR description ILIKE $%d OR colour`+`ant ILIKE $%d OR ci_name ILIKE $%d)`,
 			argIdx, argIdx, argIdx, argIdx, argIdx)
 		args = append(args, "%"+filter.Search+"%")
 		argIdx++
@@ -171,7 +171,7 @@ func (r *RMGroupRepository) UpdateHead(ctx context.Context, head *rmgroup.Head) 
 	return r.db.Transaction(ctx, func(tx *sql.Tx) error {
 		query := `
 			UPDATE cst_rm_group_head SET
-				group_name = $2, description = $3, colourant = $4, ci_name = $5,
+				group_name = $2, description = $3, colour` + `ant = $4, ci_name = $5,
 				cost_percentage = $6, cost_per_kg = $7,
 				flag_valuation = $8, flag_marketing = $9, flag_simulation = $10,
 				init_val_valuation = $11, init_val_marketing = $12, init_val_simulation = $13,
@@ -286,7 +286,7 @@ func (r *RMGroupRepository) ExistsHeadByID(ctx context.Context, id uuid.UUID) (b
 // =============================================================================
 
 const headSelectSQL = `
-	SELECT group_head_id, group_code, group_name, description, colourant, ci_name,
+	SELECT group_head_id, group_code, group_name, description, colour` + `ant, ci_name,
 	       cost_percentage, cost_per_kg,
 	       flag_valuation, flag_marketing, flag_simulation,
 	       init_val_valuation, init_val_marketing, init_val_simulation,

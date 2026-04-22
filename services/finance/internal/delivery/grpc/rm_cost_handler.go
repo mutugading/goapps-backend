@@ -64,15 +64,11 @@ func (h *RMCostHandler) TriggerRMCostCalculation(ctx context.Context, req *finan
 		Reason:    apprmcost.TriggerReason(triggerReasonToString(req.TriggerReason)),
 		CreatedBy: getUserFromContext(ctx),
 	}
-	if req.GroupHeadId != nil && *req.GroupHeadId != "" {
-		id, parseErr := uuid.Parse(*req.GroupHeadId)
-		if parseErr != nil {
-			RecordRMCostOperation(opTrigger, false)
-			return &financev1.TriggerRMCostCalculationResponse{
-				Base: ErrorResponse("400", "invalid group_head_id: "+parseErr.Error()),
-			}, nil
-		}
-		cmd.GroupHeadID = &id
+	if gid, badResp := parseOptionalGroupHeadID(req.GroupHeadId); badResp != nil {
+		RecordRMCostOperation(opTrigger, false)
+		return &financev1.TriggerRMCostCalculationResponse{Base: badResp}, nil
+	} else if gid != nil {
+		cmd.GroupHeadID = gid
 	}
 
 	result, err := h.triggerHandler.Handle(ctx, cmd)
@@ -100,15 +96,11 @@ func (h *RMCostHandler) CalculateRMCost(ctx context.Context, req *financev1.Calc
 		TriggerReason: rmcostdomain.HistoryTriggerReason(triggerReasonToString(req.TriggerReason)),
 		CalculatedBy:  getUserFromContext(ctx),
 	}
-	if req.GroupHeadId != nil && *req.GroupHeadId != "" {
-		id, parseErr := uuid.Parse(*req.GroupHeadId)
-		if parseErr != nil {
-			RecordRMCostOperation(opCalculate, false)
-			return &financev1.CalculateRMCostResponse{
-				Base: ErrorResponse("400", "invalid group_head_id: "+parseErr.Error()),
-			}, nil
-		}
-		cmd.GroupHeadID = &id
+	if gid, badResp := parseOptionalGroupHeadID(req.GroupHeadId); badResp != nil {
+		RecordRMCostOperation(opCalculate, false)
+		return &financev1.CalculateRMCostResponse{Base: badResp}, nil
+	} else if gid != nil {
+		cmd.GroupHeadID = gid
 	}
 
 	result, err := h.calculateHandler.Handle(ctx, cmd)
@@ -261,15 +253,11 @@ func (h *RMCostHandler) ExportRMCosts(ctx context.Context, req *financev1.Export
 		RMType: rmcostdomain.RMType(rmTypeToString(req.RmType)),
 		Search: req.Search,
 	}
-	if req.GroupHeadId != nil && *req.GroupHeadId != "" {
-		id, parseErr := uuid.Parse(*req.GroupHeadId)
-		if parseErr != nil {
-			RecordRMCostOperation(opExport, false)
-			return &financev1.ExportRMCostsResponse{
-				Base: ErrorResponse("400", "invalid group_head_id: "+parseErr.Error()),
-			}, nil
-		}
-		query.GroupHeadID = &id
+	if gid, badResp := parseOptionalGroupHeadID(req.GroupHeadId); badResp != nil {
+		RecordRMCostOperation(opExport, false)
+		return &financev1.ExportRMCostsResponse{Base: badResp}, nil
+	} else if gid != nil {
+		query.GroupHeadID = gid
 	}
 
 	result, err := h.exportHandler.Handle(ctx, query)
@@ -452,4 +440,18 @@ func triggerReasonToProto(r rmcostdomain.HistoryTriggerReason) financev1.RMCostT
 // RecordRMCostOperation records an RM Cost operation metric.
 func RecordRMCostOperation(operation string, success bool) {
 	rmCostOperationsTotal.WithLabelValues(operation, metricStatus(success)).Inc()
+}
+
+// parseOptionalGroupHeadID parses an optional *string group_head_id into a
+// *uuid.UUID. Returns (nil, nil) when the input is nil or empty. Returns
+// (nil, baseResponse) when the input is non-empty but invalid.
+func parseOptionalGroupHeadID(raw *string) (*uuid.UUID, *commonv1.BaseResponse) {
+	if raw == nil || *raw == "" {
+		return nil, nil
+	}
+	id, err := uuid.Parse(*raw)
+	if err != nil {
+		return nil, ErrorResponse("400", "invalid group_head_id: "+err.Error())
+	}
+	return &id, nil
 }
