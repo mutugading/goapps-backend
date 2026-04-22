@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.12.0...iam-service/v0.13.0) (2026-04-22)
+
+
+### Features
+
+* implement raw material grouping and cost management modules with associated gRPC services and database migrations ([f67d111](https://github.com/mutugading/goapps-backend/commit/f67d111cb998323e80f8d3a8b9b93859227af4fa))
+* implement raw material grouping and cost management modules with associated gRPC services and database migrations ([a24776a](https://github.com/mutugading/goapps-backend/commit/a24776a45003a72248a9c45c0d35dd776d23ada8))
+
 ## [0.12.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.11.0...iam-service/v0.12.0) (2026-04-17)
 
 
