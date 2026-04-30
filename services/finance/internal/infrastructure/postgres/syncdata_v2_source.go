@@ -25,7 +25,7 @@ type V2SourceQty struct {
 }
 
 // FetchSourceQtyByItemGrade returns one record per (item_code, grade_code) in
-// the sync feed for the given period, keyed by (item_code, COALESCE(grade_code,'')).
+// the sync feed for the given period, keyed by (item_code, COALESCE(grade_code,”)).
 // Stock = STORES stage in cst_item_cons_stk_po. PO = PO_1 (first PO slot).
 //
 // Used by the V2 RM cost engine — replaces the aggregate FetchRateInputs.
@@ -71,7 +71,7 @@ func (r *SyncDataRepository) FetchSourceQtyByItemGrade(
 	out := make(map[ItemGradeKey]V2SourceQty, len(keys))
 	for rows.Next() {
 		var (
-			code, grade                                       string
+			code, grade                                        string
 			consVal, consQty, stockVal, stockQty, poVal, poQty sql.NullFloat64
 		)
 		if err := rows.Scan(&code, &grade, &consVal, &consQty, &stockVal, &stockQty, &poVal, &poQty); err != nil {

@@ -169,54 +169,57 @@ func hasMetadata(in AddItemInput) bool {
 }
 
 func applyItemMetadata(detail *rmgroup.Detail, in AddItemInput, createdBy string) error {
-	upd := rmgroup.DetailUpdateInput{
-		MarketPercentage: in.MarketPercentage,
-		MarketValueRp:    in.MarketValueRp,
-	}
-	if in.ItemName != "" {
-		v := in.ItemName
-		upd.ItemName = &v
-	}
-	if in.ItemTypeCode != "" {
-		v := in.ItemTypeCode
-		upd.ItemTypeCode = &v
-	}
-	if in.GradeCode != "" {
-		v := in.GradeCode
-		upd.GradeCode = &v
-	}
-	if in.ItemGrade != "" {
-		v := in.ItemGrade
-		upd.ItemGrade = &v
-	}
-	if in.UOMCode != "" {
-		v := in.UOMCode
-		upd.UOMCode = &v
-	}
-	if in.SortOrder > 0 {
-		v := in.SortOrder
-		upd.SortOrder = &v
-	}
-	hasV1Patch := upd.ItemName != nil || upd.ItemTypeCode != nil || upd.GradeCode != nil ||
-		upd.ItemGrade != nil || upd.UOMCode != nil || upd.SortOrder != nil ||
-		upd.MarketPercentage != nil || upd.MarketValueRp != nil
-	if hasV1Patch {
+	upd := buildDetailV1Update(in)
+	if hasV1DetailPatch(upd) {
 		if err := detail.Update(upd, createdBy); err != nil {
 			return err
 		}
 	}
-	// V2 valuation inputs (apply if any provided).
-	if in.ValuationFreightRate != nil || in.ValuationAntiDumpingPct != nil ||
-		in.ValuationDutyPct != nil || in.ValuationTransportRate != nil || in.ValuationDefaultValue != nil {
-		if err := detail.AttachValuationInputs(rmgroup.ValuationInputs{
-			FreightRate:    in.ValuationFreightRate,
-			AntiDumpingPct: in.ValuationAntiDumpingPct,
-			DutyPct:        in.ValuationDutyPct,
-			TransportRate:  in.ValuationTransportRate,
-			DefaultValue:   in.ValuationDefaultValue,
-		}); err != nil {
-			return err
-		}
+	if !hasV2ValuationPatch(in) {
+		return nil
 	}
-	return nil
+	return detail.AttachValuationInputs(rmgroup.ValuationInputs{
+		FreightRate:    in.ValuationFreightRate,
+		AntiDumpingPct: in.ValuationAntiDumpingPct,
+		DutyPct:        in.ValuationDutyPct,
+		TransportRate:  in.ValuationTransportRate,
+		DefaultValue:   in.ValuationDefaultValue,
+	})
+}
+
+func buildDetailV1Update(in AddItemInput) rmgroup.DetailUpdateInput {
+	upd := rmgroup.DetailUpdateInput{
+		MarketPercentage: in.MarketPercentage,
+		MarketValueRp:    in.MarketValueRp,
+	}
+	setOptString(&upd.ItemName, in.ItemName)
+	setOptString(&upd.ItemTypeCode, in.ItemTypeCode)
+	setOptString(&upd.GradeCode, in.GradeCode)
+	setOptString(&upd.ItemGrade, in.ItemGrade)
+	setOptString(&upd.UOMCode, in.UOMCode)
+	if in.SortOrder > 0 {
+		v := in.SortOrder
+		upd.SortOrder = &v
+	}
+	return upd
+}
+
+func setOptString(dst **string, v string) {
+	if v == "" {
+		return
+	}
+	s := v
+	*dst = &s
+}
+
+func hasV1DetailPatch(upd rmgroup.DetailUpdateInput) bool {
+	return upd.ItemName != nil || upd.ItemTypeCode != nil || upd.GradeCode != nil ||
+		upd.ItemGrade != nil || upd.UOMCode != nil || upd.SortOrder != nil ||
+		upd.MarketPercentage != nil || upd.MarketValueRp != nil
+}
+
+func hasV2ValuationPatch(in AddItemInput) bool {
+	return in.ValuationFreightRate != nil || in.ValuationAntiDumpingPct != nil ||
+		in.ValuationDutyPct != nil || in.ValuationTransportRate != nil ||
+		in.ValuationDefaultValue != nil
 }

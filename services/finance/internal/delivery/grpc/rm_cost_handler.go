@@ -16,17 +16,17 @@ import (
 // RMCostHandler implements the RMCostServiceServer interface.
 type RMCostHandler struct {
 	financev1.UnimplementedRMCostServiceServer
-	triggerHandler    *apprmcost.TriggerHandler
-	calculateHandler  *apprmcost.CalculateHandler
-	getHandler        *apprmcost.GetHandler
-	listHandler       *apprmcost.ListHandler
-	historyHandler    *apprmcost.HistoryHandler
-	periodsHandler    *apprmcost.PeriodsHandler
-	exportHandler     *apprmcost.ExportHandler
-	costDetailRepo    rmcostdomain.CostDetailRepository
-	editInputsHandler *apprmcost.EditInputsHandler
+	triggerHandler     *apprmcost.TriggerHandler
+	calculateHandler   *apprmcost.CalculateHandler
+	getHandler         *apprmcost.GetHandler
+	listHandler        *apprmcost.ListHandler
+	historyHandler     *apprmcost.HistoryHandler
+	periodsHandler     *apprmcost.PeriodsHandler
+	exportHandler      *apprmcost.ExportHandler
+	costDetailRepo     rmcostdomain.CostDetailRepository
+	editInputsHandler  *apprmcost.EditInputsHandler
 	editFixRateHandler *apprmcost.EditFixRateHandler
-	validationHelper  *ValidationHelper
+	validationHelper   *ValidationHelper
 }
 
 // NewRMCostHandler builds an RMCostHandler.

@@ -73,10 +73,10 @@ func (h *EditInputsHandler) Handle(ctx context.Context, cmd EditInputsCommand) (
 		MarketingFlag:           cur.MarketingFlag,
 	}
 	if hv2.ValuationFlag == "" {
-		hv2.ValuationFlag = "AUTO"
+		hv2.ValuationFlag = flagAuto
 	}
 	if hv2.MarketingFlag == "" {
-		hv2.MarketingFlag = "AUTO"
+		hv2.MarketingFlag = flagAuto
 	}
 
 	// Use existing CL/SL/FL/CR/SR/PR group totals (they don't change here).
@@ -103,14 +103,14 @@ func (h *EditInputsHandler) Handle(ctx context.Context, cmd EditInputsCommand) (
 func currentV2Inputs(cost *rmcost.Cost) rmcost.V2Inputs {
 	in := cost.V2Inputs()
 	if in == nil {
-		return rmcost.V2Inputs{ValuationFlag: "AUTO", MarketingFlag: "AUTO"}
+		return rmcost.V2Inputs{ValuationFlag: flagAuto, MarketingFlag: flagAuto}
 	}
 	cp := *in
 	if cp.ValuationFlag == "" {
-		cp.ValuationFlag = "AUTO"
+		cp.ValuationFlag = flagAuto
 	}
 	if cp.MarketingFlag == "" {
-		cp.MarketingFlag = "AUTO"
+		cp.MarketingFlag = flagAuto
 	}
 	return cp
 }
@@ -130,8 +130,8 @@ func applyEditPatches(cur *rmcost.V2Inputs, cmd EditInputsCommand) {
 	}
 }
 
-func patchFloat(cur, in *float64, clear bool) *float64 {
-	if clear {
+func patchFloat(cur, in *float64, clearField bool) *float64 {
+	if clearField {
 		return nil
 	}
 	if in == nil {

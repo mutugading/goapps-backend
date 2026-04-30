@@ -6,7 +6,6 @@ package rmcost
 import (
 	"context"
 	"fmt"
-	"math"
 
 	"github.com/google/uuid"
 
@@ -101,7 +100,7 @@ func (h *EditFixRateHandler) Handle(ctx context.Context, cmd EditFixRateCommand)
 	if err != nil {
 		return nil, fmt.Errorf("load cost: %w", err)
 	}
-	flag := "AUTO"
+	flag := flagAuto
 	if cost.V2Inputs() != nil {
 		flag = cost.V2Inputs().ValuationFlag
 	}
@@ -109,7 +108,7 @@ func (h *EditFixRateHandler) Handle(ctx context.Context, cmd EditFixRateCommand)
 	var newCostVal *float64
 	tot := totalsFromCost(cost)
 	tot.FL = flMax
-	if flag == "AUTO" || flag == "FL" {
+	if flag == flagAuto || flag == "FL" {
 		v := SelectValuation(tot, flag)
 		newCostVal = &v
 	} else {
@@ -127,12 +126,4 @@ func (h *EditFixRateHandler) Handle(ctx context.Context, cmd EditFixRateCommand)
 		return nil, fmt.Errorf("reload cost: %w", err)
 	}
 	return &EditFixRateResult{Detail: detail, Cost: updated}, nil
-}
-
-// roundForLog kept here to avoid importing math in callers that don't need it.
-//
-//nolint:deadcode,unused // utility kept for diagnostic logging
-func roundForLog(v float64, places int) float64 {
-	mult := math.Pow(10, float64(places))
-	return math.Round(v*mult) / mult
 }

@@ -82,28 +82,8 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*rmgroup
 	}
 
 	// V2 marketing inputs — apply on top of the V1 update if any V2 patch present.
-	if hasV2MarketingPatch(cmd) {
-		mi := head.MarketingInputs()
-		mi.FreightRate = patchOptFloat(mi.FreightRate, cmd.MarketingFreightRate, cmd.ClearMarketingFreightRate)
-		mi.AntiDumpingPct = patchOptFloat(mi.AntiDumpingPct, cmd.MarketingAntiDumpingPct, cmd.ClearMarketingAntiDumpingPct)
-		mi.DefaultValue = patchOptFloat(mi.DefaultValue, cmd.MarketingDefaultValue, cmd.ClearMarketingDefaultValue)
-		if cmd.ValuationFlag != nil {
-			vf, err := rmgroup.ParseValuationFlag(*cmd.ValuationFlag)
-			if err != nil {
-				return nil, err
-			}
-			mi.ValuationFlag = vf
-		}
-		if cmd.MarketingFlag != nil {
-			mf, err := rmgroup.ParseMarketingFlag(*cmd.MarketingFlag)
-			if err != nil {
-				return nil, err
-			}
-			mi.MarketingFlag = mf
-		}
-		if err := head.AttachMarketingInputs(mi); err != nil {
-			return nil, err
-		}
+	if err := applyV2MarketingPatch(head, cmd); err != nil {
+		return nil, err
 	}
 
 	if err := h.repo.UpdateHead(ctx, head); err != nil {
@@ -118,8 +98,51 @@ func hasV2MarketingPatch(cmd UpdateCommand) bool {
 		cmd.ClearMarketingFreightRate || cmd.ClearMarketingAntiDumpingPct || cmd.ClearMarketingDefaultValue
 }
 
-func patchOptFloat(cur, in *float64, clear bool) *float64 {
-	if clear {
+// applyV2MarketingPatch merges the V2 marketing patch onto the head's
+// existing MarketingInputs and re-attaches them through the validating setter.
+func applyV2MarketingPatch(head *rmgroup.Head, cmd UpdateCommand) error {
+	if !hasV2MarketingPatch(cmd) {
+		return nil
+	}
+	mi := head.MarketingInputs()
+	mi.FreightRate = patchOptFloat(mi.FreightRate, cmd.MarketingFreightRate, cmd.ClearMarketingFreightRate)
+	mi.AntiDumpingPct = patchOptFloat(mi.AntiDumpingPct, cmd.MarketingAntiDumpingPct, cmd.ClearMarketingAntiDumpingPct)
+	mi.DefaultValue = patchOptFloat(mi.DefaultValue, cmd.MarketingDefaultValue, cmd.ClearMarketingDefaultValue)
+	if err := applyV2ValuationFlag(&mi, cmd.ValuationFlag); err != nil {
+		return err
+	}
+	if err := applyV2MarketingFlag(&mi, cmd.MarketingFlag); err != nil {
+		return err
+	}
+	return head.AttachMarketingInputs(mi)
+}
+
+func applyV2ValuationFlag(mi *rmgroup.MarketingInputs, raw *string) error {
+	if raw == nil {
+		return nil
+	}
+	vf, err := rmgroup.ParseValuationFlag(*raw)
+	if err != nil {
+		return err
+	}
+	mi.ValuationFlag = vf
+	return nil
+}
+
+func applyV2MarketingFlag(mi *rmgroup.MarketingInputs, raw *string) error {
+	if raw == nil {
+		return nil
+	}
+	mf, err := rmgroup.ParseMarketingFlag(*raw)
+	if err != nil {
+		return err
+	}
+	mi.MarketingFlag = mf
+	return nil
+}
+
+func patchOptFloat(cur, in *float64, clearField bool) *float64 {
+	if clearField {
 		return nil
 	}
 	if in == nil {

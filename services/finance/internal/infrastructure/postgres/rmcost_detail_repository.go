@@ -251,22 +251,22 @@ const costDetailSelectSQL = `
 //nolint:gocyclo,gocognit // Wide scan mirrors persistence row 1:1.
 func scanCostDetailRow(scan scanFn) (*rmcost.CostDetail, error) {
 	var (
-		id, costID, headID                            uuid.UUID
-		groupDetailID                                 uuid.NullUUID
-		period, itemCode                              string
-		itemName                                      sql.NullString
-		gradeCode                                     sql.NullString
-		freight, anti, duty, transport, valDefault    sql.NullFloat64
-		cv, cq, cr, cfv, cvb, crb                     sql.NullFloat64
-		cav, car, cdv, cdr, ctv, ctr, cl              sql.NullFloat64
-		sv, sq, sr2, sfv, svb, srb                    sql.NullFloat64
-		sav, sar, sdv, sdr, stv, str2, sl             sql.NullFloat64
-		pv, pq, pr                                    sql.NullFloat64
-		fr, ffr, frb, far, fdr, ftr, fl2              sql.NullFloat64
-		createdAt                                     time.Time
-		createdBy                                     string
-		updatedAt                                     sql.NullTime
-		updatedBy                                     sql.NullString
+		id, costID, headID                         uuid.UUID
+		groupDetailID                              uuid.NullUUID
+		period, itemCode                           string
+		itemName                                   sql.NullString
+		gradeCode                                  sql.NullString
+		freight, anti, duty, transport, valDefault sql.NullFloat64
+		cv, cq, cr, cfv, cvb, crb                  sql.NullFloat64
+		cav, car, cdv, cdr, ctv, ctr, cl           sql.NullFloat64
+		sv, sq, sr2, sfv, svb, srb                 sql.NullFloat64
+		sav, sar, sdv, sdr, stv, str2, sl          sql.NullFloat64
+		pv, pq, pr                                 sql.NullFloat64
+		fr, ffr, frb, far, fdr, ftr, fl2           sql.NullFloat64
+		createdAt                                  time.Time
+		createdBy                                  string
+		updatedAt                                  sql.NullTime
+		updatedBy                                  sql.NullString
 	)
 	err := scan(
 		&id, &costID, &period, &headID, &groupDetailID,
@@ -304,21 +304,21 @@ func scanCostDetailRow(scan scanFn) (*rmcost.CostDetail, error) {
 		ValuationDefaultValue: nullFloatPtr(valDefault),
 		ConsVal:               nullFloatPtr(cv), ConsQty: nullFloatPtr(cq), ConsRate: nullFloatPtr(cr),
 		ConsFreightVal: nullFloatPtr(cfv), ConsValBased: nullFloatPtr(cvb),
-		ConsRateBased:  nullFloatPtr(crb),
+		ConsRateBased:      nullFloatPtr(crb),
 		ConsAntiDumpingVal: nullFloatPtr(cav), ConsAntiDumpingRate: nullFloatPtr(car),
 		ConsDutyVal: nullFloatPtr(cdv), ConsDutyRate: nullFloatPtr(cdr),
 		ConsTransportVal: nullFloatPtr(ctv), ConsTransportRate: nullFloatPtr(ctr),
 		ConsLandedCost: nullFloatPtr(cl),
 		StockVal:       nullFloatPtr(sv), StockQty: nullFloatPtr(sq), StockRate: nullFloatPtr(sr2),
 		StockFreightVal: nullFloatPtr(sfv), StockValBased: nullFloatPtr(svb),
-		StockRateBased:  nullFloatPtr(srb),
+		StockRateBased:      nullFloatPtr(srb),
 		StockAntiDumpingVal: nullFloatPtr(sav), StockAntiDumpingRate: nullFloatPtr(sar),
 		StockDutyVal: nullFloatPtr(sdv), StockDutyRate: nullFloatPtr(sdr),
 		StockTransportVal: nullFloatPtr(stv), StockTransportRate: nullFloatPtr(str2),
 		StockLandedCost: nullFloatPtr(sl),
 		POVal:           nullFloatPtr(pv), POQty: nullFloatPtr(pq), PORate: nullFloatPtr(pr),
-		FixRate:         nullFloatPtr(fr), FixFreightRate: nullFloatPtr(ffr),
-		FixRateBased:    nullFloatPtr(frb), FixAntiDumpingRate: nullFloatPtr(far),
+		FixRate: nullFloatPtr(fr), FixFreightRate: nullFloatPtr(ffr),
+		FixRateBased: nullFloatPtr(frb), FixAntiDumpingRate: nullFloatPtr(far),
 		FixDutyRate: nullFloatPtr(fdr), FixTransportRate: nullFloatPtr(ftr),
 		FixLandedCost: nullFloatPtr(fl2),
 	})

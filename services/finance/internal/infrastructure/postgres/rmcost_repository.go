@@ -101,9 +101,9 @@ func upsertCost(ctx context.Context, tx *sql.Tx, c *rmcost.Cost) error {
 			pr_rate = EXCLUDED.pr_rate
 	`
 	var (
-		valFlag, mktFlag                                       sql.NullString
-		mFreight, mAnti, mDuty, mTransport, mDefault, simRate  *float64
-		cl, sl, fl, sp, pp, fp, cr, sr, pr                     *float64
+		valFlag, mktFlag                                      sql.NullString
+		mFreight, mAnti, mDuty, mTransport, mDefault, simRate *float64
+		cl, sl, fl, sp, pp, fp, cr, sr, pr                    *float64
 	)
 	if v2In != nil {
 		valFlag = nullableFlagString(v2In.ValuationFlag)
@@ -417,53 +417,53 @@ const costSelectColumnsSQL = `
 const costSelectSQL = costSelectColumnsSQL + ` FROM cst_rm_cost`
 
 type costDTO struct {
-	ID                       uuid.UUID
-	Period                   string
-	RMCode                   string
-	RMType                   string
-	GroupHeadID              uuid.NullUUID
-	ItemCode                 sql.NullString
-	RMName                   sql.NullString
-	UOMCode                  sql.NullString
-	ConsRate                 sql.NullFloat64
-	StoresRate               sql.NullFloat64
-	DeptRate                 sql.NullFloat64
-	PO1Rate                  sql.NullFloat64
-	PO2Rate                  sql.NullFloat64
-	PO3Rate                  sql.NullFloat64
-	CostVal                  sql.NullFloat64
-	CostMark                 sql.NullFloat64
-	CostSim                  sql.NullFloat64
-	FlagValuation            string
-	FlagMarketing            string
-	FlagSimulation           string
-	FlagValuationUsed        string
-	FlagMarketingUsed        string
-	FlagSimulationUsed       string
-	CalculatedAt             sql.NullTime
-	CalculatedBy             sql.NullString
-	CreatedAt                time.Time
-	CreatedBy                string
-	UpdatedAt                sql.NullTime
-	UpdatedBy                sql.NullString
+	ID                 uuid.UUID
+	Period             string
+	RMCode             string
+	RMType             string
+	GroupHeadID        uuid.NullUUID
+	ItemCode           sql.NullString
+	RMName             sql.NullString
+	UOMCode            sql.NullString
+	ConsRate           sql.NullFloat64
+	StoresRate         sql.NullFloat64
+	DeptRate           sql.NullFloat64
+	PO1Rate            sql.NullFloat64
+	PO2Rate            sql.NullFloat64
+	PO3Rate            sql.NullFloat64
+	CostVal            sql.NullFloat64
+	CostMark           sql.NullFloat64
+	CostSim            sql.NullFloat64
+	FlagValuation      string
+	FlagMarketing      string
+	FlagSimulation     string
+	FlagValuationUsed  string
+	FlagMarketingUsed  string
+	FlagSimulationUsed string
+	CalculatedAt       sql.NullTime
+	CalculatedBy       sql.NullString
+	CreatedAt          time.Time
+	CreatedBy          string
+	UpdatedAt          sql.NullTime
+	UpdatedBy          sql.NullString
 	// V2 columns.
-	ValuationFlagV2          sql.NullString
-	MarketingFlagV2          sql.NullString
-	MarketingFreightRate     sql.NullFloat64
-	MarketingAntiDumpingPct  sql.NullFloat64
-	MarketingDutyPct         sql.NullFloat64
-	MarketingTransportRate   sql.NullFloat64
-	MarketingDefaultValue    sql.NullFloat64
-	SimulationRate           sql.NullFloat64
-	CLRate                   sql.NullFloat64
-	SLRate                   sql.NullFloat64
-	FLRate                   sql.NullFloat64
-	SPRate                   sql.NullFloat64
-	PPRate                   sql.NullFloat64
-	FPRate                   sql.NullFloat64
-	CRRate                   sql.NullFloat64
-	SRRate                   sql.NullFloat64
-	PRRate                   sql.NullFloat64
+	ValuationFlagV2         sql.NullString
+	MarketingFlagV2         sql.NullString
+	MarketingFreightRate    sql.NullFloat64
+	MarketingAntiDumpingPct sql.NullFloat64
+	MarketingDutyPct        sql.NullFloat64
+	MarketingTransportRate  sql.NullFloat64
+	MarketingDefaultValue   sql.NullFloat64
+	SimulationRate          sql.NullFloat64
+	CLRate                  sql.NullFloat64
+	SLRate                  sql.NullFloat64
+	FLRate                  sql.NullFloat64
+	SPRate                  sql.NullFloat64
+	PPRate                  sql.NullFloat64
+	FPRate                  sql.NullFloat64
+	CRRate                  sql.NullFloat64
+	SRRate                  sql.NullFloat64
+	PRRate                  sql.NullFloat64
 }
 
 func (d *costDTO) toEntity() *rmcost.Cost {

@@ -120,11 +120,11 @@ func (f MarketingFlag) String() string { return string(f) }
 // MarketingInputs is the per-head bag of marketing-projection inputs.
 // All fields nullable — NULL means "use 0" in formulas, not "missing required value".
 type MarketingInputs struct {
-	FreightRate     *float64
-	AntiDumpingPct  *float64 // whole percent (5 = 5%) at storage; engine divides by 100
-	DefaultValue    *float64
-	ValuationFlag   ValuationFlag
-	MarketingFlag   MarketingFlag
+	FreightRate    *float64
+	AntiDumpingPct *float64 // whole percent (5 = 5%) at storage; engine divides by 100
+	DefaultValue   *float64
+	ValuationFlag  ValuationFlag
+	MarketingFlag  MarketingFlag
 }
 
 // ValuationInputs is the per-detail bag of valuation-formula inputs.

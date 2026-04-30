@@ -306,32 +306,32 @@ const headSelectSQL = `
 	FROM cst_rm_group_head`
 
 type headDTO struct {
-	ID                       uuid.UUID
-	Code                     string
-	Name                     string
-	Description              sql.NullString
-	Colorant                 sql.NullString
-	CIName                   sql.NullString
-	CostPercentage           float64
-	CostPerKg                float64
-	FlagValuation            string
-	FlagMarketing            string
-	FlagSimulation           string
-	InitValValuation         sql.NullFloat64
-	InitValMarketing         sql.NullFloat64
-	InitValSimulation        sql.NullFloat64
-	IsActive                 bool
-	CreatedAt                time.Time
-	CreatedBy                string
-	UpdatedAt                sql.NullTime
-	UpdatedBy                sql.NullString
-	DeletedAt                sql.NullTime
-	DeletedBy                sql.NullString
-	MarketingFreightRate     sql.NullFloat64
-	MarketingAntiDumpingPct  sql.NullFloat64
-	MarketingDefaultValue    sql.NullFloat64
-	ValuationFlagV2          sql.NullString
-	MarketingFlagV2          sql.NullString
+	ID                      uuid.UUID
+	Code                    string
+	Name                    string
+	Description             sql.NullString
+	Colorant                sql.NullString
+	CIName                  sql.NullString
+	CostPercentage          float64
+	CostPerKg               float64
+	FlagValuation           string
+	FlagMarketing           string
+	FlagSimulation          string
+	InitValValuation        sql.NullFloat64
+	InitValMarketing        sql.NullFloat64
+	InitValSimulation       sql.NullFloat64
+	IsActive                bool
+	CreatedAt               time.Time
+	CreatedBy               string
+	UpdatedAt               sql.NullTime
+	UpdatedBy               sql.NullString
+	DeletedAt               sql.NullTime
+	DeletedBy               sql.NullString
+	MarketingFreightRate    sql.NullFloat64
+	MarketingAntiDumpingPct sql.NullFloat64
+	MarketingDefaultValue   sql.NullFloat64
+	ValuationFlagV2         sql.NullString
+	MarketingFlagV2         sql.NullString
 }
 
 func (d *headDTO) toEntity() (*rmgroup.Head, error) {

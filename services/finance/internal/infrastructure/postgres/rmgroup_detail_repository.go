@@ -172,30 +172,30 @@ const detailSelectSQL = `
 	FROM cst_rm_group_detail`
 
 type detailDTO struct {
-	ID                       uuid.UUID
-	HeadID                   uuid.UUID
-	ItemCode                 string
-	ItemName                 sql.NullString
-	ItemTypeCode             sql.NullString
-	GradeCode                sql.NullString
-	ItemGrade                sql.NullString
-	UOMCode                  sql.NullString
-	MarketPercentage         sql.NullFloat64
-	MarketValueRp            sql.NullFloat64
-	SortOrder                int32
-	IsActive                 bool
-	IsDummy                  bool
-	CreatedAt                time.Time
-	CreatedBy                string
-	UpdatedAt                sql.NullTime
-	UpdatedBy                sql.NullString
-	DeletedAt                sql.NullTime
-	DeletedBy                sql.NullString
-	ValuationFreightRate     sql.NullFloat64
-	ValuationAntiDumpingPct  sql.NullFloat64
-	ValuationDutyPct         sql.NullFloat64
-	ValuationTransportRate   sql.NullFloat64
-	ValuationDefaultValue    sql.NullFloat64
+	ID                      uuid.UUID
+	HeadID                  uuid.UUID
+	ItemCode                string
+	ItemName                sql.NullString
+	ItemTypeCode            sql.NullString
+	GradeCode               sql.NullString
+	ItemGrade               sql.NullString
+	UOMCode                 sql.NullString
+	MarketPercentage        sql.NullFloat64
+	MarketValueRp           sql.NullFloat64
+	SortOrder               int32
+	IsActive                bool
+	IsDummy                 bool
+	CreatedAt               time.Time
+	CreatedBy               string
+	UpdatedAt               sql.NullTime
+	UpdatedBy               sql.NullString
+	DeletedAt               sql.NullTime
+	DeletedBy               sql.NullString
+	ValuationFreightRate    sql.NullFloat64
+	ValuationAntiDumpingPct sql.NullFloat64
+	ValuationDutyPct        sql.NullFloat64
+	ValuationTransportRate  sql.NullFloat64
+	ValuationDefaultValue   sql.NullFloat64
 }
 
 func (d *detailDTO) toEntity() (*rmgroup.Detail, error) {

@@ -22,6 +22,7 @@ func (h *RMCostHandler) ListCostDetails(ctx context.Context, req *financev1.List
 	}
 	id, err := uuid.Parse(req.RmCostId)
 	if err != nil {
+		// nolint:nilerr // validation error returned via structured BaseResponse, not gRPC status
 		return &financev1.ListCostDetailsResponse{Base: &commonv1.BaseResponse{
 			IsSuccess:  false,
 			StatusCode: "400",
@@ -49,6 +50,7 @@ func (h *RMCostHandler) UpdateRMCostInputs(ctx context.Context, req *financev1.U
 	}
 	id, err := uuid.Parse(req.RmCostId)
 	if err != nil {
+		// nolint:nilerr // validation error returned via structured BaseResponse, not gRPC status
 		return &financev1.UpdateRMCostInputsResponse{Base: &commonv1.BaseResponse{
 			IsSuccess:  false,
 			StatusCode: "400",
@@ -102,6 +104,7 @@ func (h *RMCostHandler) UpdateCostDetailFixRate(ctx context.Context, req *financ
 	}
 	id, err := uuid.Parse(req.CostDetailId)
 	if err != nil {
+		// nolint:nilerr // validation error returned via structured BaseResponse, not gRPC status
 		return &financev1.UpdateCostDetailFixRateResponse{Base: &commonv1.BaseResponse{
 			IsSuccess:  false,
 			StatusCode: "400",

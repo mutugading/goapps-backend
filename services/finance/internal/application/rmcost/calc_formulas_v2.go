@@ -14,6 +14,10 @@ package rmcost
 
 import "math"
 
+// flagAuto is the cascade-fallback marker for both ValuationFlag and
+// MarketingFlag. CL→SL→FL for valuation, SP→PP→FP for marketing.
+const flagAuto = "AUTO"
+
 // SourceQty is one item's source quantities/values for one period.
 // All fields zero when no sync row was found for the (item, grade, period).
 type SourceQty struct {
@@ -180,12 +184,12 @@ type GroupTotals struct {
 // already-computed DetailOutputs. Mirrors Excel row 12.
 func AggregateGroupTotals(outs []DetailOutput) GroupTotals {
 	var (
-		consQtyTotal, consValTotal, consValBasedTotal               float64
-		consAntiValTotal, consDutyValTotal, consTransValTotal       float64
-		stockQtyTotal, stockValTotal, stockValBasedTotal            float64
-		stockAntiValTotal, stockDutyValTotal, stockTransValTotal    float64
-		poQtyTotal, poValTotal                                      float64
-		flMax                                                       float64
+		consQtyTotal, consValTotal, consValBasedTotal            float64
+		consAntiValTotal, consDutyValTotal, consTransValTotal    float64
+		stockQtyTotal, stockValTotal, stockValBasedTotal         float64
+		stockAntiValTotal, stockDutyValTotal, stockTransValTotal float64
+		poQtyTotal, poValTotal                                   float64
+		flMax                                                    float64
 	)
 	for _, o := range outs {
 		consQtyTotal += o.Source.ConsQty

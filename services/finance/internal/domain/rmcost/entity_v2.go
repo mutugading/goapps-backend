@@ -119,34 +119,34 @@ type CostDetail struct {
 	valuationDefaultValue *float64
 
 	// Consumption stage outputs.
-	consVal              *float64
-	consQty              *float64
-	consRate             *float64
-	consFreightVal       *float64
-	consValBased         *float64
-	consRateBased        *float64
-	consAntiDumpingVal   *float64
-	consAntiDumpingRate  *float64
-	consDutyVal          *float64
-	consDutyRate         *float64
-	consTransportVal     *float64
-	consTransportRate    *float64
-	consLandedCost       *float64
+	consVal             *float64
+	consQty             *float64
+	consRate            *float64
+	consFreightVal      *float64
+	consValBased        *float64
+	consRateBased       *float64
+	consAntiDumpingVal  *float64
+	consAntiDumpingRate *float64
+	consDutyVal         *float64
+	consDutyRate        *float64
+	consTransportVal    *float64
+	consTransportRate   *float64
+	consLandedCost      *float64
 
 	// Stock stage outputs.
-	stockVal              *float64
-	stockQty              *float64
-	stockRate             *float64
-	stockFreightVal       *float64
-	stockValBased         *float64
-	stockRateBased        *float64
-	stockAntiDumpingVal   *float64
-	stockAntiDumpingRate  *float64
-	stockDutyVal          *float64
-	stockDutyRate         *float64
-	stockTransportVal     *float64
-	stockTransportRate    *float64
-	stockLandedCost       *float64
+	stockVal             *float64
+	stockQty             *float64
+	stockRate            *float64
+	stockFreightVal      *float64
+	stockValBased        *float64
+	stockRateBased       *float64
+	stockAntiDumpingVal  *float64
+	stockAntiDumpingRate *float64
+	stockDutyVal         *float64
+	stockDutyRate        *float64
+	stockTransportVal    *float64
+	stockTransportRate   *float64
+	stockLandedCost      *float64
 
 	// PO stage.
 	poVal  *float64
@@ -154,13 +154,13 @@ type CostDetail struct {
 	poRate *float64
 
 	// Fix stage outputs (driven by editable fix_rate).
-	fixRate             *float64
-	fixFreightRate      *float64
-	fixRateBased        *float64
-	fixAntiDumpingRate  *float64
-	fixDutyRate         *float64
-	fixTransportRate    *float64
-	fixLandedCost       *float64
+	fixRate            *float64
+	fixFreightRate     *float64
+	fixRateBased       *float64
+	fixAntiDumpingRate *float64
+	fixDutyRate        *float64
+	fixTransportRate   *float64
+	fixLandedCost      *float64
 
 	createdAt time.Time
 	createdBy string

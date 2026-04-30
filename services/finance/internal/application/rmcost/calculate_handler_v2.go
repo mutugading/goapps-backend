@@ -50,29 +50,84 @@ func NewCalculateHandlerV2(
 
 // HandleOneGroup runs the V2 engine for a single group head and period.
 // Returns the upserted Cost row. Detail snapshots are persisted via UpsertAll.
-//
-//nolint:gocognit // Pipeline is procedural by design — pure cyclo cost.
 func (h *CalculateHandlerV2) HandleOneGroup(
 	ctx context.Context,
 	headID uuid.UUID,
 	period, calculatedBy string,
 ) (*rmcost.Cost, error) {
-	if err := rmcost.ValidatePeriod(period); err != nil {
+	if err := h.validateInputs(period, calculatedBy); err != nil {
 		return nil, err
 	}
-	if calculatedBy == "" {
-		return nil, rmcost.ErrEmptyCalculatedBy
+	head, details, err := h.loadHeadAndDetails(ctx, headID)
+	if err != nil {
+		return nil, err
 	}
+	outs, itemCodes, err := h.computeDetailOutputs(ctx, period, details)
+	if err != nil {
+		return nil, err
+	}
+	totals := AggregateGroupTotals(outs)
 
+	existing, err := h.fetchExistingCost(ctx, period, head.Code().String())
+	if err != nil {
+		return nil, err
+	}
+	simRate := simRateFromExisting(existing)
+
+	hv2 := headerInputsV2FromHead(head, simRate)
+	proj := ComputeMarketingProjections(totals, hv2)
+	costSim := ComputeSimulation(simRate, hv2)
+	costVal := SelectValuation(totals, hv2.ValuationFlag)
+	costMkt := SelectMarketing(proj, hv2.MarketingFlag)
+
+	uomCode := h.resolveGroupUOM(ctx, period, details, itemCodes)
+
+	cost, err := h.buildOrApplyCost(existing, head, period, uomCode, totals, proj, hv2, costVal, costMkt, costSim, calculatedBy)
+	if err != nil {
+		return nil, err
+	}
+	hist := buildHistoryV2(cost, head, totals, len(outs), nil, rmcost.TriggerManualUI, calculatedBy)
+	if err := h.costRepo.Upsert(ctx, cost, hist); err != nil {
+		return nil, fmt.Errorf("upsert cost: %w", err)
+	}
+	costDetails, err := rebuildCostDetailsWithCostID(details, outs, head.ID(), cost.ID(), period, calculatedBy)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.costDetailRepo.UpsertAll(ctx, cost.ID(), costDetails); err != nil {
+		return nil, fmt.Errorf("upsert cost details: %w", err)
+	}
+	return cost, nil
+}
+
+func (h *CalculateHandlerV2) validateInputs(period, calculatedBy string) error {
+	if err := rmcost.ValidatePeriod(period); err != nil {
+		return err
+	}
+	if calculatedBy == "" {
+		return rmcost.ErrEmptyCalculatedBy
+	}
+	return nil
+}
+
+func (h *CalculateHandlerV2) loadHeadAndDetails(ctx context.Context, headID uuid.UUID) (*rmgroup.Head, []*rmgroup.Detail, error) {
 	head, err := h.groupRepo.GetHeadByID(ctx, headID)
 	if err != nil {
-		return nil, fmt.Errorf("load head: %w", err)
+		return nil, nil, fmt.Errorf("load head: %w", err)
 	}
 	details, err := h.groupRepo.ListActiveDetailsByHeadID(ctx, headID)
 	if err != nil {
-		return nil, fmt.Errorf("list details: %w", err)
+		return nil, nil, fmt.Errorf("list details: %w", err)
 	}
+	return head, details, nil
+}
 
+// computeDetailOutputs builds the per-(item, grade) source-key list, fetches
+// V2 source quantities, and returns per-detail engine outputs plus the
+// flattened item-code list (used for UOM fallback).
+func (h *CalculateHandlerV2) computeDetailOutputs(
+	ctx context.Context, period string, details []*rmgroup.Detail,
+) ([]DetailOutput, []string, error) {
 	keys := make([]postgres.ItemGradeKey, 0, len(details))
 	itemCodes := make([]string, 0, len(details))
 	for _, d := range details {
@@ -87,77 +142,56 @@ func (h *CalculateHandlerV2) HandleOneGroup(
 	}
 	srcMap, err := h.source.FetchSourceQtyByItemGrade(ctx, period, keys)
 	if err != nil {
-		return nil, fmt.Errorf("fetch v2 source: %w", err)
+		return nil, nil, fmt.Errorf("fetch v2 source: %w", err)
 	}
-
-	// Build per-detail outputs.
 	outs := make([]DetailOutput, 0, len(details))
 	for _, d := range details {
 		if d.IsDummy() {
 			continue
 		}
 		key := postgres.ItemGradeKey{ItemCode: d.ItemCode().String(), GradeCode: d.GradeCode()}
-		src := srcMap[key] // zero V2SourceQty when not found
+		src := srcMap[key]
 		in := detailInputsFromGroupDetail(d)
-		out := ComputeDetail(in, V2SourceFromPG(src))
-		outs = append(outs, out)
+		outs = append(outs, ComputeDetail(in, V2SourceFromPG(src)))
 	}
+	return outs, itemCodes, nil
+}
 
-	totals := AggregateGroupTotals(outs)
-
-	// Determine simulation_rate: preserve from existing cost row if any (user edits).
-	existing, err := h.costRepo.GetByPeriodAndCode(ctx, period, head.Code().String())
+func (h *CalculateHandlerV2) fetchExistingCost(ctx context.Context, period, code string) (*rmcost.Cost, error) {
+	existing, err := h.costRepo.GetByPeriodAndCode(ctx, period, code)
 	if err != nil && !errors.Is(err, rmcost.ErrNotFound) {
 		return nil, fmt.Errorf("lookup existing cost: %w", err)
 	}
-	simRate := 0.0
-	if existing != nil && existing.V2Inputs() != nil && existing.V2Inputs().SimulationRate != nil {
-		simRate = *existing.V2Inputs().SimulationRate
+	return existing, nil
+}
+
+// simRateFromExisting preserves the user-edited simulation rate across recalcs.
+func simRateFromExisting(existing *rmcost.Cost) float64 {
+	if existing == nil || existing.V2Inputs() == nil || existing.V2Inputs().SimulationRate == nil {
+		return 0
 	}
+	return *existing.V2Inputs().SimulationRate
+}
 
-	// Build V2 header inputs from the rmgroup head + the existing simulation rate.
-	hv2 := headerInputsV2FromHead(head, simRate)
-
-	// Marketing projections, simulation, selection.
-	proj := ComputeMarketingProjections(totals, hv2)
-	costSim := ComputeSimulation(simRate, hv2)
-	costVal := SelectValuation(totals, hv2.ValuationFlag)
-	costMkt := SelectMarketing(proj, hv2.MarketingFlag)
-
-	// UOM resolution (reuse V1 logic — pick from details, fallback to feed).
+// resolveGroupUOM picks the group UOM from details, falling back to the sync
+// feed when no detail carries one.
+func (h *CalculateHandlerV2) resolveGroupUOM(
+	ctx context.Context, period string, details []*rmgroup.Detail, itemCodes []string,
+) string {
 	uomCode := pickGroupUOM(details)
-	if uomCode == "" && len(itemCodes) > 0 {
-		if uoms, e := h.uomSource.FetchItemUOMs(ctx, period, itemCodes); e == nil {
-			for _, c := range itemCodes {
-				if u := uoms[c]; u != "" {
-					uomCode = u
-					break
-				}
-			}
+	if uomCode != "" || len(itemCodes) == 0 {
+		return uomCode
+	}
+	uoms, err := h.uomSource.FetchItemUOMs(ctx, period, itemCodes)
+	if err != nil {
+		return ""
+	}
+	for _, c := range itemCodes {
+		if u := uoms[c]; u != "" {
+			return u
 		}
 	}
-
-	// Build or apply on Cost.
-	cost, err := h.buildOrApplyCost(existing, head, period, uomCode, totals, proj, hv2, costVal, costMkt, costSim, calculatedBy)
-	if err != nil {
-		return nil, err
-	}
-
-	// Persist Cost (V2 columns flow through upsertCost).
-	hist := buildHistoryV2(cost, head, totals, len(outs), nil, rmcost.TriggerManualUI, calculatedBy)
-	if err := h.costRepo.Upsert(ctx, cost, hist); err != nil {
-		return nil, fmt.Errorf("upsert cost: %w", err)
-	}
-
-	// Build cost details bound to the now-known cost.ID().
-	costDetails, err := rebuildCostDetailsWithCostID(details, outs, head.ID(), cost.ID(), period, calculatedBy)
-	if err != nil {
-		return nil, err
-	}
-	if err := h.costDetailRepo.UpsertAll(ctx, cost.ID(), costDetails); err != nil {
-		return nil, fmt.Errorf("upsert cost details: %w", err)
-	}
-	return cost, nil
+	return ""
 }
 
 // buildOrApplyCost loads existing or creates a new Cost, then attaches V2 inputs/rates.
@@ -248,10 +282,10 @@ func headerInputsV2FromHead(h *rmgroup.Head, simRate float64) HeaderInputsV2 {
 		MarketingFlag:           string(mi.MarketingFlag),
 	}
 	if out.ValuationFlag == "" {
-		out.ValuationFlag = "AUTO"
+		out.ValuationFlag = flagAuto
 	}
 	if out.MarketingFlag == "" {
-		out.MarketingFlag = "AUTO"
+		out.MarketingFlag = flagAuto
 	}
 	return out
 }
@@ -340,7 +374,7 @@ func detailOutputToSnapshot(o DetailOutput) rmcost.CostDetailSnapshot {
 func buildHistoryV2(
 	cost *rmcost.Cost,
 	head *rmgroup.Head,
-	totals GroupTotals,
+	_ GroupTotals, // reserved for future per-stage history columns
 	sourceCount int,
 	jobID *uuid.UUID,
 	reason rmcost.HistoryTriggerReason,
