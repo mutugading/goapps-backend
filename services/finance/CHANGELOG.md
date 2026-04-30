@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.0](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.10.0...finance-service/v0.11.0) (2026-04-30)
+
+
+### Features
+
+* implement RM cost calculation v2 and expand raw material group data models with database migrations ([ffafed9](https://github.com/mutugading/goapps-backend/commit/ffafed9b5220e8b0888c522a98013569ebbf52ab))
+* implement RM cost calculation v2 and expand raw material group data models with database migrations ([d8a9022](https://github.com/mutugading/goapps-backend/commit/d8a902271b371744f6cf42e01679e4a7d2d8a787))
+
 ## [0.10.0](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.9.1...finance-service/v0.10.0) (2026-04-22)
 
 
