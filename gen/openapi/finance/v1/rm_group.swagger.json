@@ -154,6 +154,24 @@
               "ACTIVE_FILTER_INACTIVE"
             ],
             "default": "ACTIVE_FILTER_UNSPECIFIED"
+          },
+          {
+            "name": "groupHeadIds",
+            "description": "Optional explicit group selection. When non-empty, only these groups\nare exported (overrides `active_filter` and `search`).",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "search",
+            "description": "Optional code/name search string. Empty = no search filter.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
