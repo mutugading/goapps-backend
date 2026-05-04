@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.11.1](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.11.0...finance-service/v0.11.1) (2026-05-04)
+
+
+### Bug Fixes
+
+* add search and explicit ID filters to ExportRMGroups and refactor RM Group import handler to support V2 schema ([5dbcfbd](https://github.com/mutugading/goapps-backend/commit/5dbcfbdbabcebb3663e2449d5df2f422a5f6846b))
+* add search and explicit ID filters to ExportRMGroups and refactor RM Group import handler to support V2 schema ([76584a2](https://github.com/mutugading/goapps-backend/commit/76584a2ce0fc02636d2f199bf4bb92d20ef60546))
+* improve error handling in RM group export and ensure proper resource cleanup in item lookup ([336c54d](https://github.com/mutugading/goapps-backend/commit/336c54d89c19f1577c4ecbc4b40e9f5789db9420))
+* **test:** enhance ambiguity handling in RM group import tests for CI compatibility ([c0bc804](https://github.com/mutugading/goapps-backend/commit/c0bc8042ec2dc68deca9fbeadf6c7bfd61e0ba25))
+* **test:** enhance ambiguity handling in RM group import tests for CI compatibility. ([144ba88](https://github.com/mutugading/goapps-backend/commit/144ba885642cba5dece9a9d96e2c6f88079d9ad1))
+
 ## [0.11.0](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.10.0...finance-service/v0.11.0) (2026-04-30)
 
 
