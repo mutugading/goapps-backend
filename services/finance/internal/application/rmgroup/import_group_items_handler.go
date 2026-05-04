@@ -144,11 +144,13 @@ func (h *ImportGroupItemsHandler) buildInput(ctx context.Context, row []string) 
 		}
 	}
 
-	// Enrich metadata from sync feed when available. Missing rows are still
-	// handed to AddItemsHandler so it can produce the correct "not in sync
-	// feed" skip reason — we do not reject here.
+	// Enrich metadata from sync feed using the (item_code, grade_code) key.
+	// When the user did not specify grade_code we list variants: 0/1 variants
+	// fall through to GetItemByCodeGrade below; >1 lets AddItemsHandler raise
+	// the standard "ambiguous variant" / "not in sync feed" path so the per-row
+	// AddItems flow stays the single point of truth for variant resolution.
 	if h.lookup != nil { //nolint:nestif // enrichment block
-		if syncItem, err := h.lookup.GetItemByCode(ctx, itemCodeStr); err == nil && syncItem != nil {
+		if syncItem, err := h.lookup.GetItemByCodeGrade(ctx, itemCodeStr, in.GradeCode); err == nil && syncItem != nil {
 			if in.ItemName == "" {
 				in.ItemName = syncItem.ItemName
 			}

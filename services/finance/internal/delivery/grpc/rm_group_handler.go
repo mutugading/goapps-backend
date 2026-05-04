@@ -922,7 +922,7 @@ func (h *RMGroupHandler) ExportRMGroups(ctx context.Context, req *financev1.Expo
 		return &financev1.ExportRMGroupsResponse{Base: baseResp}, nil
 	}
 
-	query := appgroup.ExportQuery{}
+	query := appgroup.ExportQuery{Search: req.Search}
 	switch req.ActiveFilter {
 	case financev1.ActiveFilter_ACTIVE_FILTER_ACTIVE:
 		v := true
@@ -931,6 +931,19 @@ func (h *RMGroupHandler) ExportRMGroups(ctx context.Context, req *financev1.Expo
 		v := false
 		query.IsActive = &v
 	case financev1.ActiveFilter_ACTIVE_FILTER_UNSPECIFIED:
+	}
+	for _, idStr := range req.GroupHeadIds {
+		id, perr := uuid.Parse(idStr)
+		if perr != nil {
+			RecordRMGroupOperation(opExport, false)
+			resp := &financev1.ExportRMGroupsResponse{Base: &commonv1.BaseResponse{
+				IsSuccess:  false,
+				StatusCode: "400",
+				Message:    "invalid group_head_id: " + idStr,
+			}}
+			return resp, nil //nolint:nilerr // validation error returned via BaseResponse
+		}
+		query.GroupHeadIDs = append(query.GroupHeadIDs, id)
 	}
 
 	result, err := h.exportHandler.Handle(ctx, query)

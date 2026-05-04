@@ -3416,11 +3416,21 @@ func (x *GetRMGroupItemRatesResponse) GetData() []*RMGroupItemRates {
 	return nil
 }
 
-// ExportRMGroupsRequest filters the export. Active filter only (no pagination).
+// ExportRMGroupsRequest filters the export. Three mutually-exclusive modes:
+//
+//   - All groups: leave both filters unset (default).
+//   - Filtered:   set `active_filter` (and/or `search`) to narrow the set.
+//   - Selected:   pass an explicit list of group_head_ids; all other filters
+//     are ignored.
 type ExportRMGroupsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Filter by active/inactive (UNSPECIFIED = all).
-	ActiveFilter  ActiveFilter `protobuf:"varint,1,opt,name=active_filter,json=activeFilter,proto3,enum=finance.v1.ActiveFilter" json:"active_filter,omitempty"`
+	ActiveFilter ActiveFilter `protobuf:"varint,1,opt,name=active_filter,json=activeFilter,proto3,enum=finance.v1.ActiveFilter" json:"active_filter,omitempty"`
+	// Optional explicit group selection. When non-empty, only these groups
+	// are exported (overrides `active_filter` and `search`).
+	GroupHeadIds []string `protobuf:"bytes,2,rep,name=group_head_ids,json=groupHeadIds,proto3" json:"group_head_ids,omitempty"`
+	// Optional code/name search string. Empty = no search filter.
+	Search        string `protobuf:"bytes,3,opt,name=search,proto3" json:"search,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3460,6 +3470,20 @@ func (x *ExportRMGroupsRequest) GetActiveFilter() ActiveFilter {
 		return x.ActiveFilter
 	}
 	return ActiveFilter_ACTIVE_FILTER_UNSPECIFIED
+}
+
+func (x *ExportRMGroupsRequest) GetGroupHeadIds() []string {
+	if x != nil {
+		return x.GroupHeadIds
+	}
+	return nil
+}
+
+func (x *ExportRMGroupsRequest) GetSearch() string {
+	if x != nil {
+		return x.Search
+	}
+	return ""
 }
 
 // ExportRMGroupsResponse returns a multi-sheet Excel (Groups + Items).
@@ -4161,9 +4185,12 @@ const file_finance_v1_rm_group_proto_rawDesc = "" +
 	"\x06period\x18\x02 \x01(\tB\x11\xbaH\x0er\f2\a^\\d{6}$\x98\x01\x06R\x06period\"|\n" +
 	"\x1bGetRMGroupItemRatesResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x120\n" +
-	"\x04data\x18\x02 \x03(\v2\x1c.finance.v1.RMGroupItemRatesR\x04data\"V\n" +
+	"\x04data\x18\x02 \x03(\v2\x1c.finance.v1.RMGroupItemRatesR\x04data\"\xac\x01\n" +
 	"\x15ExportRMGroupsRequest\x12=\n" +
-	"\ractive_filter\x18\x01 \x01(\x0e2\x18.finance.v1.ActiveFilterR\factiveFilter\"\x85\x01\n" +
+	"\ractive_filter\x18\x01 \x01(\x0e2\x18.finance.v1.ActiveFilterR\factiveFilter\x123\n" +
+	"\x0egroup_head_ids\x18\x02 \x03(\tB\r\xbaH\n" +
+	"\x92\x01\a\"\x05r\x03\xb0\x01\x01R\fgroupHeadIds\x12\x1f\n" +
+	"\x06search\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x18dR\x06search\"\x85\x01\n" +
 	"\x16ExportRMGroupsResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12!\n" +
 	"\ffile_content\x18\x02 \x01(\fR\vfileContent\x12\x1b\n" +
