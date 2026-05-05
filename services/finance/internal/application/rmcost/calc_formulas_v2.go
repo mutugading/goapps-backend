@@ -285,36 +285,79 @@ func ComputeSimulation(simRate float64, h HeaderInputsV2) float64 {
 // SelectValuation picks cost_val based on flag + group totals. AUTO triggers
 // the CL→SL→FL fallback (first non-zero).
 func SelectValuation(tot GroupTotals, flag string) float64 {
+	v, _ := SelectValuationWithFlag(tot, flag)
+	return v
+}
+
+// SelectValuationWithFlag returns cost_val and the flag actually applied. When
+// flag is explicit (CR/SR/PR/CL/SL/FL) the same flag is echoed back. When flag
+// is AUTO (or unrecognized), the cascade picks the first non-zero in
+// CL→SL→FL and returns the chosen flag — when all three are zero, the
+// resolved flag is "FL" (the last fallback).
+func SelectValuationWithFlag(tot GroupTotals, flag string) (float64, string) {
 	switch flag {
 	case "CR":
-		return tot.CR
+		return tot.CR, "CR"
 	case "SR":
-		return tot.SR
+		return tot.SR, "SR"
 	case "PR":
-		return tot.PR
+		return tot.PR, "PR"
 	case "CL":
-		return tot.CL
+		return tot.CL, "CL"
 	case "SL":
-		return tot.SL
+		return tot.SL, "SL"
 	case "FL":
-		return tot.FL
+		return tot.FL, "FL"
 	}
 	// AUTO / "" / unknown → cascade.
-	return firstNonZero(tot.CL, tot.SL, tot.FL)
+	return firstNonZeroWithLabel([]labeledRate{
+		{tot.CL, "CL"}, {tot.SL, "SL"}, {tot.FL, "FL"},
+	})
 }
 
 // SelectMarketing picks cost_mark based on flag + projections. AUTO triggers
 // the SP→PP→FP fallback.
 func SelectMarketing(p MarketingProjections, flag string) float64 {
+	v, _ := SelectMarketingWithFlag(p, flag)
+	return v
+}
+
+// SelectMarketingWithFlag returns cost_mark and the flag actually applied,
+// mirroring SelectValuationWithFlag but for marketing projections.
+func SelectMarketingWithFlag(p MarketingProjections, flag string) (float64, string) {
 	switch flag {
 	case "SP":
-		return p.SP
+		return p.SP, "SP"
 	case "PP":
-		return p.PP
+		return p.PP, "PP"
 	case "FP":
-		return p.FP
+		return p.FP, "FP"
 	}
-	return firstNonZero(p.SP, p.PP, p.FP)
+	return firstNonZeroWithLabel([]labeledRate{
+		{p.SP, "SP"}, {p.PP, "PP"}, {p.FP, "FP"},
+	})
+}
+
+// labeledRate pairs a candidate value with the flag label that selecting it
+// would correspond to.
+type labeledRate struct {
+	value float64
+	label string
+}
+
+// firstNonZeroWithLabel returns the first candidate whose value is strictly
+// > 0 along with its label. When every candidate is zero, returns (0, last
+// label) so callers always get a non-empty flag back.
+func firstNonZeroWithLabel(candidates []labeledRate) (float64, string) {
+	for _, c := range candidates {
+		if c.value > 0 {
+			return c.value, c.label
+		}
+	}
+	if len(candidates) == 0 {
+		return 0, ""
+	}
+	return 0, candidates[len(candidates)-1].label
 }
 
 // firstNonZero returns the first argument that is strictly > 0, else 0.

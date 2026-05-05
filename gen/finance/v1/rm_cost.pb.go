@@ -288,17 +288,22 @@ type RMCost struct {
 	// V2: Editable per-row simulation rate; 0/NULL → cost_sim = 0.
 	SimulationRate *float64 `protobuf:"fixed64,29,opt,name=simulation_rate,json=simulationRate,proto3,oneof" json:"simulation_rate,omitempty"`
 	// V2: Computed group-total rates (snapshots).
-	ClRate        *float64 `protobuf:"fixed64,30,opt,name=cl_rate,json=clRate,proto3,oneof" json:"cl_rate,omitempty"`
-	SlRate        *float64 `protobuf:"fixed64,31,opt,name=sl_rate,json=slRate,proto3,oneof" json:"sl_rate,omitempty"`
-	FlRate        *float64 `protobuf:"fixed64,32,opt,name=fl_rate,json=flRate,proto3,oneof" json:"fl_rate,omitempty"`
-	SpRate        *float64 `protobuf:"fixed64,33,opt,name=sp_rate,json=spRate,proto3,oneof" json:"sp_rate,omitempty"`
-	PpRate        *float64 `protobuf:"fixed64,34,opt,name=pp_rate,json=ppRate,proto3,oneof" json:"pp_rate,omitempty"`
-	FpRate        *float64 `protobuf:"fixed64,35,opt,name=fp_rate,json=fpRate,proto3,oneof" json:"fp_rate,omitempty"`
-	CrRate        *float64 `protobuf:"fixed64,36,opt,name=cr_rate,json=crRate,proto3,oneof" json:"cr_rate,omitempty"`
-	SrRate        *float64 `protobuf:"fixed64,37,opt,name=sr_rate,json=srRate,proto3,oneof" json:"sr_rate,omitempty"`
-	PrRate        *float64 `protobuf:"fixed64,38,opt,name=pr_rate,json=prRate,proto3,oneof" json:"pr_rate,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	ClRate *float64 `protobuf:"fixed64,30,opt,name=cl_rate,json=clRate,proto3,oneof" json:"cl_rate,omitempty"`
+	SlRate *float64 `protobuf:"fixed64,31,opt,name=sl_rate,json=slRate,proto3,oneof" json:"sl_rate,omitempty"`
+	FlRate *float64 `protobuf:"fixed64,32,opt,name=fl_rate,json=flRate,proto3,oneof" json:"fl_rate,omitempty"`
+	SpRate *float64 `protobuf:"fixed64,33,opt,name=sp_rate,json=spRate,proto3,oneof" json:"sp_rate,omitempty"`
+	PpRate *float64 `protobuf:"fixed64,34,opt,name=pp_rate,json=ppRate,proto3,oneof" json:"pp_rate,omitempty"`
+	FpRate *float64 `protobuf:"fixed64,35,opt,name=fp_rate,json=fpRate,proto3,oneof" json:"fp_rate,omitempty"`
+	CrRate *float64 `protobuf:"fixed64,36,opt,name=cr_rate,json=crRate,proto3,oneof" json:"cr_rate,omitempty"`
+	SrRate *float64 `protobuf:"fixed64,37,opt,name=sr_rate,json=srRate,proto3,oneof" json:"sr_rate,omitempty"`
+	PrRate *float64 `protobuf:"fixed64,38,opt,name=pr_rate,json=prRate,proto3,oneof" json:"pr_rate,omitempty"`
+	// V2: Valuation flag actually used after AUTO cascade (CL→SL→FL fallback).
+	// Equals valuation_flag when explicit, or the resolved choice when AUTO.
+	ValuationFlagUsed RMValuationFlag `protobuf:"varint,39,opt,name=valuation_flag_used,json=valuationFlagUsed,proto3,enum=finance.v1.RMValuationFlag" json:"valuation_flag_used,omitempty"`
+	// V2: Marketing flag actually used after AUTO cascade (SP→PP→FP fallback).
+	MarketingFlagUsed RMMarketingFlag `protobuf:"varint,40,opt,name=marketing_flag_used,json=marketingFlagUsed,proto3,enum=finance.v1.RMMarketingFlag" json:"marketing_flag_used,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *RMCost) Reset() {
@@ -595,6 +600,20 @@ func (x *RMCost) GetPrRate() float64 {
 		return *x.PrRate
 	}
 	return 0
+}
+
+func (x *RMCost) GetValuationFlagUsed() RMValuationFlag {
+	if x != nil {
+		return x.ValuationFlagUsed
+	}
+	return RMValuationFlag_RM_VALUATION_FLAG_UNSPECIFIED
+}
+
+func (x *RMCost) GetMarketingFlagUsed() RMMarketingFlag {
+	if x != nil {
+		return x.MarketingFlagUsed
+	}
+	return RMMarketingFlag_RM_MARKETING_FLAG_UNSPECIFIED
 }
 
 // V2: RMCostDetail is one row per (cost_id, item_code, grade_code) — full
@@ -2675,7 +2694,7 @@ const file_finance_v1_rm_cost_proto_rawDesc = "" +
 	"\x04dept\x18\x03 \x01(\x01R\x04dept\x12\x11\n" +
 	"\x04po_1\x18\x04 \x01(\x01R\x03po1\x12\x11\n" +
 	"\x04po_2\x18\x05 \x01(\x01R\x03po2\x12\x11\n" +
-	"\x04po_3\x18\x06 \x01(\x01R\x03po3\"\xa5\x10\n" +
+	"\x04po_3\x18\x06 \x01(\x01R\x03po3\"\xbf\x11\n" +
 	"\x06RMCost\x12\x1c\n" +
 	"\n" +
 	"rm_cost_id\x18\x01 \x01(\tR\brmCostId\x12\x16\n" +
@@ -2717,7 +2736,9 @@ const file_finance_v1_rm_cost_proto_rawDesc = "" +
 	"\afp_rate\x18# \x01(\x01H\x10R\x06fpRate\x88\x01\x01\x12\x1c\n" +
 	"\acr_rate\x18$ \x01(\x01H\x11R\x06crRate\x88\x01\x01\x12\x1c\n" +
 	"\asr_rate\x18% \x01(\x01H\x12R\x06srRate\x88\x01\x01\x12\x1c\n" +
-	"\apr_rate\x18& \x01(\x01H\x13R\x06prRate\x88\x01\x01B\x10\n" +
+	"\apr_rate\x18& \x01(\x01H\x13R\x06prRate\x88\x01\x01\x12K\n" +
+	"\x13valuation_flag_used\x18' \x01(\x0e2\x1b.finance.v1.RMValuationFlagR\x11valuationFlagUsed\x12K\n" +
+	"\x13marketing_flag_used\x18( \x01(\x0e2\x1b.finance.v1.RMMarketingFlagR\x11marketingFlagUsedB\x10\n" +
 	"\x0e_group_head_idB\f\n" +
 	"\n" +
 	"_item_codeB\x11\n" +
@@ -3091,66 +3112,68 @@ var file_finance_v1_rm_cost_proto_depIdxs = []int32{
 	27, // 8: finance.v1.RMCost.audit:type_name -> common.v1.AuditInfo
 	28, // 9: finance.v1.RMCost.valuation_flag:type_name -> finance.v1.RMValuationFlag
 	29, // 10: finance.v1.RMCost.marketing_flag:type_name -> finance.v1.RMMarketingFlag
-	27, // 11: finance.v1.RMCostDetail.audit:type_name -> common.v1.AuditInfo
-	0,  // 12: finance.v1.RMCostHistory.rm_type:type_name -> finance.v1.RMCostType
-	2,  // 13: finance.v1.RMCostHistory.rates:type_name -> finance.v1.RMCostRates
-	26, // 14: finance.v1.RMCostHistory.flag_valuation:type_name -> finance.v1.RMGroupFlag
-	26, // 15: finance.v1.RMCostHistory.flag_marketing:type_name -> finance.v1.RMGroupFlag
-	26, // 16: finance.v1.RMCostHistory.flag_simulation:type_name -> finance.v1.RMGroupFlag
-	26, // 17: finance.v1.RMCostHistory.flag_valuation_used:type_name -> finance.v1.RMGroupFlag
-	26, // 18: finance.v1.RMCostHistory.flag_marketing_used:type_name -> finance.v1.RMGroupFlag
-	26, // 19: finance.v1.RMCostHistory.flag_simulation_used:type_name -> finance.v1.RMGroupFlag
-	1,  // 20: finance.v1.RMCostHistory.trigger_reason:type_name -> finance.v1.RMCostTriggerReason
-	1,  // 21: finance.v1.TriggerRMCostCalculationRequest.trigger_reason:type_name -> finance.v1.RMCostTriggerReason
-	30, // 22: finance.v1.TriggerRMCostCalculationResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 23: finance.v1.CalculateRMCostRequest.trigger_reason:type_name -> finance.v1.RMCostTriggerReason
-	30, // 24: finance.v1.CalculateRMCostResponse.base:type_name -> common.v1.BaseResponse
-	30, // 25: finance.v1.GetRMCostResponse.base:type_name -> common.v1.BaseResponse
-	3,  // 26: finance.v1.GetRMCostResponse.data:type_name -> finance.v1.RMCost
-	0,  // 27: finance.v1.ListRMCostsRequest.rm_type:type_name -> finance.v1.RMCostType
-	30, // 28: finance.v1.ListRMCostsResponse.base:type_name -> common.v1.BaseResponse
-	3,  // 29: finance.v1.ListRMCostsResponse.data:type_name -> finance.v1.RMCost
-	31, // 30: finance.v1.ListRMCostsResponse.pagination:type_name -> common.v1.PaginationResponse
-	30, // 31: finance.v1.ListRMCostHistoryResponse.base:type_name -> common.v1.BaseResponse
-	5,  // 32: finance.v1.ListRMCostHistoryResponse.data:type_name -> finance.v1.RMCostHistory
-	31, // 33: finance.v1.ListRMCostHistoryResponse.pagination:type_name -> common.v1.PaginationResponse
-	30, // 34: finance.v1.ListCostDetailsResponse.base:type_name -> common.v1.BaseResponse
-	4,  // 35: finance.v1.ListCostDetailsResponse.data:type_name -> finance.v1.RMCostDetail
-	28, // 36: finance.v1.UpdateRMCostInputsRequest.valuation_flag:type_name -> finance.v1.RMValuationFlag
-	29, // 37: finance.v1.UpdateRMCostInputsRequest.marketing_flag:type_name -> finance.v1.RMMarketingFlag
-	30, // 38: finance.v1.UpdateRMCostInputsResponse.base:type_name -> common.v1.BaseResponse
-	3,  // 39: finance.v1.UpdateRMCostInputsResponse.data:type_name -> finance.v1.RMCost
-	30, // 40: finance.v1.UpdateCostDetailFixRateResponse.base:type_name -> common.v1.BaseResponse
-	4,  // 41: finance.v1.UpdateCostDetailFixRateResponse.detail:type_name -> finance.v1.RMCostDetail
-	3,  // 42: finance.v1.UpdateCostDetailFixRateResponse.parent_cost:type_name -> finance.v1.RMCost
-	0,  // 43: finance.v1.ExportRMCostsRequest.rm_type:type_name -> finance.v1.RMCostType
-	30, // 44: finance.v1.ExportRMCostsResponse.base:type_name -> common.v1.BaseResponse
-	30, // 45: finance.v1.ListRMCostPeriodsResponse.base:type_name -> common.v1.BaseResponse
-	6,  // 46: finance.v1.RMCostService.TriggerRMCostCalculation:input_type -> finance.v1.TriggerRMCostCalculationRequest
-	8,  // 47: finance.v1.RMCostService.CalculateRMCost:input_type -> finance.v1.CalculateRMCostRequest
-	10, // 48: finance.v1.RMCostService.GetRMCost:input_type -> finance.v1.GetRMCostRequest
-	12, // 49: finance.v1.RMCostService.ListRMCosts:input_type -> finance.v1.ListRMCostsRequest
-	14, // 50: finance.v1.RMCostService.ListRMCostHistory:input_type -> finance.v1.ListRMCostHistoryRequest
-	22, // 51: finance.v1.RMCostService.ListRMCostPeriods:input_type -> finance.v1.ListRMCostPeriodsRequest
-	23, // 52: finance.v1.RMCostService.ExportRMCosts:input_type -> finance.v1.ExportRMCostsRequest
-	16, // 53: finance.v1.RMCostService.ListCostDetails:input_type -> finance.v1.ListCostDetailsRequest
-	18, // 54: finance.v1.RMCostService.UpdateRMCostInputs:input_type -> finance.v1.UpdateRMCostInputsRequest
-	20, // 55: finance.v1.RMCostService.UpdateCostDetailFixRate:input_type -> finance.v1.UpdateCostDetailFixRateRequest
-	7,  // 56: finance.v1.RMCostService.TriggerRMCostCalculation:output_type -> finance.v1.TriggerRMCostCalculationResponse
-	9,  // 57: finance.v1.RMCostService.CalculateRMCost:output_type -> finance.v1.CalculateRMCostResponse
-	11, // 58: finance.v1.RMCostService.GetRMCost:output_type -> finance.v1.GetRMCostResponse
-	13, // 59: finance.v1.RMCostService.ListRMCosts:output_type -> finance.v1.ListRMCostsResponse
-	15, // 60: finance.v1.RMCostService.ListRMCostHistory:output_type -> finance.v1.ListRMCostHistoryResponse
-	25, // 61: finance.v1.RMCostService.ListRMCostPeriods:output_type -> finance.v1.ListRMCostPeriodsResponse
-	24, // 62: finance.v1.RMCostService.ExportRMCosts:output_type -> finance.v1.ExportRMCostsResponse
-	17, // 63: finance.v1.RMCostService.ListCostDetails:output_type -> finance.v1.ListCostDetailsResponse
-	19, // 64: finance.v1.RMCostService.UpdateRMCostInputs:output_type -> finance.v1.UpdateRMCostInputsResponse
-	21, // 65: finance.v1.RMCostService.UpdateCostDetailFixRate:output_type -> finance.v1.UpdateCostDetailFixRateResponse
-	56, // [56:66] is the sub-list for method output_type
-	46, // [46:56] is the sub-list for method input_type
-	46, // [46:46] is the sub-list for extension type_name
-	46, // [46:46] is the sub-list for extension extendee
-	0,  // [0:46] is the sub-list for field type_name
+	28, // 11: finance.v1.RMCost.valuation_flag_used:type_name -> finance.v1.RMValuationFlag
+	29, // 12: finance.v1.RMCost.marketing_flag_used:type_name -> finance.v1.RMMarketingFlag
+	27, // 13: finance.v1.RMCostDetail.audit:type_name -> common.v1.AuditInfo
+	0,  // 14: finance.v1.RMCostHistory.rm_type:type_name -> finance.v1.RMCostType
+	2,  // 15: finance.v1.RMCostHistory.rates:type_name -> finance.v1.RMCostRates
+	26, // 16: finance.v1.RMCostHistory.flag_valuation:type_name -> finance.v1.RMGroupFlag
+	26, // 17: finance.v1.RMCostHistory.flag_marketing:type_name -> finance.v1.RMGroupFlag
+	26, // 18: finance.v1.RMCostHistory.flag_simulation:type_name -> finance.v1.RMGroupFlag
+	26, // 19: finance.v1.RMCostHistory.flag_valuation_used:type_name -> finance.v1.RMGroupFlag
+	26, // 20: finance.v1.RMCostHistory.flag_marketing_used:type_name -> finance.v1.RMGroupFlag
+	26, // 21: finance.v1.RMCostHistory.flag_simulation_used:type_name -> finance.v1.RMGroupFlag
+	1,  // 22: finance.v1.RMCostHistory.trigger_reason:type_name -> finance.v1.RMCostTriggerReason
+	1,  // 23: finance.v1.TriggerRMCostCalculationRequest.trigger_reason:type_name -> finance.v1.RMCostTriggerReason
+	30, // 24: finance.v1.TriggerRMCostCalculationResponse.base:type_name -> common.v1.BaseResponse
+	1,  // 25: finance.v1.CalculateRMCostRequest.trigger_reason:type_name -> finance.v1.RMCostTriggerReason
+	30, // 26: finance.v1.CalculateRMCostResponse.base:type_name -> common.v1.BaseResponse
+	30, // 27: finance.v1.GetRMCostResponse.base:type_name -> common.v1.BaseResponse
+	3,  // 28: finance.v1.GetRMCostResponse.data:type_name -> finance.v1.RMCost
+	0,  // 29: finance.v1.ListRMCostsRequest.rm_type:type_name -> finance.v1.RMCostType
+	30, // 30: finance.v1.ListRMCostsResponse.base:type_name -> common.v1.BaseResponse
+	3,  // 31: finance.v1.ListRMCostsResponse.data:type_name -> finance.v1.RMCost
+	31, // 32: finance.v1.ListRMCostsResponse.pagination:type_name -> common.v1.PaginationResponse
+	30, // 33: finance.v1.ListRMCostHistoryResponse.base:type_name -> common.v1.BaseResponse
+	5,  // 34: finance.v1.ListRMCostHistoryResponse.data:type_name -> finance.v1.RMCostHistory
+	31, // 35: finance.v1.ListRMCostHistoryResponse.pagination:type_name -> common.v1.PaginationResponse
+	30, // 36: finance.v1.ListCostDetailsResponse.base:type_name -> common.v1.BaseResponse
+	4,  // 37: finance.v1.ListCostDetailsResponse.data:type_name -> finance.v1.RMCostDetail
+	28, // 38: finance.v1.UpdateRMCostInputsRequest.valuation_flag:type_name -> finance.v1.RMValuationFlag
+	29, // 39: finance.v1.UpdateRMCostInputsRequest.marketing_flag:type_name -> finance.v1.RMMarketingFlag
+	30, // 40: finance.v1.UpdateRMCostInputsResponse.base:type_name -> common.v1.BaseResponse
+	3,  // 41: finance.v1.UpdateRMCostInputsResponse.data:type_name -> finance.v1.RMCost
+	30, // 42: finance.v1.UpdateCostDetailFixRateResponse.base:type_name -> common.v1.BaseResponse
+	4,  // 43: finance.v1.UpdateCostDetailFixRateResponse.detail:type_name -> finance.v1.RMCostDetail
+	3,  // 44: finance.v1.UpdateCostDetailFixRateResponse.parent_cost:type_name -> finance.v1.RMCost
+	0,  // 45: finance.v1.ExportRMCostsRequest.rm_type:type_name -> finance.v1.RMCostType
+	30, // 46: finance.v1.ExportRMCostsResponse.base:type_name -> common.v1.BaseResponse
+	30, // 47: finance.v1.ListRMCostPeriodsResponse.base:type_name -> common.v1.BaseResponse
+	6,  // 48: finance.v1.RMCostService.TriggerRMCostCalculation:input_type -> finance.v1.TriggerRMCostCalculationRequest
+	8,  // 49: finance.v1.RMCostService.CalculateRMCost:input_type -> finance.v1.CalculateRMCostRequest
+	10, // 50: finance.v1.RMCostService.GetRMCost:input_type -> finance.v1.GetRMCostRequest
+	12, // 51: finance.v1.RMCostService.ListRMCosts:input_type -> finance.v1.ListRMCostsRequest
+	14, // 52: finance.v1.RMCostService.ListRMCostHistory:input_type -> finance.v1.ListRMCostHistoryRequest
+	22, // 53: finance.v1.RMCostService.ListRMCostPeriods:input_type -> finance.v1.ListRMCostPeriodsRequest
+	23, // 54: finance.v1.RMCostService.ExportRMCosts:input_type -> finance.v1.ExportRMCostsRequest
+	16, // 55: finance.v1.RMCostService.ListCostDetails:input_type -> finance.v1.ListCostDetailsRequest
+	18, // 56: finance.v1.RMCostService.UpdateRMCostInputs:input_type -> finance.v1.UpdateRMCostInputsRequest
+	20, // 57: finance.v1.RMCostService.UpdateCostDetailFixRate:input_type -> finance.v1.UpdateCostDetailFixRateRequest
+	7,  // 58: finance.v1.RMCostService.TriggerRMCostCalculation:output_type -> finance.v1.TriggerRMCostCalculationResponse
+	9,  // 59: finance.v1.RMCostService.CalculateRMCost:output_type -> finance.v1.CalculateRMCostResponse
+	11, // 60: finance.v1.RMCostService.GetRMCost:output_type -> finance.v1.GetRMCostResponse
+	13, // 61: finance.v1.RMCostService.ListRMCosts:output_type -> finance.v1.ListRMCostsResponse
+	15, // 62: finance.v1.RMCostService.ListRMCostHistory:output_type -> finance.v1.ListRMCostHistoryResponse
+	25, // 63: finance.v1.RMCostService.ListRMCostPeriods:output_type -> finance.v1.ListRMCostPeriodsResponse
+	24, // 64: finance.v1.RMCostService.ExportRMCosts:output_type -> finance.v1.ExportRMCostsResponse
+	17, // 65: finance.v1.RMCostService.ListCostDetails:output_type -> finance.v1.ListCostDetailsResponse
+	19, // 66: finance.v1.RMCostService.UpdateRMCostInputs:output_type -> finance.v1.UpdateRMCostInputsResponse
+	21, // 67: finance.v1.RMCostService.UpdateCostDetailFixRate:output_type -> finance.v1.UpdateCostDetailFixRateResponse
+	58, // [58:68] is the sub-list for method output_type
+	48, // [48:58] is the sub-list for method input_type
+	48, // [48:48] is the sub-list for extension type_name
+	48, // [48:48] is the sub-list for extension extendee
+	0,  // [0:48] is the sub-list for field type_name
 }
 
 func init() { file_finance_v1_rm_cost_proto_init() }
