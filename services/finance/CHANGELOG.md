@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.11.2](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.11.1...finance-service/v0.11.2) (2026-05-05)
+
+
+### Bug Fixes
+
+* **ungrouped-handler:** optimize UngroupedQuery to UngroupedItemsFilter conversion by using direct type conversion ([b0e2a30](https://github.com/mutugading/goapps-backend/commit/b0e2a3078389f9efcd8559c9373db1906b3b233d))
+* **ungrouped-items:** update UngroupedItems handling to support group ing monitor view with enhanced filtering and sorting options ([0611c25](https://github.com/mutugading/goapps-backend/commit/0611c250f41e2c75791f4e88f8f7e14c5f359f51))
+* **ungrouped-items:** update UngroupedItems handling to support grouping monitor view with enhanced filtering and sorting options ([2909d73](https://github.com/mutugading/goapps-backend/commit/2909d73a2643811664609f1d533923a6f41b88b7))
+
 ## [0.11.1](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.11.0...finance-service/v0.11.1) (2026-05-04)
 
 
