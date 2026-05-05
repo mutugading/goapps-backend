@@ -573,10 +573,12 @@ func (h *RMGroupHandler) ListUngroupedItems(ctx context.Context, req *financev1.
 	}
 
 	result, err := h.ungroupedHandler.Handle(ctx, appgroup.UngroupedQuery{
-		Page:     int(req.Page),
-		PageSize: int(req.PageSize),
-		Period:   req.Period,
-		Search:   req.Search,
+		Page:      int(req.Page),
+		PageSize:  int(req.PageSize),
+		Search:    req.Search,
+		Scope:     groupingScopeFromProto(req.Scope),
+		SortBy:    req.SortBy,
+		SortOrder: req.SortOrder,
 	})
 	if err != nil {
 		RecordRMGroupOperation(opListUngrouped, false)
@@ -807,40 +809,28 @@ func protoMarketingFlagToString(f financev1.RMMarketingFlag) string {
 	}
 }
 
-func ungroupedItemToProto(it *syncdata.ItemConsStockPO) *financev1.UngroupedItem {
-	out := &financev1.UngroupedItem{
-		Period:    it.Period,
-		ItemCode:  it.ItemCode,
-		ItemName:  it.ItemName,
-		GradeCode: it.GradeCode,
-		ItemGrade: it.GradeName,
-		UomCode:   it.UOM,
+func ungroupedItemToProto(it *appgroup.GroupingMonitorItem) *financev1.UngroupedItem {
+	return &financev1.UngroupedItem{
+		ItemCode:    it.ItemCode,
+		ItemName:    it.ItemName,
+		GradeCode:   it.GradeCode,
+		ItemGrade:   it.GradeName,
+		UomCode:     it.UOM,
+		GroupHeadId: it.GroupHeadID,
+		GroupCode:   it.GroupCode,
+		GroupName:   it.GroupName,
+		SortOrder:   it.SortOrder,
+		AssignedAt:  it.AssignedAt,
 	}
-	assignF64(&out.ConsQty, it.ConsQty)
-	assignF64(&out.ConsVal, it.ConsVal)
-	assignF64(&out.ConsRate, it.ConsRate)
-	assignF64(&out.StoresQty, it.StoresQty)
-	assignF64(&out.StoresVal, it.StoresVal)
-	assignF64(&out.StoresRate, it.StoresRate)
-	assignF64(&out.DeptQty, it.DeptQty)
-	assignF64(&out.DeptVal, it.DeptVal)
-	assignF64(&out.DeptRate, it.DeptRate)
-	assignF64(&out.LastPoQty1, it.LastPOQty1)
-	assignF64(&out.LastPoVal1, it.LastPOVal1)
-	assignF64(&out.LastPoRate1, it.LastPORate1)
-	assignF64(&out.LastPoQty2, it.LastPOQty2)
-	assignF64(&out.LastPoVal2, it.LastPOVal2)
-	assignF64(&out.LastPoRate2, it.LastPORate2)
-	assignF64(&out.LastPoQty3, it.LastPOQty3)
-	assignF64(&out.LastPoVal3, it.LastPOVal3)
-	assignF64(&out.LastPoRate3, it.LastPORate3)
-	return out
 }
 
-func assignF64(dst *float64, src *float64) {
-	if src != nil {
-		*dst = *src
+// groupingScopeFromProto maps the proto scope enum to the application
+// layer's GroupingScope. UNSPECIFIED defaults to Ungrouped.
+func groupingScopeFromProto(s financev1.RMGroupingScope) appgroup.GroupingScope {
+	if s == financev1.RMGroupingScope_RM_GROUPING_SCOPE_GROUPED {
+		return appgroup.GroupingScopeGrouped
 	}
+	return appgroup.GroupingScopeUngrouped
 }
 
 func skippedItemToProto(s appgroup.SkippedItem) *financev1.SkippedItem {
@@ -1029,8 +1019,10 @@ func (h *RMGroupHandler) ExportUngroupedItems(ctx context.Context, req *financev
 	}
 
 	result, err := h.ungroupedExport.Handle(ctx, appgroup.UngroupedExportQuery{
-		Period: req.Period,
-		Search: req.Search,
+		Search:    req.Search,
+		Scope:     groupingScopeFromProto(req.Scope),
+		SortBy:    req.SortBy,
+		SortOrder: req.SortOrder,
 	})
 	if err != nil {
 		RecordRMGroupOperation(opExport, false)

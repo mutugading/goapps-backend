@@ -11,7 +11,6 @@ import (
 
 	appgroup "github.com/mutugading/goapps-backend/services/finance/internal/application/rmgroup"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/rmgroup"
-	"github.com/mutugading/goapps-backend/services/finance/internal/domain/syncdata"
 )
 
 func newHead(t *testing.T) *rmgroup.Head {
@@ -246,11 +245,11 @@ func TestRemoveItemsHandler_RejectsMismatchedHead(t *testing.T) {
 func TestUngroupedHandler_Pagination(t *testing.T) {
 	ctx := context.Background()
 	reader := new(mockUngroupedReader)
-	reader.On("ListUngroupedItems", ctx, mock.AnythingOfType("rmgroup.UngroupedItemsFilter")).
-		Return([]*syncdata.ItemConsStockPO{{ItemCode: "A"}}, int64(7), nil)
+	reader.On("ListGroupingMonitor", ctx, mock.AnythingOfType("rmgroup.UngroupedItemsFilter")).
+		Return([]*appgroup.GroupingMonitorItem{{ItemCode: "A"}}, int64(7), nil)
 
 	h := appgroup.NewUngroupedHandler(reader)
-	res, err := h.Handle(ctx, appgroup.UngroupedQuery{Page: 1, PageSize: 5, Period: "202604"})
+	res, err := h.Handle(ctx, appgroup.UngroupedQuery{Page: 1, PageSize: 5})
 	require.NoError(t, err)
 	assert.Equal(t, int64(7), res.TotalItems)
 	assert.Equal(t, int32(2), res.TotalPages)

@@ -8,7 +8,6 @@ import (
 
 	appgroup "github.com/mutugading/goapps-backend/services/finance/internal/application/rmgroup"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/rmgroup"
-	"github.com/mutugading/goapps-backend/services/finance/internal/domain/syncdata"
 )
 
 // mockRepo is a testify/mock implementation of rmgroup.Repository.
@@ -123,11 +122,11 @@ type mockUngroupedReader struct {
 	mock.Mock
 }
 
-func (m *mockUngroupedReader) ListUngroupedItems(ctx context.Context, filter appgroup.UngroupedItemsFilter) ([]*syncdata.ItemConsStockPO, int64, error) {
+func (m *mockUngroupedReader) ListGroupingMonitor(ctx context.Context, filter appgroup.UngroupedItemsFilter) ([]*appgroup.GroupingMonitorItem, int64, error) {
 	args := m.Called(ctx, filter)
-	var items []*syncdata.ItemConsStockPO
+	var items []*appgroup.GroupingMonitorItem
 	if v := args.Get(0); v != nil {
-		items = v.([]*syncdata.ItemConsStockPO)
+		items = v.([]*appgroup.GroupingMonitorItem)
 	}
 	return items, args.Get(1).(int64), args.Error(2)
 }

@@ -295,15 +295,35 @@
             "format": "int32"
           },
           {
-            "name": "period",
-            "description": "Period filter (YYYYMM). Empty = all periods.",
+            "name": "search",
+            "description": "Free-text search on item_code, item_name, grade_code, grade_name and\n(when scope = GROUPED) group_code / group_name.",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "search",
-            "description": "Free-text search on item_code, item_name, item_type_code, grade_code.",
+            "name": "scope",
+            "description": "Selector for ungrouped vs grouped view. UNSPECIFIED = UNGROUPED.\n\n - RM_GROUPING_SCOPE_UNSPECIFIED: Default zero value. Treated as UNGROUPED.\n - RM_GROUPING_SCOPE_UNGROUPED: Items not assigned to any active group (deleted/inactive details count\nas ungrouped — operator must reassign to surface the item again).\n - RM_GROUPING_SCOPE_GROUPED: Items with at least one active, non-deleted detail row in any group.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "RM_GROUPING_SCOPE_UNSPECIFIED",
+              "RM_GROUPING_SCOPE_UNGROUPED",
+              "RM_GROUPING_SCOPE_GROUPED"
+            ],
+            "default": "RM_GROUPING_SCOPE_UNSPECIFIED"
+          },
+          {
+            "name": "sortBy",
+            "description": "Sort column. Empty defaults to item_code. group_*, sort_order and\nassigned_at apply only when scope = GROUPED.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sortOrder",
+            "description": "Sort direction. Empty defaults to asc.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -334,15 +354,35 @@
         },
         "parameters": [
           {
-            "name": "period",
-            "description": "Period filter (YYYYMM). Empty = all periods.",
+            "name": "search",
+            "description": "Free-text search on item_code, item_name, grade_code, grade_name and\n(when scope = GROUPED) group_code / group_name.",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "search",
-            "description": "Free-text search on item_code, item_name, item_type_code, grade_code.",
+            "name": "scope",
+            "description": "Selector for ungrouped vs grouped view. UNSPECIFIED = UNGROUPED.\n\n - RM_GROUPING_SCOPE_UNSPECIFIED: Default zero value. Treated as UNGROUPED.\n - RM_GROUPING_SCOPE_UNGROUPED: Items not assigned to any active group (deleted/inactive details count\nas ungrouped — operator must reassign to surface the item again).\n - RM_GROUPING_SCOPE_GROUPED: Items with at least one active, non-deleted detail row in any group.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "RM_GROUPING_SCOPE_UNSPECIFIED",
+              "RM_GROUPING_SCOPE_UNGROUPED",
+              "RM_GROUPING_SCOPE_GROUPED"
+            ],
+            "default": "RM_GROUPING_SCOPE_UNSPECIFIED"
+          },
+          {
+            "name": "sortBy",
+            "description": "Sort column. Empty defaults to item_code.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sortOrder",
+            "description": "Sort direction. Empty defaults to asc.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -1743,6 +1783,16 @@
       },
       "description": "RMGroupItemRates is one row per item currently in a group with its per-stage\nOracle sync rates for a given period. Items with no sync row for the period\nstill appear (all rates 0)."
     },
+    "v1RMGroupingScope": {
+      "type": "string",
+      "enum": [
+        "RM_GROUPING_SCOPE_UNSPECIFIED",
+        "RM_GROUPING_SCOPE_UNGROUPED",
+        "RM_GROUPING_SCOPE_GROUPED"
+      ],
+      "default": "RM_GROUPING_SCOPE_UNSPECIFIED",
+      "description": "RMGroupingScope filters the grouping monitor view by whether each\n(item_code, grade_code) pair is currently assigned to an active RM group.\nStatus is evaluated cross-period — group membership is master data and\ndoes not depend on the period the item appeared in the sync feed.\n\n - RM_GROUPING_SCOPE_UNSPECIFIED: Default zero value. Treated as UNGROUPED.\n - RM_GROUPING_SCOPE_UNGROUPED: Items not assigned to any active group (deleted/inactive details count\nas ungrouped — operator must reassign to surface the item again).\n - RM_GROUPING_SCOPE_GROUPED: Items with at least one active, non-deleted detail row in any group."
+    },
     "v1RMMarketingFlag": {
       "type": "string",
       "enum": [
@@ -1818,21 +1868,17 @@
     "v1UngroupedItem": {
       "type": "object",
       "properties": {
-        "period": {
-          "type": "string",
-          "description": "Period (YYYYMM)."
-        },
         "itemCode": {
           "type": "string",
           "description": "Item code."
         },
         "itemName": {
           "type": "string",
-          "description": "Item name."
+          "description": "Item name (latest known from sync feed)."
         },
         "itemTypeCode": {
           "type": "string",
-          "description": "Item type code."
+          "description": "Item type code (latest known from sync feed)."
         },
         "gradeCode": {
           "type": "string",
@@ -1840,104 +1886,35 @@
         },
         "itemGrade": {
           "type": "string",
-          "description": "Item grade."
+          "description": "Item grade (grade_name from the sync feed)."
         },
         "uomCode": {
           "type": "string",
-          "description": "UOM code."
+          "description": "UOM code (latest known from sync feed)."
         },
-        "consVal": {
-          "type": "number",
-          "format": "double",
-          "description": "CONS stage value."
+        "groupHeadId": {
+          "type": "string",
+          "description": "Owning group head UUID. Empty when scope = UNGROUPED."
         },
-        "storesVal": {
-          "type": "number",
-          "format": "double",
-          "description": "STORES stage value."
+        "groupCode": {
+          "type": "string",
+          "description": "Owning group code (uppercase). Empty when scope = UNGROUPED."
         },
-        "consQty": {
-          "type": "number",
-          "format": "double",
-          "description": "CONS stage quantity."
+        "groupName": {
+          "type": "string",
+          "description": "Owning group name. Empty when scope = UNGROUPED."
         },
-        "consRate": {
-          "type": "number",
-          "format": "double",
-          "description": "CONS stage rate."
+        "sortOrder": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Sort order within the group. Zero when scope = UNGROUPED."
         },
-        "storesQty": {
-          "type": "number",
-          "format": "double",
-          "description": "STORES stage quantity."
-        },
-        "storesRate": {
-          "type": "number",
-          "format": "double",
-          "description": "STORES stage rate."
-        },
-        "deptQty": {
-          "type": "number",
-          "format": "double",
-          "description": "DEPT stage quantity."
-        },
-        "deptVal": {
-          "type": "number",
-          "format": "double",
-          "description": "DEPT stage value."
-        },
-        "deptRate": {
-          "type": "number",
-          "format": "double",
-          "description": "DEPT stage rate."
-        },
-        "lastPoQty1": {
-          "type": "number",
-          "format": "double",
-          "description": "PO_1 stage quantity."
-        },
-        "lastPoVal1": {
-          "type": "number",
-          "format": "double",
-          "description": "PO_1 stage value."
-        },
-        "lastPoRate1": {
-          "type": "number",
-          "format": "double",
-          "description": "PO_1 stage rate."
-        },
-        "lastPoQty2": {
-          "type": "number",
-          "format": "double",
-          "description": "PO_2 stage quantity."
-        },
-        "lastPoVal2": {
-          "type": "number",
-          "format": "double",
-          "description": "PO_2 stage value."
-        },
-        "lastPoRate2": {
-          "type": "number",
-          "format": "double",
-          "description": "PO_2 stage rate."
-        },
-        "lastPoQty3": {
-          "type": "number",
-          "format": "double",
-          "description": "PO_3 stage quantity."
-        },
-        "lastPoVal3": {
-          "type": "number",
-          "format": "double",
-          "description": "PO_3 stage value."
-        },
-        "lastPoRate3": {
-          "type": "number",
-          "format": "double",
-          "description": "PO_3 stage rate."
+        "assignedAt": {
+          "type": "string",
+          "description": "ISO-8601 timestamp the item was first added to the group (created_at on\nthe active detail row). Empty when scope = UNGROUPED."
         }
       },
-      "description": "UngroupedItem is a raw material present in the Oracle sync feed that has no\nactive RM group assignment."
+      "description": "UngroupedItem represents one (item_code, grade_code) pair viewed through the\ngrouping monitor. Used by both UNGROUPED and GROUPED scopes — the group_*\nfields are populated only when the item is assigned to an active group.\n\nPer-period qty/rate snapshot fields were removed (reserved 1, 8-25) because\nthe monitor view is cross-period and those numbers are no longer relevant\nto the grouped/ungrouped status."
     },
     "v1UpdateGroupItemResponse": {
       "type": "object",
