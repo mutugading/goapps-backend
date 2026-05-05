@@ -282,6 +282,63 @@ func (RemoveItemsMode) EnumDescriptor() ([]byte, []int) {
 	return file_finance_v1_rm_group_proto_rawDescGZIP(), []int{3}
 }
 
+// RMGroupingScope filters the grouping monitor view by whether each
+// (item_code, grade_code) pair is currently assigned to an active RM group.
+// Status is evaluated cross-period — group membership is master data and
+// does not depend on the period the item appeared in the sync feed.
+type RMGroupingScope int32
+
+const (
+	// Default zero value. Treated as UNGROUPED.
+	RMGroupingScope_RM_GROUPING_SCOPE_UNSPECIFIED RMGroupingScope = 0
+	// Items not assigned to any active group (deleted/inactive details count
+	// as ungrouped — operator must reassign to surface the item again).
+	RMGroupingScope_RM_GROUPING_SCOPE_UNGROUPED RMGroupingScope = 1
+	// Items with at least one active, non-deleted detail row in any group.
+	RMGroupingScope_RM_GROUPING_SCOPE_GROUPED RMGroupingScope = 2
+)
+
+// Enum value maps for RMGroupingScope.
+var (
+	RMGroupingScope_name = map[int32]string{
+		0: "RM_GROUPING_SCOPE_UNSPECIFIED",
+		1: "RM_GROUPING_SCOPE_UNGROUPED",
+		2: "RM_GROUPING_SCOPE_GROUPED",
+	}
+	RMGroupingScope_value = map[string]int32{
+		"RM_GROUPING_SCOPE_UNSPECIFIED": 0,
+		"RM_GROUPING_SCOPE_UNGROUPED":   1,
+		"RM_GROUPING_SCOPE_GROUPED":     2,
+	}
+)
+
+func (x RMGroupingScope) Enum() *RMGroupingScope {
+	p := new(RMGroupingScope)
+	*p = x
+	return p
+}
+
+func (x RMGroupingScope) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (RMGroupingScope) Descriptor() protoreflect.EnumDescriptor {
+	return file_finance_v1_rm_group_proto_enumTypes[4].Descriptor()
+}
+
+func (RMGroupingScope) Type() protoreflect.EnumType {
+	return &file_finance_v1_rm_group_proto_enumTypes[4]
+}
+
+func (x RMGroupingScope) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use RMGroupingScope.Descriptor instead.
+func (RMGroupingScope) EnumDescriptor() ([]byte, []int) {
+	return file_finance_v1_rm_group_proto_rawDescGZIP(), []int{4}
+}
+
 // RMGroupHead is the aggregate root representing an RM group's cost configuration.
 type RMGroupHead struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -773,60 +830,38 @@ func (x *RMGroupHeadWithDetails) GetDetails() []*RMGroupDetail {
 	return nil
 }
 
-// UngroupedItem is a raw material present in the Oracle sync feed that has no
-// active RM group assignment.
+// UngroupedItem represents one (item_code, grade_code) pair viewed through the
+// grouping monitor. Used by both UNGROUPED and GROUPED scopes — the group_*
+// fields are populated only when the item is assigned to an active group.
+//
+// Per-period qty/rate snapshot fields were removed (reserved 1, 8-25) because
+// the monitor view is cross-period and those numbers are no longer relevant
+// to the grouped/ungrouped status.
 type UngroupedItem struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Period (YYYYMM).
-	Period string `protobuf:"bytes,1,opt,name=period,proto3" json:"period,omitempty"`
 	// Item code.
 	ItemCode string `protobuf:"bytes,2,opt,name=item_code,json=itemCode,proto3" json:"item_code,omitempty"`
-	// Item name.
+	// Item name (latest known from sync feed).
 	ItemName string `protobuf:"bytes,3,opt,name=item_name,json=itemName,proto3" json:"item_name,omitempty"`
-	// Item type code.
+	// Item type code (latest known from sync feed).
 	ItemTypeCode string `protobuf:"bytes,4,opt,name=item_type_code,json=itemTypeCode,proto3" json:"item_type_code,omitempty"`
 	// Grade code.
 	GradeCode string `protobuf:"bytes,5,opt,name=grade_code,json=gradeCode,proto3" json:"grade_code,omitempty"`
-	// Item grade.
+	// Item grade (grade_name from the sync feed).
 	ItemGrade string `protobuf:"bytes,6,opt,name=item_grade,json=itemGrade,proto3" json:"item_grade,omitempty"`
-	// UOM code.
+	// UOM code (latest known from sync feed).
 	UomCode string `protobuf:"bytes,7,opt,name=uom_code,json=uomCode,proto3" json:"uom_code,omitempty"`
-	// CONS stage value.
-	ConsVal float64 `protobuf:"fixed64,8,opt,name=cons_val,json=consVal,proto3" json:"cons_val,omitempty"`
-	// STORES stage value.
-	StoresVal float64 `protobuf:"fixed64,9,opt,name=stores_val,json=storesVal,proto3" json:"stores_val,omitempty"`
-	// CONS stage quantity.
-	ConsQty float64 `protobuf:"fixed64,10,opt,name=cons_qty,json=consQty,proto3" json:"cons_qty,omitempty"`
-	// CONS stage rate.
-	ConsRate float64 `protobuf:"fixed64,11,opt,name=cons_rate,json=consRate,proto3" json:"cons_rate,omitempty"`
-	// STORES stage quantity.
-	StoresQty float64 `protobuf:"fixed64,12,opt,name=stores_qty,json=storesQty,proto3" json:"stores_qty,omitempty"`
-	// STORES stage rate.
-	StoresRate float64 `protobuf:"fixed64,13,opt,name=stores_rate,json=storesRate,proto3" json:"stores_rate,omitempty"`
-	// DEPT stage quantity.
-	DeptQty float64 `protobuf:"fixed64,14,opt,name=dept_qty,json=deptQty,proto3" json:"dept_qty,omitempty"`
-	// DEPT stage value.
-	DeptVal float64 `protobuf:"fixed64,15,opt,name=dept_val,json=deptVal,proto3" json:"dept_val,omitempty"`
-	// DEPT stage rate.
-	DeptRate float64 `protobuf:"fixed64,16,opt,name=dept_rate,json=deptRate,proto3" json:"dept_rate,omitempty"`
-	// PO_1 stage quantity.
-	LastPoQty1 float64 `protobuf:"fixed64,17,opt,name=last_po_qty1,json=lastPoQty1,proto3" json:"last_po_qty1,omitempty"`
-	// PO_1 stage value.
-	LastPoVal1 float64 `protobuf:"fixed64,18,opt,name=last_po_val1,json=lastPoVal1,proto3" json:"last_po_val1,omitempty"`
-	// PO_1 stage rate.
-	LastPoRate1 float64 `protobuf:"fixed64,19,opt,name=last_po_rate1,json=lastPoRate1,proto3" json:"last_po_rate1,omitempty"`
-	// PO_2 stage quantity.
-	LastPoQty2 float64 `protobuf:"fixed64,20,opt,name=last_po_qty2,json=lastPoQty2,proto3" json:"last_po_qty2,omitempty"`
-	// PO_2 stage value.
-	LastPoVal2 float64 `protobuf:"fixed64,21,opt,name=last_po_val2,json=lastPoVal2,proto3" json:"last_po_val2,omitempty"`
-	// PO_2 stage rate.
-	LastPoRate2 float64 `protobuf:"fixed64,22,opt,name=last_po_rate2,json=lastPoRate2,proto3" json:"last_po_rate2,omitempty"`
-	// PO_3 stage quantity.
-	LastPoQty3 float64 `protobuf:"fixed64,23,opt,name=last_po_qty3,json=lastPoQty3,proto3" json:"last_po_qty3,omitempty"`
-	// PO_3 stage value.
-	LastPoVal3 float64 `protobuf:"fixed64,24,opt,name=last_po_val3,json=lastPoVal3,proto3" json:"last_po_val3,omitempty"`
-	// PO_3 stage rate.
-	LastPoRate3   float64 `protobuf:"fixed64,25,opt,name=last_po_rate3,json=lastPoRate3,proto3" json:"last_po_rate3,omitempty"`
+	// Owning group head UUID. Empty when scope = UNGROUPED.
+	GroupHeadId string `protobuf:"bytes,26,opt,name=group_head_id,json=groupHeadId,proto3" json:"group_head_id,omitempty"`
+	// Owning group code (uppercase). Empty when scope = UNGROUPED.
+	GroupCode string `protobuf:"bytes,27,opt,name=group_code,json=groupCode,proto3" json:"group_code,omitempty"`
+	// Owning group name. Empty when scope = UNGROUPED.
+	GroupName string `protobuf:"bytes,28,opt,name=group_name,json=groupName,proto3" json:"group_name,omitempty"`
+	// Sort order within the group. Zero when scope = UNGROUPED.
+	SortOrder int32 `protobuf:"varint,29,opt,name=sort_order,json=sortOrder,proto3" json:"sort_order,omitempty"`
+	// ISO-8601 timestamp the item was first added to the group (created_at on
+	// the active detail row). Empty when scope = UNGROUPED.
+	AssignedAt    string `protobuf:"bytes,30,opt,name=assigned_at,json=assignedAt,proto3" json:"assigned_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -859,13 +894,6 @@ func (x *UngroupedItem) ProtoReflect() protoreflect.Message {
 // Deprecated: Use UngroupedItem.ProtoReflect.Descriptor instead.
 func (*UngroupedItem) Descriptor() ([]byte, []int) {
 	return file_finance_v1_rm_group_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *UngroupedItem) GetPeriod() string {
-	if x != nil {
-		return x.Period
-	}
-	return ""
 }
 
 func (x *UngroupedItem) GetItemCode() string {
@@ -910,130 +938,39 @@ func (x *UngroupedItem) GetUomCode() string {
 	return ""
 }
 
-func (x *UngroupedItem) GetConsVal() float64 {
+func (x *UngroupedItem) GetGroupHeadId() string {
 	if x != nil {
-		return x.ConsVal
+		return x.GroupHeadId
+	}
+	return ""
+}
+
+func (x *UngroupedItem) GetGroupCode() string {
+	if x != nil {
+		return x.GroupCode
+	}
+	return ""
+}
+
+func (x *UngroupedItem) GetGroupName() string {
+	if x != nil {
+		return x.GroupName
+	}
+	return ""
+}
+
+func (x *UngroupedItem) GetSortOrder() int32 {
+	if x != nil {
+		return x.SortOrder
 	}
 	return 0
 }
 
-func (x *UngroupedItem) GetStoresVal() float64 {
+func (x *UngroupedItem) GetAssignedAt() string {
 	if x != nil {
-		return x.StoresVal
+		return x.AssignedAt
 	}
-	return 0
-}
-
-func (x *UngroupedItem) GetConsQty() float64 {
-	if x != nil {
-		return x.ConsQty
-	}
-	return 0
-}
-
-func (x *UngroupedItem) GetConsRate() float64 {
-	if x != nil {
-		return x.ConsRate
-	}
-	return 0
-}
-
-func (x *UngroupedItem) GetStoresQty() float64 {
-	if x != nil {
-		return x.StoresQty
-	}
-	return 0
-}
-
-func (x *UngroupedItem) GetStoresRate() float64 {
-	if x != nil {
-		return x.StoresRate
-	}
-	return 0
-}
-
-func (x *UngroupedItem) GetDeptQty() float64 {
-	if x != nil {
-		return x.DeptQty
-	}
-	return 0
-}
-
-func (x *UngroupedItem) GetDeptVal() float64 {
-	if x != nil {
-		return x.DeptVal
-	}
-	return 0
-}
-
-func (x *UngroupedItem) GetDeptRate() float64 {
-	if x != nil {
-		return x.DeptRate
-	}
-	return 0
-}
-
-func (x *UngroupedItem) GetLastPoQty1() float64 {
-	if x != nil {
-		return x.LastPoQty1
-	}
-	return 0
-}
-
-func (x *UngroupedItem) GetLastPoVal1() float64 {
-	if x != nil {
-		return x.LastPoVal1
-	}
-	return 0
-}
-
-func (x *UngroupedItem) GetLastPoRate1() float64 {
-	if x != nil {
-		return x.LastPoRate1
-	}
-	return 0
-}
-
-func (x *UngroupedItem) GetLastPoQty2() float64 {
-	if x != nil {
-		return x.LastPoQty2
-	}
-	return 0
-}
-
-func (x *UngroupedItem) GetLastPoVal2() float64 {
-	if x != nil {
-		return x.LastPoVal2
-	}
-	return 0
-}
-
-func (x *UngroupedItem) GetLastPoRate2() float64 {
-	if x != nil {
-		return x.LastPoRate2
-	}
-	return 0
-}
-
-func (x *UngroupedItem) GetLastPoQty3() float64 {
-	if x != nil {
-		return x.LastPoQty3
-	}
-	return 0
-}
-
-func (x *UngroupedItem) GetLastPoVal3() float64 {
-	if x != nil {
-		return x.LastPoVal3
-	}
-	return 0
-}
-
-func (x *UngroupedItem) GetLastPoRate3() float64 {
-	if x != nil {
-		return x.LastPoRate3
-	}
-	return 0
+	return ""
 }
 
 // SkippedItem captures items rejected by AddItems because they already belong
@@ -2532,17 +2469,24 @@ func (x *UpdateGroupItemResponse) GetData() *RMGroupDetail {
 	return nil
 }
 
-// List items from the Oracle sync feed that have no active RM group assignment.
+// List items in the grouping monitor. `scope` selects ungrouped vs grouped;
+// status is evaluated cross-period.
 type ListUngroupedItemsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Page number (1-indexed).
 	Page int32 `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
 	// Page size (1-100).
 	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	// Period filter (YYYYMM). Empty = all periods.
-	Period string `protobuf:"bytes,3,opt,name=period,proto3" json:"period,omitempty"`
-	// Free-text search on item_code, item_name, item_type_code, grade_code.
-	Search        string `protobuf:"bytes,4,opt,name=search,proto3" json:"search,omitempty"`
+	// Free-text search on item_code, item_name, grade_code, grade_name and
+	// (when scope = GROUPED) group_code / group_name.
+	Search string `protobuf:"bytes,4,opt,name=search,proto3" json:"search,omitempty"`
+	// Selector for ungrouped vs grouped view. UNSPECIFIED = UNGROUPED.
+	Scope RMGroupingScope `protobuf:"varint,5,opt,name=scope,proto3,enum=finance.v1.RMGroupingScope" json:"scope,omitempty"`
+	// Sort column. Empty defaults to item_code. group_*, sort_order and
+	// assigned_at apply only when scope = GROUPED.
+	SortBy string `protobuf:"bytes,6,opt,name=sort_by,json=sortBy,proto3" json:"sort_by,omitempty"`
+	// Sort direction. Empty defaults to asc.
+	SortOrder     string `protobuf:"bytes,7,opt,name=sort_order,json=sortOrder,proto3" json:"sort_order,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2591,16 +2535,30 @@ func (x *ListUngroupedItemsRequest) GetPageSize() int32 {
 	return 0
 }
 
-func (x *ListUngroupedItemsRequest) GetPeriod() string {
+func (x *ListUngroupedItemsRequest) GetSearch() string {
 	if x != nil {
-		return x.Period
+		return x.Search
 	}
 	return ""
 }
 
-func (x *ListUngroupedItemsRequest) GetSearch() string {
+func (x *ListUngroupedItemsRequest) GetScope() RMGroupingScope {
 	if x != nil {
-		return x.Search
+		return x.Scope
+	}
+	return RMGroupingScope_RM_GROUPING_SCOPE_UNSPECIFIED
+}
+
+func (x *ListUngroupedItemsRequest) GetSortBy() string {
+	if x != nil {
+		return x.SortBy
+	}
+	return ""
+}
+
+func (x *ListUngroupedItemsRequest) GetSortOrder() string {
+	if x != nil {
+		return x.SortOrder
 	}
 	return ""
 }
@@ -2862,13 +2820,18 @@ func (x *DownloadGroupItemsTemplateResponse) GetFileName() string {
 	return ""
 }
 
-// ExportUngroupedItemsRequest filters the ungrouped items export. No pagination.
+// ExportUngroupedItemsRequest filters the grouping monitor export. No pagination.
 type ExportUngroupedItemsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Period filter (YYYYMM). Empty = all periods.
-	Period string `protobuf:"bytes,1,opt,name=period,proto3" json:"period,omitempty"`
-	// Free-text search on item_code, item_name, item_type_code, grade_code.
-	Search        string `protobuf:"bytes,2,opt,name=search,proto3" json:"search,omitempty"`
+	// Free-text search on item_code, item_name, grade_code, grade_name and
+	// (when scope = GROUPED) group_code / group_name.
+	Search string `protobuf:"bytes,2,opt,name=search,proto3" json:"search,omitempty"`
+	// Selector for ungrouped vs grouped view. UNSPECIFIED = UNGROUPED.
+	Scope RMGroupingScope `protobuf:"varint,3,opt,name=scope,proto3,enum=finance.v1.RMGroupingScope" json:"scope,omitempty"`
+	// Sort column. Empty defaults to item_code.
+	SortBy string `protobuf:"bytes,4,opt,name=sort_by,json=sortBy,proto3" json:"sort_by,omitempty"`
+	// Sort direction. Empty defaults to asc.
+	SortOrder     string `protobuf:"bytes,5,opt,name=sort_order,json=sortOrder,proto3" json:"sort_order,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2903,16 +2866,30 @@ func (*ExportUngroupedItemsRequest) Descriptor() ([]byte, []int) {
 	return file_finance_v1_rm_group_proto_rawDescGZIP(), []int{27}
 }
 
-func (x *ExportUngroupedItemsRequest) GetPeriod() string {
+func (x *ExportUngroupedItemsRequest) GetSearch() string {
 	if x != nil {
-		return x.Period
+		return x.Search
 	}
 	return ""
 }
 
-func (x *ExportUngroupedItemsRequest) GetSearch() string {
+func (x *ExportUngroupedItemsRequest) GetScope() RMGroupingScope {
 	if x != nil {
-		return x.Search
+		return x.Scope
+	}
+	return RMGroupingScope_RM_GROUPING_SCOPE_UNSPECIFIED
+}
+
+func (x *ExportUngroupedItemsRequest) GetSortBy() string {
+	if x != nil {
+		return x.SortBy
+	}
+	return ""
+}
+
+func (x *ExportUngroupedItemsRequest) GetSortOrder() string {
+	if x != nil {
+		return x.SortOrder
 	}
 	return ""
 }
@@ -3898,9 +3875,8 @@ const file_finance_v1_rm_group_proto_rawDesc = "" +
 	"\x18_valuation_default_value\"z\n" +
 	"\x16RMGroupHeadWithDetails\x12+\n" +
 	"\x04head\x18\x01 \x01(\v2\x17.finance.v1.RMGroupHeadR\x04head\x123\n" +
-	"\adetails\x18\x02 \x03(\v2\x19.finance.v1.RMGroupDetailR\adetails\"\x9d\x06\n" +
-	"\rUngroupedItem\x12\x16\n" +
-	"\x06period\x18\x01 \x01(\tR\x06period\x12\x1b\n" +
+	"\adetails\x18\x02 \x03(\v2\x19.finance.v1.RMGroupDetailR\adetails\"\xe2\x04\n" +
+	"\rUngroupedItem\x12\x1b\n" +
 	"\titem_code\x18\x02 \x01(\tR\bitemCode\x12\x1b\n" +
 	"\titem_name\x18\x03 \x01(\tR\bitemName\x12$\n" +
 	"\x0eitem_type_code\x18\x04 \x01(\tR\fitemTypeCode\x12\x1d\n" +
@@ -3908,35 +3884,18 @@ const file_finance_v1_rm_group_proto_rawDesc = "" +
 	"grade_code\x18\x05 \x01(\tR\tgradeCode\x12\x1d\n" +
 	"\n" +
 	"item_grade\x18\x06 \x01(\tR\titemGrade\x12\x19\n" +
-	"\buom_code\x18\a \x01(\tR\auomCode\x12\x19\n" +
-	"\bcons_val\x18\b \x01(\x01R\aconsVal\x12\x1d\n" +
+	"\buom_code\x18\a \x01(\tR\auomCode\x12\"\n" +
+	"\rgroup_head_id\x18\x1a \x01(\tR\vgroupHeadId\x12\x1d\n" +
 	"\n" +
-	"stores_val\x18\t \x01(\x01R\tstoresVal\x12\x19\n" +
-	"\bcons_qty\x18\n" +
-	" \x01(\x01R\aconsQty\x12\x1b\n" +
-	"\tcons_rate\x18\v \x01(\x01R\bconsRate\x12\x1d\n" +
+	"group_code\x18\x1b \x01(\tR\tgroupCode\x12\x1d\n" +
 	"\n" +
-	"stores_qty\x18\f \x01(\x01R\tstoresQty\x12\x1f\n" +
-	"\vstores_rate\x18\r \x01(\x01R\n" +
-	"storesRate\x12\x19\n" +
-	"\bdept_qty\x18\x0e \x01(\x01R\adeptQty\x12\x19\n" +
-	"\bdept_val\x18\x0f \x01(\x01R\adeptVal\x12\x1b\n" +
-	"\tdept_rate\x18\x10 \x01(\x01R\bdeptRate\x12 \n" +
-	"\flast_po_qty1\x18\x11 \x01(\x01R\n" +
-	"lastPoQty1\x12 \n" +
-	"\flast_po_val1\x18\x12 \x01(\x01R\n" +
-	"lastPoVal1\x12\"\n" +
-	"\rlast_po_rate1\x18\x13 \x01(\x01R\vlastPoRate1\x12 \n" +
-	"\flast_po_qty2\x18\x14 \x01(\x01R\n" +
-	"lastPoQty2\x12 \n" +
-	"\flast_po_val2\x18\x15 \x01(\x01R\n" +
-	"lastPoVal2\x12\"\n" +
-	"\rlast_po_rate2\x18\x16 \x01(\x01R\vlastPoRate2\x12 \n" +
-	"\flast_po_qty3\x18\x17 \x01(\x01R\n" +
-	"lastPoQty3\x12 \n" +
-	"\flast_po_val3\x18\x18 \x01(\x01R\n" +
-	"lastPoVal3\x12\"\n" +
-	"\rlast_po_rate3\x18\x19 \x01(\x01R\vlastPoRate3\"\xbc\x01\n" +
+	"group_name\x18\x1c \x01(\tR\tgroupName\x12\x1d\n" +
+	"\n" +
+	"sort_order\x18\x1d \x01(\x05R\tsortOrder\x12\x1f\n" +
+	"\vassigned_at\x18\x1e \x01(\tR\n" +
+	"assignedAtJ\x04\b\x01\x10\x02J\x04\b\b\x10\x1aR\x06periodR\bcons_valR\n" +
+	"stores_valR\bcons_qtyR\tcons_rateR\n" +
+	"stores_qtyR\vstores_rateR\bdept_qtyR\bdept_valR\tdept_rateR\flast_po_qty1R\flast_po_val1R\rlast_po_rate1R\flast_po_qty2R\flast_po_val2R\rlast_po_rate2R\flast_po_qty3R\flast_po_val3R\rlast_po_rate3\"\xbc\x01\n" +
 	"\vSkippedItem\x12\x1b\n" +
 	"\titem_code\x18\x01 \x01(\tR\bitemCode\x12/\n" +
 	"\x14owning_group_head_id\x18\x02 \x01(\tR\x11owningGroupHeadId\x123\n" +
@@ -4103,13 +4062,20 @@ const file_finance_v1_rm_group_proto_rawDesc = "" +
 	"_is_active\"u\n" +
 	"\x17UpdateGroupItemResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12-\n" +
-	"\x04data\x18\x02 \x01(\v2\x19.finance.v1.RMGroupDetailR\x04data\"\xae\x01\n" +
+	"\x04data\x18\x02 \x01(\v2\x19.finance.v1.RMGroupDetailR\x04data\"\x81\x03\n" +
 	"\x19ListUngroupedItemsRequest\x12\x1b\n" +
 	"\x04page\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x01R\x04page\x12&\n" +
-	"\tpage_size\x18\x02 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x01R\bpageSize\x12+\n" +
-	"\x06period\x18\x03 \x01(\tB\x13\xbaH\x10r\x0e\x18\x062\n" +
-	"^$|^\\d{6}$R\x06period\x12\x1f\n" +
-	"\x06search\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x18dR\x06search\"\xb8\x01\n" +
+	"\tpage_size\x18\x02 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x01R\bpageSize\x12\x1f\n" +
+	"\x06search\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x18dR\x06search\x121\n" +
+	"\x05scope\x18\x05 \x01(\x0e2\x1b.finance.v1.RMGroupingScopeR\x05scope\x12\x89\x01\n" +
+	"\asort_by\x18\x06 \x01(\tBp\xbaHmrkR\x00R\titem_codeR\titem_nameR\n" +
+	"grade_codeR\n" +
+	"item_gradeR\buom_codeR\n" +
+	"group_codeR\n" +
+	"group_nameR\n" +
+	"sort_orderR\vassigned_atR\x06sortBy\x121\n" +
+	"\n" +
+	"sort_order\x18\a \x01(\tB\x12\xbaH\x0fr\rR\x00R\x03ascR\x04descR\tsortOrderJ\x04\b\x03\x10\x04R\x06period\"\xb8\x01\n" +
 	"\x17ImportGroupItemsRequest\x12,\n" +
 	"\rgroup_head_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\vgroupHeadId\x12/\n" +
 	"\ffile_content\x18\x02 \x01(\fB\f\xbaH\tz\a\x10\x01\x18\x80\x80\x80\x05R\vfileContent\x12>\n" +
@@ -4126,11 +4092,18 @@ const file_finance_v1_rm_group_proto_rawDesc = "" +
 	"\"DownloadGroupItemsTemplateResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12!\n" +
 	"\ffile_content\x18\x02 \x01(\fR\vfileContent\x12\x1b\n" +
-	"\tfile_name\x18\x03 \x01(\tR\bfileName\"k\n" +
-	"\x1bExportUngroupedItemsRequest\x12+\n" +
-	"\x06period\x18\x01 \x01(\tB\x13\xbaH\x10r\x0e\x18\x062\n" +
-	"^$|^\\d{6}$R\x06period\x12\x1f\n" +
-	"\x06search\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x18dR\x06search\"\x8b\x01\n" +
+	"\tfile_name\x18\x03 \x01(\tR\bfileName\"\xbe\x02\n" +
+	"\x1bExportUngroupedItemsRequest\x12\x1f\n" +
+	"\x06search\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x18dR\x06search\x121\n" +
+	"\x05scope\x18\x03 \x01(\x0e2\x1b.finance.v1.RMGroupingScopeR\x05scope\x12\x89\x01\n" +
+	"\asort_by\x18\x04 \x01(\tBp\xbaHmrkR\x00R\titem_codeR\titem_nameR\n" +
+	"grade_codeR\n" +
+	"item_gradeR\buom_codeR\n" +
+	"group_codeR\n" +
+	"group_nameR\n" +
+	"sort_orderR\vassigned_atR\x06sortBy\x121\n" +
+	"\n" +
+	"sort_order\x18\x05 \x01(\tB\x12\xbaH\x0fr\rR\x00R\x03ascR\x04descR\tsortOrderJ\x04\b\x01\x10\x02R\x06period\"\x8b\x01\n" +
 	"\x1cExportUngroupedItemsResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12!\n" +
 	"\ffile_content\x18\x02 \x01(\fR\vfileContent\x12\x1b\n" +
@@ -4239,7 +4212,11 @@ const file_finance_v1_rm_group_proto_rawDesc = "" +
 	"\x0fRemoveItemsMode\x12!\n" +
 	"\x1dREMOVE_ITEMS_MODE_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cREMOVE_ITEMS_MODE_DEACTIVATE\x10\x01\x12!\n" +
-	"\x1dREMOVE_ITEMS_MODE_SOFT_DELETE\x10\x022\xb5\x12\n" +
+	"\x1dREMOVE_ITEMS_MODE_SOFT_DELETE\x10\x02*t\n" +
+	"\x0fRMGroupingScope\x12!\n" +
+	"\x1dRM_GROUPING_SCOPE_UNSPECIFIED\x10\x00\x12\x1f\n" +
+	"\x1bRM_GROUPING_SCOPE_UNGROUPED\x10\x01\x12\x1d\n" +
+	"\x19RM_GROUPING_SCOPE_GROUPED\x10\x022\xb5\x12\n" +
 	"\x0eRMGroupService\x12z\n" +
 	"\rCreateRMGroup\x12 .finance.v1.CreateRMGroupRequest\x1a!.finance.v1.CreateRMGroupResponse\"$\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/api/v1/finance/rm-groups\x12~\n" +
 	"\n" +
@@ -4274,146 +4251,149 @@ func file_finance_v1_rm_group_proto_rawDescGZIP() []byte {
 	return file_finance_v1_rm_group_proto_rawDescData
 }
 
-var file_finance_v1_rm_group_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+var file_finance_v1_rm_group_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
 var file_finance_v1_rm_group_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
 var file_finance_v1_rm_group_proto_goTypes = []any{
 	(RMGroupFlag)(0),                           // 0: finance.v1.RMGroupFlag
 	(RMValuationFlag)(0),                       // 1: finance.v1.RMValuationFlag
 	(RMMarketingFlag)(0),                       // 2: finance.v1.RMMarketingFlag
 	(RemoveItemsMode)(0),                       // 3: finance.v1.RemoveItemsMode
-	(*RMGroupHead)(nil),                        // 4: finance.v1.RMGroupHead
-	(*RMGroupDetail)(nil),                      // 5: finance.v1.RMGroupDetail
-	(*RMGroupHeadWithDetails)(nil),             // 6: finance.v1.RMGroupHeadWithDetails
-	(*UngroupedItem)(nil),                      // 7: finance.v1.UngroupedItem
-	(*SkippedItem)(nil),                        // 8: finance.v1.SkippedItem
-	(*CreateRMGroupRequest)(nil),               // 9: finance.v1.CreateRMGroupRequest
-	(*CreateRMGroupResponse)(nil),              // 10: finance.v1.CreateRMGroupResponse
-	(*GetRMGroupRequest)(nil),                  // 11: finance.v1.GetRMGroupRequest
-	(*GetRMGroupResponse)(nil),                 // 12: finance.v1.GetRMGroupResponse
-	(*UpdateRMGroupRequest)(nil),               // 13: finance.v1.UpdateRMGroupRequest
-	(*UpdateRMGroupResponse)(nil),              // 14: finance.v1.UpdateRMGroupResponse
-	(*DeleteRMGroupRequest)(nil),               // 15: finance.v1.DeleteRMGroupRequest
-	(*DeleteRMGroupResponse)(nil),              // 16: finance.v1.DeleteRMGroupResponse
-	(*ListRMGroupsRequest)(nil),                // 17: finance.v1.ListRMGroupsRequest
-	(*ListRMGroupsResponse)(nil),               // 18: finance.v1.ListRMGroupsResponse
-	(*AddItemSelection)(nil),                   // 19: finance.v1.AddItemSelection
-	(*AddItemsRequest)(nil),                    // 20: finance.v1.AddItemsRequest
-	(*AddItemsResponse)(nil),                   // 21: finance.v1.AddItemsResponse
-	(*RemoveItemsRequest)(nil),                 // 22: finance.v1.RemoveItemsRequest
-	(*RemoveItemsResponse)(nil),                // 23: finance.v1.RemoveItemsResponse
-	(*UpdateGroupItemRequest)(nil),             // 24: finance.v1.UpdateGroupItemRequest
-	(*UpdateGroupItemResponse)(nil),            // 25: finance.v1.UpdateGroupItemResponse
-	(*ListUngroupedItemsRequest)(nil),          // 26: finance.v1.ListUngroupedItemsRequest
-	(*ImportGroupItemsRequest)(nil),            // 27: finance.v1.ImportGroupItemsRequest
-	(*ImportGroupItemsResponse)(nil),           // 28: finance.v1.ImportGroupItemsResponse
-	(*DownloadGroupItemsTemplateRequest)(nil),  // 29: finance.v1.DownloadGroupItemsTemplateRequest
-	(*DownloadGroupItemsTemplateResponse)(nil), // 30: finance.v1.DownloadGroupItemsTemplateResponse
-	(*ExportUngroupedItemsRequest)(nil),        // 31: finance.v1.ExportUngroupedItemsRequest
-	(*ExportUngroupedItemsResponse)(nil),       // 32: finance.v1.ExportUngroupedItemsResponse
-	(*ListUngroupedItemsResponse)(nil),         // 33: finance.v1.ListUngroupedItemsResponse
-	(*RMGroupItemRates)(nil),                   // 34: finance.v1.RMGroupItemRates
-	(*GetRMGroupItemRatesRequest)(nil),         // 35: finance.v1.GetRMGroupItemRatesRequest
-	(*GetRMGroupItemRatesResponse)(nil),        // 36: finance.v1.GetRMGroupItemRatesResponse
-	(*ExportRMGroupsRequest)(nil),              // 37: finance.v1.ExportRMGroupsRequest
-	(*ExportRMGroupsResponse)(nil),             // 38: finance.v1.ExportRMGroupsResponse
-	(*ImportRMGroupsRequest)(nil),              // 39: finance.v1.ImportRMGroupsRequest
-	(*ImportRMGroupsResponse)(nil),             // 40: finance.v1.ImportRMGroupsResponse
-	(*DownloadRMGroupTemplateRequest)(nil),     // 41: finance.v1.DownloadRMGroupTemplateRequest
-	(*DownloadRMGroupTemplateResponse)(nil),    // 42: finance.v1.DownloadRMGroupTemplateResponse
-	(*v1.AuditInfo)(nil),                       // 43: common.v1.AuditInfo
-	(*v1.BaseResponse)(nil),                    // 44: common.v1.BaseResponse
-	(ActiveFilter)(0),                          // 45: finance.v1.ActiveFilter
-	(*v1.PaginationResponse)(nil),              // 46: common.v1.PaginationResponse
-	(*ImportError)(nil),                        // 47: finance.v1.ImportError
+	(RMGroupingScope)(0),                       // 4: finance.v1.RMGroupingScope
+	(*RMGroupHead)(nil),                        // 5: finance.v1.RMGroupHead
+	(*RMGroupDetail)(nil),                      // 6: finance.v1.RMGroupDetail
+	(*RMGroupHeadWithDetails)(nil),             // 7: finance.v1.RMGroupHeadWithDetails
+	(*UngroupedItem)(nil),                      // 8: finance.v1.UngroupedItem
+	(*SkippedItem)(nil),                        // 9: finance.v1.SkippedItem
+	(*CreateRMGroupRequest)(nil),               // 10: finance.v1.CreateRMGroupRequest
+	(*CreateRMGroupResponse)(nil),              // 11: finance.v1.CreateRMGroupResponse
+	(*GetRMGroupRequest)(nil),                  // 12: finance.v1.GetRMGroupRequest
+	(*GetRMGroupResponse)(nil),                 // 13: finance.v1.GetRMGroupResponse
+	(*UpdateRMGroupRequest)(nil),               // 14: finance.v1.UpdateRMGroupRequest
+	(*UpdateRMGroupResponse)(nil),              // 15: finance.v1.UpdateRMGroupResponse
+	(*DeleteRMGroupRequest)(nil),               // 16: finance.v1.DeleteRMGroupRequest
+	(*DeleteRMGroupResponse)(nil),              // 17: finance.v1.DeleteRMGroupResponse
+	(*ListRMGroupsRequest)(nil),                // 18: finance.v1.ListRMGroupsRequest
+	(*ListRMGroupsResponse)(nil),               // 19: finance.v1.ListRMGroupsResponse
+	(*AddItemSelection)(nil),                   // 20: finance.v1.AddItemSelection
+	(*AddItemsRequest)(nil),                    // 21: finance.v1.AddItemsRequest
+	(*AddItemsResponse)(nil),                   // 22: finance.v1.AddItemsResponse
+	(*RemoveItemsRequest)(nil),                 // 23: finance.v1.RemoveItemsRequest
+	(*RemoveItemsResponse)(nil),                // 24: finance.v1.RemoveItemsResponse
+	(*UpdateGroupItemRequest)(nil),             // 25: finance.v1.UpdateGroupItemRequest
+	(*UpdateGroupItemResponse)(nil),            // 26: finance.v1.UpdateGroupItemResponse
+	(*ListUngroupedItemsRequest)(nil),          // 27: finance.v1.ListUngroupedItemsRequest
+	(*ImportGroupItemsRequest)(nil),            // 28: finance.v1.ImportGroupItemsRequest
+	(*ImportGroupItemsResponse)(nil),           // 29: finance.v1.ImportGroupItemsResponse
+	(*DownloadGroupItemsTemplateRequest)(nil),  // 30: finance.v1.DownloadGroupItemsTemplateRequest
+	(*DownloadGroupItemsTemplateResponse)(nil), // 31: finance.v1.DownloadGroupItemsTemplateResponse
+	(*ExportUngroupedItemsRequest)(nil),        // 32: finance.v1.ExportUngroupedItemsRequest
+	(*ExportUngroupedItemsResponse)(nil),       // 33: finance.v1.ExportUngroupedItemsResponse
+	(*ListUngroupedItemsResponse)(nil),         // 34: finance.v1.ListUngroupedItemsResponse
+	(*RMGroupItemRates)(nil),                   // 35: finance.v1.RMGroupItemRates
+	(*GetRMGroupItemRatesRequest)(nil),         // 36: finance.v1.GetRMGroupItemRatesRequest
+	(*GetRMGroupItemRatesResponse)(nil),        // 37: finance.v1.GetRMGroupItemRatesResponse
+	(*ExportRMGroupsRequest)(nil),              // 38: finance.v1.ExportRMGroupsRequest
+	(*ExportRMGroupsResponse)(nil),             // 39: finance.v1.ExportRMGroupsResponse
+	(*ImportRMGroupsRequest)(nil),              // 40: finance.v1.ImportRMGroupsRequest
+	(*ImportRMGroupsResponse)(nil),             // 41: finance.v1.ImportRMGroupsResponse
+	(*DownloadRMGroupTemplateRequest)(nil),     // 42: finance.v1.DownloadRMGroupTemplateRequest
+	(*DownloadRMGroupTemplateResponse)(nil),    // 43: finance.v1.DownloadRMGroupTemplateResponse
+	(*v1.AuditInfo)(nil),                       // 44: common.v1.AuditInfo
+	(*v1.BaseResponse)(nil),                    // 45: common.v1.BaseResponse
+	(ActiveFilter)(0),                          // 46: finance.v1.ActiveFilter
+	(*v1.PaginationResponse)(nil),              // 47: common.v1.PaginationResponse
+	(*ImportError)(nil),                        // 48: finance.v1.ImportError
 }
 var file_finance_v1_rm_group_proto_depIdxs = []int32{
 	0,  // 0: finance.v1.RMGroupHead.flag_valuation:type_name -> finance.v1.RMGroupFlag
 	0,  // 1: finance.v1.RMGroupHead.flag_marketing:type_name -> finance.v1.RMGroupFlag
 	0,  // 2: finance.v1.RMGroupHead.flag_simulation:type_name -> finance.v1.RMGroupFlag
-	43, // 3: finance.v1.RMGroupHead.audit:type_name -> common.v1.AuditInfo
+	44, // 3: finance.v1.RMGroupHead.audit:type_name -> common.v1.AuditInfo
 	1,  // 4: finance.v1.RMGroupHead.valuation_flag:type_name -> finance.v1.RMValuationFlag
 	2,  // 5: finance.v1.RMGroupHead.marketing_flag:type_name -> finance.v1.RMMarketingFlag
-	43, // 6: finance.v1.RMGroupDetail.audit:type_name -> common.v1.AuditInfo
-	4,  // 7: finance.v1.RMGroupHeadWithDetails.head:type_name -> finance.v1.RMGroupHead
-	5,  // 8: finance.v1.RMGroupHeadWithDetails.details:type_name -> finance.v1.RMGroupDetail
+	44, // 6: finance.v1.RMGroupDetail.audit:type_name -> common.v1.AuditInfo
+	5,  // 7: finance.v1.RMGroupHeadWithDetails.head:type_name -> finance.v1.RMGroupHead
+	6,  // 8: finance.v1.RMGroupHeadWithDetails.details:type_name -> finance.v1.RMGroupDetail
 	1,  // 9: finance.v1.CreateRMGroupRequest.valuation_flag:type_name -> finance.v1.RMValuationFlag
 	2,  // 10: finance.v1.CreateRMGroupRequest.marketing_flag:type_name -> finance.v1.RMMarketingFlag
-	44, // 11: finance.v1.CreateRMGroupResponse.base:type_name -> common.v1.BaseResponse
-	4,  // 12: finance.v1.CreateRMGroupResponse.data:type_name -> finance.v1.RMGroupHead
-	44, // 13: finance.v1.GetRMGroupResponse.base:type_name -> common.v1.BaseResponse
-	6,  // 14: finance.v1.GetRMGroupResponse.data:type_name -> finance.v1.RMGroupHeadWithDetails
+	45, // 11: finance.v1.CreateRMGroupResponse.base:type_name -> common.v1.BaseResponse
+	5,  // 12: finance.v1.CreateRMGroupResponse.data:type_name -> finance.v1.RMGroupHead
+	45, // 13: finance.v1.GetRMGroupResponse.base:type_name -> common.v1.BaseResponse
+	7,  // 14: finance.v1.GetRMGroupResponse.data:type_name -> finance.v1.RMGroupHeadWithDetails
 	0,  // 15: finance.v1.UpdateRMGroupRequest.flag_valuation:type_name -> finance.v1.RMGroupFlag
 	0,  // 16: finance.v1.UpdateRMGroupRequest.flag_marketing:type_name -> finance.v1.RMGroupFlag
 	0,  // 17: finance.v1.UpdateRMGroupRequest.flag_simulation:type_name -> finance.v1.RMGroupFlag
 	1,  // 18: finance.v1.UpdateRMGroupRequest.valuation_flag:type_name -> finance.v1.RMValuationFlag
 	2,  // 19: finance.v1.UpdateRMGroupRequest.marketing_flag:type_name -> finance.v1.RMMarketingFlag
-	44, // 20: finance.v1.UpdateRMGroupResponse.base:type_name -> common.v1.BaseResponse
-	4,  // 21: finance.v1.UpdateRMGroupResponse.data:type_name -> finance.v1.RMGroupHead
-	44, // 22: finance.v1.DeleteRMGroupResponse.base:type_name -> common.v1.BaseResponse
-	45, // 23: finance.v1.ListRMGroupsRequest.active_filter:type_name -> finance.v1.ActiveFilter
-	44, // 24: finance.v1.ListRMGroupsResponse.base:type_name -> common.v1.BaseResponse
-	4,  // 25: finance.v1.ListRMGroupsResponse.data:type_name -> finance.v1.RMGroupHead
-	46, // 26: finance.v1.ListRMGroupsResponse.pagination:type_name -> common.v1.PaginationResponse
-	19, // 27: finance.v1.AddItemsRequest.selections:type_name -> finance.v1.AddItemSelection
-	44, // 28: finance.v1.AddItemsResponse.base:type_name -> common.v1.BaseResponse
-	5,  // 29: finance.v1.AddItemsResponse.added:type_name -> finance.v1.RMGroupDetail
-	8,  // 30: finance.v1.AddItemsResponse.skipped:type_name -> finance.v1.SkippedItem
+	45, // 20: finance.v1.UpdateRMGroupResponse.base:type_name -> common.v1.BaseResponse
+	5,  // 21: finance.v1.UpdateRMGroupResponse.data:type_name -> finance.v1.RMGroupHead
+	45, // 22: finance.v1.DeleteRMGroupResponse.base:type_name -> common.v1.BaseResponse
+	46, // 23: finance.v1.ListRMGroupsRequest.active_filter:type_name -> finance.v1.ActiveFilter
+	45, // 24: finance.v1.ListRMGroupsResponse.base:type_name -> common.v1.BaseResponse
+	5,  // 25: finance.v1.ListRMGroupsResponse.data:type_name -> finance.v1.RMGroupHead
+	47, // 26: finance.v1.ListRMGroupsResponse.pagination:type_name -> common.v1.PaginationResponse
+	20, // 27: finance.v1.AddItemsRequest.selections:type_name -> finance.v1.AddItemSelection
+	45, // 28: finance.v1.AddItemsResponse.base:type_name -> common.v1.BaseResponse
+	6,  // 29: finance.v1.AddItemsResponse.added:type_name -> finance.v1.RMGroupDetail
+	9,  // 30: finance.v1.AddItemsResponse.skipped:type_name -> finance.v1.SkippedItem
 	3,  // 31: finance.v1.RemoveItemsRequest.mode:type_name -> finance.v1.RemoveItemsMode
-	44, // 32: finance.v1.RemoveItemsResponse.base:type_name -> common.v1.BaseResponse
-	44, // 33: finance.v1.UpdateGroupItemResponse.base:type_name -> common.v1.BaseResponse
-	5,  // 34: finance.v1.UpdateGroupItemResponse.data:type_name -> finance.v1.RMGroupDetail
-	44, // 35: finance.v1.ImportGroupItemsResponse.base:type_name -> common.v1.BaseResponse
-	47, // 36: finance.v1.ImportGroupItemsResponse.errors:type_name -> finance.v1.ImportError
-	8,  // 37: finance.v1.ImportGroupItemsResponse.skipped:type_name -> finance.v1.SkippedItem
-	44, // 38: finance.v1.DownloadGroupItemsTemplateResponse.base:type_name -> common.v1.BaseResponse
-	44, // 39: finance.v1.ExportUngroupedItemsResponse.base:type_name -> common.v1.BaseResponse
-	44, // 40: finance.v1.ListUngroupedItemsResponse.base:type_name -> common.v1.BaseResponse
-	7,  // 41: finance.v1.ListUngroupedItemsResponse.data:type_name -> finance.v1.UngroupedItem
-	46, // 42: finance.v1.ListUngroupedItemsResponse.pagination:type_name -> common.v1.PaginationResponse
-	44, // 43: finance.v1.GetRMGroupItemRatesResponse.base:type_name -> common.v1.BaseResponse
-	34, // 44: finance.v1.GetRMGroupItemRatesResponse.data:type_name -> finance.v1.RMGroupItemRates
-	45, // 45: finance.v1.ExportRMGroupsRequest.active_filter:type_name -> finance.v1.ActiveFilter
-	44, // 46: finance.v1.ExportRMGroupsResponse.base:type_name -> common.v1.BaseResponse
-	44, // 47: finance.v1.ImportRMGroupsResponse.base:type_name -> common.v1.BaseResponse
-	47, // 48: finance.v1.ImportRMGroupsResponse.errors:type_name -> finance.v1.ImportError
-	44, // 49: finance.v1.DownloadRMGroupTemplateResponse.base:type_name -> common.v1.BaseResponse
-	9,  // 50: finance.v1.RMGroupService.CreateRMGroup:input_type -> finance.v1.CreateRMGroupRequest
-	11, // 51: finance.v1.RMGroupService.GetRMGroup:input_type -> finance.v1.GetRMGroupRequest
-	13, // 52: finance.v1.RMGroupService.UpdateRMGroup:input_type -> finance.v1.UpdateRMGroupRequest
-	15, // 53: finance.v1.RMGroupService.DeleteRMGroup:input_type -> finance.v1.DeleteRMGroupRequest
-	17, // 54: finance.v1.RMGroupService.ListRMGroups:input_type -> finance.v1.ListRMGroupsRequest
-	20, // 55: finance.v1.RMGroupService.AddItems:input_type -> finance.v1.AddItemsRequest
-	22, // 56: finance.v1.RMGroupService.RemoveItems:input_type -> finance.v1.RemoveItemsRequest
-	24, // 57: finance.v1.RMGroupService.UpdateGroupItem:input_type -> finance.v1.UpdateGroupItemRequest
-	26, // 58: finance.v1.RMGroupService.ListUngroupedItems:input_type -> finance.v1.ListUngroupedItemsRequest
-	35, // 59: finance.v1.RMGroupService.GetRMGroupItemRates:input_type -> finance.v1.GetRMGroupItemRatesRequest
-	37, // 60: finance.v1.RMGroupService.ExportRMGroups:input_type -> finance.v1.ExportRMGroupsRequest
-	39, // 61: finance.v1.RMGroupService.ImportRMGroups:input_type -> finance.v1.ImportRMGroupsRequest
-	41, // 62: finance.v1.RMGroupService.DownloadRMGroupTemplate:input_type -> finance.v1.DownloadRMGroupTemplateRequest
-	31, // 63: finance.v1.RMGroupService.ExportUngroupedItems:input_type -> finance.v1.ExportUngroupedItemsRequest
-	27, // 64: finance.v1.RMGroupService.ImportGroupItems:input_type -> finance.v1.ImportGroupItemsRequest
-	29, // 65: finance.v1.RMGroupService.DownloadGroupItemsTemplate:input_type -> finance.v1.DownloadGroupItemsTemplateRequest
-	10, // 66: finance.v1.RMGroupService.CreateRMGroup:output_type -> finance.v1.CreateRMGroupResponse
-	12, // 67: finance.v1.RMGroupService.GetRMGroup:output_type -> finance.v1.GetRMGroupResponse
-	14, // 68: finance.v1.RMGroupService.UpdateRMGroup:output_type -> finance.v1.UpdateRMGroupResponse
-	16, // 69: finance.v1.RMGroupService.DeleteRMGroup:output_type -> finance.v1.DeleteRMGroupResponse
-	18, // 70: finance.v1.RMGroupService.ListRMGroups:output_type -> finance.v1.ListRMGroupsResponse
-	21, // 71: finance.v1.RMGroupService.AddItems:output_type -> finance.v1.AddItemsResponse
-	23, // 72: finance.v1.RMGroupService.RemoveItems:output_type -> finance.v1.RemoveItemsResponse
-	25, // 73: finance.v1.RMGroupService.UpdateGroupItem:output_type -> finance.v1.UpdateGroupItemResponse
-	33, // 74: finance.v1.RMGroupService.ListUngroupedItems:output_type -> finance.v1.ListUngroupedItemsResponse
-	36, // 75: finance.v1.RMGroupService.GetRMGroupItemRates:output_type -> finance.v1.GetRMGroupItemRatesResponse
-	38, // 76: finance.v1.RMGroupService.ExportRMGroups:output_type -> finance.v1.ExportRMGroupsResponse
-	40, // 77: finance.v1.RMGroupService.ImportRMGroups:output_type -> finance.v1.ImportRMGroupsResponse
-	42, // 78: finance.v1.RMGroupService.DownloadRMGroupTemplate:output_type -> finance.v1.DownloadRMGroupTemplateResponse
-	32, // 79: finance.v1.RMGroupService.ExportUngroupedItems:output_type -> finance.v1.ExportUngroupedItemsResponse
-	28, // 80: finance.v1.RMGroupService.ImportGroupItems:output_type -> finance.v1.ImportGroupItemsResponse
-	30, // 81: finance.v1.RMGroupService.DownloadGroupItemsTemplate:output_type -> finance.v1.DownloadGroupItemsTemplateResponse
-	66, // [66:82] is the sub-list for method output_type
-	50, // [50:66] is the sub-list for method input_type
-	50, // [50:50] is the sub-list for extension type_name
-	50, // [50:50] is the sub-list for extension extendee
-	0,  // [0:50] is the sub-list for field type_name
+	45, // 32: finance.v1.RemoveItemsResponse.base:type_name -> common.v1.BaseResponse
+	45, // 33: finance.v1.UpdateGroupItemResponse.base:type_name -> common.v1.BaseResponse
+	6,  // 34: finance.v1.UpdateGroupItemResponse.data:type_name -> finance.v1.RMGroupDetail
+	4,  // 35: finance.v1.ListUngroupedItemsRequest.scope:type_name -> finance.v1.RMGroupingScope
+	45, // 36: finance.v1.ImportGroupItemsResponse.base:type_name -> common.v1.BaseResponse
+	48, // 37: finance.v1.ImportGroupItemsResponse.errors:type_name -> finance.v1.ImportError
+	9,  // 38: finance.v1.ImportGroupItemsResponse.skipped:type_name -> finance.v1.SkippedItem
+	45, // 39: finance.v1.DownloadGroupItemsTemplateResponse.base:type_name -> common.v1.BaseResponse
+	4,  // 40: finance.v1.ExportUngroupedItemsRequest.scope:type_name -> finance.v1.RMGroupingScope
+	45, // 41: finance.v1.ExportUngroupedItemsResponse.base:type_name -> common.v1.BaseResponse
+	45, // 42: finance.v1.ListUngroupedItemsResponse.base:type_name -> common.v1.BaseResponse
+	8,  // 43: finance.v1.ListUngroupedItemsResponse.data:type_name -> finance.v1.UngroupedItem
+	47, // 44: finance.v1.ListUngroupedItemsResponse.pagination:type_name -> common.v1.PaginationResponse
+	45, // 45: finance.v1.GetRMGroupItemRatesResponse.base:type_name -> common.v1.BaseResponse
+	35, // 46: finance.v1.GetRMGroupItemRatesResponse.data:type_name -> finance.v1.RMGroupItemRates
+	46, // 47: finance.v1.ExportRMGroupsRequest.active_filter:type_name -> finance.v1.ActiveFilter
+	45, // 48: finance.v1.ExportRMGroupsResponse.base:type_name -> common.v1.BaseResponse
+	45, // 49: finance.v1.ImportRMGroupsResponse.base:type_name -> common.v1.BaseResponse
+	48, // 50: finance.v1.ImportRMGroupsResponse.errors:type_name -> finance.v1.ImportError
+	45, // 51: finance.v1.DownloadRMGroupTemplateResponse.base:type_name -> common.v1.BaseResponse
+	10, // 52: finance.v1.RMGroupService.CreateRMGroup:input_type -> finance.v1.CreateRMGroupRequest
+	12, // 53: finance.v1.RMGroupService.GetRMGroup:input_type -> finance.v1.GetRMGroupRequest
+	14, // 54: finance.v1.RMGroupService.UpdateRMGroup:input_type -> finance.v1.UpdateRMGroupRequest
+	16, // 55: finance.v1.RMGroupService.DeleteRMGroup:input_type -> finance.v1.DeleteRMGroupRequest
+	18, // 56: finance.v1.RMGroupService.ListRMGroups:input_type -> finance.v1.ListRMGroupsRequest
+	21, // 57: finance.v1.RMGroupService.AddItems:input_type -> finance.v1.AddItemsRequest
+	23, // 58: finance.v1.RMGroupService.RemoveItems:input_type -> finance.v1.RemoveItemsRequest
+	25, // 59: finance.v1.RMGroupService.UpdateGroupItem:input_type -> finance.v1.UpdateGroupItemRequest
+	27, // 60: finance.v1.RMGroupService.ListUngroupedItems:input_type -> finance.v1.ListUngroupedItemsRequest
+	36, // 61: finance.v1.RMGroupService.GetRMGroupItemRates:input_type -> finance.v1.GetRMGroupItemRatesRequest
+	38, // 62: finance.v1.RMGroupService.ExportRMGroups:input_type -> finance.v1.ExportRMGroupsRequest
+	40, // 63: finance.v1.RMGroupService.ImportRMGroups:input_type -> finance.v1.ImportRMGroupsRequest
+	42, // 64: finance.v1.RMGroupService.DownloadRMGroupTemplate:input_type -> finance.v1.DownloadRMGroupTemplateRequest
+	32, // 65: finance.v1.RMGroupService.ExportUngroupedItems:input_type -> finance.v1.ExportUngroupedItemsRequest
+	28, // 66: finance.v1.RMGroupService.ImportGroupItems:input_type -> finance.v1.ImportGroupItemsRequest
+	30, // 67: finance.v1.RMGroupService.DownloadGroupItemsTemplate:input_type -> finance.v1.DownloadGroupItemsTemplateRequest
+	11, // 68: finance.v1.RMGroupService.CreateRMGroup:output_type -> finance.v1.CreateRMGroupResponse
+	13, // 69: finance.v1.RMGroupService.GetRMGroup:output_type -> finance.v1.GetRMGroupResponse
+	15, // 70: finance.v1.RMGroupService.UpdateRMGroup:output_type -> finance.v1.UpdateRMGroupResponse
+	17, // 71: finance.v1.RMGroupService.DeleteRMGroup:output_type -> finance.v1.DeleteRMGroupResponse
+	19, // 72: finance.v1.RMGroupService.ListRMGroups:output_type -> finance.v1.ListRMGroupsResponse
+	22, // 73: finance.v1.RMGroupService.AddItems:output_type -> finance.v1.AddItemsResponse
+	24, // 74: finance.v1.RMGroupService.RemoveItems:output_type -> finance.v1.RemoveItemsResponse
+	26, // 75: finance.v1.RMGroupService.UpdateGroupItem:output_type -> finance.v1.UpdateGroupItemResponse
+	34, // 76: finance.v1.RMGroupService.ListUngroupedItems:output_type -> finance.v1.ListUngroupedItemsResponse
+	37, // 77: finance.v1.RMGroupService.GetRMGroupItemRates:output_type -> finance.v1.GetRMGroupItemRatesResponse
+	39, // 78: finance.v1.RMGroupService.ExportRMGroups:output_type -> finance.v1.ExportRMGroupsResponse
+	41, // 79: finance.v1.RMGroupService.ImportRMGroups:output_type -> finance.v1.ImportRMGroupsResponse
+	43, // 80: finance.v1.RMGroupService.DownloadRMGroupTemplate:output_type -> finance.v1.DownloadRMGroupTemplateResponse
+	33, // 81: finance.v1.RMGroupService.ExportUngroupedItems:output_type -> finance.v1.ExportUngroupedItemsResponse
+	29, // 82: finance.v1.RMGroupService.ImportGroupItems:output_type -> finance.v1.ImportGroupItemsResponse
+	31, // 83: finance.v1.RMGroupService.DownloadGroupItemsTemplate:output_type -> finance.v1.DownloadGroupItemsTemplateResponse
+	68, // [68:84] is the sub-list for method output_type
+	52, // [52:68] is the sub-list for method input_type
+	52, // [52:52] is the sub-list for extension type_name
+	52, // [52:52] is the sub-list for extension extendee
+	0,  // [0:52] is the sub-list for field type_name
 }
 
 func init() { file_finance_v1_rm_group_proto_init() }
@@ -4433,7 +4413,7 @@ func file_finance_v1_rm_group_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_finance_v1_rm_group_proto_rawDesc), len(file_finance_v1_rm_group_proto_rawDesc)),
-			NumEnums:      4,
+			NumEnums:      5,
 			NumMessages:   39,
 			NumExtensions: 0,
 			NumServices:   1,
