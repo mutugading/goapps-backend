@@ -352,7 +352,43 @@ func rmCostToProto(c *rmcostdomain.Cost) *financev1.RMCost {
 		out.SrRate = r.SR
 		out.PrRate = r.PR
 	}
+	// Resolved V2 flags — recompute the AUTO cascade from the persisted V2
+	// rates + configured flag so the UI can show "AUTO → CL" without storing
+	// an extra column. When the row has no V2 data (legacy V1-only rows),
+	// the resolved flag stays UNSPECIFIED.
+	if v2 := c.V2Inputs(); v2 != nil {
+		valFlagUsed, mktFlagUsed := resolveV2Flags(v2, c.V2Rates())
+		out.ValuationFlagUsed = parseProtoValuationFlag(valFlagUsed)
+		out.MarketingFlagUsed = parseProtoMarketingFlag(mktFlagUsed)
+	}
 	return out
+}
+
+// resolveV2Flags re-runs the V2 cascade given the persisted V2Inputs +
+// V2Rates so the proto can emit `valuation_flag_used` / `marketing_flag_used`
+// without an additional DB column. Returns ("","") when rates are absent
+// (legacy V1-only row) — caller leaves the proto enum at UNSPECIFIED.
+func resolveV2Flags(in *rmcostdomain.V2Inputs, r *rmcostdomain.V2Rates) (string, string) {
+	if in == nil || r == nil {
+		return "", ""
+	}
+	tot := apprmcost.GroupTotals{
+		CR: derefF64(r.CR), SR: derefF64(r.SR), PR: derefF64(r.PR),
+		CL: derefF64(r.CL), SL: derefF64(r.SL), FL: derefF64(r.FL),
+	}
+	proj := apprmcost.MarketingProjections{
+		SP: derefF64(r.SP), PP: derefF64(r.PP), FP: derefF64(r.FP),
+	}
+	_, valUsed := apprmcost.SelectValuationWithFlag(tot, in.ValuationFlag)
+	_, mktUsed := apprmcost.SelectMarketingWithFlag(proj, in.MarketingFlag)
+	return valUsed, mktUsed
+}
+
+func derefF64(p *float64) float64 {
+	if p == nil {
+		return 0
+	}
+	return *p
 }
 
 // parseProtoValuationFlag maps the string form ("AUTO"/"CR"/...) to the proto enum.

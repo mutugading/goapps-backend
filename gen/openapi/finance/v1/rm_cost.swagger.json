@@ -953,6 +953,14 @@
         "prRate": {
           "type": "number",
           "format": "double"
+        },
+        "valuationFlagUsed": {
+          "$ref": "#/definitions/v1RMValuationFlag",
+          "description": "V2: Valuation flag actually used after AUTO cascade (CL→SL→FL fallback).\nEquals valuation_flag when explicit, or the resolved choice when AUTO."
+        },
+        "marketingFlagUsed": {
+          "$ref": "#/definitions/v1RMMarketingFlag",
+          "description": "V2: Marketing flag actually used after AUTO cascade (SP→PP→FP fallback)."
         }
       },
       "description": "RMCost is the landed cost computed for a single (period, rm_code) pair."
