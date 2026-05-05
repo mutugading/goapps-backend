@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.3](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.11.2...finance-service/v0.11.3) (2026-05-05)
+
+
+### Bug Fixes
+
+* **rm-cost:** implement V2 flag resolution for valuation and marketing in RMCost handler ([ef09750](https://github.com/mutugading/goapps-backend/commit/ef09750f2355d549bf4ea8a60fe481821ea6646f))
+* **rm-cost:** implement V2 flag resolution for valuation and marketing in RMCost handler ([2afb1d1](https://github.com/mutugading/goapps-backend/commit/2afb1d1fcd650eb6c7a59d87a398dd7f9d5085d8))
+
 ## [0.11.2](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.11.1...finance-service/v0.11.2) (2026-05-05)
 
 
