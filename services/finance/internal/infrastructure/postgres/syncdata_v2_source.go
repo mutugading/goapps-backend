@@ -26,7 +26,14 @@ type V2SourceQty struct {
 
 // FetchSourceQtyByItemGrade returns one record per (item_code, grade_code) in
 // the sync feed for the given period, keyed by (item_code, COALESCE(grade_code,”)).
-// Stock = STORES stage in cst_item_cons_stk_po. PO = PO_1 (first PO slot).
+//
+// Stock semantics: in the business model "stock" is a single physical inventory
+// per item; the Oracle source splits it into STORES + DEPT only for reporting.
+// At the V2 RM cost engine boundary we merge them back into one "stock" bucket,
+// so each per-item rate (and the resulting group-total SR via Σstock_val/Σstock_qty)
+// reflects the true stock. The source table cst_item_cons_stk_po keeps stores_*
+// and dept_* separate untouched for audit + grouping reports.
+// PO = PO_1 (first PO slot).
 //
 // Used by the V2 RM cost engine — replaces the aggregate FetchRateInputs.
 func (r *SyncDataRepository) FetchSourceQtyByItemGrade(
@@ -53,10 +60,12 @@ func (r *SyncDataRepository) FetchSourceQtyByItemGrade(
 		idx++
 	}
 
+	// stock_val / stock_qty merge STORES + DEPT — see function doc.
 	query := fmt.Sprintf(`
 		SELECT item_code, COALESCE(grade_code, '') AS grade_code,
 		       cons_val, cons_qty,
-		       stores_val, stores_qty,
+		       COALESCE(stores_val, 0) + COALESCE(dept_val, 0) AS stock_val,
+		       COALESCE(stores_qty, 0) + COALESCE(dept_qty, 0) AS stock_qty,
 		       last_po_val1, last_po_qty1
 		FROM cst_item_cons_stk_po
 		WHERE period = $1 AND item_code IN (%s)
