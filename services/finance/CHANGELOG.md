@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.4](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.11.3...finance-service/v0.11.4) (2026-05-06)
+
+
+### Bug Fixes
+
+* **rm-cost:** document semantics of stock columns in cst_rm_cost_detail for clarity ([5874eb6](https://github.com/mutugading/goapps-backend/commit/5874eb697853391ad5ce50ee458d4ff1d60fa2bb))
+* **syncdata:** enhance stock handling in FetchSourceQtyByItemGrade for accurate inventory reporting ([a0c5edd](https://github.com/mutugading/goapps-backend/commit/a0c5eddf769e16058770c2e7f55b1212abf443c0))
+
 ## [0.11.3](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.11.2...finance-service/v0.11.3) (2026-05-05)
 
 
