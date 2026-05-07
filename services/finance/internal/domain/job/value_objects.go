@@ -55,6 +55,7 @@ type Type string
 const (
 	TypeOracleSync        Type = "oracle_sync"
 	TypeRMCostCalculation Type = "rm_cost_calculation"
+	TypeRMCostExport      Type = "rm_cost_export"
 	TypeCalculation       Type = "calculation"
 	TypeExport            Type = "export"
 )

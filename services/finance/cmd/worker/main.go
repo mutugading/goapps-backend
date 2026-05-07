@@ -16,9 +16,12 @@ import (
 	apprmcost "github.com/mutugading/goapps-backend/services/finance/internal/application/rmcost"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/rmcost"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/config"
+	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/iamclient"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/oracle"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/postgres"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/rabbitmq"
+	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/storage"
+	workerinternal "github.com/mutugading/goapps-backend/services/finance/internal/worker"
 )
 
 func main() {
@@ -102,6 +105,36 @@ func run() error { //nolint:gocognit // linear setup function
 	rmCostCalcV2 := apprmcost.NewCalculateHandlerV2(rmGroupRepo, rmCostRepo, rmCostDetailRepo, syncDataRepo, syncDataRepo)
 	rmCostExec := apprmcost.NewExecuteHandlerV2(jobRepo, rmGroupRepo, rmCostCalcV2, log.Logger)
 
+	// Setup MinIO storage (graceful degradation: nil disables export job).
+	var storageSvc storage.Service
+	if minioClient, sErr := storage.NewMinIOClient(storage.Config{
+		Endpoint:           cfg.Storage.Endpoint,
+		AccessKey:          cfg.Storage.AccessKey,
+		SecretKey:          cfg.Storage.SecretKey,
+		Bucket:             cfg.Storage.Bucket,
+		UseSSL:             cfg.Storage.UseSSL,
+		InsecureSkipVerify: cfg.Storage.InsecureSkipVerify,
+		Region:             cfg.Storage.Region,
+		PublicURL:          cfg.Storage.PublicURL,
+	}); sErr != nil {
+		log.Warn().Err(sErr).Msg("MinIO unavailable; rm_cost_export jobs will fail")
+	} else {
+		storageSvc = minioClient
+	}
+
+	// Setup IAM gRPC client (graceful degradation: no-op disables notifications).
+	var iamNotif iamclient.NotificationClient
+	if cli, cErr := iamclient.NewClient(cfg.IAMClient.Host, cfg.IAMClient.Port, cfg.IAMClient.InternalServiceToken); cErr != nil {
+		log.Warn().Err(cErr).Msg("IAM client unavailable; export-ready notifications will be skipped")
+		iamNotif = iamclient.NewNopClient()
+	} else {
+		iamNotif = cli
+		defer closeResource("iam-client", iamNotif)
+	}
+
+	// Create rm cost export handler.
+	rmCostExportHandler := workerinternal.NewRMCostExportHandler(jobRepo, rmCostRepo, rmCostDetailRepo, storageSvc, iamNotif, log.Logger)
+
 	// Oracle sync message handler.
 	syncMsgHandler := func(ctx context.Context, msg rabbitmq.JobMessage) error {
 		if syncHandler == nil {
@@ -140,20 +173,29 @@ func run() error { //nolint:gocognit // linear setup function
 		return rmCostExec.Execute(ctx, cmd)
 	}
 
+	// RM cost export message handler — produces xlsx + uploads to MinIO + notifies user.
+	rmCostExportMsgHandler := func(ctx context.Context, msg rabbitmq.JobMessage) error {
+		return rmCostExportHandler.Handle(ctx, msg)
+	}
+
 	// Start consumers.
 	syncConsumer := rabbitmq.NewConsumer(rmqConn, rabbitmq.QueueOracleSync, syncMsgHandler, log.Logger)
 	rmCostConsumer := rabbitmq.NewConsumer(rmqConn, rabbitmq.QueueRMCostCalc, rmCostMsgHandler, log.Logger)
+	rmCostExportConsumer := rabbitmq.NewConsumer(rmqConn, rabbitmq.QueueRMCostExport, rmCostExportMsgHandler, log.Logger)
 
 	// Log connection close events.
 	go watchConnection(ctx, rmqConn)
 
 	// Start consuming in goroutines.
-	errCh := make(chan error, 2)
+	errCh := make(chan error, 3)
 	go func() {
 		errCh <- syncConsumer.Start(ctx)
 	}()
 	go func() {
 		errCh <- rmCostConsumer.Start(ctx)
+	}()
+	go func() {
+		errCh <- rmCostExportConsumer.Start(ctx)
 	}()
 
 	// Wait for shutdown signal or consumer error.

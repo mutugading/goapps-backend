@@ -23,6 +23,8 @@ type RMCostHandler struct {
 	historyHandler     *apprmcost.HistoryHandler
 	periodsHandler     *apprmcost.PeriodsHandler
 	exportHandler      *apprmcost.ExportHandler
+	requestExport      *apprmcost.RequestExportHandler
+	exportURL          *apprmcost.GetExportURLHandler
 	costDetailRepo     rmcostdomain.CostDetailRepository
 	editInputsHandler  *apprmcost.EditInputsHandler
 	editFixRateHandler *apprmcost.EditFixRateHandler
@@ -38,6 +40,8 @@ func NewRMCostHandler(
 	history *apprmcost.HistoryHandler,
 	periods *apprmcost.PeriodsHandler,
 	export *apprmcost.ExportHandler,
+	requestExport *apprmcost.RequestExportHandler,
+	exportURL *apprmcost.GetExportURLHandler,
 	costDetailRepo rmcostdomain.CostDetailRepository,
 	editInputs *apprmcost.EditInputsHandler,
 	editFixRate *apprmcost.EditFixRateHandler,
@@ -54,6 +58,8 @@ func NewRMCostHandler(
 		historyHandler:     history,
 		periodsHandler:     periods,
 		exportHandler:      export,
+		requestExport:      requestExport,
+		exportURL:          exportURL,
 		costDetailRepo:     costDetailRepo,
 		editInputsHandler:  editInputs,
 		editFixRateHandler: editFixRate,
@@ -280,6 +286,87 @@ func (h *RMCostHandler) ExportRMCosts(ctx context.Context, req *financev1.Export
 		Base:        successResponse("RM costs exported successfully"),
 		FileContent: result.FileContent,
 		FileName:    result.FileName,
+	}, nil
+}
+
+// GetExportDownloadURL returns a presigned URL for the export artifact owned
+// by the caller.
+func (h *RMCostHandler) GetExportDownloadURL(ctx context.Context, req *financev1.GetExportDownloadURLRequest) (*financev1.GetExportDownloadURLResponse, error) {
+	if baseResp := h.validationHelper.ValidateRequest(req); baseResp != nil {
+		return &financev1.GetExportDownloadURLResponse{Base: baseResp}, nil
+	}
+	if h.exportURL == nil {
+		return &financev1.GetExportDownloadURLResponse{Base: ErrorResponse("503", "storage unavailable")}, nil
+	}
+	jobID, err := uuid.Parse(req.JobId)
+	if err != nil {
+		return &financev1.GetExportDownloadURLResponse{Base: ErrorResponse("400", "invalid job_id")}, nil //nolint:nilerr // error in body
+	}
+	userID, ok := GetUserIDFromCtx(ctx)
+	if !ok || userID == "" {
+		return &financev1.GetExportDownloadURLResponse{Base: ErrorResponse("401", "not authenticated")}, nil
+	}
+	res, err := h.exportURL.Handle(ctx, apprmcost.GetExportURLCommand{JobID: jobID, UserID: userID})
+	if err != nil {
+		return &financev1.GetExportDownloadURLResponse{Base: domainErrorToBaseResponse(err)}, nil //nolint:nilerr // error in body
+	}
+	return &financev1.GetExportDownloadURLResponse{
+		Base: successResponse("download URL generated"),
+		Data: &financev1.ExportDownloadInfo{
+			Url:       res.URL,
+			FileName:  res.FileName,
+			ExpiresAt: res.ExpiresAt.Format(time.RFC3339),
+		},
+	}, nil
+}
+
+// RequestRMCostExport queues an asynchronous RM cost export job. The worker
+// renders a 2-sheet Excel and uploads it to MinIO; the user is notified via
+// the IAM notification system when the file is ready for download.
+func (h *RMCostHandler) RequestRMCostExport(ctx context.Context, req *financev1.RequestRMCostExportRequest) (*financev1.RequestRMCostExportResponse, error) {
+	if baseResp := h.validationHelper.ValidateRequest(req); baseResp != nil {
+		RecordRMCostOperation(opExport, false)
+		return &financev1.RequestRMCostExportResponse{Base: baseResp}, nil
+	}
+	if h.requestExport == nil {
+		return &financev1.RequestRMCostExportResponse{Base: ErrorResponse("503", "export queue unavailable")}, nil
+	}
+
+	userID, ok := GetUserIDFromCtx(ctx)
+	if !ok || userID == "" {
+		return &financev1.RequestRMCostExportResponse{Base: ErrorResponse("401", "not authenticated")}, nil
+	}
+
+	groupHeadID := ""
+	if gid, badResp := parseOptionalGroupHeadID(req.GroupHeadId); badResp != nil {
+		RecordRMCostOperation(opExport, false)
+		return &financev1.RequestRMCostExportResponse{Base: badResp}, nil
+	} else if gid != nil {
+		groupHeadID = gid.String()
+	}
+
+	cmd := apprmcost.RequestExportCommand{
+		Period:           req.Period,
+		RMType:           rmTypeToString(req.RmType),
+		GroupHeadID:      groupHeadID,
+		Search:           req.Search,
+		RequestingUserID: userID,
+		CreatedBy:        getUserFromContext(ctx),
+	}
+	res, err := h.requestExport.Handle(ctx, cmd)
+	if err != nil {
+		RecordRMCostOperation(opExport, false)
+		return &financev1.RequestRMCostExportResponse{Base: domainErrorToBaseResponse(err)}, nil
+	}
+
+	RecordRMCostOperation(opExport, true)
+	return &financev1.RequestRMCostExportResponse{
+		Base: successResponse("Export queued. You will be notified when the file is ready."),
+		Data: &financev1.ExportJobInfo{
+			JobId:   res.Execution.ID().String(),
+			JobCode: res.Execution.Code().String(),
+			Status:  string(res.Execution.Status()),
+		},
 	}, nil
 }
 

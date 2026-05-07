@@ -23,6 +23,10 @@ const (
 	QueueRMCostCalc = "finance.jobs.rm_cost_calc"
 	// RoutingKeyRMCostCalc is the routing key for RM cost calculation messages.
 	RoutingKeyRMCostCalc = "rm_cost_calculation"
+	// QueueRMCostExport is the queue for RM cost async export jobs.
+	QueueRMCostExport = "finance.jobs.rm_cost_export"
+	// RoutingKeyRMCostExport is the routing key for RM cost export messages.
+	RoutingKeyRMCostExport = "rm_cost_export"
 	// DeadLetterExchange is the dead letter exchange for failed messages.
 	DeadLetterExchange = "finance.jobs.dlx"
 	// DeadLetterQueue is the dead letter queue.
@@ -154,6 +158,14 @@ func (c *Connection) declareTopology() error {
 	}
 	if err := c.channel.QueueBind(QueueRMCostCalc, RoutingKeyRMCostCalc, ExchangeName, false, nil); err != nil {
 		return fmt.Errorf("bind rm cost calc queue: %w", err)
+	}
+
+	// RM cost export queue with dead-letter routing.
+	if _, err := c.channel.QueueDeclare(QueueRMCostExport, true, false, false, false, args); err != nil {
+		return fmt.Errorf("declare rm cost export queue: %w", err)
+	}
+	if err := c.channel.QueueBind(QueueRMCostExport, RoutingKeyRMCostExport, ExchangeName, false, nil); err != nil {
+		return fmt.Errorf("bind rm cost export queue: %w", err)
 	}
 
 	return nil

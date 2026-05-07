@@ -180,7 +180,7 @@
     },
     "/api/v1/finance/rm-costs/export": {
       "get": {
-        "summary": "ExportRMCosts exports cost rows matching the filter to a single-sheet Excel.",
+        "summary": "ExportRMCosts exports cost rows matching the filter to a single-sheet Excel.\nSYNCHRONOUS variant — returns the bytes directly. Suitable only for small\nresult sets. Prefer RequestRMCostExport for production use.",
         "operationId": "RMCostService_ExportRMCosts",
         "responses": {
           "200": {
@@ -229,6 +229,37 @@
             "description": "Free-text search on rm_code + rm_name.",
             "in": "query",
             "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "RMCostService"
+        ]
+      }
+    },
+    "/api/v1/finance/rm-costs/exports/{jobId}/download": {
+      "get": {
+        "summary": "GetExportDownloadURL returns a short-lived presigned URL for downloading the\nxlsx artifact produced by a completed rm_cost_export job. The caller must\nown the job (job_execution.created_by matches the authenticated user).",
+        "operationId": "RMCostService_GetExportDownloadURL",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetExportDownloadURLResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
             "type": "string"
           }
         ],
@@ -324,6 +355,40 @@
             }
           }
         },
+        "tags": [
+          "RMCostService"
+        ]
+      }
+    },
+    "/api/v1/finance/rm-costs/request-export": {
+      "post": {
+        "summary": "RequestRMCostExport queues an asynchronous export job. The worker renders a\n2-sheet Excel (Header + Detail) covering the filtered rows (or the entire\nperiod when no further filter is set), uploads it to MinIO, and emits an\nEXPORT_READY notification with a DOWNLOAD action to the requesting user.\nReturns immediately with the job_id so the UI can show progress.",
+        "operationId": "RMCostService_RequestRMCostExport",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RequestRMCostExportResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "RequestRMCostExportRequest queues an async export job. Same filters as\nExportRMCostsRequest; reused for symmetry between sync + async variants.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1RequestRMCostExportRequest"
+            }
+          }
+        ],
         "tags": [
           "RMCostService"
         ]
@@ -657,6 +722,42 @@
       },
       "description": "Calculate response."
     },
+    "v1ExportDownloadInfo": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "Short-lived presigned URL the browser can redirect to."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Suggested filename (Content-Disposition)."
+        },
+        "expiresAt": {
+          "type": "string",
+          "description": "ISO8601 expiry for the presigned URL."
+        }
+      },
+      "description": "ExportDownloadInfo carries the presigned URL and suggested filename for the UI."
+    },
+    "v1ExportJobInfo": {
+      "type": "object",
+      "properties": {
+        "jobId": {
+          "type": "string",
+          "description": "job_execution.job_id (UUID)."
+        },
+        "jobCode": {
+          "type": "string",
+          "description": "human-readable code (e.g. \"RM_COST_EX-202604-001\")."
+        },
+        "status": {
+          "type": "string",
+          "description": "initial status, typically \"QUEUED\"."
+        }
+      },
+      "description": "ExportJobInfo summarizes a freshly-queued export job for the UI."
+    },
     "v1ExportRMCostsResponse": {
       "type": "object",
       "properties": {
@@ -675,6 +776,18 @@
         }
       },
       "description": "ExportRMCostsResponse carries the Excel bytes + filename."
+    },
+    "v1GetExportDownloadURLResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1ExportDownloadInfo"
+        }
+      },
+      "description": "GetExportDownloadURLResponse carries a presigned download URL."
     },
     "v1GetRMCostResponse": {
       "type": "object",
@@ -1385,6 +1498,40 @@
       ],
       "default": "RM_VALUATION_FLAG_UNSPECIFIED",
       "description": "RMValuationFlag selects which computed rate becomes `cost_val` in the\nRM Cost row. UNSPECIFIED behaves as AUTO (CL → SL → FL fallback, where\nFL incorporates the per-detail valuation_default_value).\n\n - RM_VALUATION_FLAG_UNSPECIFIED: Default zero value. Treated as AUTO (CL→SL→FL fallback).\n - RM_VALUATION_FLAG_CR: Use Consumption Rate (CR) — group-total cons_val / cons_qty.\n - RM_VALUATION_FLAG_SR: Use Stock Rate (SR) — group-total stock_val / stock_qty.\n - RM_VALUATION_FLAG_PR: Use PO Rate (PR) — group-total po_val / po_qty.\n - RM_VALUATION_FLAG_CL: Use Consumption Landed Cost (CL) — group-total CL aggregate.\n - RM_VALUATION_FLAG_SL: Use Stock Landed Cost (SL) — group-total SL aggregate.\n - RM_VALUATION_FLAG_FL: Use Fix Landed Cost (FL) — MAX of per-detail FL."
+    },
+    "v1RequestRMCostExportRequest": {
+      "type": "object",
+      "properties": {
+        "period": {
+          "type": "string",
+          "description": "Period filter (YYYYMM). Required for async export — files are namespaced\nby period in MinIO and the user almost always exports one period at a time."
+        },
+        "rmType": {
+          "$ref": "#/definitions/v1RMCostType",
+          "description": "Filter by RM type. UNSPECIFIED = all types in the period."
+        },
+        "groupHeadId": {
+          "type": "string",
+          "description": "Optional group scope."
+        },
+        "search": {
+          "type": "string",
+          "description": "Free-text search on rm_code + rm_name."
+        }
+      },
+      "description": "RequestRMCostExportRequest queues an async export job. Same filters as\nExportRMCostsRequest; reused for symmetry between sync + async variants."
+    },
+    "v1RequestRMCostExportResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1ExportJobInfo"
+        }
+      },
+      "description": "RequestRMCostExportResponse acknowledges the queued job."
     },
     "v1TriggerRMCostCalculationRequest": {
       "type": "object",
