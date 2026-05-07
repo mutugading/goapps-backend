@@ -44,54 +44,105 @@ type Service interface {
 	Bucket() string
 }
 
-// MinIOClient is the production implementation of Service.
+// MinIOClient is the production implementation of Service. Two underlying
+// minio.Client instances are kept: `upload` talks to the in-cluster endpoint
+// (fast + private), while `presign` is built against the publicly-reachable
+// endpoint so the AWS SigV4 signature is bound to the host the browser will
+// actually call. This avoids "NoSuchKey/SignatureDoesNotMatch" errors caused
+// by simply rewriting the host of an internal-signed URL post-hoc.
 type MinIOClient struct {
-	client    *minio.Client
-	bucket    string
-	publicURL string
+	upload  *minio.Client
+	presign *minio.Client // == upload when no public endpoint configured
+	bucket  string
 }
 
 // NewMinIOClient builds a configured MinIO client; bucket is NOT created here
 // (the operator/init container is expected to provision it).
 func NewMinIOClient(cfg Config) (*MinIOClient, error) {
+	uploadClient, err := buildClient(cfg.Endpoint, cfg.UseSSL, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("create upload client: %w", err)
+	}
+	log.Info().Str("endpoint", cfg.Endpoint).Str("bucket", cfg.Bucket).Bool("ssl", cfg.UseSSL).Msg("MinIO upload client initialized")
+
+	presignClient := uploadClient
+	if cfg.PublicURL != "" {
+		host, secure, perr := parsePublicEndpoint(cfg.PublicURL, cfg.UseSSL)
+		if perr != nil {
+			return nil, fmt.Errorf("parse public_url: %w", perr)
+		}
+		pc, perr := buildClient(host, secure, cfg)
+		if perr != nil {
+			return nil, fmt.Errorf("create presign client: %w", perr)
+		}
+		log.Info().Str("endpoint", host).Bool("ssl", secure).Msg("MinIO presign client initialized (public endpoint)")
+		presignClient = pc
+	}
+
+	return &MinIOClient{upload: uploadClient, presign: presignClient, bucket: cfg.Bucket}, nil
+}
+
+// buildClient assembles a minio.Client with shared credentials/region but a
+// caller-chosen endpoint and TLS mode. Self-signed certs are tolerated when
+// the operator has opted in via InsecureSkipVerify.
+func buildClient(endpoint string, secure bool, cfg Config) (*minio.Client, error) {
 	opts := &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
-		Secure: cfg.UseSSL,
+		Secure: secure,
 		Region: cfg.Region,
 	}
-	if cfg.UseSSL && cfg.InsecureSkipVerify {
+	if secure && cfg.InsecureSkipVerify {
 		opts.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // operator-opted self-signed certs
 		}
 	}
-	c, err := minio.New(cfg.Endpoint, opts)
+	return minio.New(endpoint, opts)
+}
+
+// parsePublicEndpoint converts a publicURL like "https://host:port" into the
+// (host:port, secure) pair minio.New() expects. Falls back to the configured
+// secure flag when the URL has no explicit scheme.
+func parsePublicEndpoint(publicURL string, defaultSecure bool) (string, bool, error) {
+	u, err := url.Parse(strings.TrimRight(publicURL, "/"))
 	if err != nil {
-		return nil, fmt.Errorf("create minio client: %w", err)
+		return "", false, err
 	}
-	log.Info().Str("endpoint", cfg.Endpoint).Str("bucket", cfg.Bucket).Bool("ssl", cfg.UseSSL).Msg("MinIO client initialized")
-	return &MinIOClient{client: c, bucket: cfg.Bucket, publicURL: cfg.PublicURL}, nil
+	host := u.Host
+	if host == "" {
+		// Bare "host:port" without scheme — url.Parse puts it in Path.
+		host = u.Path
+	}
+	if host == "" {
+		return "", false, fmt.Errorf("public_url has no host: %q", publicURL)
+	}
+	secure := defaultSecure
+	switch strings.ToLower(u.Scheme) {
+	case "https":
+		secure = true
+	case "http":
+		secure = false
+	}
+	return host, secure, nil
 }
 
 // PutObject implements Service.
 func (m *MinIOClient) PutObject(ctx context.Context, key string, reader io.Reader, size int64, contentType string) error {
-	if _, err := m.client.PutObject(ctx, m.bucket, key, reader, size, minio.PutObjectOptions{ContentType: contentType}); err != nil {
+	if _, err := m.upload.PutObject(ctx, m.bucket, key, reader, size, minio.PutObjectOptions{ContentType: contentType}); err != nil {
 		return fmt.Errorf("put object %s: %w", key, err)
 	}
 	return nil
 }
 
-// PresignedGetURL implements Service.
+// PresignedGetURL implements Service. Signed against the public endpoint so
+// the browser-supplied Host header matches what was signed.
 func (m *MinIOClient) PresignedGetURL(ctx context.Context, key string, validity time.Duration, downloadName string) (string, error) {
 	reqParams := url.Values{}
 	if downloadName != "" {
 		reqParams.Set("response-content-disposition", fmt.Sprintf(`attachment; filename="%s"`, sanitizeDownloadName(downloadName)))
 	}
-	u, err := m.client.PresignedGetObject(ctx, m.bucket, key, validity, reqParams)
+	u, err := m.presign.PresignedGetObject(ctx, m.bucket, key, validity, reqParams)
 	if err != nil {
 		return "", fmt.Errorf("presign get %s: %w", key, err)
-	}
-	if m.publicURL != "" {
-		return rewriteHost(u.String(), m.publicURL), nil
 	}
 	return u.String(), nil
 }
@@ -101,7 +152,7 @@ func (m *MinIOClient) RemoveObject(ctx context.Context, key string) error {
 	if key == "" {
 		return nil
 	}
-	if err := m.client.RemoveObject(ctx, m.bucket, key, minio.RemoveObjectOptions{}); err != nil {
+	if err := m.upload.RemoveObject(ctx, m.bucket, key, minio.RemoveObjectOptions{}); err != nil {
 		return fmt.Errorf("remove object %s: %w", key, err)
 	}
 	return nil
@@ -115,21 +166,4 @@ func (m *MinIOClient) Bucket() string { return m.bucket }
 func sanitizeDownloadName(s string) string {
 	r := strings.NewReplacer(`"`, "", `\`, "", "\n", " ", "\r", " ")
 	return r.Replace(s)
-}
-
-// rewriteHost replaces the scheme+host of a presigned URL with the configured
-// public URL while preserving the path + signed query string. Used when the
-// internal MinIO endpoint differs from what browsers can reach.
-func rewriteHost(presigned, publicURL string) string {
-	pu, err := url.Parse(presigned)
-	if err != nil {
-		return presigned
-	}
-	base, err := url.Parse(strings.TrimRight(publicURL, "/"))
-	if err != nil || base.Host == "" {
-		return presigned
-	}
-	pu.Scheme = base.Scheme
-	pu.Host = base.Host
-	return pu.String()
 }
