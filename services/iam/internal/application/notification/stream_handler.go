@@ -63,24 +63,46 @@ func (h *StreamHandler) Handle(
 	cutoffTime := time.Now().UTC()
 	cutoffID := uuid.Max // sentinel: all real ids are < uuid.Max lexicographically
 
-	// Catchup from DB if `since` is provided.
-	var lastEmittedTime time.Time
-	var lastEmittedID uuid.UUID
-	if since != "" {
-		afterTime, afterID, err := decodeCursor(since)
-		if err == nil { // bad cursor → skip catchup, start realtime
-			lt, lid, cerr := h.replay(ctx, recipient, afterTime, afterID, cutoffTime, cutoffID, emit)
-			if cerr != nil {
-				return cerr
-			}
-			lastEmittedTime, lastEmittedID = lt, lid
-		}
+	lastTime, lastID, err := h.runCatchup(ctx, recipient, since, cutoffTime, cutoffID, emit)
+	if err != nil {
+		return err
 	}
 
-	// Heartbeat ticker.
 	tick := time.NewTicker(h.heartbeatPeriod)
 	defer tick.Stop()
 
+	return h.realtimeLoop(ctx, ch, tick.C, lastTime, lastID, emit)
+}
+
+// runCatchup replays missed events from `since` cursor up to the just-captured
+// cutoff. Returns the last (time, id) actually emitted so the realtime loop
+// can dedup broadcaster events against it.
+func (h *StreamHandler) runCatchup(
+	ctx context.Context,
+	recipient uuid.UUID,
+	since string,
+	cutoffTime time.Time, cutoffID uuid.UUID,
+	emit func(StreamEvent) error,
+) (time.Time, uuid.UUID, error) {
+	if since == "" {
+		return time.Time{}, uuid.Nil, nil
+	}
+	afterTime, afterID, err := decodeCursor(since)
+	if err != nil { // bad cursor → skip catchup, start realtime
+		return time.Time{}, uuid.Nil, nil
+	}
+	return h.replay(ctx, recipient, afterTime, afterID, cutoffTime, cutoffID, emit)
+}
+
+// realtimeLoop pumps events from the broadcaster channel + heartbeat ticker
+// until the context is canceled or emit returns an error.
+func (h *StreamHandler) realtimeLoop(
+	ctx context.Context,
+	ch <-chan *notification.Notification,
+	tick <-chan time.Time,
+	lastTime time.Time, lastID uuid.UUID,
+	emit func(StreamEvent) error,
+) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -89,15 +111,14 @@ func (h *StreamHandler) Handle(
 			if !ok {
 				return nil // unsubscribed
 			}
-			// Skip events already delivered via replay (same key or older).
-			if !cursorAfter(n.CreatedAt(), n.ID(), lastEmittedTime, lastEmittedID) {
-				continue
+			if !cursorAfter(n.CreatedAt(), n.ID(), lastTime, lastID) {
+				continue // already delivered via replay
 			}
 			if err := emit(StreamEvent{EventID: encodeCursor(n.CreatedAt(), n.ID()), Notification: n}); err != nil {
 				return fmt.Errorf("emit notification: %w", err)
 			}
-			lastEmittedTime, lastEmittedID = n.CreatedAt(), n.ID()
-		case t := <-tick.C:
+			lastTime, lastID = n.CreatedAt(), n.ID()
+		case t := <-tick:
 			if err := emit(StreamEvent{EventID: encodeCursor(t, uuid.Nil), IsHeartbeat: true}); err != nil {
 				return fmt.Errorf("emit heartbeat: %w", err)
 			}

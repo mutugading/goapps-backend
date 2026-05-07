@@ -114,70 +114,90 @@ func run() error { //nolint:gocognit // linear setup function
 	// Create rm cost export handler.
 	rmCostExportHandler := workerinternal.NewRMCostExportHandler(jobRepo, rmCostRepo, rmCostDetailRepo, storageSvc, iamNotif, log.Logger)
 
-	// Oracle sync message handler.
+	consumers := buildConsumers(rmqConn, syncHandler, rmCostExec, rmCostExportHandler)
+
+	go watchConnection(ctx, rmqConn)
+
+	if runErr := runConsumers(ctx, cancel, consumers); runErr != nil {
+		return runErr
+	}
+
+	log.Info().Msg("Waiting for in-flight jobs to complete...")
+	time.Sleep(5 * time.Second)
+	log.Info().Msg("Worker shutdown complete")
+	return nil
+}
+
+// buildConsumers wires the three rabbitmq consumers (oracle_sync, rm_cost_calc,
+// rm_cost_export) with their respective message handlers.
+func buildConsumers(
+	rmqConn *rabbitmq.Connection,
+	syncHandler *oraclesync.SyncHandler,
+	rmCostExec *apprmcost.ExecuteHandlerV2,
+	rmCostExportHandler *workerinternal.RMCostExportHandler,
+) []*rabbitmq.Consumer {
 	syncMsgHandler := func(ctx context.Context, msg rabbitmq.JobMessage) error {
-		if syncHandler == nil {
-			log.Warn().Str("job_id", msg.JobID).Msg("Oracle sync job received but Oracle unavailable; skipping")
-			return nil
-		}
-		jobID, parseErr := uuid.Parse(msg.JobID)
-		if parseErr != nil {
-			log.Error().Err(parseErr).Str("job_id", msg.JobID).Msg("Invalid job ID in message")
-			return parseErr
-		}
-		return syncHandler.Execute(ctx, jobID)
+		return runOracleSyncJob(ctx, syncHandler, msg)
 	}
-
-	// RM cost calculation message handler.
 	rmCostMsgHandler := func(ctx context.Context, msg rabbitmq.JobMessage) error {
-		jobID, parseErr := uuid.Parse(msg.JobID)
-		if parseErr != nil {
-			log.Error().Err(parseErr).Str("job_id", msg.JobID).Msg("Invalid rm cost job ID")
-			return parseErr
-		}
-		cmd := apprmcost.ExecuteCommand{
-			JobID:         jobID,
-			Period:        msg.Period,
-			CalculatedBy:  msg.CreatedBy,
-			TriggerReason: rmcost.HistoryTriggerReason(msg.Reason),
-		}
-		if msg.GroupHeadID != "" {
-			gid, parseErr := uuid.Parse(msg.GroupHeadID)
-			if parseErr != nil {
-				log.Error().Err(parseErr).Str("group_head_id", msg.GroupHeadID).Msg("Invalid group head id in rm cost message")
-				return parseErr
-			}
-			cmd.GroupHeadID = &gid
-		}
-		return rmCostExec.Execute(ctx, cmd)
+		return runRMCostCalcJob(ctx, rmCostExec, msg)
 	}
-
-	// RM cost export message handler — produces xlsx + uploads to MinIO + notifies user.
 	rmCostExportMsgHandler := func(ctx context.Context, msg rabbitmq.JobMessage) error {
 		return rmCostExportHandler.Handle(ctx, msg)
 	}
+	return []*rabbitmq.Consumer{
+		rabbitmq.NewConsumer(rmqConn, rabbitmq.QueueOracleSync, syncMsgHandler, log.Logger),
+		rabbitmq.NewConsumer(rmqConn, rabbitmq.QueueRMCostCalc, rmCostMsgHandler, log.Logger),
+		rabbitmq.NewConsumer(rmqConn, rabbitmq.QueueRMCostExport, rmCostExportMsgHandler, log.Logger),
+	}
+}
 
-	// Start consumers.
-	syncConsumer := rabbitmq.NewConsumer(rmqConn, rabbitmq.QueueOracleSync, syncMsgHandler, log.Logger)
-	rmCostConsumer := rabbitmq.NewConsumer(rmqConn, rabbitmq.QueueRMCostCalc, rmCostMsgHandler, log.Logger)
-	rmCostExportConsumer := rabbitmq.NewConsumer(rmqConn, rabbitmq.QueueRMCostExport, rmCostExportMsgHandler, log.Logger)
+// runOracleSyncJob parses + dispatches an oracle_sync message to the handler.
+func runOracleSyncJob(ctx context.Context, h *oraclesync.SyncHandler, msg rabbitmq.JobMessage) error {
+	if h == nil {
+		log.Warn().Str("job_id", msg.JobID).Msg("Oracle sync job received but Oracle unavailable; skipping")
+		return nil
+	}
+	jobID, parseErr := uuid.Parse(msg.JobID)
+	if parseErr != nil {
+		log.Error().Err(parseErr).Str("job_id", msg.JobID).Msg("Invalid job ID in message")
+		return parseErr
+	}
+	return h.Execute(ctx, jobID)
+}
 
-	// Log connection close events.
-	go watchConnection(ctx, rmqConn)
+// runRMCostCalcJob parses + dispatches an rm_cost_calculation message.
+func runRMCostCalcJob(ctx context.Context, h *apprmcost.ExecuteHandlerV2, msg rabbitmq.JobMessage) error {
+	jobID, parseErr := uuid.Parse(msg.JobID)
+	if parseErr != nil {
+		log.Error().Err(parseErr).Str("job_id", msg.JobID).Msg("Invalid rm cost job ID")
+		return parseErr
+	}
+	cmd := apprmcost.ExecuteCommand{
+		JobID:         jobID,
+		Period:        msg.Period,
+		CalculatedBy:  msg.CreatedBy,
+		TriggerReason: rmcost.HistoryTriggerReason(msg.Reason),
+	}
+	if msg.GroupHeadID != "" {
+		gid, gErr := uuid.Parse(msg.GroupHeadID)
+		if gErr != nil {
+			log.Error().Err(gErr).Str("group_head_id", msg.GroupHeadID).Msg("Invalid group head id in rm cost message")
+			return gErr
+		}
+		cmd.GroupHeadID = &gid
+	}
+	return h.Execute(ctx, cmd)
+}
 
-	// Start consuming in goroutines.
-	errCh := make(chan error, 3)
-	go func() {
-		errCh <- syncConsumer.Start(ctx)
-	}()
-	go func() {
-		errCh <- rmCostConsumer.Start(ctx)
-	}()
-	go func() {
-		errCh <- rmCostExportConsumer.Start(ctx)
-	}()
+// runConsumers fans out the consumers into goroutines and waits for either an
+// OS shutdown signal or the first consumer error.
+func runConsumers(ctx context.Context, cancel context.CancelFunc, consumers []*rabbitmq.Consumer) error {
+	errCh := make(chan error, len(consumers))
+	for _, c := range consumers {
+		go func() { errCh <- c.Start(ctx) }()
+	}
 
-	// Wait for shutdown signal or consumer error.
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
@@ -192,12 +212,6 @@ func run() error { //nolint:gocognit // linear setup function
 			return err
 		}
 	}
-
-	// Give in-flight jobs time to finish.
-	log.Info().Msg("Waiting for in-flight jobs to complete...")
-	time.Sleep(5 * time.Second)
-
-	log.Info().Msg("Worker shutdown complete")
 	return nil
 }
 

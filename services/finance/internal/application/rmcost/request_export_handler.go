@@ -3,6 +3,7 @@ package rmcost
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/job"
@@ -88,11 +89,11 @@ func (h *RequestExportHandler) Handle(ctx context.Context, cmd RequestExportComm
 		cmd.CreatedBy,
 	); err != nil {
 		// Mark job failed so it doesn't sit forever in QUEUED. Best-effort:
-		// errors here are logged in the wrapped error but don't override the
-		// publish failure that the caller actually cares about.
+		// when the followup persist also fails we surface a joined error so
+		// neither root cause is lost.
 		if failErr := exec.Fail("failed to publish to queue: " + err.Error()); failErr == nil {
 			if updErr := h.jobRepo.UpdateStatus(ctx, exec); updErr != nil {
-				return nil, fmt.Errorf("publish job: %w (additionally: persist failed: %v)", err, updErr)
+				return nil, errors.Join(fmt.Errorf("publish job: %w", err), fmt.Errorf("persist failed: %w", updErr))
 			}
 		}
 		return nil, fmt.Errorf("publish job: %w", err)
