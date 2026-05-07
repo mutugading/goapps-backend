@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.14.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.13.0...iam-service/v0.14.0) (2026-05-07)
+
+
+### Features
+
+* **auth:** support internal service token bypass for trusted backend callers ([24aaafe](https://github.com/mutugading/goapps-backend/commit/24aaafe3e99836ae0e9ebf1afacc4af97147e511))
+* **export-notification:** Implement generic IAM notification system with MinIO export support ([124f619](https://github.com/mutugading/goapps-backend/commit/124f619c16e4f2ef5bc70c975fc9e40deb2e1244))
+* **notification:** add generic IAM notification system with SSE realtime delivery ([7682d14](https://github.com/mutugading/goapps-backend/commit/7682d1499e85285f728f9c7dd8cfa18725a2724f))
+
+
+### Bug Fixes
+
+* **lint:** resolve golangci-lint errors and apply Copilot review feedback ([9b96fd5](https://github.com/mutugading/goapps-backend/commit/9b96fd5fc97b200577cca144b5d3656a6930f639))
+* **lint:** resolve remaining gocyclo, gocognit, and errorlint failures ([962dcfd](https://github.com/mutugading/goapps-backend/commit/962dcfdad6700bb843643589396696dc7b4d4221))
+* **notification:** suppress nilerr on intentional bad-cursor swallow ([bcc6a50](https://github.com/mutugading/goapps-backend/commit/bcc6a5024e2322fd58835d3c77e2ff625461933f))
+* **tracing:** fetch tracer lazily per-request to survive late provider init ([0186299](https://github.com/mutugading/goapps-backend/commit/018629984683afb9ba47c9f02ee198a36f835336))
+* **tracing:** fetch tracer lazily per-request to survive late provider init ([788d0bc](https://github.com/mutugading/goapps-backend/commit/788d0bc6c0db634bd90430354542d21086b541a5))
+* **tracing:** use otlptracegrpc.WithInsecure() to actually disable TLS ([0908955](https://github.com/mutugading/goapps-backend/commit/090895526959ecbc8deaa37a8f7fc1dc661aa8b7))
+
 ## [0.13.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.12.0...iam-service/v0.13.0) (2026-04-22)
 
 
