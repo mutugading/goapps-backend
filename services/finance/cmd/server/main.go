@@ -20,6 +20,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/postgres"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/rabbitmq"
 	redisinfra "github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/redis"
+	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/storage"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/tracing"
 )
 
@@ -79,9 +80,11 @@ func run() error {
 	// the handlers receive a true nil interface (not a typed-nil pointer).
 	var oracleSyncPublisher oraclesync.JobPublisher
 	var rmCostPublisher apprmcost.JobPublisher
+	var rmCostExportPublisher apprmcost.ExportJobPublisher
 	if rmqAdapter != nil {
 		oracleSyncPublisher = rmqAdapter
 		rmCostPublisher = rmqAdapter
+		rmCostExportPublisher = rmqAdapter
 	}
 
 	// Setup repositories
@@ -157,12 +160,30 @@ func run() error {
 	rmCostHistory := apprmcost.NewHistoryHandler(rmCostRepo)
 	rmCostPeriods := apprmcost.NewPeriodsHandler(rmCostRepo)
 	rmCostExport := apprmcost.NewExportHandler(rmCostRepo)
+	rmCostRequestExport := apprmcost.NewRequestExportHandler(jobRepo, rmCostExportPublisher)
+
+	// MinIO storage for presigning export downloads (graceful: nil disables URL handler).
+	var rmCostExportURL *apprmcost.GetExportURLHandler
+	if storageClient, sErr := storage.NewMinIOClient(storage.Config{
+		Endpoint:           cfg.Storage.Endpoint,
+		AccessKey:          cfg.Storage.AccessKey,
+		SecretKey:          cfg.Storage.SecretKey,
+		Bucket:             cfg.Storage.Bucket,
+		UseSSL:             cfg.Storage.UseSSL,
+		InsecureSkipVerify: cfg.Storage.InsecureSkipVerify,
+		Region:             cfg.Storage.Region,
+		PublicURL:          cfg.Storage.PublicURL,
+	}); sErr != nil {
+		log.Warn().Err(sErr).Msg("MinIO unavailable; export download URLs will return 503")
+	} else {
+		rmCostExportURL = apprmcost.NewGetExportURLHandler(jobRepo, storageClient, 5*time.Minute)
+	}
 
 	editInputsHandler := apprmcost.NewEditInputsHandler(rmCostRepo, rmCostInputsRepo)
 	editFixRateHandler := apprmcost.NewEditFixRateHandler(rmCostRepo, rmCostDetailRepo, rmCostInputsRepo)
 
 	rmCostHandler, err := grpcdelivery.NewRMCostHandler(
-		rmCostTrigger, rmCostCalculate, rmCostGet, rmCostList, rmCostHistory, rmCostPeriods, rmCostExport,
+		rmCostTrigger, rmCostCalculate, rmCostGet, rmCostList, rmCostHistory, rmCostPeriods, rmCostExport, rmCostRequestExport, rmCostExportURL,
 		rmCostDetailRepo, editInputsHandler, editFixRateHandler,
 	)
 	if err != nil {

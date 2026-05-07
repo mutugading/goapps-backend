@@ -22,6 +22,13 @@ type JobMessage struct {
 	GroupHeadID string `json:"group_head_id,omitempty"`
 	// Reason is the HistoryTriggerReason for rm_cost_calculation jobs.
 	Reason string `json:"reason,omitempty"`
+	// RequestingUserID is the notification recipient for jobs that emit a
+	// result-ready notification to the requester (e.g. rm_cost_export).
+	RequestingUserID string `json:"requesting_user_id,omitempty"`
+	// Search is a free-text filter for rm_cost_export.
+	Search string `json:"search,omitempty"`
+	// RMType is the cost-type filter for rm_cost_export. Empty = all.
+	RMType string `json:"rm_type,omitempty"`
 }
 
 // Publisher publishes messages to RabbitMQ exchanges.

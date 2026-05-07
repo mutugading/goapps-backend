@@ -23,6 +23,35 @@ type Config struct {
 	RabbitMQ  RabbitMQConfig  `mapstructure:"rabbitmq"`
 	Tracing   TracingConfig   `mapstructure:"tracing"`
 	Logger    LoggerConfig    `mapstructure:"logger"`
+	Storage   StorageConfig   `mapstructure:"storage"`
+	IAMClient IAMClientConfig `mapstructure:"iam_client"`
+}
+
+// IAMClientConfig configures the gRPC client used by the worker to call IAM
+// (notably NotificationService.CreateNotification when emitting export-ready
+// notifications). Empty/zero values disable the client and the worker logs a
+// warning instead of emitting notifications.
+//
+// InternalServiceToken is the shared secret sent in the `x-internal-token`
+// metadata header so IAM accepts the call without a JWT. Must match
+// SecurityConfig.InternalServiceToken on the IAM side.
+type IAMClientConfig struct {
+	Host                 string `mapstructure:"host"`
+	Port                 int    `mapstructure:"port"`
+	InternalServiceToken string `mapstructure:"internal_service_token"`
+}
+
+// StorageConfig holds MinIO/S3 connection details for the finance worker
+// and gRPC handlers that need to issue presigned URLs.
+type StorageConfig struct {
+	Endpoint           string `mapstructure:"endpoint"`
+	AccessKey          string `mapstructure:"access_key"`
+	SecretKey          string `mapstructure:"secret_key"`
+	Bucket             string `mapstructure:"bucket"`
+	UseSSL             bool   `mapstructure:"use_ssl"`
+	InsecureSkipVerify bool   `mapstructure:"insecure_skip_verify"`
+	Region             string `mapstructure:"region"`
+	PublicURL          string `mapstructure:"public_url"`
 }
 
 // OracleConfig holds Oracle database connection configuration.
@@ -241,6 +270,24 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("logger.level", "info")
 	v.SetDefault("logger.format", "json")
 	v.SetDefault("logger.pretty_json", false)
+
+	// IAM gRPC client (worker → IAM for emit-on-complete notifications).
+	v.SetDefault("iam_client.host", "localhost")
+	v.SetDefault("iam_client.port", 50052)
+	// internal_service_token MUST come from environment (.env.local for dev,
+	// Kubernetes Secret for staging/production). Must match the value on the
+	// IAM side.
+	v.SetDefault("iam_client.internal_service_token", "")
+
+	// Storage / MinIO defaults — credentials must come from env vars.
+	v.SetDefault("storage.endpoint", "localhost:9000")
+	v.SetDefault("storage.access_key", "minioadmin")
+	v.SetDefault("storage.secret_key", "minioadmin")
+	v.SetDefault("storage.bucket", "goapps-staging")
+	v.SetDefault("storage.use_ssl", false)
+	v.SetDefault("storage.insecure_skip_verify", false)
+	v.SetDefault("storage.region", "us-east-1")
+	v.SetDefault("storage.public_url", "")
 }
 
 func bindEnvVars(v *viper.Viper) {
@@ -284,6 +331,19 @@ func bindEnvVars(v *viper.Viper) {
 		// App
 		{"app.environment", "APP_ENV"},
 		{"logger.level", "LOG_LEVEL"},
+		// IAM gRPC client (worker → IAM for notifications)
+		{"iam_client.host", "IAM_GRPC_HOST"},
+		{"iam_client.port", "IAM_GRPC_PORT"},
+		{"iam_client.internal_service_token", "INTERNAL_SERVICE_TOKEN"},
+		// Storage (MinIO)
+		{"storage.endpoint", "MINIO_ENDPOINT"},
+		{"storage.access_key", "MINIO_ACCESS_KEY"},
+		{"storage.secret_key", "MINIO_SECRET_KEY"},
+		{"storage.bucket", "MINIO_BUCKET"},
+		{"storage.use_ssl", "MINIO_USE_SSL"},
+		{"storage.insecure_skip_verify", "MINIO_INSECURE_SKIP_VERIFY"},
+		{"storage.region", "MINIO_REGION"},
+		{"storage.public_url", "MINIO_PUBLIC_URL"},
 	}
 
 	for _, binding := range envBindings {

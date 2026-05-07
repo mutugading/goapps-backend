@@ -13,11 +13,13 @@ import (
 
 	iamv1 "github.com/mutugading/goapps-backend/gen/iam/v1"
 	authapp "github.com/mutugading/goapps-backend/services/iam/internal/application/auth"
+	appnotif "github.com/mutugading/goapps-backend/services/iam/internal/application/notification"
 	grpcdelivery "github.com/mutugading/goapps-backend/services/iam/internal/delivery/grpc"
 	httpdelivery "github.com/mutugading/goapps-backend/services/iam/internal/delivery/httpdelivery"
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/config"
 	emailinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/email"
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/jwt"
+	notifinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/notification"
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/postgres"
 	redisinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/redis"
 	storageinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/storage"
@@ -90,6 +92,10 @@ func run() error {
 	employeeLevelRepo := postgres.NewEmployeeLevelRepository(db)
 	employeeGroupRepo := postgres.NewEmployeeGroupRepository(db)
 	workflowHistoryRepo := postgres.NewWorkflowHistoryRepository(db)
+	notificationRepo := postgres.NewNotificationRepository(db)
+
+	// Notification broadcaster (in-memory pub/sub for SSE realtime delivery).
+	notifBroadcaster := notifinfra.NewBroadcaster()
 
 	// Setup auth service
 	authService := authapp.NewService(
@@ -147,8 +153,24 @@ func run() error {
 	employeeLevelHandler := grpcdelivery.NewEmployeeLevelHandler(employeeLevelRepo, workflowHistoryRepo, validationHelper)
 	employeeGroupHandler := grpcdelivery.NewEmployeeGroupHandler(employeeGroupRepo, validationHelper)
 
+	// Notification application handlers + gRPC handler.
+	notifCreate := appnotif.NewCreateHandler(notificationRepo, notifBroadcaster)
+	notifGet := appnotif.NewGetHandler(notificationRepo)
+	notifList := appnotif.NewListHandler(notificationRepo)
+	notifUnread := appnotif.NewUnreadCountHandler(notificationRepo)
+	notifMarkRead := appnotif.NewMarkAsReadHandler(notificationRepo)
+	notifMarkAllRead := appnotif.NewMarkAllAsReadHandler(notificationRepo)
+	notifArchive := appnotif.NewArchiveHandler(notificationRepo)
+	notifDelete := appnotif.NewDeleteHandler(notificationRepo)
+	notifStream := appnotif.NewStreamHandler(notificationRepo, notifBroadcaster, 30*time.Second)
+	notificationHandler := grpcdelivery.NewNotificationHandler(
+		notifCreate, notifGet, notifList, notifUnread,
+		notifMarkRead, notifMarkAllRead, notifArchive, notifDelete,
+		notifStream, validationHelper,
+	)
+
 	// Setup gRPC server with interceptor chain (pass JWT + session cache + session repo for auth & activity tracking)
-	grpcServer, err := grpcdelivery.NewServer(&cfg.Server, db, jwtService, sessionCache, sessionRepo)
+	grpcServer, err := grpcdelivery.NewServer(&cfg.Server, db, jwtService, sessionCache, sessionRepo, cfg.Security.InternalServiceToken)
 	if err != nil {
 		return err
 	}
@@ -171,6 +193,7 @@ func run() error {
 	iamv1.RegisterCMSSettingServiceServer(gs, cmsSettingHandler)
 	iamv1.RegisterEmployeeLevelServiceServer(gs, employeeLevelHandler)
 	iamv1.RegisterEmployeeGroupServiceServer(gs, employeeGroupHandler)
+	iamv1.RegisterNotificationServiceServer(gs, notificationHandler)
 
 	// Start gRPC server
 	go func() {

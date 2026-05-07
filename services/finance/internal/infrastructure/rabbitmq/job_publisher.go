@@ -33,6 +33,26 @@ func (a *JobPublisherAdapter) PublishOracleSync(ctx context.Context, jobID strin
 	return a.publisher.PublishJob(ctx, RoutingKeyOracleSync, msg)
 }
 
+// PublishRMCostExport publishes an RM cost async export job message.
+// requestingUserID is the notification recipient when the file is ready.
+func (a *JobPublisherAdapter) PublishRMCostExport(
+	ctx context.Context,
+	jobID, period, rmType, groupHeadID, search, requestingUserID, createdBy string,
+) error {
+	msg := JobMessage{
+		JobID:            jobID,
+		JobType:          "rm_cost_export",
+		Subtype:          "xlsx",
+		Period:           period,
+		CreatedBy:        createdBy,
+		RequestingUserID: requestingUserID,
+		Search:           search,
+		RMType:           rmType,
+		GroupHeadID:      groupHeadID,
+	}
+	return a.publisher.PublishJob(ctx, RoutingKeyRMCostExport, msg)
+}
+
 // PublishRMCostCalculation publishes an RM landed-cost calculation job message.
 // groupHeadID is optional (nil means recalculate every active group for the period).
 func (a *JobPublisherAdapter) PublishRMCostCalculation(

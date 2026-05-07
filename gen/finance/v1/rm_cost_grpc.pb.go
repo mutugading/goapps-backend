@@ -26,6 +26,8 @@ const (
 	RMCostService_ListRMCostHistory_FullMethodName        = "/finance.v1.RMCostService/ListRMCostHistory"
 	RMCostService_ListRMCostPeriods_FullMethodName        = "/finance.v1.RMCostService/ListRMCostPeriods"
 	RMCostService_ExportRMCosts_FullMethodName            = "/finance.v1.RMCostService/ExportRMCosts"
+	RMCostService_GetExportDownloadURL_FullMethodName     = "/finance.v1.RMCostService/GetExportDownloadURL"
+	RMCostService_RequestRMCostExport_FullMethodName      = "/finance.v1.RMCostService/RequestRMCostExport"
 	RMCostService_ListCostDetails_FullMethodName          = "/finance.v1.RMCostService/ListCostDetails"
 	RMCostService_UpdateRMCostInputs_FullMethodName       = "/finance.v1.RMCostService/UpdateRMCostInputs"
 	RMCostService_UpdateCostDetailFixRate_FullMethodName  = "/finance.v1.RMCostService/UpdateCostDetailFixRate"
@@ -51,7 +53,19 @@ type RMCostServiceClient interface {
 	// ListRMCostPeriods returns distinct periods from cost rows (newest first).
 	ListRMCostPeriods(ctx context.Context, in *ListRMCostPeriodsRequest, opts ...grpc.CallOption) (*ListRMCostPeriodsResponse, error)
 	// ExportRMCosts exports cost rows matching the filter to a single-sheet Excel.
+	// SYNCHRONOUS variant — returns the bytes directly. Suitable only for small
+	// result sets. Prefer RequestRMCostExport for production use.
 	ExportRMCosts(ctx context.Context, in *ExportRMCostsRequest, opts ...grpc.CallOption) (*ExportRMCostsResponse, error)
+	// GetExportDownloadURL returns a short-lived presigned URL for downloading the
+	// xlsx artifact produced by a completed rm_cost_export job. The caller must
+	// own the job (job_execution.created_by matches the authenticated user).
+	GetExportDownloadURL(ctx context.Context, in *GetExportDownloadURLRequest, opts ...grpc.CallOption) (*GetExportDownloadURLResponse, error)
+	// RequestRMCostExport queues an asynchronous export job. The worker renders a
+	// 2-sheet Excel (Header + Detail) covering the filtered rows (or the entire
+	// period when no further filter is set), uploads it to MinIO, and emits an
+	// EXPORT_READY notification with a DOWNLOAD action to the requesting user.
+	// Returns immediately with the job_id so the UI can show progress.
+	RequestRMCostExport(ctx context.Context, in *RequestRMCostExportRequest, opts ...grpc.CallOption) (*RequestRMCostExportResponse, error)
 	// V2: ListCostDetails returns per-item snapshot rows for a cost row.
 	ListCostDetails(ctx context.Context, in *ListCostDetailsRequest, opts ...grpc.CallOption) (*ListCostDetailsResponse, error)
 	// V2: UpdateRMCostInputs edits any of the per-row marketing snapshot inputs
@@ -143,6 +157,26 @@ func (c *rMCostServiceClient) ExportRMCosts(ctx context.Context, in *ExportRMCos
 	return out, nil
 }
 
+func (c *rMCostServiceClient) GetExportDownloadURL(ctx context.Context, in *GetExportDownloadURLRequest, opts ...grpc.CallOption) (*GetExportDownloadURLResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetExportDownloadURLResponse)
+	err := c.cc.Invoke(ctx, RMCostService_GetExportDownloadURL_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *rMCostServiceClient) RequestRMCostExport(ctx context.Context, in *RequestRMCostExportRequest, opts ...grpc.CallOption) (*RequestRMCostExportResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequestRMCostExportResponse)
+	err := c.cc.Invoke(ctx, RMCostService_RequestRMCostExport_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *rMCostServiceClient) ListCostDetails(ctx context.Context, in *ListCostDetailsRequest, opts ...grpc.CallOption) (*ListCostDetailsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListCostDetailsResponse)
@@ -193,7 +227,19 @@ type RMCostServiceServer interface {
 	// ListRMCostPeriods returns distinct periods from cost rows (newest first).
 	ListRMCostPeriods(context.Context, *ListRMCostPeriodsRequest) (*ListRMCostPeriodsResponse, error)
 	// ExportRMCosts exports cost rows matching the filter to a single-sheet Excel.
+	// SYNCHRONOUS variant — returns the bytes directly. Suitable only for small
+	// result sets. Prefer RequestRMCostExport for production use.
 	ExportRMCosts(context.Context, *ExportRMCostsRequest) (*ExportRMCostsResponse, error)
+	// GetExportDownloadURL returns a short-lived presigned URL for downloading the
+	// xlsx artifact produced by a completed rm_cost_export job. The caller must
+	// own the job (job_execution.created_by matches the authenticated user).
+	GetExportDownloadURL(context.Context, *GetExportDownloadURLRequest) (*GetExportDownloadURLResponse, error)
+	// RequestRMCostExport queues an asynchronous export job. The worker renders a
+	// 2-sheet Excel (Header + Detail) covering the filtered rows (or the entire
+	// period when no further filter is set), uploads it to MinIO, and emits an
+	// EXPORT_READY notification with a DOWNLOAD action to the requesting user.
+	// Returns immediately with the job_id so the UI can show progress.
+	RequestRMCostExport(context.Context, *RequestRMCostExportRequest) (*RequestRMCostExportResponse, error)
 	// V2: ListCostDetails returns per-item snapshot rows for a cost row.
 	ListCostDetails(context.Context, *ListCostDetailsRequest) (*ListCostDetailsResponse, error)
 	// V2: UpdateRMCostInputs edits any of the per-row marketing snapshot inputs
@@ -235,6 +281,12 @@ func (UnimplementedRMCostServiceServer) ListRMCostPeriods(context.Context, *List
 }
 func (UnimplementedRMCostServiceServer) ExportRMCosts(context.Context, *ExportRMCostsRequest) (*ExportRMCostsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ExportRMCosts not implemented")
+}
+func (UnimplementedRMCostServiceServer) GetExportDownloadURL(context.Context, *GetExportDownloadURLRequest) (*GetExportDownloadURLResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetExportDownloadURL not implemented")
+}
+func (UnimplementedRMCostServiceServer) RequestRMCostExport(context.Context, *RequestRMCostExportRequest) (*RequestRMCostExportResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequestRMCostExport not implemented")
 }
 func (UnimplementedRMCostServiceServer) ListCostDetails(context.Context, *ListCostDetailsRequest) (*ListCostDetailsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListCostDetails not implemented")
@@ -392,6 +444,42 @@ func _RMCostService_ExportRMCosts_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RMCostService_GetExportDownloadURL_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetExportDownloadURLRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RMCostServiceServer).GetExportDownloadURL(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RMCostService_GetExportDownloadURL_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RMCostServiceServer).GetExportDownloadURL(ctx, req.(*GetExportDownloadURLRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RMCostService_RequestRMCostExport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequestRMCostExportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RMCostServiceServer).RequestRMCostExport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RMCostService_RequestRMCostExport_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RMCostServiceServer).RequestRMCostExport(ctx, req.(*RequestRMCostExportRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RMCostService_ListCostDetails_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListCostDetailsRequest)
 	if err := dec(in); err != nil {
@@ -480,6 +568,14 @@ var RMCostService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ExportRMCosts",
 			Handler:    _RMCostService_ExportRMCosts_Handler,
+		},
+		{
+			MethodName: "GetExportDownloadURL",
+			Handler:    _RMCostService_GetExportDownloadURL_Handler,
+		},
+		{
+			MethodName: "RequestRMCostExport",
+			Handler:    _RMCostService_RequestRMCostExport_Handler,
 		},
 		{
 			MethodName: "ListCostDetails",
