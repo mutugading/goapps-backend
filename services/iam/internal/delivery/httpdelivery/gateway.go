@@ -105,6 +105,7 @@ func (s *Server) Start(ctx context.Context) error {
 		{"cms-setting", iamv1.RegisterCMSSettingServiceHandlerFromEndpoint},
 		{"employee-level", iamv1.RegisterEmployeeLevelServiceHandlerFromEndpoint},
 		{"employee-group", iamv1.RegisterEmployeeGroupServiceHandlerFromEndpoint},
+		{"notification", iamv1.RegisterNotificationServiceHandlerFromEndpoint},
 	}
 
 	for _, reg := range registrations {

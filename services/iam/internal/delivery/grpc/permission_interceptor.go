@@ -185,6 +185,20 @@ var methodPermissions = map[string]PermissionRequirement{
 	"/iam.v1.EmployeeGroupService/ExportEmployeeGroups":          {Permission: "iam.master.employeegroup.export"},
 	"/iam.v1.EmployeeGroupService/ImportEmployeeGroups":          {Permission: "iam.master.employeegroup.import"},
 	"/iam.v1.EmployeeGroupService/DownloadEmployeeGroupTemplate": {Permission: "iam.master.employeegroup.view"},
+
+	// Notification Service — own-data only; authenticated is sufficient.
+	// CreateNotification stays authenticated-only because the service is meant to be
+	// called by other backend services via service-to-service gRPC; for end-users the
+	// recipient_user_id is their own (enforced at handler level).
+	"/iam.v1.NotificationService/CreateNotification":  {Permission: ""},
+	"/iam.v1.NotificationService/GetNotification":     {Permission: ""},
+	"/iam.v1.NotificationService/ListNotifications":   {Permission: ""},
+	"/iam.v1.NotificationService/GetUnreadCount":      {Permission: ""},
+	"/iam.v1.NotificationService/MarkAsRead":          {Permission: ""},
+	"/iam.v1.NotificationService/MarkAllAsRead":       {Permission: ""},
+	"/iam.v1.NotificationService/ArchiveNotification": {Permission: ""},
+	"/iam.v1.NotificationService/DeleteNotification": {Permission: ""},
+	"/iam.v1.NotificationService/StreamNotifications": {Permission: ""},
 }
 
 // PermissionInterceptor creates a unary interceptor that checks if the
