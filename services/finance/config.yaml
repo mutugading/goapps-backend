@@ -69,3 +69,18 @@ rate_limit:
 logging:
   level: debug  # debug, info, warn, error
   format: console  # console, json
+
+iam_client:
+  host: localhost
+  port: 50052          # Override via IAM_GRPC_HOST / IAM_GRPC_PORT env
+  internal_service_token: ""  # Override via INTERNAL_SERVICE_TOKEN — must match IAM's security.internal_service_token
+
+storage:
+  endpoint: localhost:9000
+  access_key: minioadmin       # Override via MINIO_ACCESS_KEY env
+  secret_key: minioadmin       # Override via MINIO_SECRET_KEY env
+  bucket: goapps-staging
+  use_ssl: false
+  insecure_skip_verify: false
+  region: us-east-1
+  public_url: ""               # Set when internal endpoint differs from browser-reachable URL
