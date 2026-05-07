@@ -88,8 +88,12 @@ func (h *StreamHandler) runCatchup(
 		return time.Time{}, uuid.Nil, nil
 	}
 	afterTime, afterID, err := decodeCursor(since)
-	if err != nil { // bad cursor → skip catchup, start realtime
-		return time.Time{}, uuid.Nil, nil
+	if err != nil {
+		// Bad/unknown cursor: intentionally swallow the parse error and start
+		// realtime delivery without replay — the client may send a stale or
+		// malformed Last-Event-ID; treating it as "skip catchup" is far better
+		// than tearing the stream down.
+		return time.Time{}, uuid.Nil, nil //nolint:nilerr // intentional: skip catchup on bad cursor
 	}
 	return h.replay(ctx, recipient, afterTime, afterID, cutoffTime, cutoffID, emit)
 }
