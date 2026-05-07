@@ -2,10 +2,13 @@ package grpc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	commonv1 "github.com/mutugading/goapps-backend/gen/common/v1"
 	iamv1 "github.com/mutugading/goapps-backend/gen/iam/v1"
@@ -74,8 +77,18 @@ func (h *NotificationHandler) CreateNotification(ctx context.Context, req *iamv1
 	}
 
 	createdBy, _ := GetUserIDFromCtx(ctx)
+	// Authorization: end-users can only create notifications addressed to
+	// themselves; the internal-token bypass injects "system" as user_id which
+	// can target any recipient (used by service-to-service emitters).
+	if createdBy != systemUser && createdBy != recipient.String() {
+		return &iamv1.CreateNotificationResponse{Base: ErrorResponse("403", "forbidden: cannot create notification for another user")}, nil
+	}
 	if createdBy == "" {
-		createdBy = "system"
+		createdBy = systemUser
+	}
+
+	if err := validateActionPayloadJSON(req.GetActionPayload()); err != nil {
+		return &iamv1.CreateNotificationResponse{Base: ErrorResponse("400", err.Error())}, nil //nolint:nilerr // error in body
 	}
 
 	n, err := h.create.Handle(ctx, appnotif.CreateCommand{
@@ -92,9 +105,38 @@ func (h *NotificationHandler) CreateNotification(ctx context.Context, req *iamv1
 		CreatedBy:       createdBy,
 	})
 	if err != nil {
-		return &iamv1.CreateNotificationResponse{Base: domainErrorToBaseResponse(err)}, nil //nolint:nilerr // error in body
+		return &iamv1.CreateNotificationResponse{Base: notificationDomainErrorToBaseResponse(err)}, nil //nolint:nilerr // error in body
 	}
 	return &iamv1.CreateNotificationResponse{Base: SuccessResponse("notification created"), Data: notificationToProto(n)}, nil
+}
+
+// notificationDomainErrorToBaseResponse maps notification domain validation
+// errors to 400 BaseResponse. Other errors fall through to the generic mapper.
+func notificationDomainErrorToBaseResponse(err error) *commonv1.BaseResponse {
+	switch {
+	case errors.Is(err, notification.ErrEmptyTitle),
+		errors.Is(err, notification.ErrEmptyRecipient),
+		errors.Is(err, notification.ErrInvalidType),
+		errors.Is(err, notification.ErrInvalidSeverity),
+		errors.Is(err, notification.ErrInvalidActionType),
+		errors.Is(err, notification.ErrInvalidStatus):
+		return ErrorResponse("400", err.Error())
+	default:
+		return domainErrorToBaseResponse(err)
+	}
+}
+
+// validateActionPayloadJSON returns an error when payload is non-empty and
+// not parseable JSON. Empty string is allowed (e.g. action_type=NONE).
+func validateActionPayloadJSON(payload string) error {
+	if payload == "" {
+		return nil
+	}
+	var v any
+	if err := json.Unmarshal([]byte(payload), &v); err != nil {
+		return errors.New("invalid action_payload: must be JSON")
+	}
+	return nil
 }
 
 // GetNotification fetches a single notification owned by the caller.
@@ -258,7 +300,7 @@ func (h *NotificationHandler) StreamNotifications(req *iamv1.StreamNotifications
 	ctx := stream.Context()
 	recipient, err := callerUserID(ctx)
 	if err != nil {
-		return err
+		return status.Error(codes.Unauthenticated, "not authenticated")
 	}
 	return h.stream.Handle(ctx, recipient, req.GetSince(), func(ev appnotif.StreamEvent) error {
 		var notifProto *iamv1.Notification

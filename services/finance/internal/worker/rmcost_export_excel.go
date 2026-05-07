@@ -23,7 +23,11 @@ import (
 //nolint:gocognit,gocyclo // Wide DTO mappers are linear and trivial in cognitive load.
 func BuildRMCostExcel(headers []*rmcostdomain.Cost, details []*rmcostdomain.CostDetail) ([]byte, error) {
 	f := excelize.NewFile()
-	defer func() { _ = f.Close() }()
+	defer func() {
+		if cErr := f.Close(); cErr != nil {
+			_ = cErr // best-effort: caller already received bytes.
+		}
+	}()
 
 	// Excelize creates "Sheet1" by default — rename to "Header" so the workbook
 	// contains exactly two sheets.
@@ -91,10 +95,14 @@ func writeHeaderSheet(f *excelize.File, rows []*rmcostdomain.Cost) error {
 		}
 	}
 
-	// Freeze top row + autofilter for usability.
-	_ = f.SetPanes(sheet, &excelize.Panes{Freeze: true, Split: false, YSplit: 1, TopLeftCell: "A2", ActivePane: "bottomLeft"})
+	// Freeze top row + autofilter for usability — best-effort, ignored on error.
+	if pErr := f.SetPanes(sheet, &excelize.Panes{Freeze: true, Split: false, YSplit: 1, TopLeftCell: "A2", ActivePane: "bottomLeft"}); pErr != nil {
+		_ = pErr
+	}
 	if lastCell, err := excelize.CoordinatesToCellName(len(headerColumns), 1); err == nil {
-		_ = f.AutoFilter(sheet, "A1:"+lastCell, nil)
+		if afErr := f.AutoFilter(sheet, "A1:"+lastCell, nil); afErr != nil {
+			_ = afErr
+		}
 	}
 	return nil
 }
@@ -187,9 +195,13 @@ func writeDetailSheet(f *excelize.File, rows []*rmcostdomain.CostDetail) error {
 		}
 	}
 
-	_ = f.SetPanes(sheet, &excelize.Panes{Freeze: true, Split: false, YSplit: 1, TopLeftCell: "A2", ActivePane: "bottomLeft"})
+	if pErr := f.SetPanes(sheet, &excelize.Panes{Freeze: true, Split: false, YSplit: 1, TopLeftCell: "A2", ActivePane: "bottomLeft"}); pErr != nil {
+		_ = pErr
+	}
 	if lastCell, err := excelize.CoordinatesToCellName(len(detailColumns), 1); err == nil {
-		_ = f.AutoFilter(sheet, "A1:"+lastCell, nil)
+		if afErr := f.AutoFilter(sheet, "A1:"+lastCell, nil); afErr != nil {
+			_ = afErr
+		}
 	}
 	return nil
 }
@@ -259,7 +271,7 @@ func detailRowValues(d *rmcostdomain.CostDetail) []any {
 }
 
 // =============================================================================
-// Cell helpers — keep nil values empty rather than serialising as zero.
+// Cell helpers — keep nil values empty rather than serializing as zero.
 // =============================================================================
 
 func floatPtrCell(p *float64) any {

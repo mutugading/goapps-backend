@@ -27,12 +27,12 @@ const ExportNotificationExpiry = 30 * 24 * time.Hour
 // RMCostExportHandler renders an RM cost export to xlsx, uploads it to MinIO,
 // emits a notification, and updates the job_execution row.
 type RMCostExportHandler struct {
-	jobRepo      job.Repository
-	costRepo     rmcostdomain.Repository
-	detailRepo   rmcostdomain.CostDetailRepository
-	storage      storage.Service
-	notif        iamclient.NotificationClient
-	logger       zerolog.Logger
+	jobRepo    job.Repository
+	costRepo   rmcostdomain.Repository
+	detailRepo rmcostdomain.CostDetailRepository
+	storage    storage.Service
+	notif      iamclient.NotificationClient
+	logger     zerolog.Logger
 }
 
 // NewRMCostExportHandler constructs the handler.
@@ -83,7 +83,12 @@ func (h *RMCostExportHandler) Handle(ctx context.Context, msg rabbitmq.JobMessag
 	}
 
 	// Success: persist + notify.
-	summaryJSON, _ := json.Marshal(result)
+	summaryJSON, mErr := json.Marshal(result)
+	if mErr != nil {
+		// Fall back to empty summary — Complete() will still update status.
+		h.logger.Warn().Err(mErr).Str("job_id", msg.JobID).Msg("export: marshal result_summary failed")
+		summaryJSON = []byte("{}")
+	}
 	if err := exec.Complete(summaryJSON); err != nil {
 		h.logger.Warn().Err(err).Str("job_id", msg.JobID).Msg("export: complete state transition failed")
 	}
@@ -104,12 +109,12 @@ func (h *RMCostExportHandler) Handle(ctx context.Context, msg rabbitmq.JobMessag
 // runResult summarizes a successful export run. Persisted as job result_summary
 // and embedded into the action_payload of the EXPORT_READY notification.
 type runResult struct {
-	FilePath    string `json:"file_path"`
-	FileName    string `json:"file_name"`
-	SizeBytes   int    `json:"size_bytes"`
-	HeaderRows  int    `json:"header_rows"`
-	DetailRows  int    `json:"detail_rows"`
-	Period      string `json:"period"`
+	FilePath   string `json:"file_path"`
+	FileName   string `json:"file_name"`
+	SizeBytes  int    `json:"size_bytes"`
+	HeaderRows int    `json:"header_rows"`
+	DetailRows int    `json:"detail_rows"`
+	Period     string `json:"period"`
 }
 
 func (h *RMCostExportHandler) runExport(ctx context.Context, msg rabbitmq.JobMessage) (*runResult, error) {
@@ -201,12 +206,16 @@ func (h *RMCostExportHandler) emitReadyNotification(ctx context.Context, msg rab
 		return
 	}
 	expiresAt := time.Now().UTC().Add(ExportNotificationExpiry).Format(time.RFC3339)
-	payload, _ := json.Marshal(map[string]any{
+	payload, mErr := json.Marshal(map[string]any{
 		"file_path":  r.FilePath,
 		"file_name":  r.FileName,
 		"size_bytes": r.SizeBytes,
 		"expires_at": expiresAt,
 	})
+	if mErr != nil {
+		h.logger.Warn().Err(mErr).Str("job_id", msg.JobID).Msg("export: marshal action_payload failed")
+		payload = []byte("{}")
+	}
 	body := fmt.Sprintf("Period %s • %d header rows • %d detail rows • %d KB",
 		r.Period, r.HeaderRows, r.DetailRows, r.SizeBytes/1024)
 	if err := h.notif.Create(ctx, iamclient.CreateNotificationParams{

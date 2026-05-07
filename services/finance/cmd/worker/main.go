@@ -105,31 +105,10 @@ func run() error { //nolint:gocognit // linear setup function
 	rmCostCalcV2 := apprmcost.NewCalculateHandlerV2(rmGroupRepo, rmCostRepo, rmCostDetailRepo, syncDataRepo, syncDataRepo)
 	rmCostExec := apprmcost.NewExecuteHandlerV2(jobRepo, rmGroupRepo, rmCostCalcV2, log.Logger)
 
-	// Setup MinIO storage (graceful degradation: nil disables export job).
-	var storageSvc storage.Service
-	if minioClient, sErr := storage.NewMinIOClient(storage.Config{
-		Endpoint:           cfg.Storage.Endpoint,
-		AccessKey:          cfg.Storage.AccessKey,
-		SecretKey:          cfg.Storage.SecretKey,
-		Bucket:             cfg.Storage.Bucket,
-		UseSSL:             cfg.Storage.UseSSL,
-		InsecureSkipVerify: cfg.Storage.InsecureSkipVerify,
-		Region:             cfg.Storage.Region,
-		PublicURL:          cfg.Storage.PublicURL,
-	}); sErr != nil {
-		log.Warn().Err(sErr).Msg("MinIO unavailable; rm_cost_export jobs will fail")
-	} else {
-		storageSvc = minioClient
-	}
-
-	// Setup IAM gRPC client (graceful degradation: no-op disables notifications).
-	var iamNotif iamclient.NotificationClient
-	if cli, cErr := iamclient.NewClient(cfg.IAMClient.Host, cfg.IAMClient.Port, cfg.IAMClient.InternalServiceToken); cErr != nil {
-		log.Warn().Err(cErr).Msg("IAM client unavailable; export-ready notifications will be skipped")
-		iamNotif = iamclient.NewNopClient()
-	} else {
-		iamNotif = cli
-		defer closeResource("iam-client", iamNotif)
+	storageSvc := setupStorage(cfg)
+	iamNotif, closeIAM := setupIAMClient(cfg)
+	if closeIAM != nil {
+		defer closeIAM()
 	}
 
 	// Create rm cost export handler.
@@ -249,4 +228,36 @@ func watchConnection(ctx context.Context, conn *rabbitmq.Connection) {
 			log.Error().Err(err).Msg("RabbitMQ connection lost")
 		}
 	}
+}
+
+// setupStorage builds a MinIO client, falling back to nil on dial failure so
+// rm_cost_export jobs gracefully fail rather than crashing the worker.
+func setupStorage(cfg *config.Config) storage.Service {
+	c, err := storage.NewMinIOClient(storage.Config{
+		Endpoint:           cfg.Storage.Endpoint,
+		AccessKey:          cfg.Storage.AccessKey,
+		SecretKey:          cfg.Storage.SecretKey,
+		Bucket:             cfg.Storage.Bucket,
+		UseSSL:             cfg.Storage.UseSSL,
+		InsecureSkipVerify: cfg.Storage.InsecureSkipVerify,
+		Region:             cfg.Storage.Region,
+		PublicURL:          cfg.Storage.PublicURL,
+	})
+	if err != nil {
+		log.Warn().Err(err).Msg("MinIO unavailable; rm_cost_export jobs will fail")
+		return nil
+	}
+	return c
+}
+
+// setupIAMClient dials IAM and returns the notification client + a deferred
+// close callback. Falls back to a no-op client when dial fails so the worker
+// keeps running (notifications will be silently dropped).
+func setupIAMClient(cfg *config.Config) (iamclient.NotificationClient, func()) {
+	cli, err := iamclient.NewClient(cfg.IAMClient.Host, cfg.IAMClient.Port, cfg.IAMClient.InternalServiceToken)
+	if err != nil {
+		log.Warn().Err(err).Msg("IAM client unavailable; export-ready notifications will be skipped")
+		return iamclient.NewNopClient(), nil
+	}
+	return cli, func() { closeResource("iam-client", cli) }
 }

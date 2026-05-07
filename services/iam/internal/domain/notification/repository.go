@@ -9,12 +9,12 @@ import (
 
 // ListFilter narrows results returned by Repository.ListByRecipient.
 type ListFilter struct {
-	Status    Status // empty = no filter
-	Type      Type   // empty = no filter
-	SortDesc  bool   // true = newest first (default)
-	Page      int    // 1-based
-	PageSize  int
-	After     *time.Time // optional: only created_at > After (for streaming catchup)
+	Status   Status // empty = no filter
+	Type     Type   // empty = no filter
+	SortDesc bool   // true = newest first (default)
+	Page     int    // 1-based
+	PageSize int
+	After    *time.Time // optional: only created_at > After (for streaming catchup)
 }
 
 // Repository is the persistence contract for Notification.

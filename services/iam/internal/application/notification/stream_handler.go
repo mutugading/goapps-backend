@@ -55,16 +55,25 @@ func (h *StreamHandler) Handle(
 	}
 
 	// Subscribe FIRST so events published while we run catchup aren't lost.
+	// Capture a cutoff cursor immediately after subscribe — any DB row with a
+	// (created_at, id) <= cutoff is delivered via replay; rows after cutoff
+	// arrive via the broadcaster channel. This avoids both gaps AND duplicates.
 	ch, unsub := h.broadcaster.Subscribe(recipient)
 	defer unsub()
+	cutoffTime := time.Now().UTC()
+	cutoffID := uuid.Max // sentinel: all real ids are < uuid.Max lexicographically
 
 	// Catchup from DB if `since` is provided.
+	var lastEmittedTime time.Time
+	var lastEmittedID uuid.UUID
 	if since != "" {
-		after, err := decodeCursor(since)
+		afterTime, afterID, err := decodeCursor(since)
 		if err == nil { // bad cursor → skip catchup, start realtime
-			if cerr := h.replay(ctx, recipient, after, emit); cerr != nil {
+			lt, lid, cerr := h.replay(ctx, recipient, afterTime, afterID, cutoffTime, cutoffID, emit)
+			if cerr != nil {
 				return cerr
 			}
+			lastEmittedTime, lastEmittedID = lt, lid
 		}
 	}
 
@@ -80,9 +89,14 @@ func (h *StreamHandler) Handle(
 			if !ok {
 				return nil // unsubscribed
 			}
+			// Skip events already delivered via replay (same key or older).
+			if !cursorAfter(n.CreatedAt(), n.ID(), lastEmittedTime, lastEmittedID) {
+				continue
+			}
 			if err := emit(StreamEvent{EventID: encodeCursor(n.CreatedAt(), n.ID()), Notification: n}); err != nil {
 				return fmt.Errorf("emit notification: %w", err)
 			}
+			lastEmittedTime, lastEmittedID = n.CreatedAt(), n.ID()
 		case t := <-tick.C:
 			if err := emit(StreamEvent{EventID: encodeCursor(t, uuid.Nil), IsHeartbeat: true}); err != nil {
 				return fmt.Errorf("emit heartbeat: %w", err)
@@ -91,28 +105,63 @@ func (h *StreamHandler) Handle(
 	}
 }
 
-// replay walks DB rows newer than `after` in ascending order and emits each.
-// Page size 100 — chunked to bound memory.
-func (h *StreamHandler) replay(ctx context.Context, recipient uuid.UUID, after time.Time, emit func(StreamEvent) error) error {
+// cursorAfter reports whether (a, aID) sorts strictly after (b, bID). Used to
+// dedup broadcaster events against the last replayed cursor.
+func cursorAfter(a time.Time, aID uuid.UUID, b time.Time, bID uuid.UUID) bool {
+	if b.IsZero() {
+		return true
+	}
+	if a.After(b) {
+		return true
+	}
+	if a.Equal(b) {
+		return aID.String() > bID.String()
+	}
+	return false
+}
+
+// replay walks DB rows newer than (afterTime, afterID) up to (cutoffTime, cutoffID)
+// in ascending order and emits each. Returns the last emitted cursor so the
+// realtime loop can dedup against the broadcaster channel.
+//
+// Note: the repository's After filter is timestamp-only (created_at > after) —
+// rows sharing the exact afterTime are included; we filter sub-second collisions
+// with afterID in-memory below, which is safe given the small page window.
+func (h *StreamHandler) replay(
+	ctx context.Context,
+	recipient uuid.UUID,
+	afterTime time.Time, afterID uuid.UUID,
+	cutoffTime time.Time, cutoffID uuid.UUID,
+	emit func(StreamEvent) error,
+) (lastTime time.Time, lastID uuid.UUID, err error) {
 	page := 1
 	const pageSize = 100
 	for {
-		items, _, err := h.repo.ListByRecipient(ctx, recipient, notification.ListFilter{
+		items, _, qErr := h.repo.ListByRecipient(ctx, recipient, notification.ListFilter{
 			Page:     page,
 			PageSize: pageSize,
-			After:    &after,
+			After:    &afterTime,
 			SortDesc: false, // ascending — oldest first so cursor is monotonic
 		})
-		if err != nil {
-			return fmt.Errorf("catchup query: %w", err)
+		if qErr != nil {
+			return lastTime, lastID, fmt.Errorf("catchup query: %w", qErr)
 		}
 		for _, n := range items {
-			if err := emit(StreamEvent{EventID: encodeCursor(n.CreatedAt(), n.ID()), Notification: n}); err != nil {
-				return err
+			// Skip rows already delivered (same key or older than `since`).
+			if !cursorAfter(n.CreatedAt(), n.ID(), afterTime, afterID) {
+				continue
 			}
+			// Stop at cutoff so broadcaster takes over without overlap.
+			if cursorAfter(n.CreatedAt(), n.ID(), cutoffTime, cutoffID) {
+				return lastTime, lastID, nil
+			}
+			if eErr := emit(StreamEvent{EventID: encodeCursor(n.CreatedAt(), n.ID()), Notification: n}); eErr != nil {
+				return lastTime, lastID, eErr
+			}
+			lastTime, lastID = n.CreatedAt(), n.ID()
 		}
 		if len(items) < pageSize {
-			return nil
+			return lastTime, lastID, nil
 		}
 		page++
 	}
@@ -125,12 +174,22 @@ func encodeCursor(t time.Time, id uuid.UUID) string {
 }
 
 // decodeCursor parses a cursor produced by encodeCursor and returns the
-// embedded timestamp.
-func decodeCursor(s string) (time.Time, error) {
+// embedded (timestamp, id) pair so the catchup query can use a composite
+// (created_at, id) > (afterTime, afterID) condition without skipping rows
+// that share an exact timestamp.
+func decodeCursor(s string) (time.Time, uuid.UUID, error) {
 	for i, c := range s {
 		if c == '|' {
-			return time.Parse(time.RFC3339Nano, s[:i])
+			t, err := time.Parse(time.RFC3339Nano, s[:i])
+			if err != nil {
+				return time.Time{}, uuid.Nil, fmt.Errorf("parse cursor time: %w", err)
+			}
+			id, err := uuid.Parse(s[i+1:])
+			if err != nil {
+				return time.Time{}, uuid.Nil, fmt.Errorf("parse cursor id: %w", err)
+			}
+			return t, id, nil
 		}
 	}
-	return time.Time{}, fmt.Errorf("invalid cursor: %q", s)
+	return time.Time{}, uuid.Nil, fmt.Errorf("invalid cursor: %q", s)
 }

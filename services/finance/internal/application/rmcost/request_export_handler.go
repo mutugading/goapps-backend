@@ -87,9 +87,13 @@ func (h *RequestExportHandler) Handle(ctx context.Context, cmd RequestExportComm
 		cmd.RequestingUserID,
 		cmd.CreatedBy,
 	); err != nil {
-		// Mark job failed so it doesn't sit forever in QUEUED.
+		// Mark job failed so it doesn't sit forever in QUEUED. Best-effort:
+		// errors here are logged in the wrapped error but don't override the
+		// publish failure that the caller actually cares about.
 		if failErr := exec.Fail("failed to publish to queue: " + err.Error()); failErr == nil {
-			_ = h.jobRepo.UpdateStatus(ctx, exec)
+			if updErr := h.jobRepo.UpdateStatus(ctx, exec); updErr != nil {
+				return nil, fmt.Errorf("publish job: %w (additionally: persist failed: %v)", err, updErr)
+			}
 		}
 		return nil, fmt.Errorf("publish job: %w", err)
 	}

@@ -197,7 +197,7 @@ var methodPermissions = map[string]PermissionRequirement{
 	"/iam.v1.NotificationService/MarkAsRead":          {Permission: ""},
 	"/iam.v1.NotificationService/MarkAllAsRead":       {Permission: ""},
 	"/iam.v1.NotificationService/ArchiveNotification": {Permission: ""},
-	"/iam.v1.NotificationService/DeleteNotification": {Permission: ""},
+	"/iam.v1.NotificationService/DeleteNotification":  {Permission: ""},
 	"/iam.v1.NotificationService/StreamNotifications": {Permission: ""},
 }
 

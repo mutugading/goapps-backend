@@ -111,9 +111,9 @@ func (r *NotificationRepository) ListByRecipient(
 		return nil, 0, fmt.Errorf("count notifications: %w", err)
 	}
 
-	order := "DESC"
+	order := sortDESC
 	if !filter.SortDesc {
-		order = "ASC"
+		order = sortASC
 	}
 
 	listQ := fmt.Sprintf(`
@@ -133,7 +133,12 @@ func (r *NotificationRepository) ListByRecipient(
 	if err != nil {
 		return nil, 0, fmt.Errorf("list notifications: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			// best-effort: log/ignore — caller already received rows.
+			_ = closeErr
+		}
+	}()
 
 	var out []*notification.Notification
 	for rows.Next() {
@@ -160,16 +165,34 @@ func (r *NotificationRepository) CountUnread(ctx context.Context, recipientID uu
 }
 
 // MarkAsRead marks a single notification as read for the recipient.
-// Idempotent: returns nil even if already read or non-existent (caller can
-// verify existence via GetByID).
+// Idempotent for already-READ rows. Returns ErrNotFound when the row does not
+// exist for this recipient (so callers can distinguish "wrong owner / missing"
+// from "already read").
 func (r *NotificationRepository) MarkAsRead(ctx context.Context, recipientID, notificationID uuid.UUID, readAt time.Time) error {
 	const q = `
 		UPDATE mst_notification
 		SET status = 'READ', read_at = $3
 		WHERE notification_id = $1 AND recipient_user_id = $2 AND status = 'UNREAD'
 	`
-	if _, err := r.db.ExecContext(ctx, q, notificationID, recipientID, readAt); err != nil {
+	res, err := r.db.ExecContext(ctx, q, notificationID, recipientID, readAt)
+	if err != nil {
 		return fmt.Errorf("mark read: %w", err)
+	}
+	rows, raErr := res.RowsAffected()
+	if raErr != nil {
+		return fmt.Errorf("rows affected: %w", raErr)
+	}
+	if rows > 0 {
+		return nil
+	}
+	// 0 rows: either already-READ (idempotent success) or missing/wrong owner.
+	var exists bool
+	const checkQ = `SELECT EXISTS(SELECT 1 FROM mst_notification WHERE notification_id = $1 AND recipient_user_id = $2)`
+	if err := r.db.QueryRowContext(ctx, checkQ, notificationID, recipientID).Scan(&exists); err != nil {
+		return fmt.Errorf("check exists: %w", err)
+	}
+	if !exists {
+		return notification.ErrNotFound
 	}
 	return nil
 }
@@ -185,7 +208,10 @@ func (r *NotificationRepository) MarkAllAsRead(ctx context.Context, recipientID 
 	if err != nil {
 		return 0, fmt.Errorf("mark all read: %w", err)
 	}
-	n, _ := res.RowsAffected()
+	n, raErr := res.RowsAffected()
+	if raErr != nil {
+		return 0, fmt.Errorf("rows affected: %w", raErr)
+	}
 	return n, nil
 }
 
@@ -202,7 +228,10 @@ func (r *NotificationRepository) Archive(ctx context.Context, recipientID, notif
 	if err != nil {
 		return fmt.Errorf("archive notification: %w", err)
 	}
-	rows, _ := res.RowsAffected()
+	rows, raErr := res.RowsAffected()
+	if raErr != nil {
+		return fmt.Errorf("rows affected: %w", raErr)
+	}
 	if rows == 0 {
 		var exists bool
 		const checkQ = `SELECT EXISTS(SELECT 1 FROM mst_notification WHERE notification_id = $1 AND recipient_user_id = $2)`
@@ -224,7 +253,10 @@ func (r *NotificationRepository) Delete(ctx context.Context, recipientID, notifi
 	if err != nil {
 		return fmt.Errorf("delete notification: %w", err)
 	}
-	rows, _ := res.RowsAffected()
+	rows, raErr := res.RowsAffected()
+	if raErr != nil {
+		return fmt.Errorf("rows affected: %w", raErr)
+	}
 	if rows == 0 {
 		return notification.ErrNotFound
 	}
@@ -238,7 +270,10 @@ func (r *NotificationRepository) DeleteExpired(ctx context.Context, now time.Tim
 	if err != nil {
 		return 0, fmt.Errorf("delete expired: %w", err)
 	}
-	n, _ := res.RowsAffected()
+	n, raErr := res.RowsAffected()
+	if raErr != nil {
+		return 0, fmt.Errorf("rows affected: %w", raErr)
+	}
 	return n, nil
 }
 

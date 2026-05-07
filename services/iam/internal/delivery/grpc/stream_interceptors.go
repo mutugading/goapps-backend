@@ -6,7 +6,6 @@ import (
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"github.com/mutugading/goapps-backend/services/iam/internal/domain/session"
@@ -105,7 +104,3 @@ func StreamRecoveryInterceptor() grpc.StreamServerInterceptor {
 		return handler(srv, ss)
 	}
 }
-
-// Avoid unused import warning when this file is the only consumer of metadata
-// in some build configurations.
-var _ = metadata.New

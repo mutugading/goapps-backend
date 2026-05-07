@@ -41,16 +41,16 @@ func NewServer(cfg *config.ServerConfig, db *postgres.DB, jwtService *jwt.Servic
 
 	// Chain interceptors in order (outermost first)
 	unaryChain := grpc.ChainUnaryInterceptor(
-		StructuredErrorInterceptor(),                           // 0. Wrap gRPC errors into BaseResponse
-		RecoveryInterceptor(),                                  // 1. Recover from panics first
-		RequestIDInterceptor(),                                 // 2. Add request ID
-		TracingInterceptor(),                                   // 3. Add tracing span
-		MetricsInterceptor(),                                   // 4. Record metrics
-		RateLimitInterceptor(rateLimiter),                      // 5. Rate limiting
+		StructuredErrorInterceptor(),      // 0. Wrap gRPC errors into BaseResponse
+		RecoveryInterceptor(),             // 1. Recover from panics first
+		RequestIDInterceptor(),            // 2. Add request ID
+		TracingInterceptor(),              // 3. Add tracing span
+		MetricsInterceptor(),              // 4. Record metrics
+		RateLimitInterceptor(rateLimiter), // 5. Rate limiting
 		AuthInterceptor(jwtService, sessionCache, sessionRepo, internalToken), // 6. JWT authentication + activity tracking
-		PermissionInterceptor(),                                // 7. RBAC permission check
-		LoggingInterceptor(),                                   // 8. Log request
-		TimeoutInterceptor(30*time.Second),                     // 9. Enforce timeout
+		PermissionInterceptor(),            // 7. RBAC permission check
+		LoggingInterceptor(),               // 8. Log request
+		TimeoutInterceptor(30*time.Second), // 9. Enforce timeout
 	)
 
 	// Stream interceptor chain — for server-streaming RPCs (e.g. NotificationService.StreamNotifications).
