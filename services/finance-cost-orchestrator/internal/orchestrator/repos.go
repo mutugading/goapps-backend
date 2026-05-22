@@ -22,6 +22,7 @@ const (
 	statusPartial    = "PARTIAL_FAILED"
 	statusDispatched = "DISPATCHED"
 	statusPending    = "PENDING"
+	statusCancelled  = "CANCELLED"
 )
 
 // JobDTO mirrors the cal_job row data the orchestrator needs. Constructed on
@@ -221,6 +222,25 @@ func (r *ChunkRepo) BulkInsert(ctx context.Context, rows []*ChunkRow) error {
 	}
 	if err := dbRows.Err(); err != nil {
 		return fmt.Errorf("iterate returned chunk ids: %w", err)
+	}
+	return nil
+}
+
+// MarkRemainingChunksSkipped flips all QUEUED chunks at or after fromWave to
+// FAILED with a cancellation reason. Used when a job is cancelled mid-flight
+// and the orchestrator must stop dispatching subsequent waves. We reuse the
+// FAILED status (not a new SKIPPED status) to avoid widening the
+// chk_cjc_status CHECK constraint.
+func (r *ChunkRepo) MarkRemainingChunksSkipped(ctx context.Context, jobID int64, fromWave int) error {
+	const q = `
+		UPDATE cal_job_chunk
+		SET cjc_status='FAILED',
+		    cjc_completed_at=now(),
+		    cjc_error_message='job cancelled before dispatch'
+		WHERE cjc_job_id=$1 AND cjc_wave_no >= $2 AND cjc_status=$3
+	`
+	if _, err := r.db.ExecContext(ctx, q, jobID, fromWave, statusQueued); err != nil {
+		return fmt.Errorf("mark remaining chunks skipped: %w", err)
 	}
 	return nil
 }

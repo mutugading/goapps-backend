@@ -242,6 +242,23 @@ func (c *Coordinator) advanceAfterChunk(ctx context.Context, ev ChunkCompletedEv
 		return nil // wave still in flight
 	}
 
+	// If the job was cancelled mid-flight (CancelJob RPC on finance set the
+	// terminal status while this wave was running), stop dispatching: mark
+	// remaining QUEUED chunks in later waves FAILED, and let cancel_job_handler's
+	// terminal status stand without finalizing again.
+	job, err := c.jobRepo.GetByID(ctx, ev.JobID)
+	if err != nil {
+		return fmt.Errorf("get job for cancel check: %w", err)
+	}
+	if job.Status == statusCancelled {
+		if err := c.chunkRepo.MarkRemainingChunksSkipped(ctx, ev.JobID, ev.WaveNo+1); err != nil {
+			log.Error().Err(err).Int64("job_id", ev.JobID).Msg("mark remaining chunks skipped")
+			return fmt.Errorf("mark remaining skipped: %w", err)
+		}
+		log.Info().Int64("job_id", ev.JobID).Int("from_wave", ev.WaveNo+1).Msg("job cancelled mid-flight; remaining waves skipped")
+		return nil
+	}
+
 	totalWaves, err := c.getTotalWaves(ctx, ev.JobID)
 	if err != nil {
 		return fmt.Errorf("get total waves: %w", err)
