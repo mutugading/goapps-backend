@@ -894,6 +894,17 @@ func (r *CostRouteRepository) duplicateGraphTx(
 	}
 
 	// Copy RMs, remapping product references.
+	// First load ALL source rows into memory, then INSERT — same database connection
+	// cannot interleave a cursor read with parameterized INSERT (database/sql
+	// returns "bad connection" when the row cursor is still open).
+	type srcRm struct {
+		oldSeqID, parentProd                                int64
+		rmProd                                              sql.NullInt64
+		itemC, groupC                                       string
+		rmType, name, itemCode, shadeC, shadeN, subT, notes string
+		ratio                                               float64
+		uomID                                               int32
+	}
 	rmRows, err := tx.QueryContext(ctx, `
 		SELECT rm.crm_seq_id, rm.crm_parent_product_sys_id,
 		       rm.crm_rm_product_sys_id, COALESCE(rm.crm_rm_item_code,''), COALESCE(rm.crm_rm_group_code,''),
@@ -907,35 +918,36 @@ func (r *CostRouteRepository) duplicateGraphTx(
 	if err != nil {
 		return fmt.Errorf("load source rms: %w", err)
 	}
-	defer func() {
-		if cErr := rmRows.Close(); cErr != nil {
-			_ = cErr
-		}
-	}()
+	srcRms := []srcRm{}
 	for rmRows.Next() {
-		var (
-			oldSeqID, parentProd                                int64
-			rmProd                                              sql.NullInt64
-			itemC, groupC                                       string
-			rmType, name, itemCode, shadeC, shadeN, subT, notes string
-			ratio                                               float64
-			uomID                                               int32
-		)
-		if err := rmRows.Scan(&oldSeqID, &parentProd, &rmProd, &itemC, &groupC, &rmType,
-			&name, &itemCode, &shadeC, &shadeN, &ratio, &uomID, &subT, &notes); err != nil {
+		var rm srcRm
+		if err := rmRows.Scan(&rm.oldSeqID, &rm.parentProd, &rm.rmProd, &rm.itemC, &rm.groupC, &rm.rmType,
+			&rm.name, &rm.itemCode, &rm.shadeC, &rm.shadeN, &rm.ratio, &rm.uomID, &rm.subT, &rm.notes); err != nil {
+			rmRows.Close()
 			return fmt.Errorf("scan rm: %w", err)
 		}
-		newSeqID := seqMap[oldSeqID]
-		newParent := parentProd
-		if mapped, ok := productMap[parentProd]; ok {
+		srcRms = append(srcRms, rm)
+	}
+	if err := rmRows.Err(); err != nil {
+		rmRows.Close()
+		return fmt.Errorf("iterate source rms: %w", err)
+	}
+	if cErr := rmRows.Close(); cErr != nil {
+		return fmt.Errorf("close source rms cursor: %w", cErr)
+	}
+
+	for _, rm := range srcRms {
+		newSeqID := seqMap[rm.oldSeqID]
+		newParent := rm.parentProd
+		if mapped, ok := productMap[rm.parentProd]; ok {
 			newParent = mapped
 		}
 		var newRmProdSysID sql.NullInt64
-		if rmProd.Valid {
-			if mapped, ok := productMap[rmProd.Int64]; ok {
+		if rm.rmProd.Valid {
+			if mapped, ok := productMap[rm.rmProd.Int64]; ok {
 				newRmProdSysID = sql.NullInt64{Int64: mapped, Valid: true}
 			} else {
-				newRmProdSysID = rmProd
+				newRmProdSysID = rm.rmProd
 			}
 		}
 		if _, err := tx.ExecContext(ctx, `
@@ -949,12 +961,12 @@ func (r *CostRouteRepository) duplicateGraphTx(
 			) VALUES ($1,$2,$3,NULLIF($4,''),NULLIF($5,''),$6,
 			          NULLIF($7,''),NULLIF($8,''),NULLIF($9,''),NULLIF($10,''),
 			          $11,NULLIF($12,0)::integer,NULLIF($13,''),NULLIF($14,''),$15,$15)`,
-			newSeqID, newParent, newRmProdSysID, itemC, groupC, rmType,
-			name, itemCode, shadeC, shadeN, ratio, uomID, subT, notes, actor); err != nil {
+			newSeqID, newParent, newRmProdSysID, rm.itemC, rm.groupC, rm.rmType,
+			rm.name, rm.itemCode, rm.shadeC, rm.shadeN, rm.ratio, rm.uomID, rm.subT, rm.notes, actor); err != nil {
 			return fmt.Errorf("insert duplicated rm: %w", err)
 		}
 	}
-	return rmRows.Err()
+	return nil
 }
 
 // ListLinkedRequests returns all requests linking to this route head.
