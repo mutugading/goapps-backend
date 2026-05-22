@@ -12,14 +12,16 @@ const (
 	ExchangeCost    = "finance.cost"
 	ExchangeCostDLX = "finance.cost.dlx"
 
-	QueueChunk     = "finance.cost.chunk"
-	QueueChunkDone = "finance.cost.chunk.completed"
-	QueueDLQ       = "finance.cost.dlq"
+	QueueChunk        = "finance.cost.chunk"
+	QueueChunkDone    = "finance.cost.chunk.completed"
+	QueueJobTriggered = "finance.cost.job_triggered"
+	QueueDLQ          = "finance.cost.dlq"
 
 	// Routing keys (same as queue names for direct exchanges -- keeps wiring simple).
-	RoutingKeyChunk     = "finance.cost.chunk"
-	RoutingKeyChunkDone = "finance.cost.chunk.completed"
-	RoutingKeyDLQ       = "finance.cost.dlq"
+	RoutingKeyChunk        = "finance.cost.chunk"
+	RoutingKeyChunkDone    = "finance.cost.chunk.completed"
+	RoutingKeyJobTriggered = "finance.cost.job_triggered"
+	RoutingKeyDLQ          = "finance.cost.dlq"
 
 	chunkTTLMillis     = 60 * 60 * 1000 // 1h
 	chunkDoneTTLMillis = 30 * 60 * 1000 // 30min
@@ -39,7 +41,20 @@ func DeclareTopology(ch *amqp.Channel) error {
 	if err := declareChunkQueue(ch); err != nil {
 		return err
 	}
-	return declareChunkDoneQueue(ch)
+	if err := declareChunkDoneQueue(ch); err != nil {
+		return err
+	}
+	return declareJobTriggeredQueue(ch)
+}
+
+func declareJobTriggeredQueue(ch *amqp.Channel) error {
+	if _, err := ch.QueueDeclare(QueueJobTriggered, true, false, false, false, nil); err != nil {
+		return fmt.Errorf("declare queue %s: %w", QueueJobTriggered, err)
+	}
+	if err := ch.QueueBind(QueueJobTriggered, RoutingKeyJobTriggered, ExchangeCost, false, nil); err != nil {
+		return fmt.Errorf("bind queue %s: %w", QueueJobTriggered, err)
+	}
+	return nil
 }
 
 func declareExchanges(ch *amqp.Channel) error {

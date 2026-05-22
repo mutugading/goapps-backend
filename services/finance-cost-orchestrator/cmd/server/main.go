@@ -13,6 +13,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	"syscall"
 	"time"
 
+	_ "github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -70,10 +72,20 @@ func run() error {
 	}
 	log.Info().Msg("RabbitMQ topology declared")
 
-	// DB connection deferred to S8c.5 (orchestrator repos).
+	// DB connection for orchestrator repos.
+	db, err := openDB(ctx, cfg)
+	if err != nil {
+		return fmt.Errorf("open db: %w", err)
+	}
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("close db")
+		}
+	}()
+	log.Info().Msg("Database connected")
 
 	// Start coordinator loop.
-	coord := orchestrator.New(cfg, rmqConn)
+	coord := orchestrator.New(cfg, rmqConn, db)
 	coordErrCh := make(chan error, 1)
 	go func() { coordErrCh <- coord.Run(ctx) }()
 
@@ -133,6 +145,24 @@ func setupLogger(cfg *config.Config) {
 	if cfg.App.Env == "development" {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	}
+}
+
+func openDB(ctx context.Context, cfg *config.Config) (*sql.DB, error) {
+	db, err := sql.Open("postgres", cfg.Database.ConnectionString())
+	if err != nil {
+		return nil, fmt.Errorf("sql.Open: %w", err)
+	}
+	db.SetMaxOpenConns(cfg.Database.MaxOpenConns)
+	db.SetMaxIdleConns(cfg.Database.MaxIdleConns)
+	db.SetConnMaxLifetime(cfg.Database.ConnMaxLifetime)
+	db.SetConnMaxIdleTime(cfg.Database.ConnMaxIdleTime)
+	pingCtx, pingCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer pingCancel()
+	if err := db.PingContext(pingCtx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("ping: %w", err)
+	}
+	return db, nil
 }
 
 func newHTTPServer(port int) *http.Server {

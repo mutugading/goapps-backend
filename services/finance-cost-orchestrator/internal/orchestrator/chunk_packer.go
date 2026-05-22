@@ -10,6 +10,7 @@ import (
 type ChunkSpec struct {
 	JobID       int64                    `json:"job_id"`
 	JobCode     string                   `json:"job_code"`
+	ChunkID     int64                    `json:"chunk_id"`
 	ChunkNumber int                      `json:"chunk_number"`
 	WaveNo      int                      `json:"wave_no"`
 	Period      string                   `json:"period"`
