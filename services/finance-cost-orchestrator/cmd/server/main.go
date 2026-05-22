@@ -65,6 +65,11 @@ func run() error {
 	}()
 	log.Info().Msg("RabbitMQ connected")
 
+	if err := rmq.DeclareTopology(rmqConn.Channel()); err != nil {
+		return fmt.Errorf("declare rmq topology: %w", err)
+	}
+	log.Info().Msg("RabbitMQ topology declared")
+
 	// DB connection deferred to S8c.5 (orchestrator repos).
 
 	// Start coordinator loop.
