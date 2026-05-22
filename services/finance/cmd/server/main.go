@@ -78,7 +78,7 @@ func run() error {
 	}
 
 	// Setup RabbitMQ (optional - graceful degradation for publisher)
-	rmqAdapter, closeRabbitMQ := setupRabbitMQ(cfg)
+	rmqAdapter, costJobPub, closeRabbitMQ := setupRabbitMQ(cfg)
 	defer closeRabbitMQ()
 
 	// Wrap into explicit interface values so that when RabbitMQ is unavailable
@@ -86,10 +86,14 @@ func run() error {
 	var oracleSyncPublisher oraclesync.JobPublisher
 	var rmCostPublisher apprmcost.JobPublisher
 	var rmCostExportPublisher apprmcost.ExportJobPublisher
+	var costCalcJobTriggerPub costcalc.JobTriggerPublisher
 	if rmqAdapter != nil {
 		oracleSyncPublisher = rmqAdapter
 		rmCostPublisher = rmqAdapter
 		rmCostExportPublisher = rmqAdapter
+	}
+	if costJobPub != nil {
+		costCalcJobTriggerPub = costJobPub
 	}
 
 	// Setup repositories
@@ -285,7 +289,7 @@ func run() error {
 	calcLoader := costcalc.NewProductLoader(db.DB)
 	calcSvc := costcalc.NewService(
 		calcJobRepo, calcChunkRepo, calcJobProductRepo, costResultRepo, costAuditHistoryRepo,
-		calcLoader, calcEvalCache, nil,
+		calcLoader, calcEvalCache, nil, costCalcJobTriggerPub,
 	)
 	costCalcHandler := grpcdelivery.NewCostCalcHandler(
 		costcalc.NewTriggerJobHandler(calcSvc),
@@ -508,21 +512,30 @@ func startServers(ctx context.Context, cfg *config.Config,
 	return nil
 }
 
-// setupRabbitMQ creates a RabbitMQ connection and publisher (optional - graceful degradation).
-// Returns a JobPublisherAdapter and a close function for graceful shutdown.
-func setupRabbitMQ(cfg *config.Config) (*rabbitmq.JobPublisherAdapter, func()) {
+// setupRabbitMQ creates a RabbitMQ connection and publishers (optional -
+// graceful degradation). Returns the job-publisher adapter (oracle sync / RM
+// cost), the cost-calc job-trigger publisher (orchestrator hand-off), and a
+// close function for graceful shutdown.
+func setupRabbitMQ(cfg *config.Config) (*rabbitmq.JobPublisherAdapter, *rabbitmq.CostJobPublisher, func()) {
 	rmqConn, err := rabbitmq.NewConnection(cfg.RabbitMQ, log.Logger)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to connect to RabbitMQ, sync trigger will fail")
-		return nil, func() {}
+		return nil, nil, func() {}
 	}
 
 	publisher := rabbitmq.NewPublisher(rmqConn, log.Logger)
 	adapter := rabbitmq.NewJobPublisherAdapter(publisher, log.Logger)
+
+	costPub, costErr := rabbitmq.NewCostJobPublisher(rmqConn, log.Logger)
+	if costErr != nil {
+		log.Warn().Err(costErr).Msg("Failed to init cost job publisher; multi-product calc scopes will fail")
+		costPub = nil
+	}
+
 	closeFunc := func() {
 		if closeErr := rmqConn.Close(); closeErr != nil {
 			log.Warn().Err(closeErr).Msg("Failed to close RabbitMQ connection")
 		}
 	}
-	return adapter, closeFunc
+	return adapter, costPub, closeFunc
 }

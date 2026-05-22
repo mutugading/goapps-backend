@@ -15,7 +15,9 @@ import (
 
 func TestTriggerJob_UnsupportedScope_ReturnsError(t *testing.T) {
 	t.Parallel()
-	h := NewTriggerJobHandler(nil) // pure-input validation, no svc deref
+	// jobTriggerPub is nil -> dispatchToOrchestrator falls back to
+	// ErrScopeNotYetSupported without touching the other deps.
+	h := NewTriggerJobHandler(&Service{})
 	_, err := h.Handle(context.Background(), TriggerCommand{
 		Period:       "202605",
 		CalcType:     costcalcdom.CalcTypeActual,

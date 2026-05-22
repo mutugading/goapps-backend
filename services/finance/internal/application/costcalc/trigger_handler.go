@@ -2,6 +2,7 @@ package costcalc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -50,7 +51,7 @@ var ErrProductRequired = errors.New("product_sys_id required for SINGLE_PRODUCT 
 // finalizes the job, and returns the fully-resolved Job aggregate.
 func (h *TriggerJobHandler) Handle(ctx context.Context, cmd TriggerCommand) (*costcalcdom.Job, error) {
 	if cmd.Scope != costcalcdom.ScopeSingleProduct {
-		return nil, fmt.Errorf("%w: scope=%s", ErrScopeNotYetSupported, cmd.Scope)
+		return h.dispatchToOrchestrator(ctx, cmd)
 	}
 	if cmd.ProductSysID == 0 {
 		return nil, ErrProductRequired
@@ -204,6 +205,53 @@ func (h *TriggerJobHandler) completeJob(ctx context.Context, job *costcalcdom.Jo
 		Message:    fmt.Sprintf("job %s: success=%d failed=%d blocked=%d", job.Status(), out.Success, out.Failed, out.Blocked),
 	})
 	return nil
+}
+
+// dispatchToOrchestrator inserts a QUEUED cal_job row + publishes a
+// JobTriggeredEvent so the orchestrator picks up planning + execution. The
+// returned Job is in QUEUED state — the orchestrator drives all further
+// transitions.
+func (h *TriggerJobHandler) dispatchToOrchestrator(ctx context.Context, cmd TriggerCommand) (*costcalcdom.Job, error) {
+	if h.svc.jobTriggerPub == nil {
+		return nil, fmt.Errorf("%w: scope=%s (jobTriggerPub not configured)", ErrScopeNotYetSupported, cmd.Scope)
+	}
+	filter, err := buildScopeFilter(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("marshal filter: %w", err)
+	}
+	job, err := costcalcdom.NewJob(cmd.Period, cmd.CalcType, cmd.Scope, filter, cmd.TriggeredBy, cmd.Actor)
+	if err != nil {
+		return nil, fmt.Errorf("new job: %w", err)
+	}
+	if err := h.svc.jobRepo.Create(ctx, job); err != nil {
+		return nil, fmt.Errorf("create job: %w", err)
+	}
+	h.svc.emitAudit(ctx, AuditEvent{
+		EventType: "COST_CALC_JOB_TRIGGERED", EntityKind: auditEntityKindJob,
+		EntityID: fmt.Sprintf("%d", job.ID()), Actor: cmd.Actor,
+		Message: fmt.Sprintf("queued %s job period=%s calc=%s for orchestrator", cmd.Scope, cmd.Period, cmd.CalcType),
+	})
+	if err := h.svc.jobTriggerPub.PublishJobTriggered(ctx, job.ID()); err != nil {
+		// Best-effort: mark FAILED so the user sees the error.
+		if updErr := h.svc.jobRepo.UpdateStatus(ctx, job.ID(), costcalcdom.JobStatusFailed); updErr != nil {
+			return nil, fmt.Errorf("publish job_triggered: %w (and mark failed: %w)", err, updErr)
+		}
+		return nil, fmt.Errorf("publish job_triggered: %w", err)
+	}
+	return job, nil
+}
+
+// buildScopeFilter encodes the scope-specific selectors into cj_product_filter
+// JSONB. Re-used by the orchestrator side when it reads the job back.
+func buildScopeFilter(cmd TriggerCommand) ([]byte, error) {
+	if len(cmd.Filter) > 0 {
+		return cmd.Filter, nil
+	}
+	return json.Marshal(map[string]any{
+		"product_sys_id":         cmd.ProductSysID,
+		"route_head_id":          cmd.RouteHeadID,
+		"product_type_id_filter": cmd.ProductTypeIDFilter,
+	})
 }
 
 func jobCompletionEvent(status costcalcdom.JobStatus) string {

@@ -11,14 +11,22 @@ import (
 // Constructed once at startup and reused across requests. All methods are safe
 // for concurrent use provided the injected repositories and loader are too.
 type Service struct {
-	jobRepo      costcalcdom.JobRepository
-	chunkRepo    costcalcdom.ChunkRepository
-	productRepo  costcalcdom.JobProductRepository
-	resultRepo   costcalcdom.ResultRepository
-	auditRepo    costcalcdom.AuditHistoryRepository
-	loader       ProductLoader
-	cache        *evaluator.Cache
-	auditEmitter AuditEmitter
+	jobRepo       costcalcdom.JobRepository
+	chunkRepo     costcalcdom.ChunkRepository
+	productRepo   costcalcdom.JobProductRepository
+	resultRepo    costcalcdom.ResultRepository
+	auditRepo     costcalcdom.AuditHistoryRepository
+	loader        ProductLoader
+	cache         *evaluator.Cache
+	auditEmitter  AuditEmitter
+	jobTriggerPub JobTriggerPublisher
+}
+
+// JobTriggerPublisher signals the orchestrator (via RMQ) to plan + execute a
+// non-SINGLE_PRODUCT calc job. Pass nil to fall back to ErrScopeNotYetSupported
+// — useful in tests and for dev environments without RMQ.
+type JobTriggerPublisher interface {
+	PublishJobTriggered(ctx context.Context, jobID int64) error
 }
 
 // AuditEmitter is the optional sink for COST_CALC_* events written to the
@@ -44,7 +52,9 @@ type AuditEvent struct {
 }
 
 // NewService constructs the calc engine service. Pass auditEmitter=nil to skip
-// the cost_audit_log side-channel.
+// the cost_audit_log side-channel. Pass jobTriggerPub=nil to disable the
+// orchestrator hand-off (non-SINGLE_PRODUCT scopes will return
+// ErrScopeNotYetSupported in that case).
 func NewService(
 	jobRepo costcalcdom.JobRepository,
 	chunkRepo costcalcdom.ChunkRepository,
@@ -54,16 +64,18 @@ func NewService(
 	loader ProductLoader,
 	cache *evaluator.Cache,
 	auditEmitter AuditEmitter,
+	jobTriggerPub JobTriggerPublisher,
 ) *Service {
 	return &Service{
-		jobRepo:      jobRepo,
-		chunkRepo:    chunkRepo,
-		productRepo:  productRepo,
-		resultRepo:   resultRepo,
-		auditRepo:    auditRepo,
-		loader:       loader,
-		cache:        cache,
-		auditEmitter: auditEmitter,
+		jobRepo:       jobRepo,
+		chunkRepo:     chunkRepo,
+		productRepo:   productRepo,
+		resultRepo:    resultRepo,
+		auditRepo:     auditRepo,
+		loader:        loader,
+		cache:         cache,
+		auditEmitter:  auditEmitter,
+		jobTriggerPub: jobTriggerPub,
 	}
 }
 

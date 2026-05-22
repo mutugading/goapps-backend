@@ -79,6 +79,7 @@ func (s *ProcessChunkSuite) SetupSuite() {
 		NewProductLoader(raw),
 		evaluator.NewCache(),
 		nil,
+		nil,
 	)
 
 	s.seedAll()
