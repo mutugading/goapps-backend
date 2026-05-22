@@ -266,6 +266,593 @@
         ]
       }
     },
+    "/api/v1/finance/calc-jobs": {
+      "get": {
+        "summary": "ListCalcJobs returns a paginated list of calc jobs with optional filters.\nRequired permission: finance.cost.caljob.view.",
+        "operationId": "CostCalcService_ListCalcJobs",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListCalcJobsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "pagination.page",
+            "description": "Page number (1-indexed).",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pagination.pageSize",
+            "description": "Number of items per page.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "period",
+            "description": "Optional period filter (YYYYMM).",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "calculationType",
+            "description": "Optional calculation type filter (UNSPECIFIED = no filter).\n\n - CALCULATION_TYPE_UNSPECIFIED: Default - invalid for create/update; ignored as filter.\n - CALCULATION_TYPE_ACTUAL: Actual cost based on realized RM rates.\n - CALCULATION_TYPE_FORECAST: Forecast cost using forward-looking rates.\n - CALCULATION_TYPE_SELLING: Selling-side cost projection.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "CALCULATION_TYPE_UNSPECIFIED",
+              "CALCULATION_TYPE_ACTUAL",
+              "CALCULATION_TYPE_FORECAST",
+              "CALCULATION_TYPE_SELLING"
+            ],
+            "default": "CALCULATION_TYPE_UNSPECIFIED"
+          },
+          {
+            "name": "status",
+            "description": "Optional status filter (UNSPECIFIED = no filter).\n\n - CALC_JOB_STATUS_UNSPECIFIED: Default - invalid for create/update; ignored as filter.\n - CALC_JOB_STATUS_QUEUED: Job created, waiting for planner.\n - CALC_JOB_STATUS_PLANNING: Planner is expanding products + chunks.\n - CALC_JOB_STATUS_PROCESSING: Chunks dispatched, workers running.\n - CALC_JOB_STATUS_SUCCESS: All products calculated successfully.\n - CALC_JOB_STATUS_PARTIAL_FAILED: Some products failed, others succeeded.\n - CALC_JOB_STATUS_FAILED: Job failed at planning or all chunks failed.\n - CALC_JOB_STATUS_CANCELLED: Operator cancelled the job.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "CALC_JOB_STATUS_UNSPECIFIED",
+              "CALC_JOB_STATUS_QUEUED",
+              "CALC_JOB_STATUS_PLANNING",
+              "CALC_JOB_STATUS_PROCESSING",
+              "CALC_JOB_STATUS_SUCCESS",
+              "CALC_JOB_STATUS_PARTIAL_FAILED",
+              "CALC_JOB_STATUS_FAILED",
+              "CALC_JOB_STATUS_CANCELLED"
+            ],
+            "default": "CALC_JOB_STATUS_UNSPECIFIED"
+          },
+          {
+            "name": "triggeredBy",
+            "description": "Optional triggered_by filter (e.g., MANUAL/CRON/API).",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "CostCalcService"
+        ]
+      }
+    },
+    "/api/v1/finance/calc-jobs/trigger": {
+      "post": {
+        "summary": "TriggerCalcJob creates a new calc job batch.\nScope determines whether it covers a single product, a route, a filtered\nset, or ALL products. Required permission: finance.cost.caljob.trigger.",
+        "operationId": "CostCalcService_TriggerCalcJob",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1TriggerCalcJobResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "TriggerCalcJobRequest creates a new calc job batch.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1TriggerCalcJobRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CostCalcService"
+        ]
+      }
+    },
+    "/api/v1/finance/calc-jobs/{jobId}": {
+      "get": {
+        "summary": "GetCalcJob fetches one calc job by id.\nRequired permission: finance.cost.caljob.view.",
+        "operationId": "CostCalcService_GetCalcJob",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetCalcJobResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "jobId",
+            "description": "Job id; must be > 0.",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "CostCalcService"
+        ]
+      }
+    },
+    "/api/v1/finance/calc-jobs/{jobId}/cancel": {
+      "post": {
+        "summary": "CancelCalcJob cancels a running calc job.\nRequired permission: finance.cost.caljob.cancel.",
+        "operationId": "CostCalcService_CancelCalcJob",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CancelCalcJobResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "jobId",
+            "description": "Job id; must be > 0.",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CostCalcServiceCancelCalcJobBody"
+            }
+          }
+        ],
+        "tags": [
+          "CostCalcService"
+        ]
+      }
+    },
+    "/api/v1/finance/calc-jobs/{jobId}/chunks": {
+      "get": {
+        "summary": "ListCalcJobChunks returns chunks belonging to one job.\nRequired permission: finance.cost.caljob.view.",
+        "operationId": "CostCalcService_ListCalcJobChunks",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListCalcJobChunksResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "jobId",
+            "description": "Parent job id.",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "pagination.page",
+            "description": "Page number (1-indexed).",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pagination.pageSize",
+            "description": "Number of items per page.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "waveNo",
+            "description": "Optional wave filter (0 = no filter).",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "status",
+            "description": "Optional chunk status filter (UNSPECIFIED = no filter).\n\n - CHUNK_STATUS_UNSPECIFIED: Default - invalid for create/update.\n - CHUNK_STATUS_QUEUED: Chunk queued, not yet dispatched.\n - CHUNK_STATUS_DISPATCHED: Chunk dispatched to a worker.\n - CHUNK_STATUS_PROCESSING: Worker is processing the chunk.\n - CHUNK_STATUS_SUCCESS: All products in chunk succeeded.\n - CHUNK_STATUS_PARTIAL_FAILED: Some products in chunk failed.\n - CHUNK_STATUS_FAILED: All products in chunk failed.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "CHUNK_STATUS_UNSPECIFIED",
+              "CHUNK_STATUS_QUEUED",
+              "CHUNK_STATUS_DISPATCHED",
+              "CHUNK_STATUS_PROCESSING",
+              "CHUNK_STATUS_SUCCESS",
+              "CHUNK_STATUS_PARTIAL_FAILED",
+              "CHUNK_STATUS_FAILED"
+            ],
+            "default": "CHUNK_STATUS_UNSPECIFIED"
+          }
+        ],
+        "tags": [
+          "CostCalcService"
+        ]
+      }
+    },
+    "/api/v1/finance/calc-jobs/{jobId}/products": {
+      "get": {
+        "summary": "ListCalcJobProducts returns per-product execution rows for one job.\nRequired permission: finance.cost.caljob.view.",
+        "operationId": "CostCalcService_ListCalcJobProducts",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListCalcJobProductsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "jobId",
+            "description": "Parent job id.",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "pagination.page",
+            "description": "Page number (1-indexed).",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pagination.pageSize",
+            "description": "Number of items per page.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "status",
+            "description": "Optional product status filter (UNSPECIFIED = no filter).\n\n - JOB_PRODUCT_STATUS_UNSPECIFIED: Default - invalid for create/update.\n - JOB_PRODUCT_STATUS_PENDING: Awaiting upstream waves to finish.\n - JOB_PRODUCT_STATUS_READY: Inputs ready, awaiting worker.\n - JOB_PRODUCT_STATUS_CALCULATING: Worker calculating now.\n - JOB_PRODUCT_STATUS_SUCCESS: Cost calculated successfully.\n - JOB_PRODUCT_STATUS_FAILED: Calculation failed for this product.\n - JOB_PRODUCT_STATUS_BLOCKED: Blocked by upstream failure or missing inputs.\n - JOB_PRODUCT_STATUS_SKIPPED: Skipped (e.g., no active route).",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "JOB_PRODUCT_STATUS_UNSPECIFIED",
+              "JOB_PRODUCT_STATUS_PENDING",
+              "JOB_PRODUCT_STATUS_READY",
+              "JOB_PRODUCT_STATUS_CALCULATING",
+              "JOB_PRODUCT_STATUS_SUCCESS",
+              "JOB_PRODUCT_STATUS_FAILED",
+              "JOB_PRODUCT_STATUS_BLOCKED",
+              "JOB_PRODUCT_STATUS_SKIPPED"
+            ],
+            "default": "JOB_PRODUCT_STATUS_UNSPECIFIED"
+          }
+        ],
+        "tags": [
+          "CostCalcService"
+        ]
+      }
+    },
+    "/api/v1/finance/cost-results/{costId}/approve": {
+      "post": {
+        "summary": "ApproveCostResult marks a cost result as approved.\nRequired permission: finance.cost.result.approve.",
+        "operationId": "CostCalcService_ApproveCostResult",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ApproveCostResultResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "costId",
+            "description": "Cost id; must be > 0.",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CostCalcServiceApproveCostResultBody"
+            }
+          }
+        ],
+        "tags": [
+          "CostCalcService"
+        ]
+      }
+    },
+    "/api/v1/finance/cost-results/{costId}/verify": {
+      "post": {
+        "summary": "VerifyCostResult marks a cost result as verified.\nRequired permission: finance.cost.result.verify.",
+        "operationId": "CostCalcService_VerifyCostResult",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1VerifyCostResultResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "costId",
+            "description": "Cost id; must be > 0.",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CostCalcServiceVerifyCostResultBody"
+            }
+          }
+        ],
+        "tags": [
+          "CostCalcService"
+        ]
+      }
+    },
+    "/api/v1/finance/cost-results/{productSysId}/history": {
+      "get": {
+        "summary": "ListCostHistory returns versioned cost history (incl. superseded) for a product.\nRequired permission: finance.cost.history.view.",
+        "operationId": "CostCalcService_ListCostHistory",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListCostHistoryResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "productSysId",
+            "description": "Product sys id; must be > 0.",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "pagination.page",
+            "description": "Page number (1-indexed).",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pagination.pageSize",
+            "description": "Number of items per page.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "calculationType",
+            "description": "Optional calculation type filter (UNSPECIFIED = no filter).\n\n - CALCULATION_TYPE_UNSPECIFIED: Default - invalid for create/update; ignored as filter.\n - CALCULATION_TYPE_ACTUAL: Actual cost based on realized RM rates.\n - CALCULATION_TYPE_FORECAST: Forecast cost using forward-looking rates.\n - CALCULATION_TYPE_SELLING: Selling-side cost projection.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "CALCULATION_TYPE_UNSPECIFIED",
+              "CALCULATION_TYPE_ACTUAL",
+              "CALCULATION_TYPE_FORECAST",
+              "CALCULATION_TYPE_SELLING"
+            ],
+            "default": "CALCULATION_TYPE_UNSPECIFIED"
+          }
+        ],
+        "tags": [
+          "CostCalcService"
+        ]
+      }
+    },
+    "/api/v1/finance/cost-results/{productSysId}/{period}/{calculationType}": {
+      "get": {
+        "summary": "GetCostResult returns the active cost result for a product/period/type.\nRequired permission: finance.cost.result.view.",
+        "operationId": "CostCalcService_GetCostResult",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetCostResultResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "productSysId",
+            "description": "Product sys id; must be > 0.",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "period",
+            "description": "Period in YYYYMM format.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "calculationType",
+            "description": "Calculation flavor; cannot be UNSPECIFIED.",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "enum": [
+              "CALCULATION_TYPE_UNSPECIFIED",
+              "CALCULATION_TYPE_ACTUAL",
+              "CALCULATION_TYPE_FORECAST",
+              "CALCULATION_TYPE_SELLING"
+            ]
+          }
+        ],
+        "tags": [
+          "CostCalcService"
+        ]
+      }
+    },
+    "/api/v1/finance/cost-results/{productSysId}/{period}/{calculationType}/breakdown": {
+      "get": {
+        "summary": "GetCostBreakdown returns by-level + rm-details + formula-trace for a cost.\nRequired permission: finance.cost.result.view.",
+        "operationId": "CostCalcService_GetCostBreakdown",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetCostBreakdownResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "productSysId",
+            "description": "Product sys id; must be > 0.",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "period",
+            "description": "Period in YYYYMM format.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "calculationType",
+            "description": "Calculation flavor; cannot be UNSPECIFIED.",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "enum": [
+              "CALCULATION_TYPE_UNSPECIFIED",
+              "CALCULATION_TYPE_ACTUAL",
+              "CALCULATION_TYPE_FORECAST",
+              "CALCULATION_TYPE_SELLING"
+            ]
+          }
+        ],
+        "tags": [
+          "CostCalcService"
+        ]
+      }
+    },
     "/api/v1/finance/cost-erp/grades": {
       "get": {
         "operationId": "CostErpLookupService_ListCostErpGrades",
@@ -1920,6 +2507,86 @@
         ]
       }
     },
+    "/api/v1/finance/cost-product-requests/{requestId}/link-route": {
+      "post": {
+        "summary": "LinkExistingRoute attaches an existing route_head to the request.",
+        "operationId": "CostProductRequestService_LinkExistingRoute",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1LinkExistingRouteResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CostProductRequestServiceLinkExistingRouteBody"
+            }
+          }
+        ],
+        "tags": [
+          "CostProductRequestService"
+        ]
+      }
+    },
+    "/api/v1/finance/cost-product-requests/{requestId}/mark-parameter-complete": {
+      "post": {
+        "summary": "MarkParameterComplete advances PARAMETER_PENDING \u2192 PARAMETER_COMPLETE\nafter verifying all promoted products have required params filled.",
+        "operationId": "CostProductRequestService_MarkParameterComplete",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1MarkParameterCompleteResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CostProductRequestServiceMarkParameterCompleteBody"
+            }
+          }
+        ],
+        "tags": [
+          "CostProductRequestService"
+        ]
+      }
+    },
     "/api/v1/finance/cost-product-requests/{requestId}/reject": {
       "post": {
         "operationId": "CostProductRequestService_RejectCostProductRequest",
@@ -2068,6 +2735,46 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/CostProductRequestServiceSubmitCostProductRequestBody"
+            }
+          }
+        ],
+        "tags": [
+          "CostProductRequestService"
+        ]
+      }
+    },
+    "/api/v1/finance/cost-product-requests/{requestId}/unlink-route": {
+      "post": {
+        "summary": "UnlinkRoute clears both existing-product and linked-route fields.",
+        "operationId": "CostProductRequestService_UnlinkRoute",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UnlinkRouteResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CostProductRequestServiceUnlinkRouteBody"
             }
           }
         ],
@@ -2773,14 +3480,14 @@
         ]
       }
     },
-    "/api/v1/finance/cost-product-requests/{requestId}/routing-drafts": {
+    "/api/v1/finance/routes": {
       "get": {
-        "operationId": "CostRoutingDraftService_ListCostRoutingDraftsByRequest",
+        "operationId": "CostRouteService_ListRoutes",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1ListCostRoutingDraftsByRequestResponse"
+              "$ref": "#/definitions/v1ListRoutesResponse"
             }
           },
           "default": {
@@ -2792,7 +3499,70 @@
         },
         "parameters": [
           {
-            "name": "requestId",
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status",
+            "description": "Empty / DRAFT / COMPLETE / LOCKED",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "CostRouteService"
+        ]
+      }
+    },
+    "/api/v1/finance/routes/by-product/{productSysId}": {
+      "get": {
+        "operationId": "CostRouteService_GetRouteByProduct",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetRouteByProductResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "productSysId",
             "in": "path",
             "required": true,
             "type": "string",
@@ -2800,18 +3570,18 @@
           }
         ],
         "tags": [
-          "CostRoutingDraftService"
+          "CostRouteService"
         ]
       }
     },
-    "/api/v1/finance/cost-routing-drafts": {
+    "/api/v1/finance/routes/from-product": {
       "post": {
-        "operationId": "CostRoutingDraftService_CreateCostRoutingDraft",
+        "operationId": "CostRouteService_CreateRouteFromProduct",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1CreateCostRoutingDraftResponse"
+              "$ref": "#/definitions/v1CreateRouteFromProductResponse"
             }
           },
           "default": {
@@ -2827,52 +3597,23 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/v1CreateCostRoutingDraftRequest"
+              "$ref": "#/definitions/v1CreateRouteFromProductRequest"
             }
           }
         ],
         "tags": [
-          "CostRoutingDraftService"
+          "CostRouteService"
         ]
       }
     },
-    "/api/v1/finance/cost-routing-drafts/{draftId}": {
-      "get": {
-        "operationId": "CostRoutingDraftService_GetCostRoutingDraft",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/v1GetCostRoutingDraftResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "draftId",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "format": "int64"
-          }
-        ],
-        "tags": [
-          "CostRoutingDraftService"
-        ]
-      },
+    "/api/v1/finance/routes/{headId}": {
       "delete": {
-        "operationId": "CostRoutingDraftService_DeleteCostRoutingDraft",
+        "operationId": "CostRouteService_DeleteRoute",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1DeleteCostRoutingDraftResponse"
+              "$ref": "#/definitions/v1DeleteRouteResponse"
             }
           },
           "default": {
@@ -2884,7 +3625,7 @@
         },
         "parameters": [
           {
-            "name": "draftId",
+            "name": "headId",
             "in": "path",
             "required": true,
             "type": "string",
@@ -2892,94 +3633,125 @@
           }
         ],
         "tags": [
-          "CostRoutingDraftService"
+          "CostRouteService"
+        ]
+      }
+    },
+    "/api/v1/finance/routes/{headId}/complete": {
+      "post": {
+        "operationId": "CostRouteService_CompleteRoute",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CompleteRouteResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "headId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CostRouteServiceCompleteRouteBody"
+            }
+          }
+        ],
+        "tags": [
+          "CostRouteService"
+        ]
+      }
+    },
+    "/api/v1/finance/routes/{headId}/duplicate": {
+      "post": {
+        "operationId": "CostRouteService_DuplicateRoute",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DuplicateRouteResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "headId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CostRouteServiceDuplicateRouteBody"
+            }
+          }
+        ],
+        "tags": [
+          "CostRouteService"
+        ]
+      }
+    },
+    "/api/v1/finance/routes/{headId}/graph": {
+      "get": {
+        "operationId": "CostRouteService_GetRouteGraph",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetRouteGraphResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "headId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "CostRouteService"
         ]
       },
-      "put": {
-        "operationId": "CostRoutingDraftService_UpdateCostRoutingDraft",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/v1UpdateCostRoutingDraftResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "draftId",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/CostRoutingDraftServiceUpdateCostRoutingDraftBody"
-            }
-          }
-        ],
-        "tags": [
-          "CostRoutingDraftService"
-        ]
-      }
-    },
-    "/api/v1/finance/cost-routing-drafts/{draftId}/components": {
-      "put": {
-        "operationId": "CostRoutingDraftService_SaveRoutingDraftComponents",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/v1SaveRoutingDraftComponentsResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "draftId",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/CostRoutingDraftServiceSaveRoutingDraftComponentsBody"
-            }
-          }
-        ],
-        "tags": [
-          "CostRoutingDraftService"
-        ]
-      }
-    },
-    "/api/v1/finance/cost-routing-drafts/{draftId}/lock": {
       "post": {
-        "operationId": "CostRoutingDraftService_LockCostRoutingDraft",
+        "operationId": "CostRouteService_SaveRouteGraph",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1LockCostRoutingDraftResponse"
+              "$ref": "#/definitions/v1SaveRouteGraphResponse"
             }
           },
           "default": {
@@ -2991,7 +3763,7 @@
         },
         "parameters": [
           {
-            "name": "draftId",
+            "name": "headId",
             "in": "path",
             "required": true,
             "type": "string",
@@ -3002,23 +3774,23 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/CostRoutingDraftServiceLockCostRoutingDraftBody"
+              "$ref": "#/definitions/CostRouteServiceSaveRouteGraphBody"
             }
           }
         ],
         "tags": [
-          "CostRoutingDraftService"
+          "CostRouteService"
         ]
       }
     },
-    "/api/v1/finance/cost-routing-drafts/{draftId}/promote": {
-      "post": {
-        "operationId": "CostRoutingDraftService_PromoteCostRoutingDraft",
+    "/api/v1/finance/routes/{headId}/linked-requests": {
+      "get": {
+        "operationId": "CostRouteService_ListLinkedRequests",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1PromoteCostRoutingDraftResponse"
+              "$ref": "#/definitions/v1ListLinkedRequestsResponse"
             }
           },
           "default": {
@@ -3030,34 +3802,26 @@
         },
         "parameters": [
           {
-            "name": "draftId",
+            "name": "headId",
             "in": "path",
             "required": true,
             "type": "string",
             "format": "int64"
-          },
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/CostRoutingDraftServicePromoteCostRoutingDraftBody"
-            }
           }
         ],
         "tags": [
-          "CostRoutingDraftService"
+          "CostRouteService"
         ]
       }
     },
-    "/api/v1/finance/cost-routing-drafts/{draftId}/unlock": {
+    "/api/v1/finance/routes/{headId}/lock": {
       "post": {
-        "operationId": "CostRoutingDraftService_UnlockCostRoutingDraft",
+        "operationId": "CostRouteService_LockRoute",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1UnlockCostRoutingDraftResponse"
+              "$ref": "#/definitions/v1LockRouteResponse"
             }
           },
           "default": {
@@ -3069,7 +3833,7 @@
         },
         "parameters": [
           {
-            "name": "draftId",
+            "name": "headId",
             "in": "path",
             "required": true,
             "type": "string",
@@ -3080,12 +3844,51 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/CostRoutingDraftServiceUnlockCostRoutingDraftBody"
+              "$ref": "#/definitions/CostRouteServiceLockRouteBody"
             }
           }
         ],
         "tags": [
-          "CostRoutingDraftService"
+          "CostRouteService"
+        ]
+      }
+    },
+    "/api/v1/finance/routes/{headId}/unlock": {
+      "post": {
+        "operationId": "CostRouteService_UnlockRoute",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UnlockRouteResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "headId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CostRouteServiceUnlockRouteBody"
+            }
+          }
+        ],
+        "tags": [
+          "CostRouteService"
         ]
       }
     },
@@ -7667,6 +8470,893 @@
       },
       "description": "PaginationResponse contains pagination metadata for list responses."
     },
+    "CostCalcServiceApproveCostResultBody": {
+      "type": "object",
+      "description": "ApproveCostResultRequest marks a cost result as approved."
+    },
+    "CostCalcServiceCancelCalcJobBody": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "description": "Optional human reason for the cancellation."
+        }
+      },
+      "description": "CancelCalcJobRequest cancels a running job."
+    },
+    "CostCalcServiceVerifyCostResultBody": {
+      "type": "object",
+      "description": "VerifyCostResultRequest marks a cost result as verified."
+    },
+    "v1ApproveCostResultResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response envelope."
+        },
+        "result": {
+          "$ref": "#/definitions/v1CostResult",
+          "description": "Updated cost result."
+        }
+      },
+      "description": "ApproveCostResultResponse returns the approved cost result."
+    },
+    "v1CalJob": {
+      "type": "object",
+      "properties": {
+        "jobId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Auto-increment job id."
+        },
+        "jobCode": {
+          "type": "string",
+          "description": "Human-readable job code (e.g., CJ-202604-ACTUAL-001)."
+        },
+        "period": {
+          "type": "string",
+          "description": "Period in YYYYMM format."
+        },
+        "calculationType": {
+          "$ref": "#/definitions/v1CalculationType",
+          "description": "Calculation flavor."
+        },
+        "scope": {
+          "$ref": "#/definitions/v1CalcJobScope",
+          "description": "Scope of products this job covers."
+        },
+        "productFilterJson": {
+          "type": "string",
+          "description": "Raw JSON of cj_product_filter (filter criteria when scope=FILTERED)."
+        },
+        "status": {
+          "$ref": "#/definitions/v1CalcJobStatus",
+          "description": "Current lifecycle status."
+        },
+        "priority": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Higher value = higher priority for dispatcher."
+        },
+        "totalProducts": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Total products targeted by this job."
+        },
+        "totalChunks": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Total chunks planned."
+        },
+        "totalWaves": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Total waves (dependency levels) planned."
+        },
+        "processedChunks": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Chunks completed so far."
+        },
+        "successCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Successful product calculations."
+        },
+        "failedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Failed product calculations."
+        },
+        "blockedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Blocked products count."
+        },
+        "errorSummaryJson": {
+          "type": "string",
+          "description": "Raw JSON summarizing errors (top error categories + counts)."
+        },
+        "triggeredBy": {
+          "type": "string",
+          "description": "Trigger source: MANUAL | CRON | API."
+        },
+        "queuedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When job was queued."
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When planner started."
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When job ended (success/fail/cancelled)."
+        },
+        "durationMs": {
+          "type": "string",
+          "format": "int64",
+          "description": "Total duration in milliseconds."
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "User who triggered the job (resolved label, not UUID)."
+        }
+      },
+      "description": "CalJob represents a calculation job batch."
+    },
+    "v1CalJobChunk": {
+      "type": "object",
+      "properties": {
+        "chunkId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Auto-increment chunk id."
+        },
+        "jobId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Parent job id."
+        },
+        "chunkNumber": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Sequential chunk number within the job."
+        },
+        "waveNo": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Wave (dependency level) this chunk belongs to."
+        },
+        "productIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "Product ids contained in this chunk."
+        },
+        "productCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Count of products in this chunk."
+        },
+        "status": {
+          "$ref": "#/definitions/v1ChunkStatus",
+          "description": "Current chunk status."
+        },
+        "workerId": {
+          "type": "string",
+          "description": "Worker pod/id that picked up the chunk."
+        },
+        "queuedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When chunk was queued."
+        },
+        "dispatchedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When dispatched to a worker."
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When worker started processing."
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When worker finished."
+        },
+        "durationMs": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Duration in milliseconds."
+        },
+        "successCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Successful products in chunk."
+        },
+        "failedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Failed products in chunk."
+        },
+        "errorMessage": {
+          "type": "string",
+          "description": "Chunk-level error message (planning/dispatch)."
+        },
+        "retryCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Retry attempt count."
+        },
+        "maxRetries": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Max retries allowed before giving up."
+        }
+      },
+      "description": "CalJobChunk is one batch of products dispatched to a worker."
+    },
+    "v1CalJobProduct": {
+      "type": "object",
+      "properties": {
+        "jobProductId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Auto-increment job-product id."
+        },
+        "jobId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Parent job id."
+        },
+        "chunkId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Chunk this product was assigned to."
+        },
+        "productSysId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Product sys id (numeric internal id)."
+        },
+        "productCode": {
+          "type": "string",
+          "description": "Resolved product code (NEVER expose UUID \u2014 see UX rule)."
+        },
+        "productName": {
+          "type": "string",
+          "description": "Resolved product name for UI."
+        },
+        "routeHeadId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Route head used for this calculation."
+        },
+        "waveNo": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Wave (dependency level)."
+        },
+        "status": {
+          "$ref": "#/definitions/v1JobProductStatus",
+          "description": "Current product status."
+        },
+        "blockReason": {
+          "type": "string",
+          "description": "Reason if status=BLOCKED."
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When calculation started."
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When calculation finished."
+        },
+        "durationMs": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Duration in milliseconds."
+        },
+        "costId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Cost result id if status=SUCCESS."
+        },
+        "errorMessage": {
+          "type": "string",
+          "description": "Error message if status=FAILED."
+        },
+        "calculationLogJson": {
+          "type": "string",
+          "description": "Raw JSON calculation log (formula trace + intermediate values)."
+        }
+      },
+      "description": "CalJobProduct is per-product execution row inside a job."
+    },
+    "v1CalcJobScope": {
+      "type": "string",
+      "enum": [
+        "CALC_JOB_SCOPE_UNSPECIFIED",
+        "CALC_JOB_SCOPE_ALL",
+        "CALC_JOB_SCOPE_FILTERED",
+        "CALC_JOB_SCOPE_SINGLE_PRODUCT",
+        "CALC_JOB_SCOPE_SINGLE_ROUTE"
+      ],
+      "default": "CALC_JOB_SCOPE_UNSPECIFIED",
+      "description": "CalcJobScope describes what set of products the job covers.\n\n - CALC_JOB_SCOPE_UNSPECIFIED: Default - invalid for trigger.\n - CALC_JOB_SCOPE_ALL: All eligible products for the period.\n - CALC_JOB_SCOPE_FILTERED: Subset selected by product_filter_json.\n - CALC_JOB_SCOPE_SINGLE_PRODUCT: A single product target.\n - CALC_JOB_SCOPE_SINGLE_ROUTE: A single route head target."
+    },
+    "v1CalcJobStatus": {
+      "type": "string",
+      "enum": [
+        "CALC_JOB_STATUS_UNSPECIFIED",
+        "CALC_JOB_STATUS_QUEUED",
+        "CALC_JOB_STATUS_PLANNING",
+        "CALC_JOB_STATUS_PROCESSING",
+        "CALC_JOB_STATUS_SUCCESS",
+        "CALC_JOB_STATUS_PARTIAL_FAILED",
+        "CALC_JOB_STATUS_FAILED",
+        "CALC_JOB_STATUS_CANCELLED"
+      ],
+      "default": "CALC_JOB_STATUS_UNSPECIFIED",
+      "description": "CalcJobStatus is the lifecycle status of a calc job batch.\n\n - CALC_JOB_STATUS_UNSPECIFIED: Default - invalid for create/update; ignored as filter.\n - CALC_JOB_STATUS_QUEUED: Job created, waiting for planner.\n - CALC_JOB_STATUS_PLANNING: Planner is expanding products + chunks.\n - CALC_JOB_STATUS_PROCESSING: Chunks dispatched, workers running.\n - CALC_JOB_STATUS_SUCCESS: All products calculated successfully.\n - CALC_JOB_STATUS_PARTIAL_FAILED: Some products failed, others succeeded.\n - CALC_JOB_STATUS_FAILED: Job failed at planning or all chunks failed.\n - CALC_JOB_STATUS_CANCELLED: Operator cancelled the job."
+    },
+    "v1CalculationType": {
+      "type": "string",
+      "enum": [
+        "CALCULATION_TYPE_UNSPECIFIED",
+        "CALCULATION_TYPE_ACTUAL",
+        "CALCULATION_TYPE_FORECAST",
+        "CALCULATION_TYPE_SELLING"
+      ],
+      "default": "CALCULATION_TYPE_UNSPECIFIED",
+      "description": "CalculationType selects the costing flavor for a job/result.\n\n - CALCULATION_TYPE_UNSPECIFIED: Default - invalid for create/update; ignored as filter.\n - CALCULATION_TYPE_ACTUAL: Actual cost based on realized RM rates.\n - CALCULATION_TYPE_FORECAST: Forecast cost using forward-looking rates.\n - CALCULATION_TYPE_SELLING: Selling-side cost projection."
+    },
+    "v1CancelCalcJobResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response envelope."
+        },
+        "job": {
+          "$ref": "#/definitions/v1CalJob",
+          "description": "Cancelled job."
+        }
+      },
+      "description": "CancelCalcJobResponse returns the cancelled job."
+    },
+    "v1ChunkStatus": {
+      "type": "string",
+      "enum": [
+        "CHUNK_STATUS_UNSPECIFIED",
+        "CHUNK_STATUS_QUEUED",
+        "CHUNK_STATUS_DISPATCHED",
+        "CHUNK_STATUS_PROCESSING",
+        "CHUNK_STATUS_SUCCESS",
+        "CHUNK_STATUS_PARTIAL_FAILED",
+        "CHUNK_STATUS_FAILED"
+      ],
+      "default": "CHUNK_STATUS_UNSPECIFIED",
+      "description": "ChunkStatus is the lifecycle status of an individual chunk.\n\n - CHUNK_STATUS_UNSPECIFIED: Default - invalid for create/update.\n - CHUNK_STATUS_QUEUED: Chunk queued, not yet dispatched.\n - CHUNK_STATUS_DISPATCHED: Chunk dispatched to a worker.\n - CHUNK_STATUS_PROCESSING: Worker is processing the chunk.\n - CHUNK_STATUS_SUCCESS: All products in chunk succeeded.\n - CHUNK_STATUS_PARTIAL_FAILED: Some products in chunk failed.\n - CHUNK_STATUS_FAILED: All products in chunk failed."
+    },
+    "v1CostBreakdown": {
+      "type": "object",
+      "properties": {
+        "summary": {
+          "$ref": "#/definitions/v1CostResult",
+          "description": "Summary row."
+        },
+        "byLevel": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1LevelBreakdown"
+          },
+          "description": "Cost contribution per route level."
+        },
+        "rmDetails": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1CostRMDetail"
+          },
+          "description": "RM input details."
+        },
+        "formulaTrace": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1FormulaEval"
+          },
+          "description": "Formula evaluation trace."
+        },
+        "paramSnapshot": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Snapshot of parameters used (key = param_code, val = stringified float)."
+        }
+      },
+      "description": "CostBreakdown is the full drill-down for one CostResult."
+    },
+    "v1CostHistoryEntry": {
+      "type": "object",
+      "properties": {
+        "costId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Cost id of this history entry."
+        },
+        "period": {
+          "type": "string",
+          "description": "Period in YYYYMM format."
+        },
+        "calculationType": {
+          "$ref": "#/definitions/v1CalculationType",
+          "description": "Calculation flavor."
+        },
+        "version": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Version number."
+        },
+        "costPerUnit": {
+          "type": "string",
+          "description": "Cost per unit (stringified NUMERIC)."
+        },
+        "variancePctFromPrevious": {
+          "type": "string",
+          "description": "Variance percentage vs the previous version (sign included, stringified)."
+        },
+        "status": {
+          "$ref": "#/definitions/v1CostResultStatus",
+          "description": "Lifecycle status."
+        },
+        "jobId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Job id that produced this row."
+        },
+        "calculatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When calculation completed."
+        },
+        "calculatedBy": {
+          "type": "string",
+          "description": "User who triggered the calc (resolved label)."
+        }
+      },
+      "description": "CostHistoryEntry is one row in the versioned cost history."
+    },
+    "v1CostRMDetail": {
+      "type": "object",
+      "properties": {
+        "rmType": {
+          "type": "string",
+          "description": "RM type: PRODUCT | ITEM | GROUP."
+        },
+        "refCode": {
+          "type": "string",
+          "description": "Reference code: product_code for PRODUCT, item_code for ITEM, group_code for GROUP."
+        },
+        "refLabel": {
+          "type": "string",
+          "description": "Resolved display label for the ref."
+        },
+        "shadeCode": {
+          "type": "string",
+          "description": "Shade code (if applicable)."
+        },
+        "unitCost": {
+          "type": "string",
+          "description": "Unit cost (stringified NUMERIC)."
+        },
+        "ratio": {
+          "type": "string",
+          "description": "Consumption ratio."
+        },
+        "contribution": {
+          "type": "string",
+          "description": "Contribution = unit_cost \u00d7 ratio."
+        }
+      },
+      "description": "CostRMDetail is one RM input edge contribution to the cost."
+    },
+    "v1CostResult": {
+      "type": "object",
+      "properties": {
+        "costId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Auto-increment cost id."
+        },
+        "productSysId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Product sys id."
+        },
+        "productCode": {
+          "type": "string",
+          "description": "Resolved product code."
+        },
+        "productName": {
+          "type": "string",
+          "description": "Resolved product name."
+        },
+        "period": {
+          "type": "string",
+          "description": "Period in YYYYMM format."
+        },
+        "calculationType": {
+          "$ref": "#/definitions/v1CalculationType",
+          "description": "Calculation flavor for this row."
+        },
+        "routeHeadId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Route head used for the calculation."
+        },
+        "version": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Version (auto-increment per (product, period, type))."
+        },
+        "costPerUnit": {
+          "type": "string",
+          "description": "Cost per unit (NUMERIC(20,6) serialized as string)."
+        },
+        "totalRmCost": {
+          "type": "string",
+          "description": "Aggregate RM cost for this product (sum of unit \u00d7 ratio across stages)."
+        },
+        "totalConversion": {
+          "type": "string",
+          "description": "Aggregate conversion cost across stages."
+        },
+        "totalCost": {
+          "type": "string",
+          "description": "Total cost (rm + conversion)."
+        },
+        "uomId": {
+          "type": "integer",
+          "format": "int32",
+          "description": "UOM id of the unit."
+        },
+        "uomCode": {
+          "type": "string",
+          "description": "Resolved UOM code."
+        },
+        "currencyCode": {
+          "type": "string",
+          "description": "Currency ISO code."
+        },
+        "status": {
+          "$ref": "#/definitions/v1CostResultStatus",
+          "description": "Result lifecycle status."
+        },
+        "jobId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Job id that produced this row."
+        },
+        "calculatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When calculation completed."
+        },
+        "calculatedBy": {
+          "type": "string",
+          "description": "User who triggered the calc (resolved label)."
+        },
+        "verifiedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When verified (if applicable)."
+        },
+        "verifiedBy": {
+          "type": "string",
+          "description": "User who verified (resolved label)."
+        }
+      },
+      "description": "CostResult is the persisted cost summary for a product/period/type."
+    },
+    "v1CostResultStatus": {
+      "type": "string",
+      "enum": [
+        "COST_RESULT_STATUS_UNSPECIFIED",
+        "COST_RESULT_STATUS_CALCULATED",
+        "COST_RESULT_STATUS_VERIFIED",
+        "COST_RESULT_STATUS_APPROVED",
+        "COST_RESULT_STATUS_SUPERSEDED"
+      ],
+      "default": "COST_RESULT_STATUS_UNSPECIFIED",
+      "description": "CostResultStatus is the lifecycle status of a stored cost result.\n\n - COST_RESULT_STATUS_UNSPECIFIED: Default - invalid for create/update.\n - COST_RESULT_STATUS_CALCULATED: Freshly calculated, awaiting review.\n - COST_RESULT_STATUS_VERIFIED: Verified by a reviewer.\n - COST_RESULT_STATUS_APPROVED: Approved for downstream use.\n - COST_RESULT_STATUS_SUPERSEDED: Replaced by a newer version."
+    },
+    "v1FormulaEval": {
+      "type": "object",
+      "properties": {
+        "formulaCode": {
+          "type": "string",
+          "description": "Formula code."
+        },
+        "formulaName": {
+          "type": "string",
+          "description": "Formula human name."
+        },
+        "expression": {
+          "type": "string",
+          "description": "Expression evaluated."
+        },
+        "inputs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Inputs (key = param_code, val = stringified value)."
+        },
+        "outputParamCode": {
+          "type": "string",
+          "description": "Output parameter code this formula assigns."
+        },
+        "outputValue": {
+          "type": "string",
+          "description": "Output value (stringified NUMERIC)."
+        }
+      },
+      "description": "FormulaEval traces one formula evaluation step."
+    },
+    "v1GetCalcJobResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response envelope."
+        },
+        "job": {
+          "$ref": "#/definitions/v1CalJob",
+          "description": "Requested job."
+        }
+      },
+      "description": "GetCalcJobResponse returns the requested job."
+    },
+    "v1GetCostBreakdownResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response envelope."
+        },
+        "breakdown": {
+          "$ref": "#/definitions/v1CostBreakdown",
+          "description": "Full breakdown: summary + by-level + rm details + formula trace."
+        }
+      },
+      "description": "GetCostBreakdownResponse returns the cost breakdown."
+    },
+    "v1GetCostResultResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response envelope."
+        },
+        "result": {
+          "$ref": "#/definitions/v1CostResult",
+          "description": "Active cost result row."
+        }
+      },
+      "description": "GetCostResultResponse returns the requested cost result."
+    },
+    "v1JobProductStatus": {
+      "type": "string",
+      "enum": [
+        "JOB_PRODUCT_STATUS_UNSPECIFIED",
+        "JOB_PRODUCT_STATUS_PENDING",
+        "JOB_PRODUCT_STATUS_READY",
+        "JOB_PRODUCT_STATUS_CALCULATING",
+        "JOB_PRODUCT_STATUS_SUCCESS",
+        "JOB_PRODUCT_STATUS_FAILED",
+        "JOB_PRODUCT_STATUS_BLOCKED",
+        "JOB_PRODUCT_STATUS_SKIPPED"
+      ],
+      "default": "JOB_PRODUCT_STATUS_UNSPECIFIED",
+      "description": "JobProductStatus is the per-product execution status inside a job.\n\n - JOB_PRODUCT_STATUS_UNSPECIFIED: Default - invalid for create/update.\n - JOB_PRODUCT_STATUS_PENDING: Awaiting upstream waves to finish.\n - JOB_PRODUCT_STATUS_READY: Inputs ready, awaiting worker.\n - JOB_PRODUCT_STATUS_CALCULATING: Worker calculating now.\n - JOB_PRODUCT_STATUS_SUCCESS: Cost calculated successfully.\n - JOB_PRODUCT_STATUS_FAILED: Calculation failed for this product.\n - JOB_PRODUCT_STATUS_BLOCKED: Blocked by upstream failure or missing inputs.\n - JOB_PRODUCT_STATUS_SKIPPED: Skipped (e.g., no active route)."
+    },
+    "v1LevelBreakdown": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Route level (1 = FG; 2..N upstream)."
+        },
+        "productSysId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Product sys id at this level."
+        },
+        "productCode": {
+          "type": "string",
+          "description": "Resolved product code."
+        },
+        "productName": {
+          "type": "string",
+          "description": "Resolved product name."
+        },
+        "costContribution": {
+          "type": "string",
+          "description": "Cost contribution (stringified NUMERIC)."
+        },
+        "ratio": {
+          "type": "string",
+          "description": "Ratio of this level to total cost."
+        }
+      },
+      "description": "LevelBreakdown is the cost contribution at one route level."
+    },
+    "v1ListCalcJobChunksResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response envelope."
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1CalJobChunk"
+          },
+          "description": "Page of chunks."
+        },
+        "pagination": {
+          "$ref": "#/definitions/v1PaginationResponse",
+          "description": "Pagination metadata."
+        }
+      },
+      "description": "ListCalcJobChunksResponse returns a page of chunks."
+    },
+    "v1ListCalcJobProductsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response envelope."
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1CalJobProduct"
+          },
+          "description": "Page of product execution rows."
+        },
+        "pagination": {
+          "$ref": "#/definitions/v1PaginationResponse",
+          "description": "Pagination metadata."
+        }
+      },
+      "description": "ListCalcJobProductsResponse returns a page of product-level execution rows."
+    },
+    "v1ListCalcJobsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response envelope."
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1CalJob"
+          },
+          "description": "Page of jobs."
+        },
+        "pagination": {
+          "$ref": "#/definitions/v1PaginationResponse",
+          "description": "Pagination metadata."
+        }
+      },
+      "description": "ListCalcJobsResponse returns a page of jobs."
+    },
+    "v1ListCostHistoryResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response envelope."
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1CostHistoryEntry"
+          },
+          "description": "Page of history rows (includes superseded)."
+        },
+        "pagination": {
+          "$ref": "#/definitions/v1PaginationResponse",
+          "description": "Pagination metadata."
+        }
+      },
+      "description": "ListCostHistoryResponse returns a page of cost history rows."
+    },
+    "v1TriggerCalcJobRequest": {
+      "type": "object",
+      "properties": {
+        "period": {
+          "type": "string",
+          "description": "Period in YYYYMM format (e.g., 202604)."
+        },
+        "calculationType": {
+          "$ref": "#/definitions/v1CalculationType",
+          "description": "Calculation flavor; cannot be UNSPECIFIED."
+        },
+        "scope": {
+          "$ref": "#/definitions/v1CalcJobScope",
+          "description": "Scope; cannot be UNSPECIFIED."
+        },
+        "productSysId": {
+          "type": "string",
+          "format": "int64",
+          "description": "For SINGLE_PRODUCT, set product_sys_id. Otherwise leave 0."
+        },
+        "routeHeadId": {
+          "type": "string",
+          "format": "int64",
+          "description": "For SINGLE_ROUTE, set route_head_id. Otherwise leave 0."
+        },
+        "productTypeIdFilter": {
+          "type": "integer",
+          "format": "int32",
+          "description": "For FILTERED, set product_type_id_filter. Otherwise leave 0."
+        }
+      },
+      "description": "TriggerCalcJobRequest creates a new calc job batch."
+    },
+    "v1TriggerCalcJobResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response envelope."
+        },
+        "job": {
+          "$ref": "#/definitions/v1CalJob",
+          "description": "Created job."
+        }
+      },
+      "description": "TriggerCalcJobResponse returns the created job."
+    },
+    "v1VerifyCostResultResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response envelope."
+        },
+        "result": {
+          "$ref": "#/definitions/v1CostResult",
+          "description": "Updated cost result."
+        }
+      },
+      "description": "VerifyCostResultResponse returns the verified cost result."
+    },
     "v1CostErpGrade": {
       "type": "object",
       "properties": {
@@ -8984,6 +10674,19 @@
         }
       }
     },
+    "CostProductRequestServiceLinkExistingRouteBody": {
+      "type": "object",
+      "properties": {
+        "routeHeadId": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    },
+    "CostProductRequestServiceMarkParameterCompleteBody": {
+      "type": "object",
+      "description": "MarkParameterComplete moves PARAMETER_PENDING \u2192 PARAMETER_COMPLETE.\nThe handler verifies all promoted products have their required CAPP params\nfilled before allowing the transition."
+    },
     "CostProductRequestServiceRejectCostProductRequestBody": {
       "type": "object",
       "properties": {
@@ -8999,6 +10702,9 @@
       "type": "object"
     },
     "CostProductRequestServiceSubmitCostProductRequestBody": {
+      "type": "object"
+    },
+    "CostProductRequestServiceUnlinkRouteBody": {
       "type": "object"
     },
     "CostProductRequestServiceUpdateCostProductRequestBody": {
@@ -9187,6 +10893,11 @@
           "type": "string",
           "format": "int64",
           "description": "When UseExistingCosting was invoked, points to the product master whose costing is reused. 0 = none."
+        },
+        "linkedRouteHeadId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Active route head linked to this request (many requests \u2192 one route head when spec matches)."
         }
       }
     },
@@ -9322,6 +11033,17 @@
         }
       }
     },
+    "v1LinkExistingRouteResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1CostProductRequest"
+        }
+      }
+    },
     "v1ListCostProductRequestsResponse": {
       "type": "object",
       "properties": {
@@ -9337,6 +11059,46 @@
         },
         "pagination": {
           "$ref": "#/definitions/v1PaginationResponse"
+        }
+      }
+    },
+    "v1MarkParameterCompleteResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1CostProductRequest"
+        },
+        "missingProducts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MissingProductParams"
+          },
+          "description": "missing_products lists product_sys_ids that still have required params unfilled\nwhen the transition is blocked. Empty when the response is_success = true."
+        }
+      }
+    },
+    "v1MissingProductParams": {
+      "type": "object",
+      "properties": {
+        "productSysId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "productCode": {
+          "type": "string"
+        },
+        "productName": {
+          "type": "string"
+        },
+        "missingParamCodes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -9402,6 +11164,17 @@
       }
     },
     "v1SubmitCostProductRequestResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1CostProductRequest"
+        }
+      }
+    },
+    "v1UnlinkRouteResponse": {
       "type": "object",
       "properties": {
         "base": {
@@ -9901,247 +11674,62 @@
         }
       }
     },
-    "CostRoutingDraftServiceLockCostRoutingDraftBody": {
+    "CostRouteServiceCompleteRouteBody": {
       "type": "object"
     },
-    "CostRoutingDraftServicePromoteCostRoutingDraftBody": {
+    "CostRouteServiceDuplicateRouteBody": {
       "type": "object",
       "properties": {
-        "linkToProductSysId": {
-          "type": "string",
-          "format": "int64",
-          "description": "When >0, link the draft to this existing CostProductMaster instead of creating one."
+        "includeRouting": {
+          "type": "boolean"
         },
-        "productTypeId": {
-          "type": "integer",
-          "format": "int32",
-          "description": "When link_to_product_sys_id = 0, the backend creates a new CostProductMaster\nusing these fields. product_type_id is required in that case."
+        "includeUpstream": {
+          "type": "boolean"
         },
-        "productName": {
+        "includeApplicability": {
+          "type": "boolean"
+        },
+        "includeValues": {
+          "type": "boolean"
+        },
+        "newCodePrefix": {
           "type": "string"
-        }
-      },
-      "description": "Promote crosses into Phase B: creates a CostProductMaster (or links to an\nexisting one if product_sys_id supplied) + CostProductOrder + initial draft\nversion, then sets CRD_status=PROMOTED + CRD_linked_product_order_id."
-    },
-    "CostRoutingDraftServiceSaveRoutingDraftComponentsBody": {
-      "type": "object",
-      "properties": {
-        "components": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "$ref": "#/definitions/v1RoutingComponentInput"
-          }
+        },
+        "linkedRequestId": {
+          "type": "string",
+          "format": "int64"
         }
       }
     },
-    "CostRoutingDraftServiceUnlockCostRoutingDraftBody": {
+    "CostRouteServiceLockRouteBody": {
       "type": "object"
     },
-    "CostRoutingDraftServiceUpdateCostRoutingDraftBody": {
+    "CostRouteServiceSaveRouteGraphBody": {
       "type": "object",
       "properties": {
-        "productTop2": {
-          "type": "string"
-        },
-        "itemCode": {
-          "type": "string"
-        },
-        "cylTypeId": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "shadeCode": {
-          "type": "string"
-        },
-        "rawMaterialType": {
-          "type": "string"
+        "graph": {
+          "$ref": "#/definitions/v1RouteGraph"
         }
       }
     },
-    "v1CostRoutingDraft": {
-      "type": "object",
-      "properties": {
-        "draftId": {
-          "type": "string",
-          "format": "int64"
-        },
-        "requestId": {
-          "type": "string",
-          "format": "int64"
-        },
-        "productTop2": {
-          "type": "string"
-        },
-        "itemCode": {
-          "type": "string"
-        },
-        "cylTypeId": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "shadeCode": {
-          "type": "string"
-        },
-        "rawMaterialType": {
-          "type": "string"
-        },
-        "status": {
-          "type": "string",
-          "description": "DRAFT | LOCKED | PROMOTED."
-        },
-        "linkedProductOrderId": {
-          "type": "string",
-          "format": "int64"
-        },
-        "createdBy": {
-          "type": "string"
-        },
-        "createdAt": {
-          "type": "string"
-        },
-        "updatedAt": {
-          "type": "string"
-        },
-        "components": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "$ref": "#/definitions/v1CostRoutingDraftComponent"
-          }
-        }
-      }
+    "CostRouteServiceUnlockRouteBody": {
+      "type": "object"
     },
-    "v1CostRoutingDraftComponent": {
-      "type": "object",
-      "properties": {
-        "componentId": {
-          "type": "string",
-          "format": "int64"
-        },
-        "draftId": {
-          "type": "string",
-          "format": "int64"
-        },
-        "sequenceNo": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "subSequence": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "subType": {
-          "type": "string"
-        },
-        "rmType": {
-          "type": "string",
-          "description": "STORE_RATE | CAPTIVE_COST | MULTI_YARN | UNEVEN_PACKING."
-        },
-        "rmRefText": {
-          "type": "string"
-        },
-        "rmRefResolvedId": {
-          "type": "string",
-          "format": "int64"
-        },
-        "notes": {
-          "type": "string"
-        }
-      }
-    },
-    "v1CreateCostRoutingDraftRequest": {
-      "type": "object",
-      "properties": {
-        "requestId": {
-          "type": "string",
-          "format": "int64"
-        },
-        "productTop2": {
-          "type": "string",
-          "description": "Optional overrides \u2014 when omitted, the backend seeds from cost_product_spec."
-        },
-        "itemCode": {
-          "type": "string"
-        },
-        "cylTypeId": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "shadeCode": {
-          "type": "string"
-        },
-        "rawMaterialType": {
-          "type": "string"
-        }
-      }
-    },
-    "v1CreateCostRoutingDraftResponse": {
+    "v1CompleteRouteResponse": {
       "type": "object",
       "properties": {
         "base": {
           "$ref": "#/definitions/v1BaseResponse"
         },
         "data": {
-          "$ref": "#/definitions/v1CostRoutingDraft"
+          "$ref": "#/definitions/v1CostRouteHead"
         }
       }
     },
-    "v1DeleteCostRoutingDraftResponse": {
+    "v1CostRouteHead": {
       "type": "object",
       "properties": {
-        "base": {
-          "$ref": "#/definitions/v1BaseResponse"
-        }
-      }
-    },
-    "v1GetCostRoutingDraftResponse": {
-      "type": "object",
-      "properties": {
-        "base": {
-          "$ref": "#/definitions/v1BaseResponse"
-        },
-        "data": {
-          "$ref": "#/definitions/v1CostRoutingDraft"
-        }
-      }
-    },
-    "v1ListCostRoutingDraftsByRequestResponse": {
-      "type": "object",
-      "properties": {
-        "base": {
-          "$ref": "#/definitions/v1BaseResponse"
-        },
-        "data": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "$ref": "#/definitions/v1CostRoutingDraft"
-          }
-        }
-      }
-    },
-    "v1LockCostRoutingDraftResponse": {
-      "type": "object",
-      "properties": {
-        "base": {
-          "$ref": "#/definitions/v1BaseResponse"
-        },
-        "data": {
-          "$ref": "#/definitions/v1CostRoutingDraft"
-        }
-      }
-    },
-    "v1PromoteCostRoutingDraftResponse": {
-      "type": "object",
-      "properties": {
-        "base": {
-          "$ref": "#/definitions/v1BaseResponse"
-        },
-        "data": {
-          "$ref": "#/definitions/v1CostRoutingDraft"
-        },
-        "productOrderId": {
+        "headId": {
           "type": "string",
           "format": "int64"
         },
@@ -10150,69 +11738,342 @@
           "format": "int64"
         },
         "productCode": {
-          "type": "string"
-        }
-      }
-    },
-    "v1RoutingComponentInput": {
-      "type": "object",
-      "properties": {
-        "sequenceNo": {
+          "type": "string",
+          "title": "denorm for list views"
+        },
+        "productName": {
+          "type": "string",
+          "title": "denorm"
+        },
+        "routingStatus": {
+          "type": "string",
+          "title": "DRAFT | COMPLETE | LOCKED"
+        },
+        "version": {
           "type": "integer",
           "format": "int32"
         },
-        "subSequence": {
+        "promotedFromDraftId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "cylTypeId": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "audit": {
+          "$ref": "#/definitions/v1AuditInfo"
+        }
+      },
+      "description": "CostRouteHead is the per-product released routing aggregate.\nOne non-LOCKED head per product (UK by cpm_product_sys_id)."
+    },
+    "v1CostRouteRm": {
+      "type": "object",
+      "properties": {
+        "rmId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "seqId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "parentProductSysId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "rmType": {
+          "type": "string",
+          "title": "PRODUCT | ITEM | GROUP"
+        },
+        "rmProductSysId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "rmItemCode": {
+          "type": "string"
+        },
+        "rmGroupCode": {
+          "type": "string"
+        },
+        "routeRmName": {
+          "type": "string"
+        },
+        "routeRmItemCode": {
+          "type": "string"
+        },
+        "routeRmShadeCode": {
+          "type": "string"
+        },
+        "routeRmShadeName": {
+          "type": "string"
+        },
+        "routeRmRatio": {
+          "type": "number",
+          "format": "double"
+        },
+        "uomId": {
           "type": "integer",
           "format": "int32"
         },
         "subType": {
           "type": "string"
         },
-        "rmType": {
-          "type": "string"
-        },
-        "rmRefText": {
-          "type": "string"
-        },
-        "rmRefResolvedId": {
-          "type": "string",
-          "format": "int64"
-        },
         "notes": {
           "type": "string"
         }
-      }
+      },
+      "description": "CostRouteRm is one input edge feeding a SEQ.\nExactly one of (rm_product_sys_id, rm_item_code, rm_group_code) is set,\nmatching rm_type."
     },
-    "v1SaveRoutingDraftComponentsResponse": {
+    "v1CostRouteSeq": {
       "type": "object",
       "properties": {
-        "base": {
-          "$ref": "#/definitions/v1BaseResponse"
+        "seqId": {
+          "type": "string",
+          "format": "int64"
         },
-        "data": {
-          "$ref": "#/definitions/v1CostRoutingDraft"
+        "headId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "productSysId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "productCode": {
+          "type": "string",
+          "title": "denorm"
+        },
+        "productName": {
+          "type": "string",
+          "title": "denorm"
+        },
+        "routeLevel": {
+          "type": "integer",
+          "format": "int32",
+          "title": "1 = FG; 2..N upstream"
+        },
+        "routeSeq": {
+          "type": "integer",
+          "format": "int32",
+          "title": "ordering within level"
+        },
+        "routeName": {
+          "type": "string"
+        },
+        "routeItemCode": {
+          "type": "string"
+        },
+        "routeShadeCode": {
+          "type": "string"
+        },
+        "routeShadeName": {
+          "type": "string"
+        },
+        "positionX": {
+          "type": "number",
+          "format": "double"
+        },
+        "positionY": {
+          "type": "number",
+          "format": "double"
+        },
+        "rms": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1CostRouteRm"
+          },
+          "description": "RMs that feed this stage (rendered inline on graph fetch)."
+        }
+      },
+      "description": "CostRouteSeq is one stage of the route at a given level + ordering."
+    },
+    "v1CreateRouteFromProductRequest": {
+      "type": "object",
+      "properties": {
+        "productSysId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "linkedRequestId": {
+          "type": "string",
+          "format": "int64",
+          "description": "optional, atomically links the request on success."
+        },
+        "cylTypeId": {
+          "type": "integer",
+          "format": "int32"
         }
       }
     },
-    "v1UnlockCostRoutingDraftResponse": {
+    "v1CreateRouteFromProductResponse": {
       "type": "object",
       "properties": {
         "base": {
           "$ref": "#/definitions/v1BaseResponse"
         },
-        "data": {
-          "$ref": "#/definitions/v1CostRoutingDraft"
+        "headId": {
+          "type": "string",
+          "format": "int64"
         }
       }
     },
-    "v1UpdateCostRoutingDraftResponse": {
+    "v1DeleteRouteResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      }
+    },
+    "v1DuplicateRouteResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "newHeadId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "newProductSysId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "newProductCode": {
+          "type": "string"
+        }
+      }
+    },
+    "v1GetRouteByProductResponse": {
       "type": "object",
       "properties": {
         "base": {
           "$ref": "#/definitions/v1BaseResponse"
         },
         "data": {
-          "$ref": "#/definitions/v1CostRoutingDraft"
+          "$ref": "#/definitions/v1CostRouteHead"
+        }
+      }
+    },
+    "v1GetRouteGraphResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1RouteGraph"
+        }
+      }
+    },
+    "v1LinkedRequest": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "requestNo": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "productTop2": {
+          "type": "string"
+        },
+        "createdBy": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ListLinkedRequestsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1LinkedRequest"
+          }
+        }
+      }
+    },
+    "v1ListRoutesResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1CostRouteHead"
+          }
+        },
+        "pagination": {
+          "$ref": "#/definitions/v1PaginationResponse"
+        }
+      }
+    },
+    "v1LockRouteResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1CostRouteHead"
+        }
+      }
+    },
+    "v1RouteGraph": {
+      "type": "object",
+      "properties": {
+        "head": {
+          "$ref": "#/definitions/v1CostRouteHead"
+        },
+        "seqs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1CostRouteSeq"
+          }
+        }
+      },
+      "description": "RouteGraph bundles the head + all seqs (with rms inline)."
+    },
+    "v1SaveRouteGraphResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1RouteGraph"
+        }
+      }
+    },
+    "v1UnlockRouteResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1CostRouteHead"
         }
       }
     },
@@ -15386,6 +17247,9 @@
       "name": "CostAuditLogService"
     },
     {
+      "name": "CostCalcService"
+    },
+    {
       "name": "CostErpLookupService"
     },
     {
@@ -15419,7 +17283,7 @@
       "name": "CostRmTypeService"
     },
     {
-      "name": "CostRoutingDraftService"
+      "name": "CostRouteService"
     },
     {
       "name": "CostRoutingRuleService"
