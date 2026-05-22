@@ -71,6 +71,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/mutugading/goapps-backend/pkg/costcalc v0.0.0-00010101000000-000000000000
 	github.com/pelletier/go-toml/v2 v2.1.0 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
@@ -113,3 +114,5 @@ require (
 )
 
 replace github.com/mutugading/goapps-backend/gen => ../../gen
+
+replace github.com/mutugading/goapps-backend/pkg/costcalc => ../../pkg/costcalc

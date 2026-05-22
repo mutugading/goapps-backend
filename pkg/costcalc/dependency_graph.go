@@ -1,3 +1,9 @@
+// Package costcalc holds types shared across the cost calculation engine
+// services (finance, finance-cost-orchestrator, finance-cost-worker).
+//
+// Domain entities + repositories remain in services/finance/internal/domain/costcalc
+// (private to the finance service). This package contains ONLY types that
+// orchestrator + worker also need.
 package costcalc
 
 import "slices"

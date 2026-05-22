@@ -2,6 +2,8 @@ package costcalc
 
 import (
 	"time"
+
+	sharedcc "github.com/mutugading/goapps-backend/pkg/costcalc"
 )
 
 // JobStatus enumerates calc job lifecycle states.
@@ -18,25 +20,22 @@ const (
 	JobStatusCancelled     JobStatus = "CANCELLED"
 )
 
-// JobScope selects which products are included in a job.
-type JobScope string
+// JobScope is the shared scope enum (alias preserved for ergonomic call sites).
+type JobScope = sharedcc.JobScope
 
-// Job scope constants.
+// CalculationType is the shared calc-type enum (alias preserved for ergonomic call sites).
+type CalculationType = sharedcc.CalculationType
+
+// Re-exported scope + calc-type constants — keep existing callers compiling without an import rewrite.
 const (
-	ScopeAll           JobScope = "ALL"
-	ScopeFiltered      JobScope = "FILTERED"
-	ScopeSingleProduct JobScope = "SINGLE_PRODUCT"
-	ScopeSingleRoute   JobScope = "SINGLE_ROUTE"
-)
+	ScopeAll           = sharedcc.ScopeAll
+	ScopeFiltered      = sharedcc.ScopeFiltered
+	ScopeSingleProduct = sharedcc.ScopeSingleProduct
+	ScopeSingleRoute   = sharedcc.ScopeSingleRoute
 
-// CalculationType selects which cost type (actual / forecast / selling).
-type CalculationType string
-
-// Calculation type constants.
-const (
-	CalcTypeActual   CalculationType = "ACTUAL"
-	CalcTypeForecast CalculationType = "FORECAST"
-	CalcTypeSelling  CalculationType = "SELLING"
+	CalcTypeActual   = sharedcc.CalcTypeActual
+	CalcTypeForecast = sharedcc.CalcTypeForecast
+	CalcTypeSelling  = sharedcc.CalcTypeSelling
 )
 
 // Job is the calc job aggregate root.
