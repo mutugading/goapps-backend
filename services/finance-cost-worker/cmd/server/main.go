@@ -28,11 +28,26 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"github.com/mutugading/goapps-backend/pkg/costcalc/metrics"
 	"github.com/mutugading/goapps-backend/services/finance-cost-worker/internal/config"
 	"github.com/mutugading/goapps-backend/services/finance-cost-worker/internal/infrastructure/financeclient"
 	"github.com/mutugading/goapps-backend/services/finance-cost-worker/internal/infrastructure/rmq"
 	"github.com/mutugading/goapps-backend/services/finance-cost-worker/internal/worker"
 )
+
+// scrapeDBPool periodically writes db.Stats().InUse into the gauge.
+func scrapeDBPool(ctx context.Context, db *sql.DB, service string) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			metrics.DBPoolInUse.WithLabelValues(service).Set(float64(db.Stats().InUse))
+		}
+	}
+}
 
 func main() {
 	if err := run(); err != nil {
@@ -112,6 +127,9 @@ func run() error {
 	w := worker.New(cfg, workerID, db, rmqConn, fin)
 	workerErrCh := make(chan error, 1)
 	go func() { workerErrCh <- w.Run(ctx) }()
+
+	// Background DB-pool gauge scraper.
+	go scrapeDBPool(ctx, db, "worker")
 
 	// HTTP server for /metrics + /healthz.
 	srv := newHTTPServer(cfg.Server.MetricsPort)

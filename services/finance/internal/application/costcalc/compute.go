@@ -6,7 +6,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"slices"
+	"time"
 
+	"github.com/mutugading/goapps-backend/pkg/costcalc/metrics"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/costcalc/evaluator"
 	costcalcdom "github.com/mutugading/goapps-backend/services/finance/internal/domain/costcalc"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costroute"
@@ -86,6 +88,10 @@ type ComputeOutput struct {
 // safe to invoke concurrently across products provided each call gets its own
 // ComputeInput. The evaluator cache is internally synchronized.
 func ComputeProduct(_ context.Context, in ComputeInput) (*ComputeOutput, error) {
+	start := time.Now()
+	defer func() {
+		metrics.ProductComputeSeconds.Observe(time.Since(start).Seconds())
+	}()
 	if in.Route == nil {
 		return nil, fmt.Errorf("compute product %d: route is nil", in.ProductSysID)
 	}
@@ -228,9 +234,20 @@ func rmRefCode(rm *costroute.Rm) string {
 }
 
 func evalOneFormula(cache *evaluator.Cache, f Formula, scope map[string]any) (FormulaEvalTrace, error) {
+	start := time.Now()
+	defer func() {
+		metrics.FormulaEvalSeconds.WithLabelValues(f.FormulaCode).Observe(time.Since(start).Seconds())
+	}()
+	prevSize := cache.Size()
 	ev, err := cache.GetOrCompile(f.FormulaCode, f.Expression)
 	if err != nil {
 		return FormulaEvalTrace{}, err
+	}
+	if cache.Size() > prevSize {
+		metrics.RecordEvalCacheMiss()
+		metrics.EvalCacheEntries.Set(float64(cache.Size()))
+	} else {
+		metrics.RecordEvalCacheHit()
 	}
 	out, err := ev.Run(scope)
 	if err != nil {

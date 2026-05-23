@@ -9,10 +9,26 @@ import (
 
 	"github.com/lib/pq"
 
+	"github.com/mutugading/goapps-backend/pkg/costcalc/metrics"
 	calcdomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costcalc"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductmaster"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costroute"
 )
+
+// loaderKind* constants identify a bulk loader stage for metrics labels.
+const (
+	loaderKindProducts = "products"
+	loaderKindRoutes   = "routes"
+	loaderKindCAPP     = "capp"
+	loaderKindFormulas = "formulas"
+	loaderKindRMCosts  = "rmcosts"
+	loaderKindUpstream = "upstream"
+)
+
+// observeLoad observes bulk loader latency under the given kind label.
+func observeLoad(kind string, start time.Time) {
+	metrics.BulkLoadSeconds.WithLabelValues(kind).Observe(time.Since(start).Seconds())
+}
 
 // ProductLoader bulk-loads everything computeProduct needs for a chunk of products.
 // All methods MUST be safe to call concurrently across chunks; the default
@@ -41,6 +57,7 @@ func NewProductLoader(db *sql.DB) ProductLoader {
 
 // LoadProducts hydrates cost_product_master rows for the given sys IDs.
 func (l *productLoader) LoadProducts(ctx context.Context, ids []int64) (map[int64]*costproductmaster.CostProductMaster, error) {
+	defer observeLoad(loaderKindProducts, time.Now())
 	out := map[int64]*costproductmaster.CostProductMaster{}
 	if len(ids) == 0 {
 		return out, nil
@@ -118,6 +135,7 @@ func (l *productLoader) LoadProducts(ctx context.Context, ids []int64) (map[int6
 // (DISTINCT ON arbitrary tiebreak) — engine only reads the seq matching this
 // product, so all sibling intermediates are present + correct in either graph.
 func (l *productLoader) LoadRoutesByProducts(ctx context.Context, productSysIDs []int64) (map[int64]*costroute.Graph, error) {
+	defer observeLoad(loaderKindRoutes, time.Now())
 	out := map[int64]*costroute.Graph{}
 	if len(productSysIDs) == 0 {
 		return out, nil
@@ -321,6 +339,7 @@ func (l *productLoader) loadRmsForHeads(ctx context.Context, headIDs []int64, se
 // cost_product_parameter. Missing params simply don't appear in the inner map;
 // computeProduct surfaces ErrMissingCAPPValue if a formula references one.
 func (l *productLoader) LoadCAPP(ctx context.Context, productSysIDs []int64) (map[int64]map[string]float64, error) {
+	defer observeLoad(loaderKindCAPP, time.Now())
 	out := map[int64]map[string]float64{}
 	if len(productSysIDs) == 0 {
 		return out, nil
@@ -373,6 +392,7 @@ func (l *productLoader) LoadCAPP(ctx context.Context, productSysIDs []int64) (ma
 // All active formulas apply to every product in productSysIDs. A future
 // sub-phase will narrow this based on CAPP / parameter ownership. — S8b.5.
 func (l *productLoader) LoadFormulas(ctx context.Context, productSysIDs []int64) (map[int64][]Formula, error) {
+	defer observeLoad(loaderKindFormulas, time.Now())
 	out := map[int64][]Formula{}
 	if len(productSysIDs) == 0 {
 		return out, nil
@@ -557,6 +577,7 @@ func topoSortFormulas(fs []Formula) ([]Formula, error) {
 // item codes (for ITEM-type RMs) and group codes (for GROUP-type RMs) since
 // cst_rm_cost stores them all in rm_code.
 func (l *productLoader) LoadRMCosts(ctx context.Context, itemCodes []string, period string) (map[string]float64, error) {
+	defer observeLoad(loaderKindRMCosts, time.Now())
 	out := map[string]float64{}
 	if len(itemCodes) == 0 || period == "" {
 		return out, nil
@@ -596,6 +617,7 @@ func (l *productLoader) LoadRMCosts(ctx context.Context, itemCodes []string, per
 // already calculated in prior waves of the same job. Rows in SUPERSEDED status
 // are excluded.
 func (l *productLoader) LoadUpstreamCosts(ctx context.Context, productSysIDs []int64, period, calcType string) (map[int64]float64, error) {
+	defer observeLoad(loaderKindUpstream, time.Now())
 	out := map[int64]float64{}
 	if len(productSysIDs) == 0 {
 		return out, nil

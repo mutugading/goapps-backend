@@ -6,8 +6,16 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/mutugading/goapps-backend/pkg/costcalc/metrics"
 	costcalcdom "github.com/mutugading/goapps-backend/services/finance/internal/domain/costcalc"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costroute"
+)
+
+// Status label constants for finance_cost_products_total / finance_cost_chunks_total.
+const (
+	productStatusSuccess = "SUCCESS"
+	productStatusBlocked = "BLOCKED"
+	productStatusFailed  = "FAILED"
 )
 
 // Block-reason constants written into cal_job_product.cjp_block_reason. Kept
@@ -66,15 +74,21 @@ func (s *Service) ProcessChunk(ctx context.Context, in ProcessChunkInput) (*Proc
 		switch s.computeOne(ctx, in, pid, loaded) {
 		case productOutcomeSuccess:
 			out.Success++
+			metrics.ProductsTotal.WithLabelValues(productStatusSuccess, "").Inc()
 		case productOutcomeBlocked:
 			out.Blocked++
+			// block reason label is emitted by recordComputeError where the
+			// specific reason is known; emit a generic counter here so totals
+			// reconcile with chunks_total.
 		case productOutcomeFailed:
 			out.Failed++
+			metrics.ProductsTotal.WithLabelValues(productStatusFailed, "").Inc()
 		}
 	}
 
+	status := finalChunkStatus(out)
+	metrics.ChunksTotal.WithLabelValues(string(status)).Inc()
 	if in.ChunkID != 0 {
-		status := finalChunkStatus(out)
 		if err := s.chunkRepo.UpdateResult(ctx, in.ChunkID, status, out.Success, out.Failed, 0, ""); err != nil {
 			return nil, fmt.Errorf("finalize chunk: %w", err)
 		}
@@ -152,6 +166,7 @@ func (s *Service) computeOne(ctx context.Context, in ProcessChunkInput, pid int6
 	route, ok := loaded.routes[pid]
 	if !ok || route == nil || route.Head == nil {
 		_ = s.productRepo.MarkBlocked(ctx, in.JobID, pid, blockReasonMissingRoute, nil)
+		metrics.ProductsTotal.WithLabelValues(productStatusBlocked, blockReasonMissingRoute).Inc()
 		return productOutcomeBlocked
 	}
 
@@ -187,18 +202,22 @@ func (s *Service) recordComputeError(ctx context.Context, in ProcessChunkInput, 
 	case errors.Is(err, costcalcdom.ErrMissingCAPPValue):
 		_ = s.productRepo.MarkBlocked(ctx, in.JobID, pid, blockReasonMissingCAPP, logBytes(err))
 		s.emitProductBlocked(ctx, in, pid, blockReasonMissingCAPP, err)
+		metrics.ProductsTotal.WithLabelValues(productStatusBlocked, blockReasonMissingCAPP).Inc()
 		return productOutcomeBlocked
 	case errors.Is(err, costcalcdom.ErrMissingRMCost):
 		_ = s.productRepo.MarkBlocked(ctx, in.JobID, pid, blockReasonMissingRMCost, logBytes(err))
 		s.emitProductBlocked(ctx, in, pid, blockReasonMissingRMCost, err)
+		metrics.ProductsTotal.WithLabelValues(productStatusBlocked, blockReasonMissingRMCost).Inc()
 		return productOutcomeBlocked
 	case errors.Is(err, costcalcdom.ErrMissingUpstreamCost):
 		_ = s.productRepo.MarkBlocked(ctx, in.JobID, pid, blockReasonMissingUpstream, logBytes(err))
 		s.emitProductBlocked(ctx, in, pid, blockReasonMissingUpstream, err)
+		metrics.ProductsTotal.WithLabelValues(productStatusBlocked, blockReasonMissingUpstream).Inc()
 		return productOutcomeBlocked
 	case errors.Is(err, costcalcdom.ErrFormulaEval):
 		_ = s.productRepo.MarkBlocked(ctx, in.JobID, pid, blockReasonFormulaError, logBytes(err))
 		s.emitProductBlocked(ctx, in, pid, blockReasonFormulaError, err)
+		metrics.ProductsTotal.WithLabelValues(productStatusBlocked, blockReasonFormulaError).Inc()
 		return productOutcomeBlocked
 	default:
 		_ = s.productRepo.MarkFailed(ctx, in.JobID, pid, err.Error(), logBytes(err))

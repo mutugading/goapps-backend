@@ -180,6 +180,25 @@ func (r *JobRepo) GetProgress(ctx context.Context, id int64) (processed, total, 
 	return
 }
 
+// CreateAutoJob inserts a QUEUED ALL-scope cal_job triggered by cron and
+// returns its id. Used by the monthly cron auto-trigger (S8e.6).
+func (r *JobRepo) CreateAutoJob(ctx context.Context, period, calcType, scope, triggeredBy, createdBy string) (int64, error) {
+	const q = `
+		WITH new_code AS (SELECT generate_cal_job_code() AS code)
+		INSERT INTO cal_job (
+			cj_job_code, cj_period, cj_calculation_type, cj_scope,
+			cj_product_filter, cj_status, cj_priority, cj_triggered_by, cj_created_by
+		)
+		SELECT (SELECT code FROM new_code), $1, $2, $3, NULL::JSONB, 'QUEUED', 5, $4, $5
+		RETURNING cj_job_id
+	`
+	var id int64
+	if err := r.db.QueryRowContext(ctx, q, period, calcType, scope, triggeredBy, createdBy).Scan(&id); err != nil {
+		return 0, fmt.Errorf("create auto job: %w", err)
+	}
+	return id, nil
+}
+
 // ChunkRepo is the orchestrator-side facade over cal_job_chunk.
 type ChunkRepo struct{ db *sql.DB }
 

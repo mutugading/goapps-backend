@@ -27,10 +27,25 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"github.com/mutugading/goapps-backend/pkg/costcalc/metrics"
 	"github.com/mutugading/goapps-backend/services/finance-cost-orchestrator/internal/config"
 	"github.com/mutugading/goapps-backend/services/finance-cost-orchestrator/internal/infrastructure/rmq"
 	"github.com/mutugading/goapps-backend/services/finance-cost-orchestrator/internal/orchestrator"
 )
+
+// scrapeDBPool periodically writes db.Stats().InUse into the gauge.
+func scrapeDBPool(ctx context.Context, db *sql.DB, service string) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			metrics.DBPoolInUse.WithLabelValues(service).Set(float64(db.Stats().InUse))
+		}
+	}
+}
 
 func main() {
 	if err := run(); err != nil {
@@ -88,6 +103,30 @@ func run() error {
 	coord := orchestrator.New(cfg, rmqConn, db)
 	coordErrCh := make(chan error, 1)
 	go func() { coordErrCh <- coord.Run(ctx) }()
+
+	// Background DB-pool gauge scraper.
+	go scrapeDBPool(ctx, db, "orchestrator")
+
+	// Cron auto-trigger (S8e.6): monthly ALL-scope job on day 5 @ 02:00 WIB.
+	cronExp := cfg.Orchestrator.CronSchedule
+	if cronExp == "" {
+		cronExp = "0 0 2 5 * *"
+	}
+	cronTZ := cfg.Orchestrator.CronTimezone
+	if cronTZ == "" {
+		cronTZ = "Asia/Jakarta"
+	}
+	cronPub := rmq.NewCronJobPublisher(rmqConn)
+	sched, err := orchestrator.NewCronScheduler(db, cronPub, cronExp, cronTZ)
+	if err != nil {
+		return fmt.Errorf("cron scheduler init: %w", err)
+	}
+	nextFire, err := sched.Start()
+	if err != nil {
+		return fmt.Errorf("cron scheduler start: %w", err)
+	}
+	log.Info().Time("next_fire", nextFire).Str("expr", cronExp).Str("tz", cronTZ).Msg("cron scheduler started")
+	defer sched.Stop()
 
 	// HTTP server for /metrics + /healthz.
 	srv := newHTTPServer(cfg.Server.MetricsPort)

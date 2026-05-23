@@ -3,7 +3,9 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/mutugading/goapps-backend/pkg/costcalc/metrics"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costcalc"
 )
 
@@ -22,6 +24,10 @@ var _ costcalc.AuditHistoryRepository = (*CostAuditHistoryRepository)(nil)
 // Write inserts a single aud_cost_history row. Zero IDs are stored as NULL
 // (e.g. the first cost result has no previous cost id).
 func (r *CostAuditHistoryRepository) Write(ctx context.Context, e *costcalc.AuditHistoryEntry) error {
+	start := time.Now()
+	defer func() {
+		metrics.DBTxSeconds.WithLabelValues("audit").Observe(time.Since(start).Seconds())
+	}()
 	if e == nil {
 		return fmt.Errorf("write audit history: nil entry")
 	}
@@ -48,5 +54,6 @@ func (r *CostAuditHistoryRepository) Write(ctx context.Context, e *costcalc.Audi
 	); err != nil {
 		return fmt.Errorf("insert audit history: %w", err)
 	}
+	metrics.AuditWritesTotal.Inc()
 	return nil
 }

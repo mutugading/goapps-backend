@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/mutugading/goapps-backend/pkg/costcalc"
+	"github.com/mutugading/goapps-backend/pkg/costcalc/metrics"
 	"github.com/mutugading/goapps-backend/services/finance-cost-orchestrator/internal/config"
 	"github.com/mutugading/goapps-backend/services/finance-cost-orchestrator/internal/infrastructure/rmq"
 )
@@ -55,6 +56,8 @@ func (c *Coordinator) Run(ctx context.Context) error {
 	jobConsumer := rmq.NewConsumer(c.rmqConn, rmq.QueueJobTriggered, "orchestrator-job-triggered")
 	chunkConsumer := rmq.NewConsumer(c.rmqConn, rmq.QueueChunkDone, "orchestrator-chunk-completed")
 
+	go c.scrapeQueueDepth(ctx)
+
 	errCh := make(chan error, 2)
 	go func() { errCh <- jobConsumer.Consume(ctx, c.handleJobTriggered) }()
 	go func() { errCh <- chunkConsumer.Consume(ctx, c.handleChunkCompleted) }()
@@ -84,6 +87,7 @@ func (c *Coordinator) handleJobTriggered(ctx context.Context, d amqp.Delivery) e
 		if updErr := c.jobRepo.UpdateStatus(ctx, ev.JobID, statusFailed); updErr != nil {
 			log.Warn().Err(updErr).Int64("job_id", ev.JobID).Msg("mark job FAILED")
 		}
+		c.emitJobTerminal(ctx, ev.JobID, statusFailed)
 	}
 	return d.Ack(false)
 }
@@ -115,12 +119,14 @@ func (c *Coordinator) planAndDispatch(ctx context.Context, jobID int64) error {
 	}
 	if len(productIDs) == 0 {
 		log.Info().Int64("job_id", jobID).Msg("no products in scope; completing as SUCCESS")
+		c.emitJobTerminal(ctx, jobID, statusSuccess)
 		return c.jobRepo.CompleteJob(ctx, jobID, statusSuccess, 0, 0, 0, 0)
 	}
 
 	plan := costcalc.PlanWaves(graph)
 	if len(plan.Cyclic) > 0 {
 		log.Error().Int64("job_id", jobID).Ints64("cyclic", plan.Cyclic).Msg("dependency cycle detected; failing job")
+		c.emitJobTerminal(ctx, jobID, statusFailed)
 		return c.jobRepo.CompleteJob(ctx, jobID, statusFailed, 0, 0, len(plan.Cyclic), 0)
 	}
 
@@ -150,6 +156,7 @@ func (c *Coordinator) planAndDispatch(ctx context.Context, jobID int64) error {
 	if len(waves) == 0 {
 		// Defensive: PackChunks produced nothing for non-empty product set —
 		// finalize empty so the job doesn't hang forever.
+		c.emitJobTerminal(ctx, jobID, statusSuccess)
 		return c.jobRepo.CompleteJob(ctx, jobID, statusSuccess, 0, 0, 0, 0)
 	}
 	return c.dispatchWave(ctx, waves[0].Chunks)
@@ -312,7 +319,51 @@ func (c *Coordinator) finalizeJob(ctx context.Context, jobID int64) error {
 	if duration < 0 {
 		duration = 0
 	}
+	c.emitJobTerminal(ctx, jobID, status)
 	return c.jobRepo.CompleteJob(ctx, jobID, status, succ, fail, blocked, duration)
+}
+
+// scrapeQueueDepth periodically inspects finance.cost.chunk and publishes the
+// depth to the JobQueueDepth gauge. Failures are logged at debug level (the
+// channel can momentarily be unhealthy on reconnect).
+func (c *Coordinator) scrapeQueueDepth(ctx context.Context) {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			ch := c.rmqConn.Channel()
+			if ch == nil {
+				continue
+			}
+			q, err := ch.QueueInspect(rmq.QueueChunk)
+			if err != nil {
+				log.Debug().Err(err).Msg("queue inspect failed")
+				continue
+			}
+			metrics.JobQueueDepth.Set(float64(q.Messages))
+		}
+	}
+}
+
+// emitJobTerminal increments finance_cost_jobs_total. Best-effort; jobID is
+// only used to look up labels — if the lookup fails (e.g. row deleted) the
+// counter is incremented with empty labels rather than skipped, so totals
+// still match the actual transition count.
+func (c *Coordinator) emitJobTerminal(ctx context.Context, jobID int64, status string) {
+	job, err := c.jobRepo.GetByID(ctx, jobID)
+	if err != nil || job == nil {
+		metrics.JobsTotal.WithLabelValues(status, "", "", "").Inc()
+		return
+	}
+	metrics.JobsTotal.WithLabelValues(
+		status,
+		string(job.CalcType),
+		string(job.Scope),
+		job.TriggeredBy,
+	).Inc()
 }
 
 // terminalStatus picks SUCCESS / FAILED / PARTIAL_FAILED based on counters.

@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/lib/pq v1.12.3
 	github.com/mutugading/goapps-backend/gen v0.0.0-20260507090826-c04d7f4f0da8
+	github.com/mutugading/goapps-backend/pkg/costcalc v0.0.0-00010101000000-000000000000
 	github.com/prometheus/client_golang v1.23.2
 	github.com/rabbitmq/amqp091-go v1.11.0
 	github.com/rs/zerolog v1.35.1
@@ -43,3 +44,5 @@ require (
 )
 
 replace github.com/mutugading/goapps-backend/gen => ../../gen
+
+replace github.com/mutugading/goapps-backend/pkg/costcalc => ../../pkg/costcalc

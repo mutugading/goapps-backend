@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	financev1 "github.com/mutugading/goapps-backend/gen/finance/v1"
+	"github.com/mutugading/goapps-backend/pkg/costcalc/metrics"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/auditadapter"
 	auditapp "github.com/mutugading/goapps-backend/services/finance/internal/application/costauditlog"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/costcalc"
@@ -64,6 +65,20 @@ func run() error {
 		return err
 	}
 	defer closeDatabase(db)
+
+	// Background DB-pool gauge scraper for cost-calc observability.
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				metrics.DBPoolInUse.WithLabelValues("finance").Set(float64(db.Stats().InUse))
+			}
+		}
+	}()
 
 	// Setup Redis (optional - graceful degradation)
 	redisClient, uomCache := setupRedis(cfg)

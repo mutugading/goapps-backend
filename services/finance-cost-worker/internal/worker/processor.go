@@ -11,12 +11,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog/log"
 
 	financev1 "github.com/mutugading/goapps-backend/gen/finance/v1"
+	"github.com/mutugading/goapps-backend/pkg/costcalc/metrics"
 	"github.com/mutugading/goapps-backend/services/finance-cost-worker/internal/config"
 	"github.com/mutugading/goapps-backend/services/finance-cost-worker/internal/infrastructure/financeclient"
 	"github.com/mutugading/goapps-backend/services/finance-cost-worker/internal/infrastructure/rmq"
@@ -68,6 +70,9 @@ func (w *Worker) Run(ctx context.Context) error {
 //  4. call finance gRPC; on transport / response failure run retry path
 //  5. on success: mark chunk completed + publish ChunkCompletedEvent + ack
 func (w *Worker) handleChunk(ctx context.Context, d amqp.Delivery) error {
+	metrics.WorkerActiveChunks.WithLabelValues(w.workerID).Inc()
+	defer metrics.WorkerActiveChunks.WithLabelValues(w.workerID).Dec()
+
 	var msg ChunkMessage
 	if err := json.Unmarshal(d.Body, &msg); err != nil {
 		log.Error().Err(err).Bytes("body", d.Body).Msg("malformed chunk; nacking to DLQ")
@@ -112,7 +117,9 @@ func (w *Worker) handleChunk(ctx context.Context, d amqp.Delivery) error {
 		return w.handleFailure(ctx, d, msg, fmt.Errorf("finance error: %s", resp.GetBase().GetMessage()))
 	}
 
-	durationMs := int(time.Since(start).Milliseconds())
+	elapsed := time.Since(start)
+	durationMs := int(elapsed.Milliseconds())
+	metrics.ChunkDurationSeconds.WithLabelValues(strconv.Itoa(msg.WaveNo)).Observe(elapsed.Seconds())
 	succ, fail, blocked := int(resp.GetSuccessCount()), int(resp.GetFailedCount()), int(resp.GetBlockedCount())
 	status := classify(succ, fail, blocked)
 

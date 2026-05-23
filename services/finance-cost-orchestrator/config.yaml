@@ -27,6 +27,8 @@ rabbitmq:
 orchestrator:
   chunk_size: 50
   max_chunk_size: 100
+  cron_schedule: "0 0 2 5 * *"  # second minute hour day month dow — tanggal 5 @ 02:00
+  cron_timezone: "Asia/Jakarta"
 
 tracing:
   enabled: false

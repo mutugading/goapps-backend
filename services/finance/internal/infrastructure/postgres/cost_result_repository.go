@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mutugading/goapps-backend/pkg/costcalc/metrics"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costcalc"
 	"github.com/mutugading/goapps-backend/services/finance/pkg/safeconv"
 )
@@ -41,6 +42,10 @@ const resultColumns = `cpc_cost_id, cpc_product_sys_id, cpc_period, cpc_calculat
 func (r *CostResultRepository) UpsertWithSupersede(
 	ctx context.Context, res *costcalc.Result,
 ) (newCostID int64, prevVersion int, prevTotal float64, prevCostID int64, err error) {
+	start := time.Now()
+	defer func() {
+		metrics.DBTxSeconds.WithLabelValues("upsert").Observe(time.Since(start).Seconds())
+	}()
 	if res == nil {
 		return 0, 0, 0, 0, fmt.Errorf("upsert result: nil result")
 	}
@@ -73,6 +78,9 @@ func (r *CostResultRepository) UpsertWithSupersede(
 	}
 	committed = true
 	res.AssignID(newCostID)
+	if prevVersion > 0 {
+		metrics.RecomputeTotal.Inc()
+	}
 	return newCostID, prevVersion, prevTotal, prevCostID, nil
 }
 
