@@ -46,12 +46,28 @@ type TokenBlacklistChecker interface {
 // blacklist is optional — if nil, blacklist checking is skipped (graceful degradation).
 func AuthInterceptor(cfg *config.JWTConfig, blacklist TokenBlacklistChecker) grpc.UnaryServerInterceptor {
 	secret := []byte(cfg.AccessTokenSecret)
+	svcSecret := cfg.ServiceSecret
 
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		// Health checks are always public.
 		if strings.HasPrefix(info.FullMethod, "/grpc.health.v1.") ||
 			strings.HasPrefix(info.FullMethod, "/grpc.reflection.") {
 			return handler(ctx, req)
+		}
+
+		// Service-to-service bypass: when x-service-secret matches, inject a
+		// synthetic SUPER_ADMIN identity. Used by finance-cost-worker calling
+		// ProcessChunkInternal. Disabled when cfg.ServiceSecret is empty.
+		if svcSecret != "" {
+			if md, ok := metadata.FromIncomingContext(ctx); ok {
+				if vals := md.Get("x-service-secret"); len(vals) == 1 && vals[0] == svcSecret {
+					ctx = context.WithValue(ctx, AuthUserIDKey, "service:finance-cost-worker")
+					ctx = context.WithValue(ctx, AuthUsernameKey, "finance-cost-worker")
+					ctx = context.WithValue(ctx, AuthRolesKey, []string{"SUPER_ADMIN"})
+					ctx = context.WithValue(ctx, AuthPermissionsKey, []string{})
+					return handler(ctx, req)
+				}
+			}
 		}
 
 		// All finance endpoints require authentication.

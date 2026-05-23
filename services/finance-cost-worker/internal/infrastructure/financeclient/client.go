@@ -52,12 +52,15 @@ func (c *Client) Close() error {
 }
 
 // ProcessChunk invokes finance.CostCalcService/ProcessChunkInternal with the
-// configured auth token + timeout.
+// configured auth token + timeout. The authToken is sent as a shared service
+// secret in the x-service-secret metadata header so the finance auth
+// interceptor can grant a synthetic SUPER_ADMIN identity (no JWT lifecycle to
+// manage in the worker).
 func (c *Client) ProcessChunk(ctx context.Context, req *financev1.ProcessChunkInternalRequest) (*financev1.ProcessChunkInternalResponse, error) {
 	callCtx, cancel := context.WithTimeout(ctx, c.callTimeout)
 	defer cancel()
 	if c.authToken != "" {
-		callCtx = metadata.AppendToOutgoingContext(callCtx, "authorization", "bearer "+c.authToken)
+		callCtx = metadata.AppendToOutgoingContext(callCtx, "x-service-secret", c.authToken)
 	}
 	resp, err := c.cc.ProcessChunkInternal(callCtx, req)
 	if err != nil {

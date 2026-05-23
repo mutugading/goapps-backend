@@ -82,6 +82,12 @@ type CORSConfig struct {
 type JWTConfig struct {
 	AccessTokenSecret string `mapstructure:"access_token_secret"`
 	Issuer            string `mapstructure:"issuer"`
+	// ServiceSecret is a shared secret for service-to-service auth (e.g. the
+	// cost calc worker calling ProcessChunkInternal). When a request carries
+	// the matching value in the x-service-secret metadata header, the auth
+	// interceptor injects a synthetic SUPER_ADMIN identity bypassing JWT.
+	// Empty string disables the bypass.
+	ServiceSecret string `mapstructure:"service_secret"`
 }
 
 // AppConfig holds application-level configuration.
