@@ -1,12 +1,13 @@
 # Multi-stage Dockerfile for Finance Cost Worker Service
 # Build from repository ROOT: docker build -t finance-cost-worker -f services/finance-cost-worker/Dockerfile .
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
 RUN apk add --no-cache git ca-certificates tzdata
 
 COPY gen/ ./gen/
+COPY pkg/costcalc/ ./pkg/costcalc/
 COPY services/finance-cost-worker/ ./services/finance-cost-worker/
 
 WORKDIR /app/services/finance-cost-worker
