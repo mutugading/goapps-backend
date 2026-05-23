@@ -55,19 +55,32 @@ func AuthInterceptor(cfg *config.JWTConfig, blacklist TokenBlacklistChecker) grp
 			return handler(ctx, req)
 		}
 
-		// Service-to-service bypass: when x-service-secret matches, inject a
-		// synthetic SUPER_ADMIN identity. Used by finance-cost-worker calling
-		// ProcessChunkInternal. Disabled when cfg.ServiceSecret is empty.
-		if svcSecret != "" {
-			if md, ok := metadata.FromIncomingContext(ctx); ok {
-				if vals := md.Get("x-service-secret"); len(vals) == 1 && vals[0] == svcSecret {
-					ctx = context.WithValue(ctx, AuthUserIDKey, "service:finance-cost-worker")
-					ctx = context.WithValue(ctx, AuthUsernameKey, "finance-cost-worker")
-					ctx = context.WithValue(ctx, AuthRolesKey, []string{"SUPER_ADMIN"})
-					ctx = context.WithValue(ctx, AuthPermissionsKey, []string{})
-					return handler(ctx, req)
+		// ProcessChunkInternal is invoked by finance-cost-worker via the cluster's
+		// internal network. The RPC has NO HTTP gateway path (proto file omits
+		// google.api.http annotation by design), so it's not reachable from the
+		// public internet. We trust network isolation for service-to-service
+		// auth + inject synthetic SUPER_ADMIN identity so the permission
+		// interceptor's SUPER_ADMIN bypass takes effect.
+		//
+		// When cfg.ServiceSecret is set, also require x-service-secret header
+		// match for defense-in-depth.
+		if info.FullMethod == "/finance.v1.CostCalcService/ProcessChunkInternal" {
+			if svcSecret != "" {
+				ok := false
+				if md, mdOK := metadata.FromIncomingContext(ctx); mdOK {
+					if vals := md.Get("x-service-secret"); len(vals) == 1 && vals[0] == svcSecret {
+						ok = true
+					}
+				}
+				if !ok {
+					return nil, status.Error(codes.Unauthenticated, "ProcessChunkInternal: missing or invalid x-service-secret")
 				}
 			}
+			ctx = context.WithValue(ctx, AuthUserIDKey, "service:finance-cost-worker")
+			ctx = context.WithValue(ctx, AuthUsernameKey, "finance-cost-worker")
+			ctx = context.WithValue(ctx, AuthRolesKey, []string{"SUPER_ADMIN"})
+			ctx = context.WithValue(ctx, AuthPermissionsKey, []string{})
+			return handler(ctx, req)
 		}
 
 		// All finance endpoints require authentication.
