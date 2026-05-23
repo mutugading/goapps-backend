@@ -105,57 +105,112 @@ func (l *productLoader) LoadProducts(ctx context.Context, ids []int64) (map[int6
 // LoadRoutesByProducts
 // =============================================================================
 
-// LoadRoutesByProducts returns the active (non-deleted, non-LOCKED-or-COMPLETE-only)
-// route Graph per product. The single SQL fans out head/seq/rm via three queries
-// keyed by head id (a hybrid: one query for heads, one each for seq/rm). The
-// alternative is one big JOIN with manual aggregation; we picked the hybrid for
-// cleaner scan code while still being O(3) round-trips per chunk.
+// LoadRoutesByProducts returns the active route Graph keyed by the REQUESTED
+// product sys id. Two cases (self-contained DAG model, migration 000244):
+//
+//  1. Requested product is the head of its own route_head (FG-level products).
+//  2. Requested product is an intermediate that exists only as a seq inside
+//     another FG's route_head — return the SAME owning Graph keyed by the
+//     intermediate's product_sys_id (so the engine's `routes[productID]`
+//     lookup works for intermediates too).
+//
+// Same product_sys_id may appear in multiple FGs' routes; we pick any one
+// (DISTINCT ON arbitrary tiebreak) — engine only reads the seq matching this
+// product, so all sibling intermediates are present + correct in either graph.
 func (l *productLoader) LoadRoutesByProducts(ctx context.Context, productSysIDs []int64) (map[int64]*costroute.Graph, error) {
 	out := map[int64]*costroute.Graph{}
 	if len(productSysIDs) == 0 {
 		return out, nil
 	}
 
-	// 1. Heads (one per product — uk_cost_route_head_active_per_product ensures uniqueness).
+	// 1. Resolve each requested product to its owning head_id (via crh OR crs).
+	const resolveQ = `
+		SELECT DISTINCT ON (product_sys_id) product_sys_id, head_id
+		FROM (
+		  SELECT crh.crh_product_sys_id AS product_sys_id, crh.crh_head_id AS head_id, 0 AS rank
+		  FROM cost_route_head crh
+		  WHERE crh.crh_routing_status IN ('COMPLETE','LOCKED')
+		    AND crh.crh_deleted_at IS NULL
+		    AND crh.crh_product_sys_id = ANY($1)
+		  UNION ALL
+		  SELECT crs.crs_product_sys_id AS product_sys_id, crs.crs_head_id AS head_id, 1 AS rank
+		  FROM cost_route_seq crs
+		  JOIN cost_route_head crh ON crh.crh_head_id = crs.crs_head_id
+		  WHERE crh.crh_routing_status IN ('COMPLETE','LOCKED')
+		    AND crh.crh_deleted_at IS NULL
+		    AND crs.crs_deleted_at IS NULL
+		    AND crs.crs_product_sys_id = ANY($1)
+		) t
+		ORDER BY product_sys_id, rank ASC, head_id DESC`
+	rRows, err := l.db.QueryContext(ctx, resolveQ, pq.Array(productSysIDs))
+	if err != nil {
+		return nil, fmt.Errorf("resolve product to head: %w", err)
+	}
+	productToHead := map[int64]int64{}
+	headIDSet := map[int64]struct{}{}
+	for rRows.Next() {
+		var pid, hid int64
+		if scanErr := rRows.Scan(&pid, &hid); scanErr != nil {
+			_ = rRows.Close()
+			return nil, fmt.Errorf("scan product→head: %w", scanErr)
+		}
+		productToHead[pid] = hid
+		headIDSet[hid] = struct{}{}
+	}
+	if rErr := rRows.Err(); rErr != nil {
+		_ = rRows.Close()
+		return nil, fmt.Errorf("iterate product→head: %w", rErr)
+	}
+	_ = rRows.Close()
+	if len(headIDSet) == 0 {
+		return out, nil
+	}
+	headIDs := make([]int64, 0, len(headIDSet))
+	for hid := range headIDSet {
+		headIDs = append(headIDs, hid)
+	}
+
+	// 2. Load full Head rows for those heads.
 	const headQ = `
 		SELECT crh_head_id, crh_product_sys_id, crh_routing_status, crh_version,
 		       COALESCE(crh_promoted_from_draft_id, 0), COALESCE(crh_cyl_type_id, 0),
 		       COALESCE(crh_notes, ''),
 		       crh_created_at, crh_created_by, crh_updated_at, COALESCE(crh_updated_by, '')
 		FROM cost_route_head
-		WHERE crh_product_sys_id = ANY($1)
-		  AND crh_deleted_at IS NULL
-		  AND crh_routing_status IN ('COMPLETE','LOCKED')`
-	headRows, err := l.db.QueryContext(ctx, headQ, pq.Array(productSysIDs))
+		WHERE crh_head_id = ANY($1)
+		  AND crh_deleted_at IS NULL`
+	headRows, err := l.db.QueryContext(ctx, headQ, pq.Array(headIDs))
 	if err != nil {
 		return nil, fmt.Errorf("load route heads: %w", err)
 	}
 	headsByID := map[int64]*costroute.Head{}
-	productByHeadID := map[int64]int64{}
-	headIDs := make([]int64, 0)
-	if err := scanRouteHeads(headRows, headsByID, productByHeadID, &headIDs); err != nil {
+	productByHeadID := map[int64]int64{} // FG product for the route — not used in output keying anymore
+	scanHeadIDs := make([]int64, 0)
+	if err := scanRouteHeads(headRows, headsByID, productByHeadID, &scanHeadIDs); err != nil {
 		return nil, err
 	}
-	if len(headIDs) == 0 {
-		return out, nil
-	}
 
-	// 2. Seqs for those heads.
+	// 3. Seqs for those heads.
 	seqs, seqsByHeadID, err := l.loadSeqsForHeads(ctx, headIDs)
 	if err != nil {
 		return nil, err
 	}
 
-	// 3. Rms for those heads.
+	// 4. Rms for those heads.
 	if err := l.loadRmsForHeads(ctx, headIDs, seqs); err != nil {
 		return nil, err
 	}
 
-	// Assemble Graphs and key by product sys id.
-	for headID, h := range headsByID {
-		out[productByHeadID[headID]] = &costroute.Graph{
+	// 5. Assemble Graphs keyed by REQUESTED product_sys_id (intermediates +
+	//    FG point at the same Graph instance for shared head).
+	for pid, hid := range productToHead {
+		h, ok := headsByID[hid]
+		if !ok {
+			continue
+		}
+		out[pid] = &costroute.Graph{
 			Head: h,
-			Seqs: seqsByHeadID[headID],
+			Seqs: seqsByHeadID[hid],
 		}
 	}
 	return out, nil
