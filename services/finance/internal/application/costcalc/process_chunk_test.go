@@ -107,6 +107,10 @@ func (s *ProcessChunkSuite) TearDownSuite() {
 	}
 	_, _ = s.raw.ExecContext(s.ctx, `DELETE FROM aud_cost_history WHERE ach_product_sys_id = $1`, s.productID)
 	_, _ = s.raw.ExecContext(s.ctx, `DELETE FROM cst_product_cost WHERE cpc_product_sys_id = $1`, s.productID)
+	// Catch-all: recompute tests + missing-rm-cost test use non-s.period periods
+	// (999991, 999992, etc.). Delete by created_by to scoop up everything this
+	// suite inserted across all periods.
+	_, _ = s.raw.ExecContext(s.ctx, `DELETE FROM cst_rm_cost WHERE created_by = $1`, s.actor)
 	_, _ = s.raw.ExecContext(s.ctx, `DELETE FROM cst_rm_cost WHERE period = $1`, s.period)
 	_, _ = s.raw.ExecContext(s.ctx, `DELETE FROM cost_route_head WHERE crh_head_id = $1`, s.headID)
 	_, _ = s.raw.ExecContext(s.ctx, `DELETE FROM cost_product_master WHERE cpm_product_sys_id = $1`, s.productID)
