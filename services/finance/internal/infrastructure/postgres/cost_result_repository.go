@@ -213,6 +213,100 @@ func (r *CostResultRepository) ListHistory(ctx context.Context, productSysID int
 	return out, total, nil
 }
 
+// ListResults lists active cost results across products for a filter, joining
+// cost_product_master for the resolved product code/name. When the filter
+// Period is empty it resolves the latest period present in cst_product_cost.
+func (r *CostResultRepository) ListResults(
+	ctx context.Context, f costcalc.ResultListFilter,
+) ([]*costcalc.ResultSummary, int, string, error) {
+	period := f.Period
+	if period == "" {
+		if err := r.db.QueryRowContext(ctx,
+			`SELECT COALESCE(MAX(cpc_period), '') FROM cst_product_cost`).Scan(&period); err != nil {
+			return nil, 0, "", fmt.Errorf("resolve latest period: %w", err)
+		}
+	}
+	if period == "" {
+		return []*costcalc.ResultSummary{}, 0, "", nil
+	}
+
+	where := []string{"cpc.cpc_period = $1"}
+	args := []any{period}
+	if f.Status != "" {
+		args = append(args, f.Status)
+		where = append(where, fmt.Sprintf("cpc.cpc_status = $%d", len(args)))
+	} else {
+		where = append(where, "cpc.cpc_status != 'SUPERSEDED'")
+	}
+	if f.CalcType != "" {
+		args = append(args, string(f.CalcType))
+		where = append(where, fmt.Sprintf("cpc.cpc_calculation_type = $%d", len(args)))
+	}
+	if f.Search != "" {
+		args = append(args, "%"+f.Search+"%")
+		where = append(where, fmt.Sprintf(
+			"(cpm.cpm_product_code ILIKE $%d OR cpm.cpm_product_name ILIKE $%d)", len(args), len(args)))
+	}
+	whereSQL := " WHERE " + strings.Join(where, " AND ")
+	from := ` FROM cst_product_cost cpc
+		LEFT JOIN cost_product_master cpm ON cpm.cpm_product_sys_id = cpc.cpc_product_sys_id`
+
+	var total int
+	if err := r.db.QueryRowContext(ctx, `SELECT count(*)`+from+whereSQL, args...).Scan(&total); err != nil {
+		return nil, 0, "", fmt.Errorf("count cost results: %w", err)
+	}
+
+	page, pageSize := f.Page, f.PageSize
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 50
+	}
+	if pageSize > 500 {
+		pageSize = 500
+	}
+	offset := (page - 1) * pageSize
+
+	listSQL := `SELECT cpc.cpc_cost_id, cpc.cpc_product_sys_id,
+			COALESCE(cpm.cpm_product_code, ''), COALESCE(cpm.cpm_product_name, ''),
+			cpc.cpc_period, cpc.cpc_calculation_type, cpc.cpc_route_head_id, cpc.cpc_version,
+			cpc.cpc_cost_per_unit, COALESCE(cpc.cpc_total_rm_cost, 0),
+			COALESCE(cpc.cpc_total_conversion, 0), COALESCE(cpc.cpc_total_cost, 0),
+			COALESCE(cpc.cpc_uom_id, 0), cpc.cpc_currency_code, cpc.cpc_status,
+			COALESCE(cpc.cpc_job_id, 0), cpc.cpc_calculated_at, cpc.cpc_calculated_by` +
+		from + whereSQL +
+		` ORDER BY cpc.cpc_calculated_at DESC, cpc.cpc_cost_id DESC` +
+		fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args)+1, len(args)+2)
+	args = append(args, pageSize, offset)
+
+	rows, err := r.db.QueryContext(ctx, listSQL, args...)
+	if err != nil {
+		return nil, 0, "", fmt.Errorf("list cost results: %w", err)
+	}
+	defer closeRows(rows)
+
+	out := []*costcalc.ResultSummary{}
+	for rows.Next() {
+		var s costcalc.ResultSummary
+		var calcType string
+		if scanErr := rows.Scan(
+			&s.CostID, &s.ProductSysID, &s.ProductCode, &s.ProductName,
+			&s.Period, &calcType, &s.RouteHeadID, &s.Version,
+			&s.CostPerUnit, &s.TotalRMCost, &s.TotalConv, &s.TotalCost,
+			&s.UOMID, &s.CurrencyCode, &s.Status, &s.JobID, &s.CalculatedAt, &s.CalculatedBy,
+		); scanErr != nil {
+			return nil, 0, "", fmt.Errorf("scan cost result row: %w", scanErr)
+		}
+		s.CalcType = costcalc.CalculationType(calcType)
+		out = append(out, &s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, "", fmt.Errorf("iterate cost results: %w", err)
+	}
+	return out, total, period, nil
+}
+
 // MarkVerified transitions a CALCULATED row to VERIFIED.
 func (r *CostResultRepository) MarkVerified(ctx context.Context, costID int64, by string) error {
 	return r.transitionStatus(ctx, costID, by, "CALCULATED", "VERIFIED")

@@ -352,6 +352,90 @@
         ]
       }
     },
+    "/api/v1/finance/cost-results": {
+      "get": {
+        "summary": "ListCostResults lists active cost results across products for a period.\nRequired permission: finance.cost.result.view.",
+        "operationId": "CostCalcService_ListCostResults",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListCostResultsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "pagination.page",
+            "description": "Page number (1-indexed).",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pagination.pageSize",
+            "description": "Number of items per page.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "period",
+            "description": "Period in YYYYMM (empty = latest period present in cst_product_cost).",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "calculationType",
+            "description": "Calculation type filter (UNSPECIFIED = no filter).\n\n - CALCULATION_TYPE_UNSPECIFIED: Default - invalid for create/update; ignored as filter.\n - CALCULATION_TYPE_ACTUAL: Actual cost based on realized RM rates.\n - CALCULATION_TYPE_FORECAST: Forecast cost using forward-looking rates.\n - CALCULATION_TYPE_SELLING: Selling-side cost projection.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "CALCULATION_TYPE_UNSPECIFIED",
+              "CALCULATION_TYPE_ACTUAL",
+              "CALCULATION_TYPE_FORECAST",
+              "CALCULATION_TYPE_SELLING"
+            ],
+            "default": "CALCULATION_TYPE_UNSPECIFIED"
+          },
+          {
+            "name": "search",
+            "description": "Product code/name search (case-insensitive, optional).",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status",
+            "description": "Result status filter (UNSPECIFIED = active only, i.e. exclude SUPERSEDED).\n\n - COST_RESULT_STATUS_UNSPECIFIED: Default - invalid for create/update.\n - COST_RESULT_STATUS_CALCULATED: Freshly calculated, awaiting review.\n - COST_RESULT_STATUS_VERIFIED: Verified by a reviewer.\n - COST_RESULT_STATUS_APPROVED: Approved for downstream use.\n - COST_RESULT_STATUS_SUPERSEDED: Replaced by a newer version.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "COST_RESULT_STATUS_UNSPECIFIED",
+              "COST_RESULT_STATUS_CALCULATED",
+              "COST_RESULT_STATUS_VERIFIED",
+              "COST_RESULT_STATUS_APPROVED",
+              "COST_RESULT_STATUS_SUPERSEDED"
+            ],
+            "default": "COST_RESULT_STATUS_UNSPECIFIED"
+          }
+        ],
+        "tags": [
+          "CostCalcService"
+        ]
+      }
+    },
     "/api/v1/finance/cost-results/{costId}/approve": {
       "post": {
         "summary": "ApproveCostResult marks a cost result as approved.\nRequired permission: finance.cost.result.approve.",
@@ -1484,6 +1568,32 @@
         }
       },
       "description": "ListCostHistoryResponse returns a page of cost history rows."
+    },
+    "v1ListCostResultsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response envelope."
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1CostResult"
+          },
+          "description": "Page of cost result rows (resolved product code/name/uom; no UUIDs)."
+        },
+        "pagination": {
+          "$ref": "#/definitions/v1PaginationResponse",
+          "description": "Pagination metadata."
+        },
+        "resolvedPeriod": {
+          "type": "string",
+          "description": "The period actually used (resolved when request period was empty)."
+        }
+      },
+      "description": "ListCostResultsResponse returns a page of cost results across products."
     },
     "v1PaginationRequest": {
       "type": "object",

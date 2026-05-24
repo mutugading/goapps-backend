@@ -1,6 +1,9 @@
 package costcalc
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // JobFilter describes optional filters for ListJobs.
 type JobFilter struct {
@@ -60,8 +63,46 @@ type ResultRepository interface {
 	GetActive(ctx context.Context, productSysID int64, period string, calcType CalculationType) (*Result, error)
 	GetByID(ctx context.Context, id int64) (*Result, error)
 	ListHistory(ctx context.Context, productSysID int64, calcType CalculationType, page, pageSize int) ([]*Result, int, error)
+	// ListResults lists active cost results across products for a filter, with
+	// product code/name resolved via join. Returns rows + total + resolved period.
+	ListResults(ctx context.Context, f ResultListFilter) ([]*ResultSummary, int, string, error)
 	MarkVerified(ctx context.Context, costID int64, by string) error
 	MarkApproved(ctx context.Context, costID int64, by string) error
+}
+
+// ResultListFilter is the filter for ListResults. Empty Period means "latest
+// period present in cst_product_cost"; empty CalcType/Status means no filter
+// (Status additionally excludes SUPERSEDED when unset).
+type ResultListFilter struct {
+	Period   string
+	CalcType CalculationType
+	Status   string
+	Search   string
+	Page     int
+	PageSize int
+}
+
+// ResultSummary is a flat, list-friendly projection of a cost result with the
+// product code/name resolved (no UUIDs leak to the UI).
+type ResultSummary struct {
+	CostID       int64
+	ProductSysID int64
+	ProductCode  string
+	ProductName  string
+	Period       string
+	CalcType     CalculationType
+	RouteHeadID  int64
+	Version      int
+	CostPerUnit  float64
+	TotalRMCost  float64
+	TotalConv    float64
+	TotalCost    float64
+	UOMID        int
+	CurrencyCode string
+	Status       string
+	JobID        int64
+	CalculatedAt time.Time
+	CalculatedBy string
 }
 
 // AuditHistoryRepository persists AuditHistoryEntry rows.

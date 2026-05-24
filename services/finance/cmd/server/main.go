@@ -317,6 +317,7 @@ func run() error {
 		costcalc.NewGetCostResultHandler(calcSvc),
 		costcalc.NewGetCostBreakdownHandler(calcSvc),
 		costcalc.NewListCostHistoryHandler(calcSvc),
+		costcalc.NewListCostResultsHandler(calcSvc),
 		costcalc.NewVerifyCostHandler(calcSvc),
 		costcalc.NewApproveCostHandler(calcSvc),
 	)

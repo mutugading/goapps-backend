@@ -26,6 +26,7 @@ const (
 	CostCalcService_ListCalcJobProducts_FullMethodName  = "/finance.v1.CostCalcService/ListCalcJobProducts"
 	CostCalcService_CancelCalcJob_FullMethodName        = "/finance.v1.CostCalcService/CancelCalcJob"
 	CostCalcService_GetCostResult_FullMethodName        = "/finance.v1.CostCalcService/GetCostResult"
+	CostCalcService_ListCostResults_FullMethodName      = "/finance.v1.CostCalcService/ListCostResults"
 	CostCalcService_GetCostBreakdown_FullMethodName     = "/finance.v1.CostCalcService/GetCostBreakdown"
 	CostCalcService_ListCostHistory_FullMethodName      = "/finance.v1.CostCalcService/ListCostHistory"
 	CostCalcService_VerifyCostResult_FullMethodName     = "/finance.v1.CostCalcService/VerifyCostResult"
@@ -61,6 +62,9 @@ type CostCalcServiceClient interface {
 	// GetCostResult returns the active cost result for a product/period/type.
 	// Required permission: finance.cost.result.view.
 	GetCostResult(ctx context.Context, in *GetCostResultRequest, opts ...grpc.CallOption) (*GetCostResultResponse, error)
+	// ListCostResults lists active cost results across products for a period.
+	// Required permission: finance.cost.result.view.
+	ListCostResults(ctx context.Context, in *ListCostResultsRequest, opts ...grpc.CallOption) (*ListCostResultsResponse, error)
 	// GetCostBreakdown returns by-level + rm-details + formula-trace for a cost.
 	// Required permission: finance.cost.result.view.
 	GetCostBreakdown(ctx context.Context, in *GetCostBreakdownRequest, opts ...grpc.CallOption) (*GetCostBreakdownResponse, error)
@@ -158,6 +162,16 @@ func (c *costCalcServiceClient) GetCostResult(ctx context.Context, in *GetCostRe
 	return out, nil
 }
 
+func (c *costCalcServiceClient) ListCostResults(ctx context.Context, in *ListCostResultsRequest, opts ...grpc.CallOption) (*ListCostResultsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListCostResultsResponse)
+	err := c.cc.Invoke(ctx, CostCalcService_ListCostResults_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *costCalcServiceClient) GetCostBreakdown(ctx context.Context, in *GetCostBreakdownRequest, opts ...grpc.CallOption) (*GetCostBreakdownResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetCostBreakdownResponse)
@@ -236,6 +250,9 @@ type CostCalcServiceServer interface {
 	// GetCostResult returns the active cost result for a product/period/type.
 	// Required permission: finance.cost.result.view.
 	GetCostResult(context.Context, *GetCostResultRequest) (*GetCostResultResponse, error)
+	// ListCostResults lists active cost results across products for a period.
+	// Required permission: finance.cost.result.view.
+	ListCostResults(context.Context, *ListCostResultsRequest) (*ListCostResultsResponse, error)
 	// GetCostBreakdown returns by-level + rm-details + formula-trace for a cost.
 	// Required permission: finance.cost.result.view.
 	GetCostBreakdown(context.Context, *GetCostBreakdownRequest) (*GetCostBreakdownResponse, error)
@@ -283,6 +300,9 @@ func (UnimplementedCostCalcServiceServer) CancelCalcJob(context.Context, *Cancel
 }
 func (UnimplementedCostCalcServiceServer) GetCostResult(context.Context, *GetCostResultRequest) (*GetCostResultResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetCostResult not implemented")
+}
+func (UnimplementedCostCalcServiceServer) ListCostResults(context.Context, *ListCostResultsRequest) (*ListCostResultsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListCostResults not implemented")
 }
 func (UnimplementedCostCalcServiceServer) GetCostBreakdown(context.Context, *GetCostBreakdownRequest) (*GetCostBreakdownResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetCostBreakdown not implemented")
@@ -446,6 +466,24 @@ func _CostCalcService_GetCostResult_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CostCalcService_ListCostResults_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListCostResultsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CostCalcServiceServer).ListCostResults(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CostCalcService_ListCostResults_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CostCalcServiceServer).ListCostResults(ctx, req.(*ListCostResultsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _CostCalcService_GetCostBreakdown_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetCostBreakdownRequest)
 	if err := dec(in); err != nil {
@@ -570,6 +608,10 @@ var CostCalcService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetCostResult",
 			Handler:    _CostCalcService_GetCostResult_Handler,
+		},
+		{
+			MethodName: "ListCostResults",
+			Handler:    _CostCalcService_ListCostResults_Handler,
 		},
 		{
 			MethodName: "GetCostBreakdown",

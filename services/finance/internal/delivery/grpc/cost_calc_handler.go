@@ -30,6 +30,7 @@ type CostCalcHandler struct {
 	getResultH       *costcalc.GetCostResultHandler
 	getBreakdownH    *costcalc.GetCostBreakdownHandler
 	listHistoryH     *costcalc.ListCostHistoryHandler
+	listResultsH     *costcalc.ListCostResultsHandler
 	verifyH          *costcalc.VerifyCostHandler
 	approveH         *costcalc.ApproveCostHandler
 	// svc gives ProcessChunkInternal direct access to Service.ProcessChunk;
@@ -51,6 +52,7 @@ func NewCostCalcHandler(
 	getResultH *costcalc.GetCostResultHandler,
 	getBreakdownH *costcalc.GetCostBreakdownHandler,
 	listHistoryH *costcalc.ListCostHistoryHandler,
+	listResultsH *costcalc.ListCostResultsHandler,
 	verifyH *costcalc.VerifyCostHandler,
 	approveH *costcalc.ApproveCostHandler,
 ) *CostCalcHandler {
@@ -65,6 +67,7 @@ func NewCostCalcHandler(
 		getResultH:       getResultH,
 		getBreakdownH:    getBreakdownH,
 		listHistoryH:     listHistoryH,
+		listResultsH:     listResultsH,
 		verifyH:          verifyH,
 		approveH:         approveH,
 	}
@@ -254,6 +257,31 @@ func (h *CostCalcHandler) ListCostHistory(ctx context.Context, req *financev1.Li
 		Base:       successResponse("OK"),
 		Items:      items,
 		Pagination: calcPaginationResponse(res.Page, res.PageSize, res.Total),
+	}, nil
+}
+
+// ListCostResults lists active cost results across products for a period.
+func (h *CostCalcHandler) ListCostResults(ctx context.Context, req *financev1.ListCostResultsRequest) (*financev1.ListCostResultsResponse, error) {
+	res, err := h.listResultsH.Handle(ctx, costcalc.ListCostResultsQuery{
+		Period:   req.GetPeriod(),
+		CalcType: protoToCalcType(req.GetCalculationType()),
+		Status:   protoToResultStatusString(req.GetStatus()),
+		Search:   req.GetSearch(),
+		Page:     int(req.GetPagination().GetPage()),
+		PageSize: int(req.GetPagination().GetPageSize()),
+	})
+	if err != nil {
+		return &financev1.ListCostResultsResponse{Base: costCalcErrToBase(err)}, nil
+	}
+	items := make([]*financev1.CostResult, 0, len(res.Items))
+	for _, s := range res.Items {
+		items = append(items, summaryToProto(s))
+	}
+	return &financev1.ListCostResultsResponse{
+		Base:           successResponse("OK"),
+		Items:          items,
+		Pagination:     calcPaginationResponse(res.Page, res.PageSize, res.Total),
+		ResolvedPeriod: res.ResolvedPeriod,
 	}, nil
 }
 
@@ -611,6 +639,50 @@ func resultToProto(r *costcalcdom.Result) *financev1.CostResult {
 		VerifiedAt:      timePtrToProto(r.VerifiedAt()),
 		VerifiedBy:      r.VerifiedBy(),
 	}
+}
+
+// summaryToProto maps a flat ResultSummary (with resolved product code/name)
+// to the CostResult proto for the cross-product list view.
+func summaryToProto(s *costcalcdom.ResultSummary) *financev1.CostResult {
+	if s == nil {
+		return nil
+	}
+	return &financev1.CostResult{
+		CostId:          s.CostID,
+		ProductSysId:    s.ProductSysID,
+		ProductCode:     s.ProductCode,
+		ProductName:     s.ProductName,
+		Period:          s.Period,
+		CalculationType: calcTypeToProto(s.CalcType),
+		RouteHeadId:     s.RouteHeadID,
+		Version:         safeIntToInt32(s.Version),
+		CostPerUnit:     formatNumeric(s.CostPerUnit),
+		TotalRmCost:     formatNumeric(s.TotalRMCost),
+		TotalConversion: formatNumeric(s.TotalConv),
+		TotalCost:       formatNumeric(s.TotalCost),
+		UomId:           safeIntToInt32(s.UOMID),
+		CurrencyCode:    s.CurrencyCode,
+		Status:          resultStatusToProto(costcalcdom.ResultStatus(s.Status)),
+		JobId:           s.JobID,
+		CalculatedAt:    timeToProto(s.CalculatedAt),
+		CalculatedBy:    s.CalculatedBy,
+	}
+}
+
+// protoToResultStatusString maps the filter enum to the DB status string
+// ("" when UNSPECIFIED — the repo then returns active rows only).
+func protoToResultStatusString(p financev1.CostResultStatus) string {
+	switch p {
+	case financev1.CostResultStatus_COST_RESULT_STATUS_CALCULATED:
+		return "CALCULATED"
+	case financev1.CostResultStatus_COST_RESULT_STATUS_VERIFIED:
+		return "VERIFIED"
+	case financev1.CostResultStatus_COST_RESULT_STATUS_APPROVED:
+		return "APPROVED"
+	case financev1.CostResultStatus_COST_RESULT_STATUS_SUPERSEDED:
+		return "SUPERSEDED"
+	}
+	return ""
 }
 
 func breakdownToProto(view *costcalc.CostBreakdownView) *financev1.CostBreakdown {
