@@ -87,7 +87,7 @@ func main() {
 
 	rng := rand.New(rand.NewSource(42))
 
-	paramIDs, err := seedParameters(ctx, db, cfg.params, rng)
+	paramIDs, err := seedParameters(ctx, db, cfg.params, cfg.formulas, rng)
 	if err != nil {
 		log.Fatalf("seed parameters: %v", err)
 	}
@@ -108,6 +108,9 @@ func main() {
 		log.Fatalf("seed routes: %v", err)
 	}
 
+	// CAPP/CPP cover the generated S_PARAM_* set. The stress runner isolates the
+	// active formula catalog to the S_FORMULA_* set (deactivating textile-demo
+	// formulas for the run), so these params are the full universe referenced.
 	if err := seedCAPP(ctx, db, products, paramIDs); err != nil {
 		log.Fatalf("seed capp: %v", err)
 	}
@@ -224,11 +227,18 @@ func loadTopRMCodes(ctx context.Context, db *sql.DB, limit int) ([]string, error
 
 // seedParameters bulk-inserts `count` mst_parameter rows tagged with stressOwner.
 // Returns the generated IDs in deterministic order, partitioned by category:
-// first 70% INPUT, next 15% RATE, last 15% CALCULATED.
-func seedParameters(ctx context.Context, db *sql.DB, count int, rng *rand.Rand) ([]paramSpec, error) {
+// ~70% INPUT, ~15% RATE, remainder CALCULATED. The CALCULATED partition is
+// floored at minCalculated so there is always at least one distinct result
+// param per formula (mst_formula.result_param_id is unique).
+func seedParameters(ctx context.Context, db *sql.DB, count, minCalculated int, rng *rand.Rand) ([]paramSpec, error) {
 	specs := make([]paramSpec, count)
-	inputUntil := count * 70 / 100
-	rateUntil := inputUntil + count*15/100
+	calcCount := count * 15 / 100
+	if calcCount < minCalculated {
+		calcCount = minCalculated
+	}
+	rateCount := count * 15 / 100
+	inputUntil := count - calcCount - rateCount
+	rateUntil := inputUntil + rateCount
 	for i := 0; i < count; i++ {
 		cat := "CALCULATED"
 		if i < inputUntil {
@@ -346,6 +356,7 @@ func seedFormulas(ctx context.Context, db *sql.DB, params []paramSpec, count int
 		nInputs := 2 + rng.Intn(4) // 2..5
 		pickedIDs := make([]uuid.UUID, 0, nInputs)
 		exprParts := make([]string, 0, nInputs)
+		seen := make(map[uuid.UUID]bool, nInputs)
 
 		for j := 0; j < nInputs; j++ {
 			var p paramSpec
@@ -355,6 +366,11 @@ func seedFormulas(ctx context.Context, db *sql.DB, params []paramSpec, count int
 			} else {
 				p = inputs[rng.Intn(len(inputs))]
 			}
+			// formula_param is UNIQUE(formula_id, param_id) — skip dupes within a formula.
+			if seen[p.id] {
+				continue
+			}
+			seen[p.id] = true
 			pickedIDs = append(pickedIDs, p.id)
 			exprParts = append(exprParts, p.code)
 		}
@@ -544,16 +560,58 @@ func seedProducts(
 	return out, nil
 }
 
-// seedRoutes builds one route_head per FG, with a level-1 FG seq and N (5-20)
-// upstream intermediate seqs. Intermediates are reused across routes (split/
-// merge patterns). Deepest seqs get 2-4 ITEM RMs sourced from top priced
-// cst_rm_cost codes; non-FG non-deepest seqs reference one upstream as a
-// PRODUCT-RM.
-//
-// To keep memory + time bounded the helper caps the total number of seqs at
-// ~60_000 across all routes.
+// maxStages is the global number of stage bands intermediates are partitioned
+// into. Each route picks a random 10..maxStages subset of stages, deepest-first
+// — modelling production textile process depth where simpler FGs traverse ~10
+// intermediates and complex ones up to 20. Because every PRODUCT-RM edge goes
+// from stage S to stage S-1, the GLOBAL product DAG depth is bounded at maxStages
+// regardless of corpus size — yielding shallow, wide waves (thousands of
+// independent FGs per wave). Sharing band members across routes is what
+// produces split/merge.
+const maxStages = 20
+
+// minStages is the lowest route depth (intermediates per FG).
+const minStages = 10
+
+// pickRouteStages returns a random subset of [0, total) of size between minN
+// and total (inclusive), sorted descending (deepest stage first). Used so each
+// FG route walks 10..maxStages stages in deepest-first order — keeping global
+// DAG depth bounded while still varying per-route complexity.
+func pickRouteStages(rng *rand.Rand, total, minN int) []int {
+	if minN > total {
+		minN = total
+	}
+	count := minN + rng.Intn(total-minN+1) // minN..total inclusive
+	used := make(map[int]bool, count)
+	out := make([]int, 0, count)
+	for len(out) < count {
+		s := rng.Intn(total)
+		if used[s] {
+			continue
+		}
+		used[s] = true
+		out = append(out, s)
+	}
+	// Sort descending so deepest stage (lowest index) emits last (= isDeepest).
+	for i := 0; i < len(out); i++ {
+		for j := i + 1; j < len(out); j++ {
+			if out[i] < out[j] {
+				out[i], out[j] = out[j], out[i]
+			}
+		}
+	}
+	return out
+}
+
+// seedRoutes builds one cost_route_head per FG. Each route picks a random
+// 10..maxStages distinct stage bands, then one intermediate per chosen band in
+// deepest-first order. Total seqs per route = 1 (FG) + picked-count. Deepest
+// seq carries 2-4 ITEM RMs (real priced cst_rm_cost codes); every other seq
+// references the next-shallower product as a PRODUCT-RM. Total seqs capped at
+// ~60_000.
 func seedRoutes(ctx context.Context, db *sql.DB, products []productRow, rmCodes []string, rng *rand.Rand) error {
-	const maxSeqs = 60_000
+	// 12k FG × up to 20 stages = 240k seqs; allow up to 300k.
+	const maxSeqs = 300_000
 
 	var fgs, inters []productRow
 	for _, p := range products {
@@ -584,7 +642,8 @@ func seedRoutes(ctx context.Context, db *sql.DB, products []productRow, rmCodes 
 		return err
 	}
 	for _, fg := range fgs {
-		if _, err := headStmt.ExecContext(ctx, fg.sysID, "DRAFT", 1, stressOwner, stressOwner); err != nil {
+		// COMPLETE so the calc engine's DAG builder (filters COMPLETE/LOCKED) picks them up.
+		if _, err := headStmt.ExecContext(ctx, fg.sysID, "COMPLETE", 1, stressOwner, stressOwner); err != nil {
 			_ = headStmt.Close()
 			_ = tx.Rollback()
 			return err
@@ -632,23 +691,48 @@ func seedRoutes(ctx context.Context, db *sql.DB, products []productRow, rmCodes 
 		seq       int
 		isDeepest bool
 	}
+	// Partition intermediates into maxStages contiguous bands by index. band(s)
+	// returns the slice for stage s (0 = deepest). A product's band is fixed, so
+	// every PRODUCT-RM edge moves exactly one band shallower and the global DAG
+	// depth stays bounded at maxStages.
+	bandSize := len(inters) / maxStages
+	if bandSize < 1 {
+		bandSize = 1
+	}
+	band := func(stage int) []productRow {
+		lo := stage * bandSize
+		hi := lo + bandSize
+		if stage == maxStages-1 || hi > len(inters) {
+			hi = len(inters)
+		}
+		if lo >= len(inters) {
+			lo = len(inters) - 1
+		}
+		return inters[lo:hi]
+	}
+
 	totalEstimated := 0
 	var pending []pendingSeq
 	for _, fg := range fgs {
 		hid := headByProduct[fg.sysID]
-		nInters := 5 + rng.Intn(16) // 5..20
 		// Level 1: FG seq.
 		pending = append(pending, pendingSeq{
 			headID: hid, productID: fg.sysID, productCd: fg.code, productNm: fg.productNm,
 			level: 1, seq: 1, isDeepest: false,
 		})
-		// Levels 2..nInters: intermediates picked uniformly random.
-		for j := 0; j < nInters; j++ {
-			ip := inters[rng.Intn(len(inters))]
+		// Pick a random 10..maxStages distinct stage indices for THIS route, then
+		// emit one intermediate per chosen stage in deepest-first order. Variable
+		// depth per route models the real mix of simple/complex FGs.
+		picked := pickRouteStages(rng, maxStages, minStages)
+		level := 2
+		for i, stage := range picked {
+			b := band(stage)
+			ip := b[rng.Intn(len(b))]
 			pending = append(pending, pendingSeq{
 				headID: hid, productID: ip.sysID, productCd: ip.code, productNm: ip.productNm,
-				level: j + 2, seq: 1, isDeepest: j == nInters-1,
+				level: level, seq: 1, isDeepest: i == len(picked)-1,
 			})
+			level++
 			totalEstimated++
 			if len(pending) >= maxSeqs {
 				break

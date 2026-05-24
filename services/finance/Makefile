@@ -243,7 +243,7 @@ install-tools:
 # test-stress-quick — smoke-run S1+S2+S3 (~minutes on a populated corpus).
 # test-stress-full  — run S1..S9 with a 30-minute test budget.
 
-.PHONY: seed-stress stress-clean test-stress-quick test-stress-full
+.PHONY: seed-stress stress-clean test-stress-quick test-stress-full test-stress-real
 
 PRODUCTS ?= 12000
 PARAMS   ?= 150
@@ -274,3 +274,13 @@ test-stress-quick:
 
 test-stress-full:
 	STRESS_TEST=true go test -tags=stress -timeout 30m ./tests/stress/...
+
+# Headline measurement: drives the seeded corpus through the real calc engine
+# in-process (wave-ordered chunks), reports per-chunk/per-product/total wall +
+# fleet extrapolation. Requires `make seed-stress` first; PERIOD must match a
+# period priced in cst_rm_cost (prod data = 202604). Cleans cal_job/cost rows
+# and restores the formula catalog on exit; run `make stress-clean` to drop the
+# corpus afterward.
+test-stress-real:
+	STRESS_TEST=true STRESS_PERIOD=$(PERIOD) go test -tags=stress -timeout 30m \
+		-run TestStressRealRun ./tests/stress/... -v

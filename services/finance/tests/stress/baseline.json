@@ -7,5 +7,7 @@
   "s6_failure_isolation": { "p50_chunk_ms": 260, "p95_chunk_ms": 2600, "total_ms": 310000 },
   "s7_recompute_storm":   { "p50_chunk_ms": 240, "p95_chunk_ms": 2400, "total_ms": 290000 },
   "s8_mid_batch_cancel":  { "p50_chunk_ms": 250, "p95_chunk_ms": 2500, "total_ms": 35000 },
-  "s9_worker_scale_up":   { "p50_chunk_ms": 250, "p95_chunk_ms": 2500, "total_ms": 300000 }
+  "s9_worker_scale_up":   { "p50_chunk_ms": 250, "p95_chunk_ms": 2500, "total_ms": 300000 },
+
+  "real_full_run":        { "p50_chunk_ms": 250, "p95_chunk_ms": 1200, "total_ms": 95000 }
 }
