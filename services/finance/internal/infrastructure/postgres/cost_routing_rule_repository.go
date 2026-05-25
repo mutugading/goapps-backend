@@ -89,9 +89,9 @@ func (r *CostRoutingRuleRepository) Delete(ctx context.Context, id int32) error 
 func (r *CostRoutingRuleRepository) List(ctx context.Context, f costroutingrule.Filter) ([]*costroutingrule.Rule, int64, error) {
 	where := "FROM cost_routing_rule WHERE 1=1"
 	switch f.ActiveFilter {
-	case "active":
+	case filterActive:
 		where += ` AND crr_is_active=TRUE`
-	case "inactive":
+	case filterInactive:
 		where += ` AND crr_is_active=FALSE`
 	}
 
@@ -113,7 +113,11 @@ func (r *CostRoutingRuleRepository) List(ctx context.Context, f costroutingrule.
 	if err != nil {
 		return nil, 0, fmt.Errorf("list cost_routing_rule: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 	out := []*costroutingrule.Rule{}
 	for rows.Next() {
 		rule, sErr := scanCrrRows(rows)

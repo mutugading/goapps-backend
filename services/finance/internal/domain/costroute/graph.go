@@ -26,7 +26,7 @@ var (
 //
 // Returns the first violation found. Topology is naturally acyclic because
 // upstream level is strictly greater than downstream level.
-func (g *Graph) ValidateLevels() error {
+func (g *Graph) ValidateLevels() error { //nolint:gocognit,gocyclo // graph level-invariant validation, cohesive
 	if g == nil || g.Head == nil {
 		return ErrNotFound
 	}

@@ -333,18 +333,18 @@ func cleanupRun(ctx context.Context, t *testing.T, db *sql.DB) {
 
 // runResult captures the aggregate measurements of one full run.
 type runResult struct {
-	products      int
-	acyclic       int
-	cyclic        int
-	waves         int
-	maxWaveWidth  int
-	chunks        int
-	chunkMS       []float64
-	success       int
-	blocked       int
-	failed        int
-	totalCompute  time.Duration // sum of chunk wall (single worker)
-	totalWall     time.Duration // includes planning + persistence
+	products     int
+	acyclic      int
+	cyclic       int
+	waves        int
+	maxWaveWidth int
+	chunks       int
+	chunkMS      []float64
+	success      int
+	blocked      int
+	failed       int
+	totalCompute time.Duration // sum of chunk wall (single worker)
+	totalWall    time.Duration // includes planning + persistence
 }
 
 // TestStressRealRun is the headline measurement. It runs the full seeded corpus

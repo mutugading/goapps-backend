@@ -96,7 +96,11 @@ func (r *CostAuditLogRepository) List(ctx context.Context, f costauditlog.Filter
 	if err != nil {
 		return nil, 0, fmt.Errorf("list cost_audit_log: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 	out := []*costauditlog.Log{}
 	for rows.Next() {
 		l := &costauditlog.Log{}

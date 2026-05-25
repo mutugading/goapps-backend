@@ -31,7 +31,11 @@ func (r *CostRequestCommentRepository) Create(ctx context.Context, c *costreques
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() {
+		if cerr := tx.Rollback(); cerr != nil {
+			_ = cerr
+		}
+	}()
 
 	const q = `
 		INSERT INTO cost_request_comment (
@@ -83,7 +87,11 @@ func (r *CostRequestCommentRepository) Update(ctx context.Context, c *costreques
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() {
+		if cerr := tx.Rollback(); cerr != nil {
+			_ = cerr
+		}
+	}()
 
 	// 1. Snapshot the prior body to CCEH_.
 	const qSnap = `
@@ -179,7 +187,11 @@ func (r *CostRequestCommentRepository) ListByRequest(ctx context.Context, reques
 	if err != nil {
 		return nil, fmt.Errorf("list comments: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 	out := []*costrequestcomment.Comment{}
 	for rows.Next() {
 		in, sErr := scanCrcRows(rows)
@@ -207,7 +219,11 @@ func (r *CostRequestCommentRepository) ListEditHistory(ctx context.Context, comm
 	if err != nil {
 		return nil, fmt.Errorf("list edit history: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 	out := []costrequestcomment.EditHistoryEntry{}
 	for rows.Next() {
 		e := costrequestcomment.EditHistoryEntry{}
@@ -247,7 +263,11 @@ func (r *CostRequestCommentRepository) loadMentions(ctx context.Context, comment
 	if err != nil {
 		return nil, fmt.Errorf("load mentions: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 	out := []string{}
 	for rows.Next() {
 		var uid string

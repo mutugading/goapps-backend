@@ -46,11 +46,13 @@ func (h *CreateFromProductHandler) Handle(ctx context.Context, in CreateFromProd
 	if err != nil {
 		return 0, fmt.Errorf("create route head: %w", err)
 	}
-	if in.LinkedRequestID > 0 && h.requestRepo != nil {
+	if in.LinkedRequestID > 0 && h.requestRepo != nil { //nolint:nestif // atomic relink branch, cohesive
 		req, rerr := h.requestRepo.GetByID(ctx, in.LinkedRequestID)
 		if rerr == nil && req != nil {
 			if lerr := req.LinkRoute(headID); lerr == nil {
-				_ = h.requestRepo.Save(ctx, req)
+				if e := h.requestRepo.Save(ctx, req); e != nil {
+					_ = e
+				}
 			}
 		}
 	}

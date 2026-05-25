@@ -45,7 +45,11 @@ func (r *CostProductRequestRepository) Create(ctx context.Context, req *costprod
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() {
+		if cerr := tx.Rollback(); cerr != nil {
+			_ = cerr
+		}
+	}()
 
 	const qReq = `
 		INSERT INTO cost_product_request (
@@ -101,7 +105,11 @@ func (r *CostProductRequestRepository) Save(ctx context.Context, req *costproduc
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() {
+		if cerr := tx.Rollback(); cerr != nil {
+			_ = cerr
+		}
+	}()
 
 	const qUpd = `
 		UPDATE cost_product_request SET
@@ -197,7 +205,7 @@ func (r *CostProductRequestRepository) loadSpec(ctx context.Context, requestID i
 	s, err := scanCpsRow(row)
 	if err != nil {
 		if errors.Is(err, costproductrequest.ErrNotFound) {
-			return nil, nil // no spec is expected for classification=existing
+			return nil, nil //nolint:nilnil // a missing spec is valid for classification=existing
 		}
 		return nil, err
 	}
@@ -205,7 +213,7 @@ func (r *CostProductRequestRepository) loadSpec(ctx context.Context, requestID i
 }
 
 // List returns a filtered paginated list (without specs — keep payload light).
-func (r *CostProductRequestRepository) List(ctx context.Context, f costproductrequest.Filter) ([]*costproductrequest.Request, int64, error) {
+func (r *CostProductRequestRepository) List(ctx context.Context, f costproductrequest.Filter) ([]*costproductrequest.Request, int64, error) { //nolint:gocognit,gocyclo // filter + sort + pagination builder
 	where := "FROM cost_product_request WHERE 1=1"
 	args := []any{}
 	idx := 1
@@ -249,9 +257,9 @@ func (r *CostProductRequestRepository) List(ctx context.Context, f costproductre
 	case "status":
 		sortCol = `cpr_status`
 	}
-	dir := "DESC"
+	dir := sortDESC
 	if strings.EqualFold(f.SortOrder, "asc") {
-		dir = "ASC"
+		dir = sortASC
 	}
 	page := max(f.Page, 1)
 	pageSize := f.PageSize
@@ -267,7 +275,11 @@ func (r *CostProductRequestRepository) List(ctx context.Context, f costproductre
 	if err != nil {
 		return nil, 0, fmt.Errorf("list cost_product_request: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 
 	out := []*costproductrequest.Request{}
 	for rows.Next() {
@@ -328,22 +340,22 @@ func scanCprRows(rows *sql.Rows) (costproductrequest.ReconstructInput, error) {
 
 func scanCpr(scan func(...any) error) (costproductrequest.ReconstructInput, error) {
 	var (
-		requestID                                                         int64
-		requestNo                                                         string
-		requestTypeID                                                     int32
-		title                                                             string
-		description, customerCode, verifiedClass, overrideReason          sql.NullString
-		customerName, productClass                                        string
-		targetVolume                                                      sql.NullString
-		targetPrice                                                       sql.NullString
-		urgency, status                                                   string
-		neededByDate                                                      sql.NullTime
+		requestID                                                                       int64
+		requestNo                                                                       string
+		requestTypeID                                                                   int32
+		title                                                                           string
+		description, customerCode, verifiedClass, overrideReason                        sql.NullString
+		customerName, productClass                                                      string
+		targetVolume                                                                    sql.NullString
+		targetPrice                                                                     sql.NullString
+		urgency, status                                                                 string
+		neededByDate                                                                    sql.NullTime
 		closedSub, feasDecision, feasNote, feasBy, rejectReason, cancelReason, assignee sql.NullString
-		feasAt                                                            sql.NullTime
-		requester                                                         string
-		createdAt, updatedAt                                              time.Time
-		existingProductSysID                                              int64
-		linkedRouteHeadID                                                 int64
+		feasAt                                                                          sql.NullTime
+		requester                                                                       string
+		createdAt, updatedAt                                                            time.Time
+		existingProductSysID                                                            int64
+		linkedRouteHeadID                                                               int64
 	)
 	if err := scan(
 		&requestID, &requestNo, &requestTypeID, &title, &description,
@@ -398,15 +410,15 @@ func scanCpr(scan func(...any) error) (costproductrequest.ReconstructInput, erro
 
 func scanCpsRow(row *sql.Row) (*costproductrequest.Spec, error) {
 	var (
-		specID, requestID                  int64
-		rawMat, desc                       string
-		shadeID                            sql.NullInt32
-		shadeCustom                        sql.NullString
-		paperTubeID                        int32
-		weight                             string
-		boxType                            string
-		createdAt                          time.Time
-		createdBy                          string
+		specID, requestID int64
+		rawMat, desc      string
+		shadeID           sql.NullInt32
+		shadeCustom       sql.NullString
+		paperTubeID       int32
+		weight            string
+		boxType           string
+		createdAt         time.Time
+		createdBy         string
 	)
 	if err := row.Scan(&specID, &requestID, &rawMat, &desc, &shadeID, &shadeCustom, &paperTubeID, &weight, &boxType, &createdAt, &createdBy); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

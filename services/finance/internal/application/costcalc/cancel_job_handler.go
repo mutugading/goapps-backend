@@ -8,7 +8,7 @@ import (
 	costcalcdom "github.com/mutugading/goapps-backend/services/finance/internal/domain/costcalc"
 )
 
-// CancelJobCommand carries inputs for cancelling a running job.
+// CancelJobCommand carries inputs for canceling a running job.
 type CancelJobCommand struct {
 	JobID  int64
 	Actor  string

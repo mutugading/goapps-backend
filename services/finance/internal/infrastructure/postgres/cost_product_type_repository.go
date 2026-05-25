@@ -95,9 +95,9 @@ func (r *CostProductTypeRepository) List(ctx context.Context, f costproducttype.
 		idx++
 	}
 	switch f.ActiveFilter {
-	case "active":
+	case filterActive:
 		where += ` AND cpt_is_active = TRUE`
-	case "inactive":
+	case filterInactive:
 		where += ` AND cpt_is_active = FALSE`
 	}
 
@@ -110,12 +110,12 @@ func (r *CostProductTypeRepository) List(ctx context.Context, f costproducttype.
 	switch f.SortBy {
 	case "type_name":
 		col = `cpt_type_name`
-	case "created_at":
+	case sortKeyCreatedAt:
 		col = `cpt_created_at`
 	}
-	dir := "ASC"
+	dir := sortASC
 	if strings.EqualFold(f.SortOrder, "desc") {
-		dir = "DESC"
+		dir = sortDESC
 	}
 	page := max(f.Page, 1)
 	pageSize := f.PageSize
@@ -134,7 +134,11 @@ func (r *CostProductTypeRepository) List(ctx context.Context, f costproducttype.
 	if err != nil {
 		return nil, 0, fmt.Errorf("list cost_product_type: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 
 	items := []*costproducttype.CostProductType{}
 	for rows.Next() {
@@ -156,10 +160,10 @@ func (r *CostProductTypeRepository) List(ctx context.Context, f costproducttype.
 
 func (r *CostProductTypeRepository) scanRow(row *sql.Row) (*costproducttype.CostProductType, error) {
 	var (
-		id                       int32
-		code, name               string
-		isActive                 bool
-		createdAt, updatedAt     time.Time
+		id                   int32
+		code, name           string
+		isActive             bool
+		createdAt, updatedAt time.Time
 	)
 	if err := row.Scan(&id, &code, &name, &isActive, &createdAt, &updatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -172,10 +176,10 @@ func (r *CostProductTypeRepository) scanRow(row *sql.Row) (*costproducttype.Cost
 
 func (r *CostProductTypeRepository) scanRows(rows *sql.Rows) (*costproducttype.CostProductType, error) {
 	var (
-		id                       int32
-		code, name               string
-		isActive                 bool
-		createdAt, updatedAt     time.Time
+		id                   int32
+		code, name           string
+		isActive             bool
+		createdAt, updatedAt time.Time
 	)
 	if err := rows.Scan(&id, &code, &name, &isActive, &createdAt, &updatedAt); err != nil {
 		return nil, fmt.Errorf("scan cost_product_type row: %w", err)

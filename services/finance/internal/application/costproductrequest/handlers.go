@@ -181,9 +181,8 @@ type AuditEntry struct {
 // Optionally emits a CAL_ audit row after a successful save. Audit failures are
 // LOGGED (caller decides) but never block the business operation.
 type TransitionHandler struct {
-	repo     domain.Repository
-	auditFor func(req *domain.Request, prevStatus, op, actor string) AuditEntry // override hook for tests
-	emitter  AuditEmitter
+	repo    domain.Repository
+	emitter AuditEmitter
 }
 
 // NewTransitionHandler constructs a TransitionHandler. Pass emitter=nil to skip auditing.
@@ -233,7 +232,9 @@ func (h *TransitionHandler) emitAudit(ctx context.Context, req *domain.Request, 
 	}
 	// Best-effort: ignore the emit error here; the repo logs it. Business
 	// operation already succeeded.
-	_ = h.emitter.Emit(ctx, entry)
+	if e := h.emitter.Emit(ctx, entry); e != nil {
+		_ = e
+	}
 }
 
 func marshalStatusSnapshot(status string) string {

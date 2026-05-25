@@ -76,7 +76,11 @@ func (r *CostNotificationRepository) List(ctx context.Context, f costnotificatio
 	if err != nil {
 		return nil, 0, fmt.Errorf("list cost_notification: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 	out := []*costnotification.Notification{}
 	for rows.Next() {
 		n, sErr := scanCnRows(rows)
@@ -132,7 +136,7 @@ func (r *CostNotificationRepository) MarkAllRead(ctx context.Context, recipientU
 	if err != nil {
 		return 0, fmt.Errorf("rows affected: %w", err)
 	}
-	return int32(n), nil
+	return int32(n), nil //nolint:gosec // RowsAffected for one user's unread notifications, far below MaxInt32
 }
 
 // =============================================================================

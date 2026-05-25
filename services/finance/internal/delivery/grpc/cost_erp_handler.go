@@ -161,7 +161,7 @@ func paginationFromProto(p *commonv1.PaginationRequest) (int32, int32) {
 func paginationResponse(page, pageSize int32, total int64) *commonv1.PaginationResponse {
 	totalPages := int32(0)
 	if pageSize > 0 {
-		totalPages = int32((total + int64(pageSize) - 1) / int64(pageSize))
+		totalPages = safeIntToInt32(int((total + int64(pageSize) - 1) / int64(pageSize)))
 	}
 	return &commonv1.PaginationResponse{
 		CurrentPage: page, PageSize: pageSize,

@@ -95,11 +95,11 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*domain.
 
 // LinkErpCommand input.
 type LinkErpCommand struct {
-	ProductSysID   int64
-	ErpItemCode    string
-	ErpGradeCode1  string
-	ErpGradeCode2  string
-	ActorUserID    string
+	ProductSysID  int64
+	ErpItemCode   string
+	ErpGradeCode1 string
+	ErpGradeCode2 string
+	ActorUserID   string
 }
 
 // LinkErpHandler sets/refreshes ERP linkage.

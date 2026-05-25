@@ -131,10 +131,10 @@ func (r *UOMRepository) List(ctx context.Context, filter uom.ListFilter) ([]*uom
 
 	// Build order clause with sort column mapping
 	sortColumnMap := map[string]string{
-		"code":       "u.uom_code",
-		"name":       "u.uom_name",
-		"category":   "c.category_code",
-		"created_at": "u.created_at",
+		"code":           "u.uom_code",
+		"name":           "u.uom_name",
+		"category":       "c.category_code",
+		sortKeyCreatedAt: "u.created_at",
 	}
 	orderColumn := "u.uom_code"
 	if mapped, ok := sortColumnMap[filter.SortBy]; ok {

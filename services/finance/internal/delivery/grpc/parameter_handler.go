@@ -111,7 +111,7 @@ func (h *ParameterHandler) GetParameter(ctx context.Context, req *financev1.GetP
 }
 
 // UpdateParameter updates an existing Parameter.
-func (h *ParameterHandler) UpdateParameter(ctx context.Context, req *financev1.UpdateParameterRequest) (*financev1.UpdateParameterResponse, error) {
+func (h *ParameterHandler) UpdateParameter(ctx context.Context, req *financev1.UpdateParameterRequest) (*financev1.UpdateParameterResponse, error) { //nolint:gocognit,gocyclo // optional-field fan-out mapper
 	if baseResp := h.validationHelper.ValidateRequest(req); baseResp != nil {
 		RecordParameterOperation("update", false)
 		return &financev1.UpdateParameterResponse{Base: baseResp}, nil
@@ -426,6 +426,9 @@ func stringToProtoDataType(dt string) financev1.DataType {
 	}
 }
 
+// paramCategoryCalculated is the string form of the CALCULATED param category.
+const paramCategoryCalculated = "CALCULATED"
+
 func protoParamCategoryToString(cat financev1.ParamCategory) string {
 	switch cat {
 	case financev1.ParamCategory_PARAM_CATEGORY_INPUT:
@@ -433,7 +436,7 @@ func protoParamCategoryToString(cat financev1.ParamCategory) string {
 	case financev1.ParamCategory_PARAM_CATEGORY_RATE:
 		return "RATE"
 	case financev1.ParamCategory_PARAM_CATEGORY_CALCULATED:
-		return "CALCULATED"
+		return paramCategoryCalculated
 	default:
 		return ""
 	}
@@ -445,7 +448,7 @@ func stringToProtoParamCategory(cat string) financev1.ParamCategory {
 		return financev1.ParamCategory_PARAM_CATEGORY_INPUT
 	case "RATE":
 		return financev1.ParamCategory_PARAM_CATEGORY_RATE
-	case "CALCULATED":
+	case paramCategoryCalculated:
 		return financev1.ParamCategory_PARAM_CATEGORY_CALCULATED
 	default:
 		return financev1.ParamCategory_PARAM_CATEGORY_UNSPECIFIED

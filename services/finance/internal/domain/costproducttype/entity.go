@@ -78,10 +78,20 @@ func (c *CostProductType) Update(typeName string, isActive bool) error {
 // SetID assigns the DB-generated typeID (called by the repo after insert).
 func (c *CostProductType) SetID(id int32) { c.typeID = id }
 
-// Read-only accessors.
-func (c *CostProductType) TypeID() int32       { return c.typeID }
-func (c *CostProductType) TypeCode() string    { return c.typeCode }
-func (c *CostProductType) TypeName() string    { return c.typeName }
-func (c *CostProductType) IsActive() bool      { return c.isActive }
+// TypeID returns the type ID.
+func (c *CostProductType) TypeID() int32 { return c.typeID }
+
+// TypeCode returns the type code.
+func (c *CostProductType) TypeCode() string { return c.typeCode }
+
+// TypeName returns the type name.
+func (c *CostProductType) TypeName() string { return c.typeName }
+
+// IsActive returns the is active.
+func (c *CostProductType) IsActive() bool { return c.isActive }
+
+// CreatedAt returns the created at.
 func (c *CostProductType) CreatedAt() time.Time { return c.createdAt }
+
+// UpdatedAt returns the updated at.
 func (c *CostProductType) UpdatedAt() time.Time { return c.updatedAt }

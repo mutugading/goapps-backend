@@ -117,7 +117,7 @@ func (h *CostProductTypeHandler) ListCostProductTypes(ctx context.Context, req *
 	}
 	totalPages := int32(0)
 	if pageSize > 0 {
-		totalPages = int32((res.Total + int64(pageSize) - 1) / int64(pageSize))
+		totalPages = safeIntToInt32(int((res.Total + int64(pageSize) - 1) / int64(pageSize)))
 	}
 	return &financev1.ListCostProductTypesResponse{
 		Base: successResponse("OK"),

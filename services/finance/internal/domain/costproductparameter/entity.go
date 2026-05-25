@@ -23,40 +23,40 @@ const (
 
 // Sentinel errors.
 var (
-	ErrNotFound          = errors.New("product parameter value not found")
-	ErrInvalidValueShape = errors.New("exactly one value column must be populated")
-	ErrInvalidDataType   = errors.New("invalid data_type for parameter")
-	ErrProductNotFound   = errors.New("product not found")
-	ErrParamNotFound     = errors.New("parameter not found")
+	ErrNotFound           = errors.New("product parameter value not found")
+	ErrInvalidValueShape  = errors.New("exactly one value column must be populated")
+	ErrInvalidDataType    = errors.New("invalid data_type for parameter")
+	ErrProductNotFound    = errors.New("product not found")
+	ErrParamNotFound      = errors.New("parameter not found")
 	ErrPeriodDependent    = errors.New("parameter is period-dependent and cannot be stored in CPP")
 	ErrParamNotApplicable = errors.New("parameter not in product's applicable list — add it first")
 )
 
 // Applicability is the per-product CAPP row metadata (no value).
 type Applicability struct {
-	CappID        int64
-	ProductSysID  int64
-	ParamID       uuid.UUID
-	IsRequired    bool
-	DisplayOrder  *int32 // nil = inherit from mst_parameter.display_order
-	CreatedBy     string
-	CreatedAt     time.Time
+	CappID       int64
+	ProductSysID int64
+	ParamID      uuid.UUID
+	IsRequired   bool
+	DisplayOrder *int32 // nil = inherit from mst_parameter.display_order
+	CreatedBy    string
+	CreatedAt    time.Time
 }
 
 // Value is the CPP_ row aggregate.
 type Value struct {
-	ValueID       int64
-	ProductSysID  int64
-	ParamID       uuid.UUID
-	ValueNumeric  *string // decimal as string for precision
-	ValueText     *string
-	ValueFlag     *bool
-	FilledAt      time.Time
-	FilledBy      string
-	CreatedAt     time.Time
-	CreatedBy     string
-	UpdatedAt     *time.Time
-	UpdatedBy     *string
+	ValueID      int64
+	ProductSysID int64
+	ParamID      uuid.UUID
+	ValueNumeric *string // decimal as string for precision
+	ValueText    *string
+	ValueFlag    *bool
+	FilledAt     time.Time
+	FilledBy     string
+	CreatedAt    time.Time
+	CreatedBy    string
+	UpdatedAt    *time.Time
+	UpdatedBy    *string
 }
 
 // ParamMeta is the joined mst_parameter snapshot needed by the form / resolver.

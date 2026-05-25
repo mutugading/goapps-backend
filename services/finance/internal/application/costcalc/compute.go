@@ -145,7 +145,7 @@ func ComputeProduct(ctx context.Context, in ComputeInput) (*ComputeOutput, error
 	for _, f := range in.Formulas {
 		formulaResult, evalErr := evalOneFormula(ctx, in.EvalCache, f, scope)
 		if evalErr != nil {
-			wrapped := fmt.Errorf("%w: %s for product %d: %v",
+			wrapped := fmt.Errorf("%w: %s for product %d: %w",
 				costcalcdom.ErrFormulaEval, f.FormulaCode, in.ProductSysID, evalErr)
 			recordProductSpanError(span, wrapped)
 			return nil, wrapped
@@ -383,8 +383,10 @@ func buildCostByLevel(byLevel map[int32]float64, totalConv float64) []LevelContr
 
 func inputHash(in ComputeInput, totalRM float64) string {
 	h := sha256.New()
-	fmt.Fprintf(h, "p:%d|period:%s|type:%s|rm:%.6f|cappN:%d|fN:%d",
-		in.ProductSysID, in.Period, in.CalcType, totalRM, len(in.CAPP), len(in.Formulas))
+	if _, e := fmt.Fprintf(h, "p:%d|period:%s|type:%s|rm:%.6f|cappN:%d|fN:%d",
+		in.ProductSysID, in.Period, in.CalcType, totalRM, len(in.CAPP), len(in.Formulas)); e != nil {
+		_ = e
+	}
 	// Sort CAPP keys for deterministic hash.
 	cappKeys := make([]string, 0, len(in.CAPP))
 	for k := range in.CAPP {
@@ -392,10 +394,14 @@ func inputHash(in ComputeInput, totalRM float64) string {
 	}
 	slices.Sort(cappKeys)
 	for _, k := range cappKeys {
-		fmt.Fprintf(h, "|capp:%s=%.6f", k, in.CAPP[k])
+		if _, e := fmt.Fprintf(h, "|capp:%s=%.6f", k, in.CAPP[k]); e != nil {
+			_ = e
+		}
 	}
 	for _, f := range in.Formulas {
-		fmt.Fprintf(h, "|f:%s=%s", f.FormulaCode, f.Expression)
+		if _, e := fmt.Fprintf(h, "|f:%s=%s", f.FormulaCode, f.Expression); e != nil {
+			_ = e
+		}
 	}
 	return hex.EncodeToString(h.Sum(nil))[:32]
 }

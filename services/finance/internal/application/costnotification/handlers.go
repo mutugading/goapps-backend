@@ -56,7 +56,7 @@ func (h *UnreadCountHandler) Handle(ctx context.Context, recipientUserID string)
 
 // MarkReadCommand input.
 type MarkReadCommand struct {
-	NotificationID int64
+	NotificationID  int64
 	RecipientUserID string
 }
 

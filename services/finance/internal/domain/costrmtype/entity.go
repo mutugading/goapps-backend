@@ -96,12 +96,26 @@ func (c *CostRmType) Update(typeName string, isActive bool) error {
 // SetID assigns the DB-generated typeID.
 func (c *CostRmType) SetID(id int32) { c.typeID = id }
 
-// Read-only accessors.
-func (c *CostRmType) TypeID() int32             { return c.typeID }
-func (c *CostRmType) TypeCode() string          { return c.typeCode }
-func (c *CostRmType) TypeName() string          { return c.typeName }
-func (c *CostRmType) ReferenceTarget() string   { return c.referenceTarget }
-func (c *CostRmType) AllowSubSequence() bool    { return c.allowSubSequence }
-func (c *CostRmType) IsActive() bool            { return c.isActive }
-func (c *CostRmType) CreatedAt() time.Time      { return c.createdAt }
-func (c *CostRmType) UpdatedAt() time.Time      { return c.updatedAt }
+// TypeID returns the type ID.
+func (c *CostRmType) TypeID() int32 { return c.typeID }
+
+// TypeCode returns the type code.
+func (c *CostRmType) TypeCode() string { return c.typeCode }
+
+// TypeName returns the type name.
+func (c *CostRmType) TypeName() string { return c.typeName }
+
+// ReferenceTarget returns the reference target.
+func (c *CostRmType) ReferenceTarget() string { return c.referenceTarget }
+
+// AllowSubSequence returns the allow sub sequence.
+func (c *CostRmType) AllowSubSequence() bool { return c.allowSubSequence }
+
+// IsActive returns the is active.
+func (c *CostRmType) IsActive() bool { return c.isActive }
+
+// CreatedAt returns the created at.
+func (c *CostRmType) CreatedAt() time.Time { return c.createdAt }
+
+// UpdatedAt returns the updated at.
+func (c *CostRmType) UpdatedAt() time.Time { return c.updatedAt }

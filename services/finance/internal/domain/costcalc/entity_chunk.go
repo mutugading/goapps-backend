@@ -1,3 +1,5 @@
+// Package costcalc holds the cost-calculation domain: jobs, products,
+// results, chunks, and formula evaluation contracts.
 package costcalc
 
 import "time"

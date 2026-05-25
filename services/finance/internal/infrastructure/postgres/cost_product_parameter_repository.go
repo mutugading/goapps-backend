@@ -66,7 +66,11 @@ func (r *CostProductParameterRepository) ListForProduct(ctx context.Context, pro
 	if err != nil {
 		return nil, fmt.Errorf("list product params: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 
 	var entries []cpp.RequiredEntry
 	for rows.Next() {
@@ -84,17 +88,17 @@ func (r *CostProductParameterRepository) ListForProduct(ctx context.Context, pro
 
 func scanRequiredEntry(rows *sql.Rows, productSysID int64) (cpp.RequiredEntry, error) {
 	var (
-		meta                  cpp.ParamMeta
-		valueID               sql.NullInt64
-		valueNumeric          sql.NullString
-		valueText             sql.NullString
-		valueFlag             sql.NullBool
-		filledAt              sql.NullTime
-		filledBy              sql.NullString
-		createdAt             sql.NullTime
-		createdBy             sql.NullString
-		updatedAt             sql.NullTime
-		updatedBy             sql.NullString
+		meta         cpp.ParamMeta
+		valueID      sql.NullInt64
+		valueNumeric sql.NullString
+		valueText    sql.NullString
+		valueFlag    sql.NullBool
+		filledAt     sql.NullTime
+		filledBy     sql.NullString
+		createdAt    sql.NullTime
+		createdBy    sql.NullString
+		updatedAt    sql.NullTime
+		updatedBy    sql.NullString
 	)
 	if err := rows.Scan(
 		&meta.ParamID, &meta.ParamCode, &meta.ParamName, &meta.ParamShortName,
@@ -294,7 +298,11 @@ ORDER BY COALESCE(p.display_group, ''), COALESCE(a.capp_display_order, p.display
 	if err != nil {
 		return nil, fmt.Errorf("missing required params: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 
 	var out []cpp.ParamMeta
 	for rows.Next() {
@@ -439,7 +447,11 @@ ORDER BY COALESCE(p.display_group, ''), p.display_order, p.param_code
 	if err != nil {
 		return nil, fmt.Errorf("list available: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 
 	var out []cpp.ParamMeta
 	for rows.Next() {

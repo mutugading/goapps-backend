@@ -40,9 +40,9 @@ func (r *CostErpRepository) ListItems(ctx context.Context, f costerp.ItemFilter)
 		idx++
 	}
 	switch f.ActiveFilter {
-	case "active":
+	case filterActive:
 		where += ` AND cei_is_active = TRUE`
-	case "inactive":
+	case filterInactive:
 		where += ` AND cei_is_active = FALSE`
 	}
 
@@ -68,7 +68,11 @@ func (r *CostErpRepository) ListItems(ctx context.Context, f costerp.ItemFilter)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list cost_erp_item: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 
 	items := []*costerp.Item{}
 	for rows.Next() {
@@ -116,7 +120,7 @@ func (r *CostErpRepository) GetItem(ctx context.Context, itemID int64) (*costerp
 // =============================================================================
 
 // ListGrades returns a paginated list of cost_erp_grade rows.
-func (r *CostErpRepository) ListGrades(ctx context.Context, f costerp.LookupFilter) ([]*costerp.Grade, int64, error) {
+func (r *CostErpRepository) ListGrades(ctx context.Context, f costerp.LookupFilter) ([]*costerp.Grade, int64, error) { //nolint:dupl // parallel to ListShades but distinct entity/table
 	where := "FROM cost_erp_grade WHERE 1=1"
 	args := []any{}
 	idx := 1
@@ -126,9 +130,9 @@ func (r *CostErpRepository) ListGrades(ctx context.Context, f costerp.LookupFilt
 		idx++
 	}
 	switch f.ActiveFilter {
-	case "active":
+	case filterActive:
 		where += ` AND ceg_is_active = TRUE`
-	case "inactive":
+	case filterInactive:
 		where += ` AND ceg_is_active = FALSE`
 	}
 
@@ -154,7 +158,11 @@ func (r *CostErpRepository) ListGrades(ctx context.Context, f costerp.LookupFilt
 	if err != nil {
 		return nil, 0, fmt.Errorf("list cost_erp_grade: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 
 	items := []*costerp.Grade{}
 	for rows.Next() {
@@ -179,7 +187,7 @@ func (r *CostErpRepository) ListGrades(ctx context.Context, f costerp.LookupFilt
 // =============================================================================
 
 // ListShades returns a paginated list of cost_erp_shade rows.
-func (r *CostErpRepository) ListShades(ctx context.Context, f costerp.LookupFilter) ([]*costerp.Shade, int64, error) {
+func (r *CostErpRepository) ListShades(ctx context.Context, f costerp.LookupFilter) ([]*costerp.Shade, int64, error) { //nolint:dupl // parallel to ListGrades but distinct entity/table
 	where := "FROM cost_erp_shade WHERE 1=1"
 	args := []any{}
 	idx := 1
@@ -189,9 +197,9 @@ func (r *CostErpRepository) ListShades(ctx context.Context, f costerp.LookupFilt
 		idx++
 	}
 	switch f.ActiveFilter {
-	case "active":
+	case filterActive:
 		where += ` AND ces_is_active = TRUE`
-	case "inactive":
+	case filterInactive:
 		where += ` AND ces_is_active = FALSE`
 	}
 
@@ -217,7 +225,11 @@ func (r *CostErpRepository) ListShades(ctx context.Context, f costerp.LookupFilt
 	if err != nil {
 		return nil, 0, fmt.Errorf("list cost_erp_shade: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 
 	items := []*costerp.Shade{}
 	for rows.Next() {

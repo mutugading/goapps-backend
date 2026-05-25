@@ -156,11 +156,11 @@ func (r *ParameterRepository) List(ctx context.Context, filter parameter.ListFil
 
 	// Build order clause with sort column mapping
 	sortColumnMap := map[string]string{
-		"code":       "p.param_code",
-		"name":       "p.param_name",
-		"category":   "p.param_category",
-		"data_type":  "p.data_type",
-		"created_at": "p.created_at",
+		"code":           "p.param_code",
+		"name":           "p.param_name",
+		"category":       "p.param_category",
+		"data_type":      "p.data_type",
+		sortKeyCreatedAt: "p.created_at",
 	}
 	orderColumn := "p.param_code"
 	if mapped, ok := sortColumnMap[filter.SortBy]; ok {

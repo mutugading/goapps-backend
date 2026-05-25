@@ -32,9 +32,9 @@ func (r *CostPaperTubeTypeRepository) List(ctx context.Context, f costpapertubet
 		idx++
 	}
 	switch f.ActiveFilter {
-	case "active":
+	case filterActive:
 		where += ` AND cptt_is_active=TRUE`
-	case "inactive":
+	case filterInactive:
 		where += ` AND cptt_is_active=FALSE`
 	}
 
@@ -57,7 +57,11 @@ func (r *CostPaperTubeTypeRepository) List(ctx context.Context, f costpapertubet
 	if err != nil {
 		return nil, 0, fmt.Errorf("list cost_paper_tube_type: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 	out := []*costpapertubetype.CostPaperTubeType{}
 	for rows.Next() {
 		t := &costpapertubetype.CostPaperTubeType{}

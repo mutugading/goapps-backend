@@ -42,9 +42,34 @@ type TokenBlacklistChecker interface {
 	IsBlacklisted(ctx context.Context, tokenID string) (bool, error)
 }
 
+// serviceSecretValid reports whether the internal x-service-secret header
+// matches the configured secret. An empty configured secret skips the check
+// (trusts cluster network isolation).
+func serviceSecretValid(ctx context.Context, svcSecret string) bool {
+	if svcSecret == "" {
+		return true
+	}
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return false
+	}
+	vals := md.Get("x-service-secret")
+	return len(vals) == 1 && vals[0] == svcSecret
+}
+
+// withServiceIdentity injects a synthetic SUPER_ADMIN identity for trusted
+// service-to-service calls so the permission interceptor's bypass applies.
+func withServiceIdentity(ctx context.Context) context.Context {
+	ctx = context.WithValue(ctx, AuthUserIDKey, "service:finance-cost-worker")
+	ctx = context.WithValue(ctx, AuthUsernameKey, "finance-cost-worker")
+	ctx = context.WithValue(ctx, AuthRolesKey, []string{"SUPER_ADMIN"})
+	ctx = context.WithValue(ctx, AuthPermissionsKey, []string{})
+	return ctx
+}
+
 // AuthInterceptor validates JWT tokens issued by IAM service.
 // blacklist is optional — if nil, blacklist checking is skipped (graceful degradation).
-func AuthInterceptor(cfg *config.JWTConfig, blacklist TokenBlacklistChecker) grpc.UnaryServerInterceptor {
+func AuthInterceptor(cfg *config.JWTConfig, blacklist TokenBlacklistChecker) grpc.UnaryServerInterceptor { //nolint:gocognit,gocyclo // sequential auth gates, cohesive
 	secret := []byte(cfg.AccessTokenSecret)
 	svcSecret := cfg.ServiceSecret
 
@@ -65,22 +90,10 @@ func AuthInterceptor(cfg *config.JWTConfig, blacklist TokenBlacklistChecker) grp
 		// When cfg.ServiceSecret is set, also require x-service-secret header
 		// match for defense-in-depth.
 		if info.FullMethod == "/finance.v1.CostCalcService/ProcessChunkInternal" {
-			if svcSecret != "" {
-				ok := false
-				if md, mdOK := metadata.FromIncomingContext(ctx); mdOK {
-					if vals := md.Get("x-service-secret"); len(vals) == 1 && vals[0] == svcSecret {
-						ok = true
-					}
-				}
-				if !ok {
-					return nil, status.Error(codes.Unauthenticated, "ProcessChunkInternal: missing or invalid x-service-secret")
-				}
+			if !serviceSecretValid(ctx, svcSecret) {
+				return nil, status.Error(codes.Unauthenticated, "ProcessChunkInternal: missing or invalid x-service-secret")
 			}
-			ctx = context.WithValue(ctx, AuthUserIDKey, "service:finance-cost-worker")
-			ctx = context.WithValue(ctx, AuthUsernameKey, "finance-cost-worker")
-			ctx = context.WithValue(ctx, AuthRolesKey, []string{"SUPER_ADMIN"})
-			ctx = context.WithValue(ctx, AuthPermissionsKey, []string{})
-			return handler(ctx, req)
+			return handler(withServiceIdentity(ctx), req)
 		}
 
 		// All finance endpoints require authentication.

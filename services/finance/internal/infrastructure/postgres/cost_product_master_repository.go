@@ -116,7 +116,7 @@ func (r *CostProductMasterRepository) Update(ctx context.Context, p *costproduct
 }
 
 // List returns a filtered paginated list.
-func (r *CostProductMasterRepository) List(ctx context.Context, f costproductmaster.Filter) ([]*costproductmaster.CostProductMaster, int64, error) {
+func (r *CostProductMasterRepository) List(ctx context.Context, f costproductmaster.Filter) ([]*costproductmaster.CostProductMaster, int64, error) { //nolint:gocognit,gocyclo // filter + sort + pagination builder
 	where := "FROM cost_product_master WHERE 1=1"
 	args := []any{}
 	idx := 1
@@ -136,9 +136,9 @@ func (r *CostProductMasterRepository) List(ctx context.Context, f costproductmas
 		idx++
 	}
 	switch f.ActiveFilter {
-	case "active":
+	case filterActive:
 		where += ` AND cpm_is_active=TRUE`
-	case "inactive":
+	case filterInactive:
 		where += ` AND cpm_is_active=FALSE`
 	}
 
@@ -151,14 +151,14 @@ func (r *CostProductMasterRepository) List(ctx context.Context, f costproductmas
 	switch f.SortBy {
 	case "product_name":
 		sortCol = `cpm_product_name`
-	case "created_at":
+	case sortKeyCreatedAt:
 		sortCol = `cpm_created_at`
 	case "updated_at":
 		sortCol = `cpm_updated_at`
 	}
-	dir := "ASC"
+	dir := sortASC
 	if strings.EqualFold(f.SortOrder, "desc") {
-		dir = "DESC"
+		dir = sortDESC
 	}
 	page := max(f.Page, 1)
 	pageSize := f.PageSize
@@ -175,7 +175,11 @@ func (r *CostProductMasterRepository) List(ctx context.Context, f costproductmas
 	if err != nil {
 		return nil, 0, fmt.Errorf("list cost_product_master: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 
 	items := []*costproductmaster.CostProductMaster{}
 	for rows.Next() {
@@ -196,21 +200,21 @@ func (r *CostProductMasterRepository) List(ctx context.Context, f costproductmas
 // =============================================================================
 
 type cpmRow struct {
-	sysID         int64
-	code          string
-	typeID        int32
-	name          string
-	shade, grade  sql.NullString
-	desc          sql.NullString
-	erpItem       sql.NullString
-	erpG1, erpG2  sql.NullString
-	erpAt         sql.NullTime
-	erpBy         sql.NullString
-	active        bool
-	createdAt     time.Time
-	createdBy     string
-	updatedAt     time.Time
-	updatedBy     string
+	sysID        int64
+	code         string
+	typeID       int32
+	name         string
+	shade, grade sql.NullString
+	desc         sql.NullString
+	erpItem      sql.NullString
+	erpG1, erpG2 sql.NullString
+	erpAt        sql.NullTime
+	erpBy        sql.NullString
+	active       bool
+	createdAt    time.Time
+	createdBy    string
+	updatedAt    time.Time
+	updatedBy    string
 }
 
 func (r *CostProductMasterRepository) scanRow(row *sql.Row) (*costproductmaster.CostProductMaster, error) {

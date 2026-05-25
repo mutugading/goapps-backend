@@ -674,15 +674,16 @@ func summaryToProto(s *costcalcdom.ResultSummary) *financev1.CostResult {
 func protoToResultStatusString(p financev1.CostResultStatus) string {
 	switch p {
 	case financev1.CostResultStatus_COST_RESULT_STATUS_CALCULATED:
-		return "CALCULATED"
+		return paramCategoryCalculated
 	case financev1.CostResultStatus_COST_RESULT_STATUS_VERIFIED:
 		return "VERIFIED"
 	case financev1.CostResultStatus_COST_RESULT_STATUS_APPROVED:
 		return "APPROVED"
 	case financev1.CostResultStatus_COST_RESULT_STATUS_SUPERSEDED:
 		return "SUPERSEDED"
+	default:
+		return ""
 	}
-	return ""
 }
 
 func breakdownToProto(view *costcalc.CostBreakdownView) *financev1.CostBreakdown {

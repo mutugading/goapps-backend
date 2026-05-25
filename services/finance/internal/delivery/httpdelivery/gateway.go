@@ -65,7 +65,7 @@ func WithCORS(origins []string, maxAge int) Option {
 }
 
 // Start starts the HTTP server.
-func (s *Server) Start(ctx context.Context) error {
+func (s *Server) Start(ctx context.Context) error { //nolint:gocognit,gocyclo // linear gateway/server startup
 	// Create gRPC-Gateway mux
 	gwMux := runtime.NewServeMux(
 		runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.JSONPb{

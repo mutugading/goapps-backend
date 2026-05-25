@@ -17,30 +17,30 @@ var (
 
 // Request is the aggregate root.
 type Request struct {
-	requestID                     int64
-	requestNo                     string // assigned by repo via generate_cost_request_no()
-	requestTypeID                 int32
-	title                         string
-	description                   string
-	customerName                  string
-	customerCode                  string
-	productClassification         string
-	verifiedClassification        string
-	classificationOverrideReason  string
-	targetVolume                  string
-	targetPriceRange              string
-	urgencyLevel                  string
-	neededByDate                  string // YYYY-MM-DD; empty = unset
-	status                        string
-	closedSubstatus               string
-	feasibilityDecision           string
-	feasibilityNote               string
-	feasibilityBy                 string
-	feasibilityAt                 *time.Time
-	rejectReason                  string
-	cancelReason                  string
-	assignedToUserID              string
-	requesterUserID               string
+	requestID                    int64
+	requestNo                    string // assigned by repo via generate_cost_request_no()
+	requestTypeID                int32
+	title                        string
+	description                  string
+	customerName                 string
+	customerCode                 string
+	productClassification        string
+	verifiedClassification       string
+	classificationOverrideReason string
+	targetVolume                 string
+	targetPriceRange             string
+	urgencyLevel                 string
+	neededByDate                 string // YYYY-MM-DD; empty = unset
+	status                       string
+	closedSubstatus              string
+	feasibilityDecision          string
+	feasibilityNote              string
+	feasibilityBy                string
+	feasibilityAt                *time.Time
+	rejectReason                 string
+	cancelReason                 string
+	assignedToUserID             string
+	requesterUserID              string
 	// When UseExistingCosting is invoked, points to the reused product master.
 	existingProductSysID int64
 	// LinkedRouteHeadID is the FK to the unified routing head currently attached
@@ -123,7 +123,7 @@ func New(in NewInput) (*Request, error) {
 	return r, nil
 }
 
-// Reconstruct rebuilds from persistence (no validation).
+// ReconstructInput rebuilds a Request from persistence (no validation).
 type ReconstructInput struct {
 	RequestID                    int64
 	RequestNo                    string
@@ -281,7 +281,7 @@ func (r *Request) Update(in UpdateInput) error {
 // State transitions (hard-coded per G3).
 // =============================================================================
 
-// Submit: DRAFT → SUBMITTED.
+// Submit transitions DRAFT → SUBMITTED.
 func (r *Request) Submit() error {
 	if !canTransition(r.status, StatusSubmitted) {
 		return ErrInvalidTransition
@@ -291,7 +291,7 @@ func (r *Request) Submit() error {
 	return nil
 }
 
-// StartReview: SUBMITTED → UNDER_REVIEW.
+// StartReview transitions SUBMITTED → UNDER_REVIEW.
 func (r *Request) StartReview() error {
 	if !canTransition(r.status, StatusUnderReview) {
 		return ErrInvalidTransition
@@ -320,7 +320,7 @@ func (r *Request) VerifyClassification(verified, reason string) error {
 	return nil
 }
 
-// DecideFeasibility: UNDER_REVIEW → ROUTING_DEFINED (FEASIBLE) or REJECTED (NOT_FEASIBLE).
+// DecideFeasibility transitions UNDER_REVIEW → ROUTING_DEFINED (FEASIBLE) or REJECTED (NOT_FEASIBLE).
 func (r *Request) DecideFeasibility(decision, note, actor string) error {
 	if r.status != StatusUnderReview {
 		return ErrInvalidTransition
@@ -357,7 +357,7 @@ func (r *Request) DecideFeasibility(decision, note, actor string) error {
 	return nil
 }
 
-// UseExistingCosting: UNDER_REVIEW → QUOTE_READY (verified must be existing).
+// UseExistingCosting transitions UNDER_REVIEW → QUOTE_READY (verified must be existing).
 // existingProductSysID is recorded so the QUOTE_READY state traces back to a
 // concrete cost_product_master.
 func (r *Request) UseExistingCosting(existingProductSysID int64) error {
@@ -456,7 +456,7 @@ func (r *Request) Reject(reason string) error {
 	return nil
 }
 
-// Revise: REJECTED → SUBMITTED (re-submit after fixing).
+// Revise transitions REJECTED → SUBMITTED (re-submit after fixing).
 func (r *Request) Revise() error {
 	if !canTransition(r.status, StatusSubmitted) {
 		return ErrInvalidTransition
@@ -526,30 +526,83 @@ func (r *Request) touch() { r.updatedAt = time.Now().UTC() }
 // Accessors (immutable view).
 // =============================================================================
 
-func (r *Request) RequestID() int64                     { return r.requestID }
-func (r *Request) RequestNo() string                    { return r.requestNo }
-func (r *Request) RequestTypeID() int32                 { return r.requestTypeID }
-func (r *Request) Title() string                        { return r.title }
-func (r *Request) Description() string                  { return r.description }
-func (r *Request) CustomerName() string                 { return r.customerName }
-func (r *Request) CustomerCode() string                 { return r.customerCode }
-func (r *Request) ProductClassification() string        { return r.productClassification }
-func (r *Request) VerifiedClassification() string       { return r.verifiedClassification }
+// RequestID returns the request id.
+func (r *Request) RequestID() int64 { return r.requestID }
+
+// RequestNo returns the request no.
+func (r *Request) RequestNo() string { return r.requestNo }
+
+// RequestTypeID returns the request type id.
+func (r *Request) RequestTypeID() int32 { return r.requestTypeID }
+
+// Title returns the title.
+func (r *Request) Title() string { return r.title }
+
+// Description returns the description.
+func (r *Request) Description() string { return r.description }
+
+// CustomerName returns the customer name.
+func (r *Request) CustomerName() string { return r.customerName }
+
+// CustomerCode returns the customer code.
+func (r *Request) CustomerCode() string { return r.customerCode }
+
+// ProductClassification returns the product classification.
+func (r *Request) ProductClassification() string { return r.productClassification }
+
+// VerifiedClassification returns the verified classification.
+func (r *Request) VerifiedClassification() string { return r.verifiedClassification }
+
+// ClassificationOverrideReason returns the classification override reason.
 func (r *Request) ClassificationOverrideReason() string { return r.classificationOverrideReason }
-func (r *Request) TargetVolume() string                 { return r.targetVolume }
-func (r *Request) TargetPriceRange() string             { return r.targetPriceRange }
-func (r *Request) UrgencyLevel() string                 { return r.urgencyLevel }
-func (r *Request) NeededByDate() string                 { return r.neededByDate }
-func (r *Request) Status() string                       { return r.status }
-func (r *Request) ClosedSubstatus() string              { return r.closedSubstatus }
-func (r *Request) FeasibilityDecision() string          { return r.feasibilityDecision }
-func (r *Request) FeasibilityNote() string              { return r.feasibilityNote }
-func (r *Request) FeasibilityBy() string                { return r.feasibilityBy }
-func (r *Request) FeasibilityAt() *time.Time            { return r.feasibilityAt }
-func (r *Request) RejectReason() string                 { return r.rejectReason }
-func (r *Request) CancelReason() string                 { return r.cancelReason }
-func (r *Request) AssignedToUserID() string             { return r.assignedToUserID }
-func (r *Request) RequesterUserID() string              { return r.requesterUserID }
-func (r *Request) CreatedAt() time.Time                 { return r.createdAt }
-func (r *Request) UpdatedAt() time.Time                 { return r.updatedAt }
-func (r *Request) Spec() *Spec                          { return r.spec }
+
+// TargetVolume returns the target volume.
+func (r *Request) TargetVolume() string { return r.targetVolume }
+
+// TargetPriceRange returns the target price range.
+func (r *Request) TargetPriceRange() string { return r.targetPriceRange }
+
+// UrgencyLevel returns the urgency level.
+func (r *Request) UrgencyLevel() string { return r.urgencyLevel }
+
+// NeededByDate returns the needed by date.
+func (r *Request) NeededByDate() string { return r.neededByDate }
+
+// Status returns the status.
+func (r *Request) Status() string { return r.status }
+
+// ClosedSubstatus returns the closed substatus.
+func (r *Request) ClosedSubstatus() string { return r.closedSubstatus }
+
+// FeasibilityDecision returns the feasibility decision.
+func (r *Request) FeasibilityDecision() string { return r.feasibilityDecision }
+
+// FeasibilityNote returns the feasibility note.
+func (r *Request) FeasibilityNote() string { return r.feasibilityNote }
+
+// FeasibilityBy returns the feasibility by.
+func (r *Request) FeasibilityBy() string { return r.feasibilityBy }
+
+// FeasibilityAt returns the feasibility at.
+func (r *Request) FeasibilityAt() *time.Time { return r.feasibilityAt }
+
+// RejectReason returns the reject reason.
+func (r *Request) RejectReason() string { return r.rejectReason }
+
+// CancelReason returns the cancel reason.
+func (r *Request) CancelReason() string { return r.cancelReason }
+
+// AssignedToUserID returns the assigned to user id.
+func (r *Request) AssignedToUserID() string { return r.assignedToUserID }
+
+// RequesterUserID returns the requester user id.
+func (r *Request) RequesterUserID() string { return r.requesterUserID }
+
+// CreatedAt returns the created at.
+func (r *Request) CreatedAt() time.Time { return r.createdAt }
+
+// UpdatedAt returns the updated at.
+func (r *Request) UpdatedAt() time.Time { return r.updatedAt }
+
+// Spec returns the spec.
+func (r *Request) Spec() *Spec { return r.spec }

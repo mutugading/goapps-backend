@@ -146,7 +146,9 @@ type ListByRequestQuery struct {
 type ListByRequestHandler struct{ repo domain.Repository }
 
 // NewListByRequestHandler constructs.
-func NewListByRequestHandler(r domain.Repository) *ListByRequestHandler { return &ListByRequestHandler{repo: r} }
+func NewListByRequestHandler(r domain.Repository) *ListByRequestHandler {
+	return &ListByRequestHandler{repo: r}
+}
 
 // Handle returns the comments.
 func (h *ListByRequestHandler) Handle(ctx context.Context, q ListByRequestQuery) ([]*domain.Comment, error) {
@@ -160,7 +162,9 @@ type ListEditHistoryQuery struct{ CommentID int64 }
 type ListEditHistoryHandler struct{ repo domain.Repository }
 
 // NewListEditHistoryHandler constructs.
-func NewListEditHistoryHandler(r domain.Repository) *ListEditHistoryHandler { return &ListEditHistoryHandler{repo: r} }
+func NewListEditHistoryHandler(r domain.Repository) *ListEditHistoryHandler {
+	return &ListEditHistoryHandler{repo: r}
+}
 
 // Handle returns the history.
 func (h *ListEditHistoryHandler) Handle(ctx context.Context, q ListEditHistoryQuery) ([]domain.EditHistoryEntry, error) {

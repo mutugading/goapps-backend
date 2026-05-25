@@ -197,7 +197,7 @@ func (r *RMCostRepository) List(ctx context.Context, filter rmcost.ListFilter) (
 		orderCol = "period"
 	}
 	orderDir := sortDESC
-	if filter.SortOrder == "asc" || filter.SortOrder == "ASC" {
+	if filter.SortOrder == "asc" || filter.SortOrder == sortASC {
 		orderDir = sortASC
 	}
 

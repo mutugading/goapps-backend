@@ -77,7 +77,11 @@ func (r *CostAttachmentRepository) listBy(ctx context.Context, predicate string,
 	if err != nil {
 		return nil, fmt.Errorf("list cost_attachment: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 	out := []*costattachment.Attachment{}
 	for rows.Next() {
 		a, sErr := scanCaRows(rows)

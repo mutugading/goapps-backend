@@ -102,7 +102,7 @@ func (h *AddItemsHandler) Handle(ctx context.Context, cmd AddItemsCommand) (*Add
 // processItem validates a single item, checks cross-group ownership, and creates
 // the detail. Returns (detail, nil, nil) on insert, (nil, skipped, nil) when the
 // item is skipped, and (nil, nil, err) on fatal errors.
-func (h *AddItemsHandler) processItem( //nolint:gocognit // sequential validation
+func (h *AddItemsHandler) processItem( //nolint:gocognit,gocyclo // sequential validation
 	ctx context.Context,
 	headID uuid.UUID,
 	createdBy string,

@@ -342,12 +342,12 @@ func seedFormulas(ctx context.Context, db *sql.DB, params []paramSpec, count int
 	}
 
 	type formulaRow struct {
-		id        uuid.UUID
-		resultID  uuid.UUID
-		inputIDs  []uuid.UUID
-		code      string
-		name      string
-		expr      string
+		id       uuid.UUID
+		resultID uuid.UUID
+		inputIDs []uuid.UUID
+		code     string
+		name     string
+		expr     string
 	}
 	rows := make([]formulaRow, count)
 

@@ -21,12 +21,12 @@ var ErrStorageRequired = errors.New("MinIO storage service is required for attac
 
 // UploadCommand input.
 type UploadCommand struct {
-	RequestID    int64
-	CommentID    int64
-	Filename     string
-	MimeType     string
-	FileContent  []byte
-	UploadedBy   string
+	RequestID   int64
+	CommentID   int64
+	Filename    string
+	MimeType    string
+	FileContent []byte
+	UploadedBy  string
 }
 
 // UploadHandler uploads the file to MinIO and persists the metadata.
@@ -72,11 +72,15 @@ func (h *UploadHandler) Handle(ctx context.Context, cmd UploadCommand) (*domain.
 	})
 	if err != nil {
 		// Best-effort cleanup if the metadata is invalid.
-		_ = h.storage.RemoveObject(ctx, key)
+		if e := h.storage.RemoveObject(ctx, key); e != nil {
+			_ = e
+		}
 		return nil, err
 	}
 	if err := h.repo.Create(ctx, a); err != nil {
-		_ = h.storage.RemoveObject(ctx, key)
+		if e := h.storage.RemoveObject(ctx, key); e != nil {
+			_ = e
+		}
 		return nil, err
 	}
 	return a, nil
@@ -150,10 +154,8 @@ func (h *DownloadURLHandler) Handle(ctx context.Context, attachmentID int64) (Do
 // previewDisposition returns "inline" for MIME types the browser previews
 // natively, otherwise "attachment" so the file downloads.
 func previewDisposition(mime string) string {
-	switch {
-	case mime == "application/pdf",
-		mime == "text/plain",
-		mime == "text/csv":
+	switch mime {
+	case "application/pdf", "text/plain", "text/csv":
 		return "inline"
 	default:
 		if len(mime) >= 6 && mime[:6] == "image/" {

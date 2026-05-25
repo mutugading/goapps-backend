@@ -1,7 +1,7 @@
 // Package costroute holds the persisted routing DAG aggregate
 // (cost_route_head + cost_route_seq + cost_route_rm).
 //
-// Full domain + behaviour methods land in S7.16b. This file pins the
+// Full domain + behavior methods land in S7.16b. This file pins the
 // repository contract that PromoteHandler and the gRPC handler depend on.
 package costroute
 
@@ -27,19 +27,19 @@ const (
 
 // Head mirrors cost_route_head columns.
 type Head struct {
-	HeadID                 int64
-	ProductSysID           int64
-	ProductCode            string
-	ProductName            string
-	RoutingStatus          string
-	Version                int32
-	PromotedFromDraftID    int64
-	CylTypeID              int32
-	Notes                  string
-	CreatedAt              time.Time
-	CreatedBy              string
-	UpdatedAt              time.Time
-	UpdatedBy              string
+	HeadID              int64
+	ProductSysID        int64
+	ProductCode         string
+	ProductName         string
+	RoutingStatus       string
+	Version             int32
+	PromotedFromDraftID int64
+	CylTypeID           int32
+	Notes               string
+	CreatedAt           time.Time
+	CreatedBy           string
+	UpdatedAt           time.Time
+	UpdatedBy           string
 }
 
 // Seq mirrors cost_route_seq columns.
@@ -63,21 +63,21 @@ type Seq struct {
 // Rm mirrors cost_route_rm columns. Exactly one of the three ref columns is
 // set, matching RmType.
 type Rm struct {
-	RmID                int64
-	SeqID               int64
-	ParentProductSysID  int64
-	RmType              string
-	RmProductSysID      int64
-	RmItemCode          string
-	RmGroupCode         string
-	RouteRmName         string
-	RouteRmItemCode     string
-	RouteRmShadeCode    string
-	RouteRmShadeName    string
-	RouteRmRatio        float64
-	UomID               int32
-	SubType             string
-	Notes               string
+	RmID               int64
+	SeqID              int64
+	ParentProductSysID int64
+	RmType             string
+	RmProductSysID     int64
+	RmItemCode         string
+	RmGroupCode        string
+	RouteRmName        string
+	RouteRmItemCode    string
+	RouteRmShadeCode   string
+	RouteRmShadeName   string
+	RouteRmRatio       float64
+	UomID              int32
+	SubType            string
+	Notes              string
 }
 
 // Graph bundles head + seqs (with rms inline).

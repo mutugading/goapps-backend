@@ -2,17 +2,17 @@ package costproductrequest
 
 // Status values per PRD §6.2.
 const (
-	StatusDraft              = "DRAFT"
-	StatusSubmitted          = "SUBMITTED"
-	StatusUnderReview        = "UNDER_REVIEW"
-	StatusRoutingDefined     = "ROUTING_DEFINED"
-	StatusParameterPending   = "PARAMETER_PENDING"
-	StatusParameterComplete  = "PARAMETER_COMPLETE"
-	StatusCostingDone        = "COSTING_DONE"
-	StatusQuoted             = "QUOTED"
-	StatusQuoteReady         = "QUOTE_READY"
-	StatusClosed             = "CLOSED"
-	StatusRejected           = "REJECTED"
+	StatusDraft             = "DRAFT"
+	StatusSubmitted         = "SUBMITTED"
+	StatusUnderReview       = "UNDER_REVIEW"
+	StatusRoutingDefined    = "ROUTING_DEFINED"
+	StatusParameterPending  = "PARAMETER_PENDING"
+	StatusParameterComplete = "PARAMETER_COMPLETE"
+	StatusCostingDone       = "COSTING_DONE"
+	StatusQuoted            = "QUOTED"
+	StatusQuoteReady        = "QUOTE_READY"
+	StatusClosed            = "CLOSED"
+	StatusRejected          = "REJECTED"
 )
 
 // ClosedSubstatus values.
@@ -41,8 +41,8 @@ const (
 // specific predicate (e.g., DecideFeasibility allows only Under_Review → Routing_Defined or Rejected).
 var allowedTransitions = map[string]map[string]struct{}{
 	StatusDraft: {
-		StatusSubmitted: {},                  // Submit
-		StatusClosed:    {},                  // Cancel
+		StatusSubmitted: {}, // Submit
+		StatusClosed:    {}, // Cancel
 	},
 	StatusSubmitted: {
 		StatusUnderReview: {},

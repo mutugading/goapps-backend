@@ -309,4 +309,3 @@ func (s *CostCalcReposSuite) createJob(period string) *costcalc.Job {
 	require.NoError(s.T(), s.jobRepo.Create(s.ctx, job))
 	return job
 }
-

@@ -84,7 +84,7 @@ func New(in NewInput) (*Comment, error) {
 	return c, nil
 }
 
-// Reconstruct rebuilds an aggregate from persistence.
+// ReconstructInput rebuilds an aggregate from persistence.
 type ReconstructInput struct {
 	CommentID        int64
 	RequestID        int64
@@ -125,8 +125,8 @@ func (c *Comment) SetID(id int64) { c.commentID = id }
 // Behavior
 // =============================================================================
 
-// Edit replaces the body. Returns the prior values so the caller can snapshot them
-// to CCEH_ inside the same transaction.
+// EditSnapshot holds a comment's prior values so the caller can write a CCEH_
+// edit-history row inside the same transaction.
 type EditSnapshot struct {
 	PriorBodyRichtext  string
 	PriorBodyPlaintext string
@@ -221,17 +221,40 @@ func mergeUnique(a, b []string) []string {
 // Accessors
 // =============================================================================
 
-func (c *Comment) CommentID() int64        { return c.commentID }
-func (c *Comment) RequestID() int64        { return c.requestID }
+// CommentID returns the comment id.
+func (c *Comment) CommentID() int64 { return c.commentID }
+
+// RequestID returns the request id.
+func (c *Comment) RequestID() int64 { return c.requestID }
+
+// ParentCommentID returns the parent comment id.
 func (c *Comment) ParentCommentID() *int64 { return c.parentCommentID }
-func (c *Comment) AuthorUserID() string    { return c.authorUserID }
-func (c *Comment) BodyRichtext() string    { return c.bodyRichtext }
-func (c *Comment) BodyPlaintext() string   { return c.bodyPlaintext }
-func (c *Comment) IsEdited() bool          { return c.isEdited }
-func (c *Comment) IsHidden() bool          { return c.isHidden }
-func (c *Comment) HiddenReason() string    { return c.hiddenReason }
-func (c *Comment) CreatedAt() time.Time    { return c.createdAt }
-func (c *Comment) UpdatedAt() time.Time    { return c.updatedAt }
+
+// AuthorUserID returns the author user id.
+func (c *Comment) AuthorUserID() string { return c.authorUserID }
+
+// BodyRichtext returns the body richtext.
+func (c *Comment) BodyRichtext() string { return c.bodyRichtext }
+
+// BodyPlaintext returns the body plaintext.
+func (c *Comment) BodyPlaintext() string { return c.bodyPlaintext }
+
+// IsEdited returns the is edited.
+func (c *Comment) IsEdited() bool { return c.isEdited }
+
+// IsHidden returns the is hidden.
+func (c *Comment) IsHidden() bool { return c.isHidden }
+
+// HiddenReason returns the hidden reason.
+func (c *Comment) HiddenReason() string { return c.hiddenReason }
+
+// CreatedAt returns the created at.
+func (c *Comment) CreatedAt() time.Time { return c.createdAt }
+
+// UpdatedAt returns the updated at.
+func (c *Comment) UpdatedAt() time.Time { return c.updatedAt }
+
+// MentionedUserIDs returns the mentioned user i ds.
 func (c *Comment) MentionedUserIDs() []string {
 	return append([]string(nil), c.mentionedUserIDs...)
 }

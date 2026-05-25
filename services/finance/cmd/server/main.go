@@ -37,7 +37,7 @@ func main() {
 }
 
 // run contains the main application logic, separated for cleaner error handling.
-func run() error {
+func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	setupLogger()
 
 	// Load configuration

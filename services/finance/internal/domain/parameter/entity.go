@@ -32,11 +32,11 @@ type Parameter struct {
 	displayGroup         string
 
 	createdAt time.Time
-	createdBy     string
-	updatedAt     *time.Time
-	updatedBy     *string
-	deletedAt     *time.Time
-	deletedBy     *string
+	createdBy string
+	updatedAt *time.Time
+	updatedBy *string
+	deletedAt *time.Time
+	deletedBy *string
 }
 
 // CostingMetadata bundles the Phase B parameter-fill metadata so that NewParameter's

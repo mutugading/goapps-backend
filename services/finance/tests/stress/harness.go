@@ -22,18 +22,18 @@ import (
 
 // ScenarioMetrics is the canonical shape emitted by each scenario.
 type ScenarioMetrics struct {
-	Scenario      string  `json:"scenario"`
-	Timestamp     string  `json:"timestamp"`
-	ProductCount  int     `json:"product_count"`
-	ChunkCount    int     `json:"chunk_count"`
-	P50ChunkMS    float64 `json:"p50_chunk_ms"`
-	P95ChunkMS    float64 `json:"p95_chunk_ms"`
-	P99ChunkMS    float64 `json:"p99_chunk_ms"`
-	TotalMS       float64 `json:"total_ms"`
-	SuccessCount  int     `json:"success_count"`
-	BlockedCount  int     `json:"blocked_count"`
-	FailedCount   int     `json:"failed_count"`
-	Notes         string  `json:"notes,omitempty"`
+	Scenario     string  `json:"scenario"`
+	Timestamp    string  `json:"timestamp"`
+	ProductCount int     `json:"product_count"`
+	ChunkCount   int     `json:"chunk_count"`
+	P50ChunkMS   float64 `json:"p50_chunk_ms"`
+	P95ChunkMS   float64 `json:"p95_chunk_ms"`
+	P99ChunkMS   float64 `json:"p99_chunk_ms"`
+	TotalMS      float64 `json:"total_ms"`
+	SuccessCount int     `json:"success_count"`
+	BlockedCount int     `json:"blocked_count"`
+	FailedCount  int     `json:"failed_count"`
+	Notes        string  `json:"notes,omitempty"`
 }
 
 // Baseline mirrors a single entry inside baseline.json.

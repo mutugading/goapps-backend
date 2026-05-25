@@ -98,9 +98,9 @@ func (r *CostRmTypeRepository) List(ctx context.Context, f costrmtype.Filter) ([
 		idx++
 	}
 	switch f.ActiveFilter {
-	case "active":
+	case filterActive:
 		where += ` AND crmt_is_active=TRUE`
-	case "inactive":
+	case filterInactive:
 		where += ` AND crmt_is_active=FALSE`
 	}
 
@@ -127,7 +127,11 @@ func (r *CostRmTypeRepository) List(ctx context.Context, f costrmtype.Filter) ([
 	if err != nil {
 		return nil, 0, fmt.Errorf("list cost_rm_type: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 
 	items := []*costrmtype.CostRmType{}
 	for rows.Next() {
@@ -149,10 +153,10 @@ func (r *CostRmTypeRepository) List(ctx context.Context, f costrmtype.Filter) ([
 
 func (r *CostRmTypeRepository) scanRow(row *sql.Row) (*costrmtype.CostRmType, error) {
 	var (
-		id                                int32
-		code, name, target                string
-		allowSub, isActive                bool
-		createdAt, updatedAt              time.Time
+		id                   int32
+		code, name, target   string
+		allowSub, isActive   bool
+		createdAt, updatedAt time.Time
 	)
 	if err := row.Scan(&id, &code, &name, &target, &allowSub, &isActive, &createdAt, &updatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -165,10 +169,10 @@ func (r *CostRmTypeRepository) scanRow(row *sql.Row) (*costrmtype.CostRmType, er
 
 func (r *CostRmTypeRepository) scanRows(rows *sql.Rows) (*costrmtype.CostRmType, error) {
 	var (
-		id                                int32
-		code, name, target                string
-		allowSub, isActive                bool
-		createdAt, updatedAt              time.Time
+		id                   int32
+		code, name, target   string
+		allowSub, isActive   bool
+		createdAt, updatedAt time.Time
 	)
 	if err := rows.Scan(&id, &code, &name, &target, &allowSub, &isActive, &createdAt, &updatedAt); err != nil {
 		return nil, fmt.Errorf("scan cost_rm_type row: %w", err)

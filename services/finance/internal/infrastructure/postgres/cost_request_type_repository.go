@@ -32,9 +32,9 @@ func (r *CostRequestTypeRepository) List(ctx context.Context, f costrequesttype.
 		idx++
 	}
 	switch f.ActiveFilter {
-	case "active":
+	case filterActive:
 		where += ` AND crt_is_active=TRUE`
-	case "inactive":
+	case filterInactive:
 		where += ` AND crt_is_active=FALSE`
 	}
 
@@ -57,7 +57,11 @@ func (r *CostRequestTypeRepository) List(ctx context.Context, f costrequesttype.
 	if err != nil {
 		return nil, 0, fmt.Errorf("list cost_request_type: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 	out := []*costrequesttype.CostRequestType{}
 	for rows.Next() {
 		t, sErr := scanCrtRows(rows)

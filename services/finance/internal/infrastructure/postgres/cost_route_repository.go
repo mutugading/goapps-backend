@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgconn"
+
 	costroute "github.com/mutugading/goapps-backend/services/finance/internal/domain/costroute"
 )
 
@@ -211,7 +212,11 @@ func (r *CostRouteRepository) loadSeqs(ctx context.Context, headID int64) ([]*co
 	if err != nil {
 		return nil, fmt.Errorf("load route seqs: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 	out := []*costroute.Seq{}
 	for rows.Next() {
 		s := &costroute.Seq{}
@@ -244,7 +249,11 @@ func (r *CostRouteRepository) loadRms(ctx context.Context, headID int64) ([]*cos
 	if err != nil {
 		return nil, fmt.Errorf("load route rms: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 	out := []*costroute.Rm{}
 	for rows.Next() {
 		rm := &costroute.Rm{}
@@ -270,7 +279,7 @@ func (r *CostRouteRepository) loadRms(ctx context.Context, headID int64) ([]*cos
 // SaveGraph diffs incoming seqs/rms against persisted state. Caller MUST have
 // already passed Graph.ValidateLevels(); this method does not re-validate but
 // trusts the input.
-func (r *CostRouteRepository) SaveGraph(ctx context.Context, headID int64, in *costroute.Graph, actor string) (*costroute.Graph, error) {
+func (r *CostRouteRepository) SaveGraph(ctx context.Context, headID int64, in *costroute.Graph, actor string) (*costroute.Graph, error) { //nolint:gocognit,gocyclo // cohesive transactional DAG persistence
 	if in == nil {
 		return nil, fmt.Errorf("save route graph: nil graph")
 	}
@@ -304,7 +313,9 @@ func (r *CostRouteRepository) SaveGraph(ctx context.Context, headID int64, in *c
 	for rowsToDelete.Next() {
 		var id int64
 		if err := rowsToDelete.Scan(&id); err != nil {
-			rowsToDelete.Close()
+			if cerr := rowsToDelete.Close(); cerr != nil {
+				_ = cerr
+			}
 			return nil, fmt.Errorf("scan persisted seq id: %w", err)
 		}
 		if _, kept := keepSeq[id]; !kept {
@@ -380,7 +391,9 @@ func (r *CostRouteRepository) SaveGraph(ctx context.Context, headID int64, in *c
 		for rowsR.Next() {
 			var id int64
 			if err := rowsR.Scan(&id); err != nil {
-				rowsR.Close()
+				if cerr := rowsR.Close(); cerr != nil {
+					_ = cerr
+				}
 				return nil, fmt.Errorf("scan persisted rm id: %w", err)
 			}
 			if _, kept := keepRm[id]; !kept {
@@ -504,7 +517,7 @@ func (r *CostRouteRepository) DeleteHead(ctx context.Context, headID int64, acto
 }
 
 // ListHeads applies a paginated filter.
-func (r *CostRouteRepository) ListHeads(ctx context.Context, f costroute.Filter) ([]*costroute.Head, int64, error) {
+func (r *CostRouteRepository) ListHeads(ctx context.Context, f costroute.Filter) ([]*costroute.Head, int64, error) { //nolint:gocognit,gocyclo // filter + pagination builder
 	where := []string{"h.crh_deleted_at IS NULL"}
 	args := []any{}
 	idx := 1
@@ -545,7 +558,7 @@ func (r *CostRouteRepository) ListHeads(ctx context.Context, f costroute.Filter)
 		orderBy = "p.cpm_product_code"
 	case "status":
 		orderBy = "h.crh_routing_status"
-	case "created_at", "":
+	case sortKeyCreatedAt, "":
 		orderBy = "h.crh_created_at"
 	}
 	if f.SortOrder == "desc" || (f.SortOrder == "" && f.SortBy == "") {
@@ -572,7 +585,11 @@ func (r *CostRouteRepository) ListHeads(ctx context.Context, f costroute.Filter)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list routes: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 	out := []*costroute.Head{}
 	for rows.Next() {
 		h := &costroute.Head{}
@@ -596,7 +613,7 @@ func (r *CostRouteRepository) ListHeads(ctx context.Context, f costroute.Filter)
 // =============================================================================
 
 // DuplicateRoute performs a transactional deep-copy per DuplicateInput's toggles.
-func (r *CostRouteRepository) DuplicateRoute(ctx context.Context, in costroute.DuplicateInput) (costroute.DuplicateOutput, error) {
+func (r *CostRouteRepository) DuplicateRoute(ctx context.Context, in costroute.DuplicateInput) (costroute.DuplicateOutput, error) { //nolint:gocognit,gocyclo // cohesive transactional deep-copy
 	if !in.IncludeApplicability && in.IncludeValues {
 		return costroute.DuplicateOutput{}, fmt.Errorf("invalid input: values requested without applicability")
 	}
@@ -641,7 +658,7 @@ func (r *CostRouteRepository) DuplicateRoute(ctx context.Context, in costroute.D
 
 	// 3. BFS upstream products only if both flags on.
 	upstreamProductIDs := []int64{}
-	if in.IncludeUpstream && in.IncludeRouting {
+	if in.IncludeUpstream && in.IncludeRouting { //nolint:nestif // BFS upstream product walk
 		seen := map[int64]bool{sourceHead.productSysID: true}
 		queue := []int64{sourceHead.productSysID}
 		for len(queue) > 0 {
@@ -831,7 +848,7 @@ func (r *CostRouteRepository) duplicateProductTx(
 }
 
 // duplicateGraphTx copies seqs + rms, remapping product references via productMap.
-func (r *CostRouteRepository) duplicateGraphTx(
+func (r *CostRouteRepository) duplicateGraphTx( //nolint:gocognit,gocyclo // cohesive transactional graph copy
 	ctx context.Context, tx *sql.Tx,
 	sourceHeadID, newHeadID int64,
 	productMap map[int64]int64,
@@ -923,13 +940,17 @@ func (r *CostRouteRepository) duplicateGraphTx(
 		var rm srcRm
 		if err := rmRows.Scan(&rm.oldSeqID, &rm.parentProd, &rm.rmProd, &rm.itemC, &rm.groupC, &rm.rmType,
 			&rm.name, &rm.itemCode, &rm.shadeC, &rm.shadeN, &rm.ratio, &rm.uomID, &rm.subT, &rm.notes); err != nil {
-			rmRows.Close()
+			if cerr := rmRows.Close(); cerr != nil {
+				_ = cerr
+			}
 			return fmt.Errorf("scan rm: %w", err)
 		}
 		srcRms = append(srcRms, rm)
 	}
 	if err := rmRows.Err(); err != nil {
-		rmRows.Close()
+		if cerr := rmRows.Close(); cerr != nil {
+			_ = cerr
+		}
 		return fmt.Errorf("iterate source rms: %w", err)
 	}
 	if cErr := rmRows.Close(); cErr != nil {

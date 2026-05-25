@@ -75,7 +75,11 @@ func (l *productLoader) LoadProducts(ctx context.Context, ids []int64) (map[int6
 	if err != nil {
 		return nil, fmt.Errorf("load products: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 	for rows.Next() {
 		var (
 			sysID        int64
@@ -134,7 +138,7 @@ func (l *productLoader) LoadProducts(ctx context.Context, ids []int64) (map[int6
 // Same product_sys_id may appear in multiple FGs' routes; we pick any one
 // (DISTINCT ON arbitrary tiebreak) — engine only reads the seq matching this
 // product, so all sibling intermediates are present + correct in either graph.
-func (l *productLoader) LoadRoutesByProducts(ctx context.Context, productSysIDs []int64) (map[int64]*costroute.Graph, error) {
+func (l *productLoader) LoadRoutesByProducts(ctx context.Context, productSysIDs []int64) (map[int64]*costroute.Graph, error) { //nolint:gocognit,gocyclo // single-pass bulk row assembly
 	defer observeLoad(loaderKindRoutes, time.Now())
 	out := map[int64]*costroute.Graph{}
 	if len(productSysIDs) == 0 {
@@ -169,17 +173,23 @@ func (l *productLoader) LoadRoutesByProducts(ctx context.Context, productSysIDs 
 	for rRows.Next() {
 		var pid, hid int64
 		if scanErr := rRows.Scan(&pid, &hid); scanErr != nil {
-			_ = rRows.Close()
+			if e := rRows.Close(); e != nil {
+				_ = e
+			}
 			return nil, fmt.Errorf("scan product→head: %w", scanErr)
 		}
 		productToHead[pid] = hid
 		headIDSet[hid] = struct{}{}
 	}
 	if rErr := rRows.Err(); rErr != nil {
-		_ = rRows.Close()
+		if e := rRows.Close(); e != nil {
+			_ = e
+		}
 		return nil, fmt.Errorf("iterate product→head: %w", rErr)
 	}
-	_ = rRows.Close()
+	if e := rRows.Close(); e != nil {
+		_ = e
+	}
 	if len(headIDSet) == 0 {
 		return out, nil
 	}
@@ -235,7 +245,11 @@ func (l *productLoader) LoadRoutesByProducts(ctx context.Context, productSysIDs 
 }
 
 func scanRouteHeads(rows *sql.Rows, headsByID map[int64]*costroute.Head, productByHeadID map[int64]int64, headIDs *[]int64) error {
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 	for rows.Next() {
 		h := &costroute.Head{}
 		if err := rows.Scan(
@@ -270,7 +284,11 @@ func (l *productLoader) loadSeqsForHeads(ctx context.Context, headIDs []int64) (
 	if err != nil {
 		return nil, nil, fmt.Errorf("load route seqs: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 	seqByID := map[int64]*costroute.Seq{}
 	seqsByHeadID := map[int64][]*costroute.Seq{}
 	for rows.Next() {
@@ -308,7 +326,11 @@ func (l *productLoader) loadRmsForHeads(ctx context.Context, headIDs []int64, se
 	if err != nil {
 		return fmt.Errorf("load route rms: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 	for rows.Next() {
 		rm := &costroute.Rm{}
 		if err := rows.Scan(
@@ -358,7 +380,11 @@ func (l *productLoader) LoadCAPP(ctx context.Context, productSysIDs []int64) (ma
 	if err != nil {
 		return nil, fmt.Errorf("load CAPP values: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 	for rows.Next() {
 		var (
 			productSysID int64
@@ -427,7 +453,11 @@ func (l *productLoader) loadActiveFormulas(ctx context.Context) ([]Formula, erro
 	if err != nil {
 		return nil, fmt.Errorf("load formulas: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 	type row struct {
 		id          string
 		code        string
@@ -481,7 +511,11 @@ func (l *productLoader) loadFormulaInputs(ctx context.Context) (map[string][]str
 	if err != nil {
 		return nil, fmt.Errorf("load formula inputs: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 	out := map[string][]string{}
 	for rows.Next() {
 		var (
@@ -503,7 +537,7 @@ func (l *productLoader) loadFormulaInputs(ctx context.Context) (map[string][]str
 // topoSortFormulas returns formulas in evaluation order (deepest dependencies
 // first) using Kahn's algorithm. Returns calcdomain.ErrCycleDetected wrapped
 // with context if a cycle is found.
-func topoSortFormulas(fs []Formula) ([]Formula, error) {
+func topoSortFormulas(fs []Formula) ([]Formula, error) { //nolint:gocognit,gocyclo // Kahn topological sort, cohesive
 	if len(fs) == 0 {
 		return fs, nil
 	}
@@ -591,7 +625,11 @@ func (l *productLoader) LoadRMCosts(ctx context.Context, itemCodes []string, per
 	if err != nil {
 		return nil, fmt.Errorf("load RM costs: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 	for rows.Next() {
 		var (
 			rmCode   string
@@ -636,7 +674,11 @@ func (l *productLoader) LoadUpstreamCosts(ctx context.Context, productSysIDs []i
 	if err != nil {
 		return nil, fmt.Errorf("load upstream costs: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 	for rows.Next() {
 		var (
 			productSysID int64

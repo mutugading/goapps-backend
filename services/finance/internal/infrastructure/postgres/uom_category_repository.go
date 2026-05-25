@@ -136,9 +136,9 @@ func (r *UOMCategoryRepository) List(ctx context.Context, filter uomcategory.Lis
 
 	// Build order clause with sort column mapping
 	sortColumnMap := map[string]string{
-		"code":       "category_code",
-		"name":       "category_name",
-		"created_at": "created_at",
+		"code":           "category_code",
+		"name":           "category_name",
+		sortKeyCreatedAt: sortKeyCreatedAt,
 	}
 	orderColumn := "category_code"
 	if mapped, ok := sortColumnMap[filter.SortBy]; ok {

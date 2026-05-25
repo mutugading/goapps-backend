@@ -165,7 +165,9 @@ const (
 func (s *Service) computeOne(ctx context.Context, in ProcessChunkInput, pid int64, loaded *loadedBundle) productOutcome {
 	route, ok := loaded.routes[pid]
 	if !ok || route == nil || route.Head == nil {
-		_ = s.productRepo.MarkBlocked(ctx, in.JobID, pid, blockReasonMissingRoute, nil)
+		if e := s.productRepo.MarkBlocked(ctx, in.JobID, pid, blockReasonMissingRoute, nil); e != nil {
+			_ = e
+		}
 		metrics.ProductsTotal.WithLabelValues(productStatusBlocked, blockReasonMissingRoute).Inc()
 		return productOutcomeBlocked
 	}
@@ -186,7 +188,9 @@ func (s *Service) computeOne(ctx context.Context, in ProcessChunkInput, pid int6
 	}
 
 	if persistErr := s.persistResult(ctx, in, pid, route, out); persistErr != nil {
-		_ = s.productRepo.MarkFailed(ctx, in.JobID, pid, persistErr.Error(), logBytes(persistErr))
+		if e := s.productRepo.MarkFailed(ctx, in.JobID, pid, persistErr.Error(), logBytes(persistErr)); e != nil {
+			_ = e
+		}
 		return productOutcomeFailed
 	}
 	return productOutcomeSuccess
@@ -200,27 +204,37 @@ const auditEntityKindProduct = "COST_CALC_PRODUCT"
 func (s *Service) recordComputeError(ctx context.Context, in ProcessChunkInput, pid int64, err error) productOutcome {
 	switch {
 	case errors.Is(err, costcalcdom.ErrMissingCAPPValue):
-		_ = s.productRepo.MarkBlocked(ctx, in.JobID, pid, blockReasonMissingCAPP, logBytes(err))
+		if e := s.productRepo.MarkBlocked(ctx, in.JobID, pid, blockReasonMissingCAPP, logBytes(err)); e != nil {
+			_ = e
+		}
 		s.emitProductBlocked(ctx, in, pid, blockReasonMissingCAPP, err)
 		metrics.ProductsTotal.WithLabelValues(productStatusBlocked, blockReasonMissingCAPP).Inc()
 		return productOutcomeBlocked
 	case errors.Is(err, costcalcdom.ErrMissingRMCost):
-		_ = s.productRepo.MarkBlocked(ctx, in.JobID, pid, blockReasonMissingRMCost, logBytes(err))
+		if e := s.productRepo.MarkBlocked(ctx, in.JobID, pid, blockReasonMissingRMCost, logBytes(err)); e != nil {
+			_ = e
+		}
 		s.emitProductBlocked(ctx, in, pid, blockReasonMissingRMCost, err)
 		metrics.ProductsTotal.WithLabelValues(productStatusBlocked, blockReasonMissingRMCost).Inc()
 		return productOutcomeBlocked
 	case errors.Is(err, costcalcdom.ErrMissingUpstreamCost):
-		_ = s.productRepo.MarkBlocked(ctx, in.JobID, pid, blockReasonMissingUpstream, logBytes(err))
+		if e := s.productRepo.MarkBlocked(ctx, in.JobID, pid, blockReasonMissingUpstream, logBytes(err)); e != nil {
+			_ = e
+		}
 		s.emitProductBlocked(ctx, in, pid, blockReasonMissingUpstream, err)
 		metrics.ProductsTotal.WithLabelValues(productStatusBlocked, blockReasonMissingUpstream).Inc()
 		return productOutcomeBlocked
 	case errors.Is(err, costcalcdom.ErrFormulaEval):
-		_ = s.productRepo.MarkBlocked(ctx, in.JobID, pid, blockReasonFormulaError, logBytes(err))
+		if e := s.productRepo.MarkBlocked(ctx, in.JobID, pid, blockReasonFormulaError, logBytes(err)); e != nil {
+			_ = e
+		}
 		s.emitProductBlocked(ctx, in, pid, blockReasonFormulaError, err)
 		metrics.ProductsTotal.WithLabelValues(productStatusBlocked, blockReasonFormulaError).Inc()
 		return productOutcomeBlocked
 	default:
-		_ = s.productRepo.MarkFailed(ctx, in.JobID, pid, err.Error(), logBytes(err))
+		if e := s.productRepo.MarkFailed(ctx, in.JobID, pid, err.Error(), logBytes(err)); e != nil {
+			_ = e
+		}
 		return productOutcomeFailed
 	}
 }
@@ -275,7 +289,7 @@ func (s *Service) writeRecomputeAudit(ctx context.Context, in ProcessChunkInput,
 	if prevTotal != 0 {
 		variance = ((newTotal - prevTotal) / prevTotal) * 100.0
 	}
-	_ = s.auditRepo.Write(ctx, &costcalcdom.AuditHistoryEntry{
+	if e := s.auditRepo.Write(ctx, &costcalcdom.AuditHistoryEntry{
 		ProductSysID: pid,
 		Period:       in.Period,
 		CalcType:     in.CalcType,
@@ -287,7 +301,9 @@ func (s *Service) writeRecomputeAudit(ctx context.Context, in ProcessChunkInput,
 		NewJobID:     in.JobID,
 		ChangeReason: "CALC_RECALC",
 		ChangedBy:    in.Actor,
-	})
+	}); e != nil {
+		_ = e
+	}
 }
 
 // buildCalculationLog serializes a compact execution trace into JSON for
@@ -334,7 +350,7 @@ func jsonOrNil(v any) []byte {
 // collectRMCodes returns the deduped list of rm_code strings referenced by any
 // ITEM or GROUP RM across all routes. Used as input to LoadRMCosts (which
 // queries cst_rm_cost.rm_code IN (...)).
-func collectRMCodes(routes map[int64]*costroute.Graph) []string {
+func collectRMCodes(routes map[int64]*costroute.Graph) []string { //nolint:gocognit,gocyclo // single-pass DAG RM traversal
 	seen := map[string]struct{}{}
 	out := []string{}
 	for _, g := range routes {

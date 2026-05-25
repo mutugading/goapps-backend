@@ -82,7 +82,7 @@ func (h *CostProductParameterHandler) UpsertProductParamValuesBatch(ctx context.
 func (h *CostProductParameterHandler) DeleteProductParamValue(ctx context.Context, req *financev1.DeleteProductParamValueRequest) (*financev1.DeleteProductParamValueResponse, error) {
 	paramID, err := uuid.Parse(req.ParamId)
 	if err != nil {
-		return &financev1.DeleteProductParamValueResponse{Base: BadRequestResponse("invalid param_id")}, nil
+		return &financev1.DeleteProductParamValueResponse{Base: BadRequestResponse("invalid param_id")}, nil //nolint:nilerr // invalid input surfaced via BaseResponse, gRPC error intentionally nil
 	}
 	if err := h.app.Delete(ctx, req.ProductSysId, paramID); err != nil {
 		return &financev1.DeleteProductParamValueResponse{Base: cppDomainError(err)}, nil
@@ -141,7 +141,7 @@ func (h *CostProductParameterHandler) ListAvailableParams(ctx context.Context, r
 func (h *CostProductParameterHandler) AddApplicableParam(ctx context.Context, req *financev1.AddApplicableParamRequest) (*financev1.AddApplicableParamResponse, error) {
 	paramID, err := uuid.Parse(req.ParamId)
 	if err != nil {
-		return &financev1.AddApplicableParamResponse{Base: BadRequestResponse("invalid param_id")}, nil
+		return &financev1.AddApplicableParamResponse{Base: BadRequestResponse("invalid param_id")}, nil //nolint:nilerr // invalid input surfaced via BaseResponse, gRPC error intentionally nil
 	}
 	var displayOrder *int32
 	if req.DisplayOrder > 0 {
@@ -158,7 +158,7 @@ func (h *CostProductParameterHandler) AddApplicableParam(ctx context.Context, re
 func (h *CostProductParameterHandler) RemoveApplicableParam(ctx context.Context, req *financev1.RemoveApplicableParamRequest) (*financev1.RemoveApplicableParamResponse, error) {
 	paramID, err := uuid.Parse(req.ParamId)
 	if err != nil {
-		return &financev1.RemoveApplicableParamResponse{Base: BadRequestResponse("invalid param_id")}, nil
+		return &financev1.RemoveApplicableParamResponse{Base: BadRequestResponse("invalid param_id")}, nil //nolint:nilerr // invalid input surfaced via BaseResponse, gRPC error intentionally nil
 	}
 	if err := h.app.RemoveApplicable(ctx, req.ProductSysId, paramID); err != nil {
 		return &financev1.RemoveApplicableParamResponse{Base: cppDomainError(err)}, nil
@@ -170,7 +170,7 @@ func (h *CostProductParameterHandler) RemoveApplicableParam(ctx context.Context,
 func (h *CostProductParameterHandler) UpdateApplicableParam(ctx context.Context, req *financev1.UpdateApplicableParamRequest) (*financev1.UpdateApplicableParamResponse, error) {
 	paramID, err := uuid.Parse(req.ParamId)
 	if err != nil {
-		return &financev1.UpdateApplicableParamResponse{Base: BadRequestResponse("invalid param_id")}, nil
+		return &financev1.UpdateApplicableParamResponse{Base: BadRequestResponse("invalid param_id")}, nil //nolint:nilerr // invalid input surfaced via BaseResponse, gRPC error intentionally nil
 	}
 	if err := h.app.UpdateApplicable(ctx, req.ProductSysId, paramID, req.IsRequired, req.DisplayOrder, getUserFromContext(ctx)); err != nil {
 		return &financev1.UpdateApplicableParamResponse{Base: cppDomainError(err)}, nil
@@ -222,23 +222,29 @@ func requiredEntryToProto(e cpp.RequiredEntry) *financev1.RequiredParamEntry {
 		DisplayOrder:         e.Meta.DisplayOrder,
 		DisplayGroup:         e.Meta.DisplayGroup,
 	}
-	if e.Value != nil {
-		out.HasValue = true
-		if e.Value.ValueNumeric != nil {
-			out.ValueNumeric = *e.Value.ValueNumeric
-		}
-		if e.Value.ValueText != nil {
-			out.ValueText = *e.Value.ValueText
-		}
-		if e.Value.ValueFlag != nil {
-			out.ValueFlag = *e.Value.ValueFlag
-		}
-		if !e.Value.FilledAt.IsZero() {
-			out.FilledAt = e.Value.FilledAt.Format("2006-01-02T15:04:05Z07:00")
-		}
-		out.FilledBy = e.Value.FilledBy
-	}
+	applyEntryValue(out, e.Value)
 	return out
+}
+
+// applyEntryValue copies an optional filled value onto the proto entry.
+func applyEntryValue(out *financev1.RequiredParamEntry, v *cpp.Value) {
+	if v == nil {
+		return
+	}
+	out.HasValue = true
+	if v.ValueNumeric != nil {
+		out.ValueNumeric = *v.ValueNumeric
+	}
+	if v.ValueText != nil {
+		out.ValueText = *v.ValueText
+	}
+	if v.ValueFlag != nil {
+		out.ValueFlag = *v.ValueFlag
+	}
+	if !v.FilledAt.IsZero() {
+		out.FilledAt = v.FilledAt.Format("2006-01-02T15:04:05Z07:00")
+	}
+	out.FilledBy = v.FilledBy
 }
 
 func valueToProto(v *cpp.Value) *financev1.CostProductParameterValue {

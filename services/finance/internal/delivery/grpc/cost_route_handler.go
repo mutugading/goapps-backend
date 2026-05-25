@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	commonv1 "github.com/mutugading/goapps-backend/gen/common/v1"
 	financev1 "github.com/mutugading/goapps-backend/gen/finance/v1"
 	app "github.com/mutugading/goapps-backend/services/finance/internal/application/costroute"
 	cprDomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductrequest"
 	costroute "github.com/mutugading/goapps-backend/services/finance/internal/domain/costroute"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 func actorFromCtx(ctx context.Context) string {
@@ -24,14 +25,14 @@ func actorFromCtx(ctx context.Context) string {
 // CostRouteHandler implements financev1.CostRouteServiceServer.
 type CostRouteHandler struct {
 	financev1.UnimplementedCostRouteServiceServer
-	getByProduct *app.GetByProductHandler
-	getGraph     *app.GetGraphHandler
-	saveGraph    *app.SaveGraphHandler
-	markComplete *app.MarkCompleteHandler
-	lock         *app.LockHandler
-	unlock       *app.UnlockHandler
-	del          *app.DeleteHandler
-	list         *app.ListHandler
+	getByProduct       *app.GetByProductHandler
+	getGraph           *app.GetGraphHandler
+	saveGraph          *app.SaveGraphHandler
+	markComplete       *app.MarkCompleteHandler
+	lock               *app.LockHandler
+	unlock             *app.UnlockHandler
+	del                *app.DeleteHandler
+	list               *app.ListHandler
 	duplicate          *app.DuplicateHandler
 	listLinkedRequests *app.ListLinkedRequestsHandler
 	createFromProduct  *app.CreateFromProductHandler
@@ -145,7 +146,7 @@ func (h *CostRouteHandler) ListRoutes(ctx context.Context, req *financev1.ListRo
 	}
 	totalPages := int32(0)
 	if pageSize > 0 {
-		totalPages = int32((total + int64(pageSize) - 1) / int64(pageSize))
+		totalPages = safeIntToInt32(int((total + int64(pageSize) - 1) / int64(pageSize)))
 	}
 	return &financev1.ListRoutesResponse{
 		Base: successResponse("OK"),
@@ -402,6 +403,7 @@ func grpcCodeToStatusCode(c codes.Code) string {
 		return "503"
 	case codes.Unimplemented:
 		return "501"
+	default:
+		return "500"
 	}
-	return "500"
 }

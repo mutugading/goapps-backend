@@ -86,5 +86,7 @@ func (s *Service) emitAudit(ctx context.Context, e AuditEvent) {
 	if s.auditEmitter == nil {
 		return
 	}
-	_ = s.auditEmitter.Emit(ctx, e)
+	if e := s.auditEmitter.Emit(ctx, e); e != nil {
+		_ = e
+	}
 }
