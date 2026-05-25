@@ -1,9 +1,0 @@
-DROP INDEX IF EXISTS idx_cst_product_fts;
-DROP INDEX IF EXISTS idx_cst_product_duplicated_from;
-DROP INDEX IF EXISTS idx_cst_product_request;
-DROP INDEX IF EXISTS idx_cst_product_template;
-DROP INDEX IF EXISTS idx_cst_product_dept;
-DROP INDEX IF EXISTS idx_cst_product_workflow;
-DROP INDEX IF EXISTS uk_cst_product_item_code;
-DROP INDEX IF EXISTS uk_cst_product_code;
-DROP TABLE IF EXISTS cst_product;
