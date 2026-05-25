@@ -9,17 +9,17 @@ import (
 
 // Step is a single ordered step inside a Template.
 type Step struct {
-	id                       uuid.UUID
-	templateID               uuid.UUID
-	stepNo                   int
-	stepName                 string
-	approverResolutionType   Resolution
-	approverResolutionValue  string
-	slaHours                 int
-	allowReject              bool
-	allowReassign            bool
-	requirePasswordOnUnlock  bool
-	rejectToStepNo           int
+	id                      uuid.UUID
+	templateID              uuid.UUID
+	stepNo                  int
+	stepName                string
+	approverResolutionType  Resolution
+	approverResolutionValue string
+	slaHours                int
+	allowReject             bool
+	allowReassign           bool
+	requirePasswordOnUnlock bool
+	rejectToStepNo          int
 }
 
 // NewStep constructs a Step after validation.
@@ -85,18 +85,38 @@ func ReconstructStep(
 	}, nil
 }
 
-// Read-only accessors.
-func (s Step) ID() uuid.UUID                     { return s.id }
-func (s Step) TemplateID() uuid.UUID             { return s.templateID }
-func (s Step) StepNo() int                       { return s.stepNo }
-func (s Step) StepName() string                  { return s.stepName }
+// ID returns the identifier.
+func (s Step) ID() uuid.UUID { return s.id }
+
+// TemplateID returns the template id.
+func (s Step) TemplateID() uuid.UUID { return s.templateID }
+
+// StepNo returns the step no.
+func (s Step) StepNo() int { return s.stepNo }
+
+// StepName returns the step name.
+func (s Step) StepName() string { return s.stepName }
+
+// ApproverResolutionType returns the approver resolution type.
 func (s Step) ApproverResolutionType() Resolution { return s.approverResolutionType }
-func (s Step) ApproverResolutionValue() string   { return s.approverResolutionValue }
-func (s Step) SLAHours() int                     { return s.slaHours }
-func (s Step) AllowReject() bool                 { return s.allowReject }
-func (s Step) AllowReassign() bool               { return s.allowReassign }
-func (s Step) RequirePasswordOnUnlock() bool     { return s.requirePasswordOnUnlock }
-func (s Step) RejectToStepNo() int               { return s.rejectToStepNo }
+
+// ApproverResolutionValue returns the approver resolution value.
+func (s Step) ApproverResolutionValue() string { return s.approverResolutionValue }
+
+// SLAHours returns the sla hours.
+func (s Step) SLAHours() int { return s.slaHours }
+
+// AllowReject returns the allow reject.
+func (s Step) AllowReject() bool { return s.allowReject }
+
+// AllowReassign returns the allow reassign.
+func (s Step) AllowReassign() bool { return s.allowReassign }
+
+// RequirePasswordOnUnlock returns the require password on unlock.
+func (s Step) RequirePasswordOnUnlock() bool { return s.requirePasswordOnUnlock }
+
+// RejectToStepNo returns the reject to step no.
+func (s Step) RejectToStepNo() int { return s.rejectToStepNo }
 
 // SetTemplateID is used by the repository when persisting a fresh step.
 func (s *Step) SetTemplateID(id uuid.UUID) { s.templateID = id }
@@ -245,20 +265,44 @@ func (t *Template) SoftDelete(by string) {
 	t.isActive = false
 }
 
-// Read-only accessors.
-func (t *Template) ID() uuid.UUID         { return t.id }
-func (t *Template) Kind() Kind            { return t.kind }
-func (t *Template) Name() Name            { return t.name }
-func (t *Template) Version() int          { return t.version }
-func (t *Template) IsActive() bool        { return t.isActive }
+// ID returns the identifier.
+func (t *Template) ID() uuid.UUID { return t.id }
+
+// Kind returns the kind.
+func (t *Template) Kind() Kind { return t.kind }
+
+// Name returns the name.
+func (t *Template) Name() Name { return t.name }
+
+// Version returns the version.
+func (t *Template) Version() int { return t.version }
+
+// IsActive returns the is active.
+func (t *Template) IsActive() bool { return t.isActive }
+
+// Description returns the description.
 func (t *Template) Description() Description { return t.description }
-func (t *Template) Steps() []Step         { return t.steps }
-func (t *Template) CreatedAt() time.Time  { return t.createdAt }
-func (t *Template) CreatedBy() string     { return t.createdBy }
+
+// Steps returns the steps.
+func (t *Template) Steps() []Step { return t.steps }
+
+// CreatedAt returns the created at.
+func (t *Template) CreatedAt() time.Time { return t.createdAt }
+
+// CreatedBy returns the created by.
+func (t *Template) CreatedBy() string { return t.createdBy }
+
+// UpdatedAt returns the updated at.
 func (t *Template) UpdatedAt() *time.Time { return t.updatedAt }
-func (t *Template) UpdatedBy() string     { return t.updatedBy }
+
+// UpdatedBy returns the updated by.
+func (t *Template) UpdatedBy() string { return t.updatedBy }
+
+// DeletedAt returns the deleted at.
 func (t *Template) DeletedAt() *time.Time { return t.deletedAt }
-func (t *Template) DeletedBy() string     { return t.deletedBy }
+
+// DeletedBy returns the deleted by.
+func (t *Template) DeletedBy() string { return t.deletedBy }
 
 // validateSteps enforces step_no = 1..N strictly monotonic with no gaps.
 func validateSteps(steps []Step) error {

@@ -395,7 +395,7 @@ func (r *CompanyMappingRepository) scanRow(rows *sql.Rows) (*companymapping.Comp
 
 func (r *CompanyMappingRepository) mapWriteError(err error) error {
 	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
+	if errors.As(err, &pgErr) { //nolint:nestif // cohesive branch, extraction would scatter tightly-coupled logic
 		if pgErr.Code == pgUniqueViolationCode {
 			if pgErr.ConstraintName == uniqueComboConstraint {
 				return companymapping.ErrComboTaken

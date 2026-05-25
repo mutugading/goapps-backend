@@ -459,10 +459,6 @@ func (h *UserHandler) GetUserRolesAndPermissions(ctx context.Context, req *iamv1
 
 // Helper methods
 
-func (h *UserHandler) toUserProto(u *user.User) *iamv1.User {
-	return h.toUserProtoEnriched(context.Background(), u)
-}
-
 // toUserProtoEnriched populates the user proto plus denormalized primary
 // company mapping fields by looking up the user's mappings via mappingRepo.
 // Falls back to the bare proto when mappingRepo is nil or lookup fails.

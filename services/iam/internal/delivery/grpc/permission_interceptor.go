@@ -31,7 +31,7 @@ var methodPermissions = map[string]PermissionRequirement{
 	"/iam.v1.AuthService/ResendEmailVerification": {Permission: ""},
 
 	// User Service
-	"/iam.v1.UserService/CreateUser":                 {Permission: "iam.user.account.create"},
+	"/iam.v1.UserService/CreateUser": {Permission: "iam.user.account.create"},
 	// GetUser is open to any authenticated user — needed by UserName resolver
 	// across the app to display real names instead of raw UUIDs (audit log,
 	// comments, feasibility, etc.). It only returns identity (no secrets).
@@ -197,9 +197,9 @@ var methodPermissions = map[string]PermissionRequirement{
 	"/iam.v1.CompanyMappingService/ListCompanyMappings":  {Permission: "iam.master.companymapping.view"},
 
 	// User ↔ Company Mapping (under UserService)
-	"/iam.v1.UserService/AssignUserCompanyMapping":  {Permission: "iam.user.companymapping.assign"},
-	"/iam.v1.UserService/RemoveUserCompanyMapping":  {Permission: "iam.user.companymapping.remove"},
-	"/iam.v1.UserService/GetUserCompanyMappings":    {Permission: "iam.user.companymapping.view"},
+	"/iam.v1.UserService/AssignUserCompanyMapping": {Permission: "iam.user.companymapping.assign"},
+	"/iam.v1.UserService/RemoveUserCompanyMapping": {Permission: "iam.user.companymapping.remove"},
+	"/iam.v1.UserService/GetUserCompanyMappings":   {Permission: "iam.user.companymapping.view"},
 
 	// Notification Service — own-data only; authenticated is sufficient.
 	// CreateNotification stays authenticated-only because the service is meant to be

@@ -148,7 +148,7 @@ func (r *WorkflowTemplateRepository) SoftDelete(ctx context.Context, id uuid.UUI
 }
 
 // List returns a paginated set of templates (each with their steps preloaded).
-func (r *WorkflowTemplateRepository) List(ctx context.Context, f workflowtemplate.Filter) ([]*workflowtemplate.Template, int64, error) {
+func (r *WorkflowTemplateRepository) List(ctx context.Context, f workflowtemplate.Filter) ([]*workflowtemplate.Template, int64, error) { //nolint:gocyclo // filter + sort + pagination builder
 	where := "FROM wfl_workflow_template WHERE deleted_at IS NULL"
 	args := []any{}
 	idx := 1
@@ -329,14 +329,14 @@ func insertSteps(ctx context.Context, tx *sql.Tx, templateID uuid.UUID, steps []
 
 func (r *WorkflowTemplateRepository) scanTemplate(row *sql.Row) (*workflowtemplate.Template, error) {
 	var (
-		id                            uuid.UUID
-		kind, name, createdBy         string
-		version                       int
-		isActive                      bool
-		description                   sql.NullString
-		createdAt                     time.Time
-		updatedAt, deletedAt          sql.NullTime
-		updatedBy, deletedBy          sql.NullString
+		id                    uuid.UUID
+		kind, name, createdBy string
+		version               int
+		isActive              bool
+		description           sql.NullString
+		createdAt             time.Time
+		updatedAt, deletedAt  sql.NullTime
+		updatedBy, deletedBy  sql.NullString
 	)
 	err := row.Scan(&id, &kind, &name, &version, &isActive, &description,
 		&createdAt, &createdBy, &updatedAt, &updatedBy, &deletedAt, &deletedBy)
@@ -352,14 +352,14 @@ func (r *WorkflowTemplateRepository) scanTemplate(row *sql.Row) (*workflowtempla
 
 func (r *WorkflowTemplateRepository) scanTemplateFromRows(rows *sql.Rows) (*workflowtemplate.Template, error) {
 	var (
-		id                            uuid.UUID
-		kind, name, createdBy         string
-		version                       int
-		isActive                      bool
-		description                   sql.NullString
-		createdAt                     time.Time
-		updatedAt, deletedAt          sql.NullTime
-		updatedBy, deletedBy          sql.NullString
+		id                    uuid.UUID
+		kind, name, createdBy string
+		version               int
+		isActive              bool
+		description           sql.NullString
+		createdAt             time.Time
+		updatedAt, deletedAt  sql.NullTime
+		updatedBy, deletedBy  sql.NullString
 	)
 	err := rows.Scan(&id, &kind, &name, &version, &isActive, &description,
 		&createdAt, &createdBy, &updatedAt, &updatedBy, &deletedAt, &deletedBy)

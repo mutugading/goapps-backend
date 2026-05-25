@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/uuid"
 
-	domtpl "github.com/mutugading/goapps-backend/services/iam/internal/domain/workflowtemplate"
 	"github.com/mutugading/goapps-backend/services/iam/internal/domain/workflowinstance"
+	domtpl "github.com/mutugading/goapps-backend/services/iam/internal/domain/workflowtemplate"
 )
 
 // StartCommand starts a new instance from a specific template.

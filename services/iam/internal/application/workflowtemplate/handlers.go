@@ -106,15 +106,17 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*workflo
 
 // ActivateCommand activates a specific version.
 type ActivateCommand struct {
-	ID  uuid.UUID
-	By  string
+	ID uuid.UUID
+	By string
 }
 
 // ActivateHandler activates the given template (deactivating sibling versions).
 type ActivateHandler struct{ repo workflowtemplate.Repository }
 
 // NewActivateHandler constructs an ActivateHandler.
-func NewActivateHandler(r workflowtemplate.Repository) *ActivateHandler { return &ActivateHandler{repo: r} }
+func NewActivateHandler(r workflowtemplate.Repository) *ActivateHandler {
+	return &ActivateHandler{repo: r}
+}
 
 // Handle executes activation.
 func (h *ActivateHandler) Handle(ctx context.Context, cmd ActivateCommand) (*workflowtemplate.Template, error) {

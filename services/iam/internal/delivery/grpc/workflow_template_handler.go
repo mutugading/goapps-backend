@@ -70,7 +70,7 @@ func (h *WorkflowTemplateHandler) GetWorkflowTemplate(ctx context.Context, req *
 	}
 	id, err := uuid.Parse(req.TemplateId)
 	if err != nil {
-		return &iamv1.GetWorkflowTemplateResponse{Base: ErrorResponse("400", "invalid template_id")}, nil
+		return &iamv1.GetWorkflowTemplateResponse{Base: ErrorResponse("400", "invalid template_id")}, nil //nolint:nilerr // invalid input surfaced via BaseResponse, gRPC error intentionally nil
 	}
 	t, err := h.getHandler.Handle(ctx, appwftpl.GetQuery{ID: id})
 	if err != nil {
@@ -89,7 +89,7 @@ func (h *WorkflowTemplateHandler) UpdateWorkflowTemplate(ctx context.Context, re
 	}
 	id, err := uuid.Parse(req.TemplateId)
 	if err != nil {
-		return &iamv1.UpdateWorkflowTemplateResponse{Base: ErrorResponse("400", "invalid template_id")}, nil
+		return &iamv1.UpdateWorkflowTemplateResponse{Base: ErrorResponse("400", "invalid template_id")}, nil //nolint:nilerr // invalid input surfaced via BaseResponse, gRPC error intentionally nil
 	}
 	t, err := h.updateHandler.Handle(ctx, appwftpl.UpdateCommand{
 		ID:          id,
@@ -114,7 +114,7 @@ func (h *WorkflowTemplateHandler) ActivateWorkflowTemplate(ctx context.Context, 
 	}
 	id, err := uuid.Parse(req.TemplateId)
 	if err != nil {
-		return &iamv1.ActivateWorkflowTemplateResponse{Base: ErrorResponse("400", "invalid template_id")}, nil
+		return &iamv1.ActivateWorkflowTemplateResponse{Base: ErrorResponse("400", "invalid template_id")}, nil //nolint:nilerr // invalid input surfaced via BaseResponse, gRPC error intentionally nil
 	}
 	t, err := h.activateHandler.Handle(ctx, appwftpl.ActivateCommand{ID: id, By: GetUsernameFromCtx(ctx)})
 	if err != nil {
@@ -133,7 +133,7 @@ func (h *WorkflowTemplateHandler) DeleteWorkflowTemplate(ctx context.Context, re
 	}
 	id, err := uuid.Parse(req.TemplateId)
 	if err != nil {
-		return &iamv1.DeleteWorkflowTemplateResponse{Base: ErrorResponse("400", "invalid template_id")}, nil
+		return &iamv1.DeleteWorkflowTemplateResponse{Base: ErrorResponse("400", "invalid template_id")}, nil //nolint:nilerr // invalid input surfaced via BaseResponse, gRPC error intentionally nil
 	}
 	if err := h.deleteHandler.Handle(ctx, appwftpl.DeleteCommand{ID: id, DeletedBy: GetUsernameFromCtx(ctx)}); err != nil {
 		return &iamv1.DeleteWorkflowTemplateResponse{Base: wfTemplateErrToBase(err)}, nil
@@ -174,7 +174,7 @@ func (h *WorkflowTemplateHandler) ListWorkflowTemplates(ctx context.Context, req
 	}
 	totalPages := int32(0)
 	if pageSize > 0 {
-		totalPages = int32((res.Total + int64(pageSize) - 1) / int64(pageSize))
+		totalPages = safeIntToInt32WfTplH(int((res.Total + int64(pageSize) - 1) / int64(pageSize)))
 	}
 	return &iamv1.ListWorkflowTemplatesResponse{
 		Base: SuccessResponse("OK"),
@@ -214,17 +214,17 @@ func templateToProto(t *domwftpl.Template) *iamv1.WorkflowTemplate {
 	steps := make([]*iamv1.WorkflowTemplateStep, 0, len(t.Steps()))
 	for _, s := range t.Steps() {
 		steps = append(steps, &iamv1.WorkflowTemplateStep{
-			TemplateStepId:           s.ID().String(),
-			TemplateId:               s.TemplateID().String(),
-			StepNo:                   safeIntToInt32WfTplH(s.StepNo()),
-			StepName:                 s.StepName(),
-			ApproverResolutionType:   s.ApproverResolutionType().String(),
-			ApproverResolutionValue:  s.ApproverResolutionValue(),
-			SlaHours:                 safeIntToInt32WfTplH(s.SLAHours()),
-			AllowReject:              s.AllowReject(),
-			AllowReassign:            s.AllowReassign(),
-			RequirePasswordOnUnlock:  s.RequirePasswordOnUnlock(),
-			RejectToStepNo:           safeIntToInt32WfTplH(s.RejectToStepNo()),
+			TemplateStepId:          s.ID().String(),
+			TemplateId:              s.TemplateID().String(),
+			StepNo:                  safeIntToInt32WfTplH(s.StepNo()),
+			StepName:                s.StepName(),
+			ApproverResolutionType:  s.ApproverResolutionType().String(),
+			ApproverResolutionValue: s.ApproverResolutionValue(),
+			SlaHours:                safeIntToInt32WfTplH(s.SLAHours()),
+			AllowReject:             s.AllowReject(),
+			AllowReassign:           s.AllowReassign(),
+			RequirePasswordOnUnlock: s.RequirePasswordOnUnlock(),
+			RejectToStepNo:          safeIntToInt32WfTplH(s.RejectToStepNo()),
 		})
 	}
 	out := &iamv1.WorkflowTemplate{

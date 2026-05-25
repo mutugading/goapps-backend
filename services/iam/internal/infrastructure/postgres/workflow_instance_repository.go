@@ -68,11 +68,11 @@ func (r *WorkflowInstanceRepository) GetByID(ctx context.Context, id uuid.UUID) 
 	`
 	row := r.db.QueryRowContext(ctx, q, id)
 	var (
-		insID, tplID, entID                                 uuid.UUID
-		tplVersion, currentStepNo, totalStepsInTpl          int
-		kind, entityKind, status, startedBy                 string
-		startedAt                                           time.Time
-		completedAt                                         sql.NullTime
+		insID, tplID, entID                        uuid.UUID
+		tplVersion, currentStepNo, totalStepsInTpl int
+		kind, entityKind, status, startedBy        string
+		startedAt                                  time.Time
+		completedAt                                sql.NullTime
 	)
 	if err := row.Scan(&insID, &tplID, &tplVersion, &kind,
 		&entityKind, &entID, &currentStepNo, &status,
@@ -241,14 +241,14 @@ func (r *WorkflowInstanceRepository) loadInstanceSteps(ctx context.Context, inst
 	out := []workflowinstance.Step{}
 	for rows.Next() {
 		var (
-			stepID, insID                       uuid.UUID
-			stepNo, slaHours                    int
-			stepName, resType, resValue         string
-			allowReject, requirePassword        bool
-			assignedAt                          time.Time
-			actorUserID                         uuid.NullUUID
-			decision, comment                   string
-			decidedAt, stuckSince               sql.NullTime
+			stepID, insID                uuid.UUID
+			stepNo, slaHours             int
+			stepName, resType, resValue  string
+			allowReject, requirePassword bool
+			assignedAt                   time.Time
+			actorUserID                  uuid.NullUUID
+			decision, comment            string
+			decidedAt, stuckSince        sql.NullTime
 		)
 		if err := rows.Scan(&stepID, &insID, &stepNo, &stepName,
 			&resType, &resValue, &slaHours,

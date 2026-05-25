@@ -10,8 +10,8 @@ import (
 	commonv1 "github.com/mutugading/goapps-backend/gen/common/v1"
 	iamv1 "github.com/mutugading/goapps-backend/gen/iam/v1"
 	appwfins "github.com/mutugading/goapps-backend/services/iam/internal/application/workflowinstance"
-	domtpl "github.com/mutugading/goapps-backend/services/iam/internal/domain/workflowtemplate"
 	domwfins "github.com/mutugading/goapps-backend/services/iam/internal/domain/workflowinstance"
+	domtpl "github.com/mutugading/goapps-backend/services/iam/internal/domain/workflowtemplate"
 )
 
 // WorkflowInstanceHandler implements iamv1.WorkflowInstanceServiceServer.
@@ -50,11 +50,11 @@ func (h *WorkflowInstanceHandler) StartWorkflowInstance(ctx context.Context, req
 	}
 	tplID, err := uuid.Parse(req.TemplateId)
 	if err != nil {
-		return &iamv1.StartWorkflowInstanceResponse{Base: ErrorResponse("400", "invalid template_id")}, nil
+		return &iamv1.StartWorkflowInstanceResponse{Base: ErrorResponse("400", "invalid template_id")}, nil //nolint:nilerr // invalid input surfaced via BaseResponse, gRPC error intentionally nil
 	}
 	entID, err := uuid.Parse(req.EntityId)
 	if err != nil {
-		return &iamv1.StartWorkflowInstanceResponse{Base: ErrorResponse("400", "invalid entity_id")}, nil
+		return &iamv1.StartWorkflowInstanceResponse{Base: ErrorResponse("400", "invalid entity_id")}, nil //nolint:nilerr // invalid input surfaced via BaseResponse, gRPC error intentionally nil
 	}
 	ins, err := h.startHandler.Handle(ctx, appwfins.StartCommand{
 		TemplateID: tplID,
@@ -78,7 +78,7 @@ func (h *WorkflowInstanceHandler) GetWorkflowInstance(ctx context.Context, req *
 	}
 	id, err := uuid.Parse(req.InstanceId)
 	if err != nil {
-		return &iamv1.GetWorkflowInstanceResponse{Base: ErrorResponse("400", "invalid instance_id")}, nil
+		return &iamv1.GetWorkflowInstanceResponse{Base: ErrorResponse("400", "invalid instance_id")}, nil //nolint:nilerr // invalid input surfaced via BaseResponse, gRPC error intentionally nil
 	}
 	ins, err := h.getHandler.Handle(ctx, appwfins.GetQuery{ID: id})
 	if err != nil {
@@ -97,10 +97,11 @@ func (h *WorkflowInstanceHandler) AdvanceWorkflowInstance(ctx context.Context, r
 	}
 	id, err := uuid.Parse(req.InstanceId)
 	if err != nil {
-		return &iamv1.AdvanceWorkflowInstanceResponse{Base: ErrorResponse("400", "invalid instance_id")}, nil
+		return &iamv1.AdvanceWorkflowInstanceResponse{Base: ErrorResponse("400", "invalid instance_id")}, nil //nolint:nilerr // invalid input surfaced via BaseResponse, gRPC error intentionally nil
 	}
 	actorStr, _ := GetUserIDFromCtx(ctx)
-	actor, _ := uuid.Parse(actorStr) // actor may be zero UUID if not auth'd in tests
+	actor, perr := uuid.Parse(actorStr)
+	_ = perr // best-effort: uuid.Nil when unauthenticated (tests)
 
 	ins, err := h.advanceHandler.Handle(ctx, appwfins.AdvanceCommand{
 		InstanceID: id,
@@ -123,10 +124,11 @@ func (h *WorkflowInstanceHandler) RejectWorkflowInstance(ctx context.Context, re
 	}
 	id, err := uuid.Parse(req.InstanceId)
 	if err != nil {
-		return &iamv1.RejectWorkflowInstanceResponse{Base: ErrorResponse("400", "invalid instance_id")}, nil
+		return &iamv1.RejectWorkflowInstanceResponse{Base: ErrorResponse("400", "invalid instance_id")}, nil //nolint:nilerr // invalid input surfaced via BaseResponse, gRPC error intentionally nil
 	}
 	actorStr, _ := GetUserIDFromCtx(ctx)
-	actor, _ := uuid.Parse(actorStr)
+	actor, perr := uuid.Parse(actorStr)
+	_ = perr // best-effort: uuid.Nil when unauthenticated (tests)
 
 	ins, err := h.rejectHandler.Handle(ctx, appwfins.RejectCommand{
 		InstanceID: id,
@@ -173,7 +175,7 @@ func (h *WorkflowInstanceHandler) ListWorkflowInstances(ctx context.Context, req
 	}
 	totalPages := int32(0)
 	if pageSize > 0 {
-		totalPages = int32((res.Total + int64(pageSize) - 1) / int64(pageSize))
+		totalPages = safeIntToInt32WfTplH(int((res.Total + int64(pageSize) - 1) / int64(pageSize)))
 	}
 	return &iamv1.ListWorkflowInstancesResponse{
 		Base: SuccessResponse("OK"),

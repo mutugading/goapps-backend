@@ -32,21 +32,21 @@ const (
 
 // Step is one snapshot row inside a running instance.
 type Step struct {
-	id                       uuid.UUID
-	instanceID               uuid.UUID
-	stepNo                   int
-	stepName                 string
-	approverResolutionType   string
-	approverResolutionValue  string
-	slaHours                 int
-	allowReject              bool
-	requirePasswordOnUnlock  bool
-	assignedAt               time.Time
-	actorUserID              *uuid.UUID
-	decision                 string
-	decidedAt                *time.Time
-	comment                  string
-	stuckSince               *time.Time
+	id                      uuid.UUID
+	instanceID              uuid.UUID
+	stepNo                  int
+	stepName                string
+	approverResolutionType  string
+	approverResolutionValue string
+	slaHours                int
+	allowReject             bool
+	requirePasswordOnUnlock bool
+	assignedAt              time.Time
+	actorUserID             *uuid.UUID
+	decision                string
+	decidedAt               *time.Time
+	comment                 string
+	stuckSince              *time.Time
 }
 
 // NewPendingStep creates a fresh step row (assigned now, no decision yet).
@@ -106,24 +106,52 @@ func (s *Step) Decide(actor uuid.UUID, decision, comment string) {
 	s.comment = comment
 }
 
-// Accessors.
-func (s Step) ID() uuid.UUID                  { return s.id }
-func (s Step) InstanceID() uuid.UUID          { return s.instanceID }
-func (s Step) StepNo() int                    { return s.stepNo }
-func (s Step) StepName() string               { return s.stepName }
+// ID returns the identifier.
+func (s Step) ID() uuid.UUID { return s.id }
+
+// InstanceID returns the instance id.
+func (s Step) InstanceID() uuid.UUID { return s.instanceID }
+
+// StepNo returns the step no.
+func (s Step) StepNo() int { return s.stepNo }
+
+// StepName returns the step name.
+func (s Step) StepName() string { return s.stepName }
+
+// ApproverResolutionType returns the approver resolution type.
 func (s Step) ApproverResolutionType() string { return s.approverResolutionType }
+
+// ApproverResolutionValue returns the approver resolution value.
 func (s Step) ApproverResolutionValue() string {
 	return s.approverResolutionValue
 }
-func (s Step) SLAHours() int                  { return s.slaHours }
-func (s Step) AllowReject() bool              { return s.allowReject }
-func (s Step) RequirePasswordOnUnlock() bool  { return s.requirePasswordOnUnlock }
-func (s Step) AssignedAt() time.Time          { return s.assignedAt }
-func (s Step) ActorUserID() *uuid.UUID        { return s.actorUserID }
-func (s Step) Decision() string               { return s.decision }
-func (s Step) DecidedAt() *time.Time          { return s.decidedAt }
-func (s Step) Comment() string                { return s.comment }
-func (s Step) StuckSince() *time.Time         { return s.stuckSince }
+
+// SLAHours returns the sla hours.
+func (s Step) SLAHours() int { return s.slaHours }
+
+// AllowReject returns the allow reject.
+func (s Step) AllowReject() bool { return s.allowReject }
+
+// RequirePasswordOnUnlock returns the require password on unlock.
+func (s Step) RequirePasswordOnUnlock() bool { return s.requirePasswordOnUnlock }
+
+// AssignedAt returns the assigned at.
+func (s Step) AssignedAt() time.Time { return s.assignedAt }
+
+// ActorUserID returns the actor user id.
+func (s Step) ActorUserID() *uuid.UUID { return s.actorUserID }
+
+// Decision returns the decision.
+func (s Step) Decision() string { return s.decision }
+
+// DecidedAt returns the decided at.
+func (s Step) DecidedAt() *time.Time { return s.decidedAt }
+
+// Comment returns the comment.
+func (s Step) Comment() string { return s.comment }
+
+// StuckSince returns the stuck since.
+func (s Step) StuckSince() *time.Time { return s.stuckSince }
 
 // Instance is the aggregate root for a running workflow.
 type Instance struct {
@@ -220,7 +248,7 @@ func (i *Instance) Advance(actor uuid.UUID, comment string, nextStepFactory func
 		i.status = StatusLocked
 		now := time.Now().UTC()
 		i.completedAt = &now
-		return nil, nil
+		return nil, nil //nolint:nilnil // a locked/terminal instance legitimately yields no next step
 	}
 
 	// Append the next pending step row.
@@ -255,20 +283,44 @@ func (i *Instance) Reject(actor uuid.UUID, comment string) error {
 	return nil
 }
 
-// Accessors.
-func (i *Instance) ID() uuid.UUID            { return i.id }
-func (i *Instance) TemplateID() uuid.UUID    { return i.templateID }
-func (i *Instance) TemplateVersion() int     { return i.templateVersion }
-func (i *Instance) Kind() string             { return i.kind }
-func (i *Instance) EntityKind() string       { return i.entityKind }
-func (i *Instance) EntityID() uuid.UUID      { return i.entityID }
-func (i *Instance) CurrentStepNo() int       { return i.currentStepNo }
-func (i *Instance) Status() string           { return i.status }
-func (i *Instance) StartedAt() time.Time     { return i.startedAt }
-func (i *Instance) StartedBy() string        { return i.startedBy }
-func (i *Instance) CompletedAt() *time.Time  { return i.completedAt }
-func (i *Instance) Steps() []Step            { return i.steps }
-func (i *Instance) TotalStepsInTpl() int     { return i.totalStepsInTpl }
+// ID returns the identifier.
+func (i *Instance) ID() uuid.UUID { return i.id }
+
+// TemplateID returns the template id.
+func (i *Instance) TemplateID() uuid.UUID { return i.templateID }
+
+// TemplateVersion returns the template version.
+func (i *Instance) TemplateVersion() int { return i.templateVersion }
+
+// Kind returns the kind.
+func (i *Instance) Kind() string { return i.kind }
+
+// EntityKind returns the entity kind.
+func (i *Instance) EntityKind() string { return i.entityKind }
+
+// EntityID returns the entity id.
+func (i *Instance) EntityID() uuid.UUID { return i.entityID }
+
+// CurrentStepNo returns the current step no.
+func (i *Instance) CurrentStepNo() int { return i.currentStepNo }
+
+// Status returns the status.
+func (i *Instance) Status() string { return i.status }
+
+// StartedAt returns the started at.
+func (i *Instance) StartedAt() time.Time { return i.startedAt }
+
+// StartedBy returns the started by.
+func (i *Instance) StartedBy() string { return i.startedBy }
+
+// CompletedAt returns the completed at.
+func (i *Instance) CompletedAt() *time.Time { return i.completedAt }
+
+// Steps returns the steps.
+func (i *Instance) Steps() []Step { return i.steps }
+
+// TotalStepsInTpl returns the total steps in tpl.
+func (i *Instance) TotalStepsInTpl() int { return i.totalStepsInTpl }
 
 func validEntityKind(k string) bool {
 	switch k {
