@@ -91,8 +91,11 @@ func run() error {
 	cmsSettingRepo := postgres.NewCMSSettingRepository(db)
 	employeeLevelRepo := postgres.NewEmployeeLevelRepository(db)
 	employeeGroupRepo := postgres.NewEmployeeGroupRepository(db)
+	workflowTemplateRepo := postgres.NewWorkflowTemplateRepository(db)
+	workflowInstanceRepo := postgres.NewWorkflowInstanceRepository(db)
 	workflowHistoryRepo := postgres.NewWorkflowHistoryRepository(db)
 	notificationRepo := postgres.NewNotificationRepository(db)
+	companyMappingRepo := postgres.NewCompanyMappingRepository(db)
 
 	// Notification broadcaster (in-memory pub/sub for SSE realtime delivery).
 	notifBroadcaster := notifinfra.NewBroadcaster()
@@ -136,8 +139,9 @@ func run() error {
 	}
 
 	// Setup gRPC handlers
-	authHandler := grpcdelivery.NewAuthHandler(authService, userRepo, sessionRepo, auditRepo, validationHelper)
-	userHandler := grpcdelivery.NewUserHandler(userRepo, userRoleRepo, userPermissionRepo, validationHelper, storageSvc)
+	authHandler := grpcdelivery.NewAuthHandler(authService, userRepo, sessionRepo, auditRepo, sectionRepo, companyMappingRepo, validationHelper)
+	userHandler := grpcdelivery.NewUserHandler(userRepo, userRoleRepo, userPermissionRepo, companyMappingRepo, validationHelper, storageSvc)
+	companyMappingHandler := grpcdelivery.NewCompanyMappingHandler(companyMappingRepo, validationHelper)
 	roleHandler := grpcdelivery.NewRoleHandler(roleRepo, validationHelper)
 	permissionHandler := grpcdelivery.NewPermissionHandler(permRepo, validationHelper)
 	sessionHandler := grpcdelivery.NewSessionHandler(sessionRepo, validationHelper)
@@ -152,6 +156,14 @@ func run() error {
 	cmsSettingHandler := grpcdelivery.NewCMSSettingHandler(cmsSettingRepo, validationHelper)
 	employeeLevelHandler := grpcdelivery.NewEmployeeLevelHandler(employeeLevelRepo, workflowHistoryRepo, validationHelper)
 	employeeGroupHandler := grpcdelivery.NewEmployeeGroupHandler(employeeGroupRepo, validationHelper)
+	workflowTemplateHandler, err := grpcdelivery.NewWorkflowTemplateHandler(workflowTemplateRepo)
+	if err != nil {
+		return err
+	}
+	workflowInstanceHandler, err := grpcdelivery.NewWorkflowInstanceHandler(workflowTemplateRepo, workflowInstanceRepo)
+	if err != nil {
+		return err
+	}
 
 	// Notification application handlers + gRPC handler.
 	notifCreate := appnotif.NewCreateHandler(notificationRepo, notifBroadcaster)
@@ -193,7 +205,10 @@ func run() error {
 	iamv1.RegisterCMSSettingServiceServer(gs, cmsSettingHandler)
 	iamv1.RegisterEmployeeLevelServiceServer(gs, employeeLevelHandler)
 	iamv1.RegisterEmployeeGroupServiceServer(gs, employeeGroupHandler)
+	iamv1.RegisterCompanyMappingServiceServer(gs, companyMappingHandler)
 	iamv1.RegisterNotificationServiceServer(gs, notificationHandler)
+	iamv1.RegisterWorkflowTemplateServiceServer(gs, workflowTemplateHandler)
+	iamv1.RegisterWorkflowInstanceServiceServer(gs, workflowInstanceHandler)
 
 	// Start gRPC server
 	go func() {
