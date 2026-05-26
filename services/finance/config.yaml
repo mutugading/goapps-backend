@@ -25,6 +25,9 @@ database:
 jwt:
   access_token_secret: "dev-access-secret-change-in-production"
   issuer: "goapps-iam"
+  # Shared secret for service-to-service auth (finance-cost-worker → ProcessChunkInternal).
+  # Override via FINANCE_JWT_SERVICE_SECRET env in prod; must match worker's finance.service_secret.
+  service_secret: "dev-service-secret-change-in-production"
 
 cors:
   allowed_origins:

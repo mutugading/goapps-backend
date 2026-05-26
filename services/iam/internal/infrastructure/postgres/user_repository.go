@@ -17,6 +17,27 @@ import (
 	"github.com/mutugading/goapps-backend/services/iam/internal/domain/user"
 )
 
+// userSelectColumns is the canonical column list for SELECTing from mst_user.
+// Order MUST match userRow scan targets in scanUserRow.
+const userSelectColumns = `
+	user_id, username, email, password_hash, is_active, is_locked,
+	failed_login_attempts, locked_until, two_factor_enabled, two_factor_secret,
+	last_login_at, last_login_ip, password_changed_at, email_verified_at,
+	employee_level_id, employee_group_id,
+	created_at, created_by, updated_at, updated_by, deleted_at, deleted_by
+`
+
+// scanUserRow fills a userRow from a row scanner.
+func scanUserRow(scan func(dest ...interface{}) error, u *userRow) error {
+	return scan(
+		&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.IsActive, &u.IsLocked,
+		&u.FailedLoginAttempts, &u.LockedUntil, &u.TwoFactorEnabled, &u.TwoFactorSecret,
+		&u.LastLoginAt, &u.LastLoginIP, &u.PasswordChangedAt, &u.EmailVerifiedAt,
+		&u.EmployeeLevelID, &u.EmployeeGroupID,
+		&u.CreatedAt, &u.CreatedBy, &u.UpdatedAt, &u.UpdatedBy, &u.DeletedAt, &u.DeletedBy,
+	)
+}
+
 // UserRepository implements user.Repository interface.
 type UserRepository struct {
 	db *DB
@@ -80,85 +101,43 @@ func (r *UserRepository) Create(ctx context.Context, u *user.User, detail *user.
 
 // GetByID retrieves a user by ID.
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*user.User, error) {
-	query := `
-		SELECT user_id, username, email, password_hash, is_active, is_locked,
-			failed_login_attempts, locked_until, two_factor_enabled, two_factor_secret,
-			last_login_at, last_login_ip, password_changed_at, email_verified_at,
-			created_at, created_by, updated_at, updated_by, deleted_at, deleted_by
-		FROM mst_user
-		WHERE user_id = $1 AND deleted_at IS NULL
-	`
-
+	query := "SELECT " + userSelectColumns + " FROM mst_user WHERE user_id = $1 AND deleted_at IS NULL"
 	var u userRow
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.IsActive, &u.IsLocked,
-		&u.FailedLoginAttempts, &u.LockedUntil, &u.TwoFactorEnabled, &u.TwoFactorSecret,
-		&u.LastLoginAt, &u.LastLoginIP, &u.PasswordChangedAt, &u.EmailVerifiedAt,
-		&u.CreatedAt, &u.CreatedBy, &u.UpdatedAt, &u.UpdatedBy, &u.DeletedAt, &u.DeletedBy,
-	)
+	err := scanUserRow(r.db.QueryRowContext(ctx, query, id).Scan, &u)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, shared.ErrNotFound
 		}
 		return nil, fmt.Errorf("failed to get user by id: %w", err)
 	}
-
 	return u.toDomain(), nil
 }
 
 // GetByUsername retrieves a user by username.
 func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*user.User, error) {
-	query := `
-		SELECT user_id, username, email, password_hash, is_active, is_locked,
-			failed_login_attempts, locked_until, two_factor_enabled, two_factor_secret,
-			last_login_at, last_login_ip, password_changed_at, email_verified_at,
-			created_at, created_by, updated_at, updated_by, deleted_at, deleted_by
-		FROM mst_user
-		WHERE username = $1 AND deleted_at IS NULL
-	`
-
+	query := "SELECT " + userSelectColumns + " FROM mst_user WHERE username = $1 AND deleted_at IS NULL"
 	var u userRow
-	err := r.db.QueryRowContext(ctx, query, username).Scan(
-		&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.IsActive, &u.IsLocked,
-		&u.FailedLoginAttempts, &u.LockedUntil, &u.TwoFactorEnabled, &u.TwoFactorSecret,
-		&u.LastLoginAt, &u.LastLoginIP, &u.PasswordChangedAt, &u.EmailVerifiedAt,
-		&u.CreatedAt, &u.CreatedBy, &u.UpdatedAt, &u.UpdatedBy, &u.DeletedAt, &u.DeletedBy,
-	)
+	err := scanUserRow(r.db.QueryRowContext(ctx, query, username).Scan, &u)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, shared.ErrNotFound
 		}
 		return nil, fmt.Errorf("failed to get user by username: %w", err)
 	}
-
 	return u.toDomain(), nil
 }
 
 // GetByEmail retrieves a user by email.
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*user.User, error) {
-	query := `
-		SELECT user_id, username, email, password_hash, is_active, is_locked,
-			failed_login_attempts, locked_until, two_factor_enabled, two_factor_secret,
-			last_login_at, last_login_ip, password_changed_at, email_verified_at,
-			created_at, created_by, updated_at, updated_by, deleted_at, deleted_by
-		FROM mst_user
-		WHERE email = $1 AND deleted_at IS NULL
-	`
-
+	query := "SELECT " + userSelectColumns + " FROM mst_user WHERE email = $1 AND deleted_at IS NULL"
 	var u userRow
-	err := r.db.QueryRowContext(ctx, query, email).Scan(
-		&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.IsActive, &u.IsLocked,
-		&u.FailedLoginAttempts, &u.LockedUntil, &u.TwoFactorEnabled, &u.TwoFactorSecret,
-		&u.LastLoginAt, &u.LastLoginIP, &u.PasswordChangedAt, &u.EmailVerifiedAt,
-		&u.CreatedAt, &u.CreatedBy, &u.UpdatedAt, &u.UpdatedBy, &u.DeletedAt, &u.DeletedBy,
-	)
+	err := scanUserRow(r.db.QueryRowContext(ctx, query, email).Scan, &u)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, shared.ErrNotFound
 		}
 		return nil, fmt.Errorf("failed to get user by email: %w", err)
 	}
-
 	return u.toDomain(), nil
 }
 
@@ -170,7 +149,8 @@ func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
 			failed_login_attempts = $6, locked_until = $7, two_factor_enabled = $8,
 			two_factor_secret = $9, last_login_at = $10, last_login_ip = $11,
 			password_changed_at = $12, email_verified_at = $13,
-			updated_at = $14, updated_by = $15
+			employee_level_id = $14, employee_group_id = $15,
+			updated_at = $16, updated_by = $17
 		WHERE user_id = $1 AND deleted_at IS NULL
 	`
 
@@ -179,6 +159,7 @@ func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
 		u.FailedLoginAttempts(), u.LockedUntil(), u.TwoFactorEnabled(),
 		u.TwoFactorSecret(), u.LastLoginAt(), u.LastLoginIP(),
 		u.PasswordChangedAt(), u.EmailVerifiedAt(),
+		nullableUUIDPtr(u.EmployeeLevelID()), nullableUUIDPtr(u.EmployeeGroupID()),
 		u.Audit().UpdatedAt, u.Audit().UpdatedBy,
 	)
 	if err != nil {
@@ -194,6 +175,15 @@ func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
 	}
 
 	return nil
+}
+
+// nullableUUIDPtr converts a *uuid.UUID into an interface{} suitable for
+// passing as a SQL argument (nil → SQL NULL).
+func nullableUUIDPtr(id *uuid.UUID) interface{} {
+	if id == nil {
+		return nil
+	}
+	return *id
 }
 
 // Delete soft-deletes a user.
@@ -313,15 +303,15 @@ func (r *UserRepository) List(ctx context.Context, params user.ListParams) ([]*u
 	// Note: full_name and employee_code are in mst_user_detail, not mst_user.
 	// For the List method that only queries mst_user, we fall back to username.
 	sortColumnMap := map[string]string{
-		"username":      "username",
-		"email":         "email",
-		"full_name":     "username", // Fallback: full_name is in mst_user_detail
-		"employee_code": "username", // Fallback: employee_code is in mst_user_detail
-		"created_at":    "created_at",
+		"username":        "username",
+		"email":           "email",
+		"full_name":       "username", // Fallback: full_name is in mst_user_detail
+		"employee_code":   "username", // Fallback: employee_code is in mst_user_detail
+		defaultSortColumn: defaultSortColumn,
 	}
 
 	// Build query
-	sortBy := "created_at"
+	sortBy := defaultSortColumn
 	if params.SortBy != "" {
 		if mapped, ok := sortColumnMap[params.SortBy]; ok {
 			sortBy = mapped
@@ -330,21 +320,15 @@ func (r *UserRepository) List(ctx context.Context, params user.ListParams) ([]*u
 		}
 	}
 	sortOrder := "DESC"
-	if params.SortOrder != "" && (params.SortOrder == "ASC" || params.SortOrder == "asc") {
-		sortOrder = "ASC"
+	if params.SortOrder != "" && (params.SortOrder == sortASC || params.SortOrder == "asc") {
+		sortOrder = sortASC
 	}
 
 	offset := (params.Page - 1) * params.PageSize
-	query := fmt.Sprintf(`
-		SELECT user_id, username, email, password_hash, is_active, is_locked,
-			failed_login_attempts, locked_until, two_factor_enabled, two_factor_secret,
-			last_login_at, last_login_ip, password_changed_at, email_verified_at,
-			created_at, created_by, updated_at, updated_by, deleted_at, deleted_by
-		FROM mst_user
-		WHERE %s
-		ORDER BY %s %s
-		LIMIT $%d OFFSET $%d
-	`, whereClause, sortBy, sortOrder, argPos, argPos+1)
+	query := fmt.Sprintf(
+		"SELECT %s FROM mst_user WHERE %s ORDER BY %s %s LIMIT $%d OFFSET $%d",
+		userSelectColumns, whereClause, sortBy, sortOrder, argPos, argPos+1,
+	)
 
 	args = append(args, params.PageSize, offset)
 
@@ -361,12 +345,7 @@ func (r *UserRepository) List(ctx context.Context, params user.ListParams) ([]*u
 	var users []*user.User
 	for rows.Next() {
 		var u userRow
-		if err := rows.Scan(
-			&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.IsActive, &u.IsLocked,
-			&u.FailedLoginAttempts, &u.LockedUntil, &u.TwoFactorEnabled, &u.TwoFactorSecret,
-			&u.LastLoginAt, &u.LastLoginIP, &u.PasswordChangedAt, &u.EmailVerifiedAt,
-			&u.CreatedAt, &u.CreatedBy, &u.UpdatedAt, &u.UpdatedBy, &u.DeletedAt, &u.DeletedBy,
-		); err != nil {
+		if err := scanUserRow(rows.Scan, &u); err != nil {
 			return nil, 0, fmt.Errorf("failed to scan user: %w", err)
 		}
 		users = append(users, u.toDomain())
@@ -679,6 +658,8 @@ type userRow struct {
 	LastLoginIP         sql.NullString
 	PasswordChangedAt   *time.Time
 	EmailVerifiedAt     *time.Time
+	EmployeeLevelID     *uuid.UUID
+	EmployeeGroupID     *uuid.UUID
 	CreatedAt           time.Time
 	CreatedBy           string
 	UpdatedAt           *time.Time
@@ -705,12 +686,14 @@ func (r *userRow) toDomain() *user.User {
 		DeletedBy: r.DeletedBy,
 	}
 
-	return user.ReconstructUser(
+	u := user.ReconstructUser(
 		r.ID, r.Username, r.Email, r.PasswordHash,
 		r.IsActive, r.IsLocked, r.FailedLoginAttempts, r.LockedUntil,
 		r.TwoFactorEnabled, secret, r.LastLoginAt, ip, r.PasswordChangedAt,
 		r.EmailVerifiedAt, audit,
 	)
+	u.ApplyEmployeeRefs(r.EmployeeLevelID, r.EmployeeGroupID)
+	return u
 }
 
 type userDetailRow struct {

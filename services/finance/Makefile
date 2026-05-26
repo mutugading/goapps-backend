@@ -231,3 +231,56 @@ install-tools:
 	go install github.com/fullstorydev/grpcurl/cmd/grpcurl@$(GRPCURL_VERSION)
 	go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@$(MIGRATE_VERSION)
 	@echo "Tools installed (pinned versions)"
+
+# =============================================================================
+# Stress fixtures (S8e.1) + scenarios (S8e.2)
+# =============================================================================
+#
+# seed-stress  — generate a synthetic 12k-product textile FG corpus tagged
+#                created_by='stress_fixture'. Drives the calc-engine stress
+#                scenarios in tests/stress/.
+# stress-clean — atomically delete every stress_fixture-tagged row.
+# test-stress-quick — smoke-run S1+S2+S3 (~minutes on a populated corpus).
+# test-stress-full  — run S1..S9 with a 30-minute test budget.
+
+.PHONY: seed-stress stress-clean test-stress-quick test-stress-full test-stress-real
+
+PRODUCTS ?= 12000
+PARAMS   ?= 150
+FORMULAS ?= 30
+PERIOD   ?= 202604
+
+seed-stress:
+	go run -tags=stress ./tests/stress/fixtures/seed_calc_corpus.go \
+		-products=$(PRODUCTS) \
+		-params=$(PARAMS) \
+		-formulas=$(FORMULAS) \
+		-period=$(PERIOD)
+
+stress-clean:
+	docker exec goapps-finance-postgres psql -U finance -d finance_db -c "\
+		DELETE FROM cost_product_parameter        WHERE cpp_created_by = 'stress_fixture'; \
+		DELETE FROM cost_product_applicable_param WHERE capp_created_by = 'stress_fixture'; \
+		DELETE FROM cost_route_rm                 WHERE crm_seq_id IN (SELECT crs_seq_id FROM cost_route_seq WHERE crs_created_by = 'stress_fixture'); \
+		DELETE FROM cost_route_seq                WHERE crs_created_by = 'stress_fixture'; \
+		DELETE FROM cost_route_head               WHERE crh_created_by = 'stress_fixture'; \
+		DELETE FROM cost_product_master           WHERE cpm_created_by = 'stress_fixture'; \
+		DELETE FROM formula_param                 WHERE formula_id IN (SELECT id FROM mst_formula WHERE created_by = 'stress_fixture'); \
+		DELETE FROM mst_formula                   WHERE created_by = 'stress_fixture'; \
+		DELETE FROM mst_parameter                 WHERE created_by = 'stress_fixture';"
+
+test-stress-quick:
+	STRESS_TEST=true go test -tags=stress -timeout 5m ./tests/stress/... -run "S1|S2|S3"
+
+test-stress-full:
+	STRESS_TEST=true go test -tags=stress -timeout 30m ./tests/stress/...
+
+# Headline measurement: drives the seeded corpus through the real calc engine
+# in-process (wave-ordered chunks), reports per-chunk/per-product/total wall +
+# fleet extrapolation. Requires `make seed-stress` first; PERIOD must match a
+# period priced in cst_rm_cost (prod data = 202604). Cleans cal_job/cost rows
+# and restores the formula catalog on exit; run `make stress-clean` to drop the
+# corpus afterward.
+test-stress-real:
+	STRESS_TEST=true STRESS_PERIOD=$(PERIOD) go test -tags=stress -timeout 30m \
+		-run TestStressRealRun ./tests/stress/... -v

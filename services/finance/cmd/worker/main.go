@@ -30,7 +30,7 @@ func main() {
 	}
 }
 
-func run() error { //nolint:gocognit // linear setup function
+func run() error { //nolint:gocognit,gocyclo // linear setup function
 	setupLogger()
 
 	cfg, err := config.Load()

@@ -50,7 +50,54 @@ type User struct {
 	lastLoginIP         string
 	passwordChangedAt   *time.Time
 	emailVerifiedAt     *time.Time
+	employeeLevelID     *uuid.UUID
+	employeeGroupID     *uuid.UUID
 	audit               shared.AuditInfo
+}
+
+// EmployeeLevelID returns the optional employee level reference.
+func (u *User) EmployeeLevelID() *uuid.UUID { return u.employeeLevelID }
+
+// EmployeeGroupID returns the optional employee group reference.
+func (u *User) EmployeeGroupID() *uuid.UUID { return u.employeeGroupID }
+
+// SetEmployeeLevel sets the employee level reference (nil clears it).
+func (u *User) SetEmployeeLevel(id *uuid.UUID, updatedBy string) error {
+	if u.IsDeleted() {
+		return shared.ErrAlreadyDeleted
+	}
+	u.employeeLevelID = cloneUUIDPtr(id)
+	if updatedBy != "" {
+		u.audit.Update(updatedBy)
+	}
+	return nil
+}
+
+// SetEmployeeGroup sets the employee group reference (nil clears it).
+func (u *User) SetEmployeeGroup(id *uuid.UUID, updatedBy string) error {
+	if u.IsDeleted() {
+		return shared.ErrAlreadyDeleted
+	}
+	u.employeeGroupID = cloneUUIDPtr(id)
+	if updatedBy != "" {
+		u.audit.Update(updatedBy)
+	}
+	return nil
+}
+
+// ApplyEmployeeRefs sets level and group references in one call (used by
+// reconstruct paths). It bypasses audit updates.
+func (u *User) ApplyEmployeeRefs(levelID, groupID *uuid.UUID) {
+	u.employeeLevelID = cloneUUIDPtr(levelID)
+	u.employeeGroupID = cloneUUIDPtr(groupID)
+}
+
+func cloneUUIDPtr(id *uuid.UUID) *uuid.UUID {
+	if id == nil {
+		return nil
+	}
+	v := *id
+	return &v
 }
 
 // NewUser creates a new User entity with validation.

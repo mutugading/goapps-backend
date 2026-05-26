@@ -145,9 +145,9 @@ func (r *SyncDataRepository) ListGroupingMonitor(
 // Grouped scope; in Ungrouped scope they fall back to the default because
 // d.* columns are NULL for those rows.
 func buildGroupingMonitorOrderBy(sortBy, sortOrder string, scope appgroup.GroupingScope) string {
-	dir := "ASC"
+	dir := sortASC
 	if strings.EqualFold(sortOrder, "desc") {
-		dir = "DESC"
+		dir = sortDESC
 	}
 
 	type colMap struct {

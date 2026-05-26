@@ -104,10 +104,10 @@ func (r *RMGroupRepository) ListHeads(ctx context.Context, filter rmgroup.ListFi
 	}
 
 	orderCol := map[string]string{
-		"code":       "group_code",
-		"name":       "group_name",
-		"created_at": "created_at",
-		"updated_at": "updated_at",
+		"code":           "group_code",
+		"name":           "group_name",
+		sortKeyCreatedAt: sortKeyCreatedAt,
+		"updated_at":     "updated_at",
 	}[filter.SortBy]
 	if orderCol == "" {
 		orderCol = "group_code"

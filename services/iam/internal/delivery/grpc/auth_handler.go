@@ -10,6 +10,8 @@ import (
 	iamv1 "github.com/mutugading/goapps-backend/gen/iam/v1"
 	"github.com/mutugading/goapps-backend/services/iam/internal/domain/audit"
 	"github.com/mutugading/goapps-backend/services/iam/internal/domain/auth"
+	"github.com/mutugading/goapps-backend/services/iam/internal/domain/companymapping"
+	"github.com/mutugading/goapps-backend/services/iam/internal/domain/organization"
 	"github.com/mutugading/goapps-backend/services/iam/internal/domain/session"
 	"github.com/mutugading/goapps-backend/services/iam/internal/domain/shared"
 	"github.com/mutugading/goapps-backend/services/iam/internal/domain/user"
@@ -23,6 +25,8 @@ type AuthHandler struct {
 	userRepo         user.Repository
 	sessionRepo      session.Repository
 	auditRepo        audit.Repository
+	sectionRepo      organization.SectionRepository
+	mappingRepo      companymapping.Repository
 	validationHelper *ValidationHelper
 }
 
@@ -32,6 +36,8 @@ func NewAuthHandler(
 	userRepo user.Repository,
 	sessionRepo session.Repository,
 	auditRepo audit.Repository,
+	sectionRepo organization.SectionRepository,
+	mappingRepo companymapping.Repository,
 	validationHelper *ValidationHelper,
 ) *AuthHandler {
 	return &AuthHandler{
@@ -39,8 +45,49 @@ func NewAuthHandler(
 		userRepo:         userRepo,
 		sessionRepo:      sessionRepo,
 		auditRepo:        auditRepo,
+		sectionRepo:      sectionRepo,
+		mappingRepo:      mappingRepo,
 		validationHelper: validationHelper,
 	}
+}
+
+// resolveOrgIDs returns the user's section_id and department_id as strings,
+// derived from (in order of preference):
+//  1. Primary company mapping (mst_company_mapping via user_company_mappings).
+//  2. user_detail.section_id (legacy fallback) → section.department_id.
+//
+// Both fields can be empty when unresolved; this is a display-only helper.
+func (h *AuthHandler) resolveOrgIDs(ctx context.Context, userID uuid.UUID) (sectionID, departmentID string) { //nolint:gocognit // cohesive function; complexity inherent
+	if h.mappingRepo != nil { //nolint:nestif // cohesive branch, extraction would scatter tightly-coupled logic
+		assignments, primaryID, err := h.mappingRepo.ListByUser(ctx, userID)
+		if err == nil && primaryID != nil {
+			for _, a := range assignments {
+				if a.Mapping == nil || a.Mapping.ID() != *primaryID {
+					continue
+				}
+				hierarchy := a.Mapping.Hierarchy()
+				departmentID = hierarchy.DepartmentID.String()
+				if hierarchy.SectionID != nil {
+					sectionID = hierarchy.SectionID.String()
+				}
+				return sectionID, departmentID
+			}
+		}
+	}
+
+	if h.sectionRepo == nil {
+		return "", ""
+	}
+	detail, detailErr := h.userRepo.GetDetailByUserID(ctx, userID)
+	if detailErr != nil || detail == nil || detail.SectionID() == nil {
+		return "", ""
+	}
+	sectionID = detail.SectionID().String()
+	section, secErr := h.sectionRepo.GetByID(ctx, *detail.SectionID())
+	if secErr != nil || section == nil {
+		return sectionID, ""
+	}
+	return sectionID, section.DepartmentID().String()
 }
 
 // Login authenticates a user and returns tokens.
@@ -78,16 +125,21 @@ func (h *AuthHandler) Login(ctx context.Context, req *iamv1.LoginRequest) (*iamv
 			RefreshToken: result.RefreshToken,
 			ExpiresIn:    result.ExpiresIn,
 			TokenType:    "Bearer",
-			User: &iamv1.AuthUser{
-				UserId:           result.User.ID.String(),
-				Username:         result.User.Username,
-				Email:            result.User.Email,
-				FullName:         result.User.FullName,
-				TwoFactorEnabled: result.User.TwoFactorEnabled,
-				EmailVerified:    result.User.EmailVerified,
-				Roles:            result.User.Roles,
-				Permissions:      result.User.Permissions,
-			},
+			User: func() *iamv1.AuthUser {
+				sectionID, departmentID := h.resolveOrgIDs(ctx, result.User.ID)
+				return &iamv1.AuthUser{
+					UserId:           result.User.ID.String(),
+					Username:         result.User.Username,
+					Email:            result.User.Email,
+					FullName:         result.User.FullName,
+					TwoFactorEnabled: result.User.TwoFactorEnabled,
+					EmailVerified:    result.User.EmailVerified,
+					Roles:            result.User.Roles,
+					Permissions:      result.User.Permissions,
+					SectionId:        sectionID,
+					DepartmentId:     departmentID,
+				}
+			}(),
 			RequiresEmailVerification: result.RequiresEmailVerification,
 		},
 	}, nil
@@ -302,6 +354,7 @@ func (h *AuthHandler) GetCurrentUser(ctx context.Context, _ *iamv1.GetCurrentUse
 		fullName = detail.FullName()
 	}
 
+	sectionID, departmentID := h.resolveOrgIDs(ctx, userID)
 	return &iamv1.GetCurrentUserResponse{
 		Base: SuccessResponse("User retrieved successfully"),
 		Data: &iamv1.AuthUser{
@@ -313,6 +366,8 @@ func (h *AuthHandler) GetCurrentUser(ctx context.Context, _ *iamv1.GetCurrentUse
 			EmailVerified:    u.IsEmailVerified(),
 			Roles:            roleNames,
 			Permissions:      permissionNames,
+			SectionId:        sectionID,
+			DepartmentId:     departmentID,
 		},
 	}, nil
 }

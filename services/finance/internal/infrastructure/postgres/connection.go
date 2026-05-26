@@ -20,6 +20,13 @@ const (
 	sortDESC = "DESC"
 )
 
+// Shared filter / sort-key string constants used across repositories.
+const (
+	filterActive     = "active"
+	filterInactive   = "inactive"
+	sortKeyCreatedAt = "created_at"
+)
+
 // DB wraps the SQL database connection.
 type DB struct {
 	*sql.DB

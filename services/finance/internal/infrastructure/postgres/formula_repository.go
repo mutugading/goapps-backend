@@ -181,11 +181,11 @@ func (r *FormulaRepository) List(ctx context.Context, filter formula.ListFilter)
 
 	// Build order clause
 	sortColumnMap := map[string]string{
-		"code":       "f.formula_code",
-		"name":       "f.formula_name",
-		"type":       "f.formula_type",
-		"version":    "f.version",
-		"created_at": "f.created_at",
+		"code":           "f.formula_code",
+		"name":           "f.formula_name",
+		"type":           "f.formula_type",
+		"version":        "f.version",
+		sortKeyCreatedAt: "f.created_at",
 	}
 	orderColumn := "f.formula_code"
 	if mapped, ok := sortColumnMap[filter.SortBy]; ok {
