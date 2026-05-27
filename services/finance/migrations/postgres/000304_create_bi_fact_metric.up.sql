@@ -22,7 +22,12 @@ CREATE TABLE IF NOT EXISTS bi_fact_metric (
     uploaded_by    UUID,
     loaded_at      TIMESTAMP    NOT NULL DEFAULT NOW(),
     is_active      BOOLEAN      NOT NULL DEFAULT TRUE,
-    CONSTRAINT uq_bi_fm_business_key UNIQUE
+    -- NULLS NOT DISTINCT (Postgres 15+) is REQUIRED: group_2/group_3 are nullable, and
+    -- without it SQL treats every NULL as distinct, so ON CONFLICT upsert would silently
+    -- INSERT duplicate fact rows on every re-ingest (ETL/Excel) for any row with a NULL
+    -- group level. With NULLS NOT DISTINCT, two rows that differ only by NULL==NULL collide
+    -- and the UPSERT updates in place.
+    CONSTRAINT uq_bi_fm_business_key UNIQUE NULLS NOT DISTINCT
       (type, group_1, group_2, group_3, periode_grain, periode_date, scenario, dimension_key)
 );
 
