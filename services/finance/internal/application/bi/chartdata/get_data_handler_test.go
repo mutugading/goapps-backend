@@ -46,16 +46,22 @@ type mockFactRepo struct {
 	aggRows  []factmetric.AggRow
 	aggErr   error
 	queries  int
+	latest   time.Time // returned by LatestPeriod; zero means "no data"
+	lastArgs []any      // args of the most recent QueryAggregate call
 }
 
 func (m *mockFactRepo) GetDistincts(context.Context, factmetric.DistinctScope) (factmetric.DistinctValues, error) {
 	return factmetric.DistinctValues{}, nil
 }
-func (m *mockFactRepo) QueryAggregate(context.Context, factmetric.PlannedQuery) ([]factmetric.AggRow, error) {
+func (m *mockFactRepo) QueryAggregate(_ context.Context, plan factmetric.PlannedQuery) ([]factmetric.AggRow, error) {
 	m.queries++
+	m.lastArgs = plan.Args
 	return m.aggRows, m.aggErr
 }
 func (m *mockFactRepo) Upsert(context.Context, []factmetric.FactMetric) error { return nil }
+func (m *mockFactRepo) LatestPeriod(context.Context, string, string, string) (time.Time, error) {
+	return m.latest, nil
+}
 
 // ---- mock cache ----
 
@@ -126,6 +132,40 @@ func TestGetDataHandler_HappyPath_QueriesAndCaches(t *testing.T) {
 	}
 	if cache.sets != 1 {
 		t.Errorf("expected cache Set called once, got %d", cache.sets)
+	}
+}
+
+// When the warehouse has data, the dashboard anchors its period window to the latest loaded
+// period ("data as of"), not wall-clock now — so a lagging warehouse still reports meaningful
+// current-month / YTD / L12M values.
+func TestGetDataHandler_AnchorsToLatestLoadedPeriod(t *testing.T) {
+	dash := buildViewerDashboard(t, nil)
+	repo := &mockDashboardRepo{getByCode: func(_ context.Context, _ string) (*dashboarddomain.Dashboard, error) { return dash, nil }}
+	// Data ends Apr 2026, but wall-clock "now" is months later.
+	fact := &mockFactRepo{
+		aggRows: []factmetric.AggRow{{Category: "INCOME", Value: 1}},
+		latest:  time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
+	}
+	h := chartdata.NewGetDataHandler(repo, fact, newMockCache(), func(any) string { return "h" }).
+		WithNow(func() time.Time { return time.Date(2026, 9, 20, 0, 0, 0, 0, time.UTC) })
+
+	if _, err := h.Handle(context.Background(), chartdata.GetDataQuery{
+		DashboardCode: "EBITDA",
+		Filters:       chartdata.ViewerFilters{PeriodPreset: "L12M"},
+		UserRoles:     []string{"ANY"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// The plan's date window must end at the latest loaded period (Apr 2026), not "now" (Sep 2026).
+	var maxArg time.Time
+	for _, a := range fact.lastArgs {
+		if d, ok := a.(time.Time); ok && d.After(maxArg) {
+			maxArg = d
+		}
+	}
+	want := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
+	if !maxArg.Equal(want) {
+		t.Errorf("period window should anchor to latest loaded period %v, got %v", want, maxArg)
 	}
 }
 

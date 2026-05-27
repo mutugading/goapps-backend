@@ -3,11 +3,14 @@ package grpc
 import (
 	"context"
 
+	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	financev1 "github.com/mutugading/goapps-backend/gen/finance/v1"
 	dashboardapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/dashboard"
 	groupapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/group"
+	auditdomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/bi/audit"
 	dashboarddomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/bi/dashboard"
 )
 
@@ -29,6 +32,7 @@ type BIDashboardHandler struct {
 	groupListHandler      *groupapp.ListHandler
 	groupUpdateHandler    *groupapp.UpdateHandler
 	groupDeleteHandler    *groupapp.DeleteHandler
+	auditRepo             auditdomain.Repository
 	validationHelper      *ValidationHelper
 }
 
@@ -46,6 +50,7 @@ func NewBIDashboardHandler(
 	groupList *groupapp.ListHandler,
 	groupUpdate *groupapp.UpdateHandler,
 	groupDelete *groupapp.DeleteHandler,
+	auditRepo auditdomain.Repository,
 ) (*BIDashboardHandler, error) {
 	v, err := NewValidationHelper()
 	if err != nil {
@@ -64,8 +69,35 @@ func NewBIDashboardHandler(
 		groupListHandler:      groupList,
 		groupUpdateHandler:    groupUpdate,
 		groupDeleteHandler:    groupDelete,
+		auditRepo:             auditRepo,
 		validationHelper:      v,
 	}, nil
+}
+
+// recordAudit appends a BI config-change audit entry on a best-effort basis.
+// Recording failures never propagate to the caller — the primary mutation
+// has already succeeded by the time this runs.
+func (h *BIDashboardHandler) recordAudit(ctx context.Context, entityType auditdomain.EntryType, action auditdomain.Action, code, title, summary string) {
+	if h.auditRepo == nil {
+		return
+	}
+	userID, _ := GetUserIDFromCtx(ctx)
+	entry := auditdomain.Entry{
+		EntityType:  entityType,
+		EntityCode:  code,
+		EntityTitle: title,
+		Action:      action,
+		ChangedBy:   userID,
+		Summary:     summary,
+	}
+	if err := h.auditRepo.Record(ctx, entry); err != nil {
+		// Best-effort: log and swallow so the audit never breaks the operation.
+		log.Warn().Err(err).
+			Str("entity_type", entityType.String()).
+			Str("action", action.String()).
+			Str("entity_code", code).
+			Msg("failed to record BI config audit entry")
+	}
 }
 
 // CreateDashboard creates a new dashboard.
@@ -105,6 +137,8 @@ func (h *BIDashboardHandler) CreateDashboard(ctx context.Context, req *financev1
 	if err != nil {
 		return &financev1.CreateDashboardResponse{Base: biDomainErrorToBase(err)}, nil
 	}
+	h.recordAudit(ctx, auditdomain.EntryTypeDashboard, auditdomain.ActionCreate,
+		d.Code().String(), d.Title(), "Created dashboard "+d.Code().String())
 	return &financev1.CreateDashboardResponse{
 		Base: successResponse("Dashboard created successfully"),
 		Data: dashboardToProto(d),
@@ -256,6 +290,8 @@ func (h *BIDashboardHandler) UpdateDashboard(ctx context.Context, req *financev1
 	if err != nil {
 		return &financev1.UpdateDashboardResponse{Base: biDomainErrorToBase(err)}, nil
 	}
+	h.recordAudit(ctx, auditdomain.EntryTypeDashboard, auditdomain.ActionUpdate,
+		d.Code().String(), d.Title(), "Updated dashboard "+d.Code().String())
 	return &financev1.UpdateDashboardResponse{
 		Base: successResponse("Dashboard updated"),
 		Data: dashboardToProto(d),
@@ -268,12 +304,21 @@ func (h *BIDashboardHandler) DeleteDashboard(ctx context.Context, req *financev1
 		return &financev1.DeleteDashboardResponse{Base: baseResp}, nil
 	}
 	userID, _ := GetUserIDFromCtx(ctx)
+	id := uuidFromString(req.GetDashboardId())
+	// Best-effort fetch BEFORE delete so the audit entry has code/title (not just the id).
+	var code, title string
+	if existing, gErr := h.getHandler.HandleByID(ctx, dashboardapp.GetByIDQuery{ID: id}); gErr == nil && existing != nil {
+		code = existing.Code().String()
+		title = existing.Title()
+	}
 	if err := h.deleteHandler.Handle(ctx, dashboardapp.DeleteCommand{
-		ID:        uuidFromString(req.GetDashboardId()),
+		ID:        id,
 		DeletedBy: userUUIDFromContext(userID),
 	}); err != nil {
 		return &financev1.DeleteDashboardResponse{Base: biDomainErrorToBase(err)}, nil
 	}
+	h.recordAudit(ctx, auditdomain.EntryTypeDashboard, auditdomain.ActionDelete,
+		code, title, "Deleted dashboard "+auditLabel(code, id.String()))
 	return &financev1.DeleteDashboardResponse{Base: successResponse("Dashboard deleted")}, nil
 }
 
@@ -292,6 +337,8 @@ func (h *BIDashboardHandler) DuplicateDashboard(ctx context.Context, req *financ
 	if err != nil {
 		return &financev1.DuplicateDashboardResponse{Base: biDomainErrorToBase(err)}, nil
 	}
+	h.recordAudit(ctx, auditdomain.EntryTypeDashboard, auditdomain.ActionCreate,
+		d.Code().String(), d.Title(), "Duplicated dashboard "+d.Code().String())
 	return &financev1.DuplicateDashboardResponse{
 		Base: successResponse("Dashboard duplicated"),
 		Data: dashboardToProto(d),
@@ -358,6 +405,8 @@ func (h *BIDashboardHandler) CreateDashboardGroup(ctx context.Context, req *fina
 	if err != nil {
 		return &financev1.CreateDashboardGroupResponse{Base: biDomainErrorToBase(err)}, nil
 	}
+	h.recordAudit(ctx, auditdomain.EntryTypeGroup, auditdomain.ActionCreate,
+		g.Code(), g.Name(), "Created group "+g.Code())
 	return &financev1.CreateDashboardGroupResponse{
 		Base: successResponse("Group created"),
 		Data: groupToProto(g),
@@ -414,6 +463,8 @@ func (h *BIDashboardHandler) UpdateDashboardGroup(ctx context.Context, req *fina
 	if err != nil {
 		return &financev1.UpdateDashboardGroupResponse{Base: biDomainErrorToBase(err)}, nil
 	}
+	h.recordAudit(ctx, auditdomain.EntryTypeGroup, auditdomain.ActionUpdate,
+		g.Code(), g.Name(), "Updated group "+g.Code())
 	return &financev1.UpdateDashboardGroupResponse{
 		Base: successResponse("Group updated"),
 		Data: groupToProto(g),
@@ -425,10 +476,78 @@ func (h *BIDashboardHandler) DeleteDashboardGroup(ctx context.Context, req *fina
 	if baseResp := h.validationHelper.ValidateRequest(req); baseResp != nil {
 		return &financev1.DeleteDashboardGroupResponse{Base: baseResp}, nil
 	}
-	if err := h.groupDeleteHandler.Handle(ctx, uuidFromString(req.GetGroupId())); err != nil {
+	id := uuidFromString(req.GetGroupId())
+	// Best-effort fetch BEFORE delete so the audit entry has the group code/name.
+	var code, title string
+	if groups, lErr := h.groupListHandler.Handle(ctx, true); lErr == nil {
+		for _, g := range groups {
+			if g.ID() == id {
+				code = g.Code()
+				title = g.Name()
+				break
+			}
+		}
+	}
+	if err := h.groupDeleteHandler.Handle(ctx, id); err != nil {
 		return &financev1.DeleteDashboardGroupResponse{Base: biDomainErrorToBase(err)}, nil
 	}
+	h.recordAudit(ctx, auditdomain.EntryTypeGroup, auditdomain.ActionDelete,
+		code, title, "Deleted group "+auditLabel(code, id.String()))
 	return &financev1.DeleteDashboardGroupResponse{Base: successResponse("Group deleted")}, nil
+}
+
+// auditLabel returns the human-friendly code when available, otherwise falls back to the id.
+func auditLabel(code, id string) string {
+	if code != "" {
+		return code
+	}
+	return id
+}
+
+// ListConfigAudit returns the paginated BI config-change audit history.
+func (h *BIDashboardHandler) ListConfigAudit(ctx context.Context, req *financev1.ListConfigAuditRequest) (*financev1.ListConfigAuditResponse, error) {
+	if baseResp := h.validationHelper.ValidateRequest(req); baseResp != nil {
+		return &financev1.ListConfigAuditResponse{Base: baseResp}, nil
+	}
+	page := int(req.GetPage())
+	pageSize := int(req.GetPageSize())
+	if h.auditRepo == nil {
+		return &financev1.ListConfigAuditResponse{
+			Base:       successResponse("Config audit listed"),
+			Data:       []*financev1.BiAuditEntry{},
+			Pagination: biPaginationResponse(page, pageSize, 0),
+		}, nil
+	}
+	entries, total, err := h.auditRepo.List(ctx, req.GetEntityType(), page, pageSize)
+	if err != nil {
+		return &financev1.ListConfigAuditResponse{Base: biDomainErrorToBase(err)}, nil
+	}
+	data := make([]*financev1.BiAuditEntry, 0, len(entries))
+	for _, e := range entries {
+		data = append(data, auditEntryToProto(e))
+	}
+	return &financev1.ListConfigAuditResponse{
+		Base:       successResponse("Config audit listed"),
+		Data:       data,
+		Pagination: biPaginationResponse(page, pageSize, int64(total)),
+	}, nil
+}
+
+// auditEntryToProto maps a domain audit entry to its proto representation.
+func auditEntryToProto(e auditdomain.Entry) *financev1.BiAuditEntry {
+	out := &financev1.BiAuditEntry{
+		AuditId:     e.AuditID,
+		EntityType:  e.EntityType.String(),
+		EntityCode:  e.EntityCode,
+		EntityTitle: e.EntityTitle,
+		Action:      e.Action.String(),
+		ChangedBy:   e.ChangedBy,
+		Summary:     e.Summary,
+	}
+	if !e.ChangedAt.IsZero() {
+		out.ChangedAt = timestamppb.New(e.ChangedAt)
+	}
+	return out
 }
 
 // Compile-time assertion this handler satisfies the gRPC interface.

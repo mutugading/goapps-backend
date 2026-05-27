@@ -32,6 +32,7 @@ const (
 	DashboardService_ListDashboardGroups_FullMethodName      = "/finance.v1.DashboardService/ListDashboardGroups"
 	DashboardService_UpdateDashboardGroup_FullMethodName     = "/finance.v1.DashboardService/UpdateDashboardGroup"
 	DashboardService_DeleteDashboardGroup_FullMethodName     = "/finance.v1.DashboardService/DeleteDashboardGroup"
+	DashboardService_ListConfigAudit_FullMethodName          = "/finance.v1.DashboardService/ListConfigAudit"
 )
 
 // DashboardServiceClient is the client API for DashboardService service.
@@ -66,6 +67,8 @@ type DashboardServiceClient interface {
 	UpdateDashboardGroup(ctx context.Context, in *UpdateDashboardGroupRequest, opts ...grpc.CallOption) (*UpdateDashboardGroupResponse, error)
 	// DeleteDashboardGroup soft-deletes a group.
 	DeleteDashboardGroup(ctx context.Context, in *DeleteDashboardGroupRequest, opts ...grpc.CallOption) (*DeleteDashboardGroupResponse, error)
+	// ListConfigAudit returns the dashboard/group configuration change history.
+	ListConfigAudit(ctx context.Context, in *ListConfigAuditRequest, opts ...grpc.CallOption) (*ListConfigAuditResponse, error)
 }
 
 type dashboardServiceClient struct {
@@ -206,6 +209,16 @@ func (c *dashboardServiceClient) DeleteDashboardGroup(ctx context.Context, in *D
 	return out, nil
 }
 
+func (c *dashboardServiceClient) ListConfigAudit(ctx context.Context, in *ListConfigAuditRequest, opts ...grpc.CallOption) (*ListConfigAuditResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListConfigAuditResponse)
+	err := c.cc.Invoke(ctx, DashboardService_ListConfigAudit_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DashboardServiceServer is the server API for DashboardService service.
 // All implementations must embed UnimplementedDashboardServiceServer
 // for forward compatibility.
@@ -238,6 +251,8 @@ type DashboardServiceServer interface {
 	UpdateDashboardGroup(context.Context, *UpdateDashboardGroupRequest) (*UpdateDashboardGroupResponse, error)
 	// DeleteDashboardGroup soft-deletes a group.
 	DeleteDashboardGroup(context.Context, *DeleteDashboardGroupRequest) (*DeleteDashboardGroupResponse, error)
+	// ListConfigAudit returns the dashboard/group configuration change history.
+	ListConfigAudit(context.Context, *ListConfigAuditRequest) (*ListConfigAuditResponse, error)
 	mustEmbedUnimplementedDashboardServiceServer()
 }
 
@@ -286,6 +301,9 @@ func (UnimplementedDashboardServiceServer) UpdateDashboardGroup(context.Context,
 }
 func (UnimplementedDashboardServiceServer) DeleteDashboardGroup(context.Context, *DeleteDashboardGroupRequest) (*DeleteDashboardGroupResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteDashboardGroup not implemented")
+}
+func (UnimplementedDashboardServiceServer) ListConfigAudit(context.Context, *ListConfigAuditRequest) (*ListConfigAuditResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListConfigAudit not implemented")
 }
 func (UnimplementedDashboardServiceServer) mustEmbedUnimplementedDashboardServiceServer() {}
 func (UnimplementedDashboardServiceServer) testEmbeddedByValue()                          {}
@@ -542,6 +560,24 @@ func _DashboardService_DeleteDashboardGroup_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DashboardService_ListConfigAudit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListConfigAuditRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DashboardServiceServer).ListConfigAudit(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DashboardService_ListConfigAudit_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DashboardServiceServer).ListConfigAudit(ctx, req.(*ListConfigAuditRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DashboardService_ServiceDesc is the grpc.ServiceDesc for DashboardService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -600,6 +636,10 @@ var DashboardService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteDashboardGroup",
 			Handler:    _DashboardService_DeleteDashboardGroup_Handler,
+		},
+		{
+			MethodName: "ListConfigAudit",
+			Handler:    _DashboardService_ListConfigAudit_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -1084,6 +1124,276 @@ var BiJobService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "TriggerJob",
 			Handler:    _BiJobService_TriggerJob_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "finance/v1/bi.proto",
+}
+
+const (
+	BiUploadService_DownloadUploadTemplate_FullMethodName = "/finance.v1.BiUploadService/DownloadUploadTemplate"
+	BiUploadService_ParseUpload_FullMethodName            = "/finance.v1.BiUploadService/ParseUpload"
+	BiUploadService_CommitUpload_FullMethodName           = "/finance.v1.BiUploadService/CommitUpload"
+	BiUploadService_CancelUpload_FullMethodName           = "/finance.v1.BiUploadService/CancelUpload"
+	BiUploadService_ListUploads_FullMethodName            = "/finance.v1.BiUploadService/ListUploads"
+)
+
+// BiUploadServiceClient is the client API for BiUploadService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// BiUploadService handles Excel upload: template download, parse/preview into staging,
+// commit (UPSERT to fact_metric), cancel, and upload session history.
+type BiUploadServiceClient interface {
+	// DownloadUploadTemplate returns a blank .xlsx template matching the FACT_METRIC shape.
+	DownloadUploadTemplate(ctx context.Context, in *DownloadUploadTemplateRequest, opts ...grpc.CallOption) (*DownloadUploadTemplateResponse, error)
+	// ParseUpload parses an uploaded .xlsx, validates rows, writes to staging, returns a preview.
+	ParseUpload(ctx context.Context, in *ParseUploadRequest, opts ...grpc.CallOption) (*ParseUploadResponse, error)
+	// CommitUpload UPSERTs the staged rows of a previewed session into fact_metric.
+	CommitUpload(ctx context.Context, in *CommitUploadRequest, opts ...grpc.CallOption) (*CommitUploadResponse, error)
+	// CancelUpload discards a previewed session without committing.
+	CancelUpload(ctx context.Context, in *CancelUploadRequest, opts ...grpc.CallOption) (*CancelUploadResponse, error)
+	// ListUploads returns paginated upload session history.
+	ListUploads(ctx context.Context, in *ListUploadsRequest, opts ...grpc.CallOption) (*ListUploadsResponse, error)
+}
+
+type biUploadServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewBiUploadServiceClient(cc grpc.ClientConnInterface) BiUploadServiceClient {
+	return &biUploadServiceClient{cc}
+}
+
+func (c *biUploadServiceClient) DownloadUploadTemplate(ctx context.Context, in *DownloadUploadTemplateRequest, opts ...grpc.CallOption) (*DownloadUploadTemplateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DownloadUploadTemplateResponse)
+	err := c.cc.Invoke(ctx, BiUploadService_DownloadUploadTemplate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *biUploadServiceClient) ParseUpload(ctx context.Context, in *ParseUploadRequest, opts ...grpc.CallOption) (*ParseUploadResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ParseUploadResponse)
+	err := c.cc.Invoke(ctx, BiUploadService_ParseUpload_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *biUploadServiceClient) CommitUpload(ctx context.Context, in *CommitUploadRequest, opts ...grpc.CallOption) (*CommitUploadResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CommitUploadResponse)
+	err := c.cc.Invoke(ctx, BiUploadService_CommitUpload_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *biUploadServiceClient) CancelUpload(ctx context.Context, in *CancelUploadRequest, opts ...grpc.CallOption) (*CancelUploadResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CancelUploadResponse)
+	err := c.cc.Invoke(ctx, BiUploadService_CancelUpload_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *biUploadServiceClient) ListUploads(ctx context.Context, in *ListUploadsRequest, opts ...grpc.CallOption) (*ListUploadsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListUploadsResponse)
+	err := c.cc.Invoke(ctx, BiUploadService_ListUploads_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// BiUploadServiceServer is the server API for BiUploadService service.
+// All implementations must embed UnimplementedBiUploadServiceServer
+// for forward compatibility.
+//
+// BiUploadService handles Excel upload: template download, parse/preview into staging,
+// commit (UPSERT to fact_metric), cancel, and upload session history.
+type BiUploadServiceServer interface {
+	// DownloadUploadTemplate returns a blank .xlsx template matching the FACT_METRIC shape.
+	DownloadUploadTemplate(context.Context, *DownloadUploadTemplateRequest) (*DownloadUploadTemplateResponse, error)
+	// ParseUpload parses an uploaded .xlsx, validates rows, writes to staging, returns a preview.
+	ParseUpload(context.Context, *ParseUploadRequest) (*ParseUploadResponse, error)
+	// CommitUpload UPSERTs the staged rows of a previewed session into fact_metric.
+	CommitUpload(context.Context, *CommitUploadRequest) (*CommitUploadResponse, error)
+	// CancelUpload discards a previewed session without committing.
+	CancelUpload(context.Context, *CancelUploadRequest) (*CancelUploadResponse, error)
+	// ListUploads returns paginated upload session history.
+	ListUploads(context.Context, *ListUploadsRequest) (*ListUploadsResponse, error)
+	mustEmbedUnimplementedBiUploadServiceServer()
+}
+
+// UnimplementedBiUploadServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedBiUploadServiceServer struct{}
+
+func (UnimplementedBiUploadServiceServer) DownloadUploadTemplate(context.Context, *DownloadUploadTemplateRequest) (*DownloadUploadTemplateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DownloadUploadTemplate not implemented")
+}
+func (UnimplementedBiUploadServiceServer) ParseUpload(context.Context, *ParseUploadRequest) (*ParseUploadResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ParseUpload not implemented")
+}
+func (UnimplementedBiUploadServiceServer) CommitUpload(context.Context, *CommitUploadRequest) (*CommitUploadResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CommitUpload not implemented")
+}
+func (UnimplementedBiUploadServiceServer) CancelUpload(context.Context, *CancelUploadRequest) (*CancelUploadResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CancelUpload not implemented")
+}
+func (UnimplementedBiUploadServiceServer) ListUploads(context.Context, *ListUploadsRequest) (*ListUploadsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListUploads not implemented")
+}
+func (UnimplementedBiUploadServiceServer) mustEmbedUnimplementedBiUploadServiceServer() {}
+func (UnimplementedBiUploadServiceServer) testEmbeddedByValue()                         {}
+
+// UnsafeBiUploadServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to BiUploadServiceServer will
+// result in compilation errors.
+type UnsafeBiUploadServiceServer interface {
+	mustEmbedUnimplementedBiUploadServiceServer()
+}
+
+func RegisterBiUploadServiceServer(s grpc.ServiceRegistrar, srv BiUploadServiceServer) {
+	// If the following call panics, it indicates UnimplementedBiUploadServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&BiUploadService_ServiceDesc, srv)
+}
+
+func _BiUploadService_DownloadUploadTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DownloadUploadTemplateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BiUploadServiceServer).DownloadUploadTemplate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BiUploadService_DownloadUploadTemplate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BiUploadServiceServer).DownloadUploadTemplate(ctx, req.(*DownloadUploadTemplateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BiUploadService_ParseUpload_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ParseUploadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BiUploadServiceServer).ParseUpload(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BiUploadService_ParseUpload_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BiUploadServiceServer).ParseUpload(ctx, req.(*ParseUploadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BiUploadService_CommitUpload_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CommitUploadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BiUploadServiceServer).CommitUpload(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BiUploadService_CommitUpload_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BiUploadServiceServer).CommitUpload(ctx, req.(*CommitUploadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BiUploadService_CancelUpload_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelUploadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BiUploadServiceServer).CancelUpload(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BiUploadService_CancelUpload_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BiUploadServiceServer).CancelUpload(ctx, req.(*CancelUploadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BiUploadService_ListUploads_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUploadsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BiUploadServiceServer).ListUploads(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BiUploadService_ListUploads_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BiUploadServiceServer).ListUploads(ctx, req.(*ListUploadsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// BiUploadService_ServiceDesc is the grpc.ServiceDesc for BiUploadService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var BiUploadService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "finance.v1.BiUploadService",
+	HandlerType: (*BiUploadServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "DownloadUploadTemplate",
+			Handler:    _BiUploadService_DownloadUploadTemplate_Handler,
+		},
+		{
+			MethodName: "ParseUpload",
+			Handler:    _BiUploadService_ParseUpload_Handler,
+		},
+		{
+			MethodName: "CommitUpload",
+			Handler:    _BiUploadService_CommitUpload_Handler,
+		},
+		{
+			MethodName: "CancelUpload",
+			Handler:    _BiUploadService_CancelUpload_Handler,
+		},
+		{
+			MethodName: "ListUploads",
+			Handler:    _BiUploadService_ListUploads_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

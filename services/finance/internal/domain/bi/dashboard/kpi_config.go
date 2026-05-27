@@ -12,6 +12,7 @@ type KpiEntry struct {
 	ValueField       string
 	Agg              string // sum|avg|min|max|last
 	Compare          string // MoM|QoQ|YoY|YTD_vs_LY|none
+	Period           string // selected|current_month|ytd|l12m — scopes the KPI window independently of the viewer's selected period
 	Format           chart.NumberFormat
 	Decimals         int
 	ShowSparkline    bool
@@ -30,6 +31,17 @@ var allowedAggs = map[string]struct{}{
 // KPI supports YTD_vs_LY which the chart overlay calls YTD).
 var allowedKpiCompares = map[string]struct{}{
 	"MoM": {}, "QoQ": {}, "YoY": {}, "YTD_vs_LY": {}, "none": {},
+}
+
+// kpiPeriodSelected is the default per-KPI period scope: inherit the viewer's selected period.
+const kpiPeriodSelected = "selected"
+
+// allowedKpiPeriods is the closed set of per-KPI period-scope keys. "selected" (the default)
+// means the KPI inherits the viewer's currently selected period; the others scope the KPI to a
+// fixed window relative to "now" so labels like "Current Month" / "YTD" / "L12M" stay meaningful
+// regardless of what the viewer selected.
+var allowedKpiPeriods = map[string]struct{}{
+	kpiPeriodSelected: {}, "current_month": {}, "ytd": {}, "l12m": {},
 }
 
 // ParseKpiConfig validates every entry in the raw list and returns a typed KpiConfig.
@@ -66,20 +78,19 @@ func parseKpiEntry(m map[string]any, idx int) (KpiEntry, error) {
 		return KpiEntry{}, fmt.Errorf("%w: entry %d missing 'value_field'", ErrInvalidKpiConfig, idx)
 	}
 
-	agg := mapStringVal(m, "agg")
-	if agg == "" {
-		agg = "sum"
-	}
-	if _, ok := allowedAggs[agg]; !ok {
-		return KpiEntry{}, fmt.Errorf("%w: entry %d agg %q is not one of sum/avg/min/max/last", ErrInvalidKpiConfig, idx, agg)
+	agg, err := parseKpiAgg(m, idx)
+	if err != nil {
+		return KpiEntry{}, err
 	}
 
-	compare := mapStringVal(m, "compare")
-	if compare == "" {
-		compare = "none"
+	compare, err := parseKpiCompare(m, idx)
+	if err != nil {
+		return KpiEntry{}, err
 	}
-	if _, ok := allowedKpiCompares[compare]; !ok {
-		return KpiEntry{}, fmt.Errorf("%w: entry %d compare %q is not one of MoM/QoQ/YoY/YTD_vs_LY/none", ErrInvalidKpiConfig, idx, compare)
+
+	period, err := parseKpiPeriod(m, idx)
+	if err != nil {
+		return KpiEntry{}, err
 	}
 
 	format := mapStringVal(m, "format")
@@ -112,11 +123,48 @@ func parseKpiEntry(m map[string]any, idx int) (KpiEntry, error) {
 		ValueField:       valueField,
 		Agg:              agg,
 		Compare:          compare,
+		Period:           period,
 		Format:           chart.NumberFormat(format),
 		Decimals:         decimals,
 		ShowSparkline:    showSparkline,
 		SparklinePeriods: sparkPeriods,
 	}, nil
+}
+
+// parseKpiAgg reads and validates the aggregation key, defaulting to "sum".
+func parseKpiAgg(m map[string]any, idx int) (string, error) {
+	agg := mapStringVal(m, "agg")
+	if agg == "" {
+		agg = "sum"
+	}
+	if _, ok := allowedAggs[agg]; !ok {
+		return "", fmt.Errorf("%w: entry %d agg %q is not one of sum/avg/min/max/last", ErrInvalidKpiConfig, idx, agg)
+	}
+	return agg, nil
+}
+
+// parseKpiCompare reads and validates the compare key, defaulting to "none".
+func parseKpiCompare(m map[string]any, idx int) (string, error) {
+	compare := mapStringVal(m, "compare")
+	if compare == "" {
+		compare = "none"
+	}
+	if _, ok := allowedKpiCompares[compare]; !ok {
+		return "", fmt.Errorf("%w: entry %d compare %q is not one of MoM/QoQ/YoY/YTD_vs_LY/none", ErrInvalidKpiConfig, idx, compare)
+	}
+	return compare, nil
+}
+
+// parseKpiPeriod reads and validates the optional per-KPI period scope, defaulting to "selected".
+func parseKpiPeriod(m map[string]any, idx int) (string, error) {
+	period := mapStringVal(m, "period")
+	if period == "" {
+		period = kpiPeriodSelected
+	}
+	if _, ok := allowedKpiPeriods[period]; !ok {
+		return "", fmt.Errorf("%w: entry %d period %q is not one of selected/current_month/ytd/l12m", ErrInvalidKpiConfig, idx, period)
+	}
+	return period, nil
 }
 
 // mapBoolVal extracts a bool value from a map[string]any, returning false if absent or wrong type.
@@ -138,6 +186,9 @@ func (k KpiConfig) MarshalToList() []map[string]any {
 			"agg":         e.Agg,
 			"compare":     e.Compare,
 			"format":      string(e.Format),
+		}
+		if e.Period != "" && e.Period != kpiPeriodSelected {
+			m["period"] = e.Period
 		}
 		if e.Decimals != 0 {
 			m["decimals"] = e.Decimals

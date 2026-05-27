@@ -208,12 +208,15 @@ func buildPlan(a buildArgs) (factmetric.PlannedQuery, error) {
 		if shift := compareShiftMonths(a.Compare); shift > 0 {
 			return buildTrendComparePlan(a, coreConds, dateConds, args, shift), nil
 		}
+		// NB: the materialized views (mv_bi_metric_g1/g2) do NOT carry periode_label,
+		// so the label is derived from periode_date via TO_CHAR (YYYYMM) here.
 		sql := fmt.Sprintf(`
-SELECT TO_CHAR(periode_date, 'YYYYMMDD')::text AS category, periode_date, periode_label,
+SELECT TO_CHAR(periode_date, 'YYYYMM')::text AS category, periode_date,
+       TO_CHAR(periode_date, 'YYYYMM')::text AS periode_label,
        SUM(value) AS value, 0::numeric AS prev_value, 0::int AS order_seq
 FROM %s
 WHERE %s
-GROUP BY periode_date, periode_label
+GROUP BY periode_date
 ORDER BY periode_date`, a.Source, strings.Join(dateConds, " AND "))
 		return factmetric.PlannedQuery{SQL: sql, Args: args, TargetTable: a.Source}, nil
 	}
@@ -243,12 +246,13 @@ ORDER BY order_seq NULLS LAST, category`,
 // shiftMonths is a fixed integer derived from the compare mode (not user input), so the
 // INTERVAL literal is safe to inline.
 func buildTrendComparePlan(a buildArgs, coreConds, dateConds []string, args []any, shiftMonths int) factmetric.PlannedQuery {
+	// NB: the materialized views don't carry periode_label; it is derived via TO_CHAR.
 	sql := fmt.Sprintf(`
 WITH cur AS (
-    SELECT periode_date, periode_label, SUM(value) AS value
+    SELECT periode_date, SUM(value) AS value
     FROM %s
     WHERE %s
-    GROUP BY periode_date, periode_label
+    GROUP BY periode_date
 ),
 prev AS (
     SELECT periode_date, SUM(value) AS value
@@ -256,8 +260,9 @@ prev AS (
     WHERE %s
     GROUP BY periode_date
 )
-SELECT TO_CHAR(cur.periode_date, 'YYYYMMDD')::text AS category,
-       cur.periode_date, cur.periode_label,
+SELECT TO_CHAR(cur.periode_date, 'YYYYMM')::text AS category,
+       cur.periode_date,
+       TO_CHAR(cur.periode_date, 'YYYYMM')::text AS periode_label,
        cur.value,
        COALESCE(prev.value, 0) AS prev_value,
        0::int AS order_seq

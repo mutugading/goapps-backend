@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/bi/factmetric"
 )
@@ -72,6 +73,20 @@ func (r *BiFactMetricRepository) collectDistinct(ctx context.Context, q string, 
 		*dst = append(*dst, s)
 	}
 	return rows.Err()
+}
+
+// LatestPeriod returns MAX(periode_date) for the scope, or a zero time when no rows match.
+func (r *BiFactMetricRepository) LatestPeriod(ctx context.Context, factType, group1, grain string) (time.Time, error) {
+	const q = `SELECT MAX(periode_date) FROM bi_fact_metric
+WHERE is_active AND type = $1 AND periode_grain = $3 AND ($2 = '' OR group_1 = $2)`
+	var t sql.NullTime
+	if err := r.db.QueryRowContext(ctx, q, factType, group1, grain).Scan(&t); err != nil {
+		return time.Time{}, fmt.Errorf("query latest period: %w", err)
+	}
+	if !t.Valid {
+		return time.Time{}, nil
+	}
+	return t.Time, nil
 }
 
 // QueryAggregate executes a planned SQL+args bundle and scans into AggRow slice.

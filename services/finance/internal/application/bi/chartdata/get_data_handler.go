@@ -61,6 +61,20 @@ func (h *GetDataHandler) WithNow(now func() time.Time) *GetDataHandler {
 	return h
 }
 
+// resolveAsOf returns the "data as of" anchor for the dashboard. Warehouse data lags wall-clock
+// (the current calendar month is usually not loaded yet), so period presets and KPI windows are
+// anchored to the latest loaded period for this dashboard's scope; falls back to now when empty.
+func (h *GetDataHandler) resolveAsOf(ctx context.Context, d *dashboarddomain.Dashboard) (time.Time, error) {
+	latest, err := h.fact.LatestPeriod(ctx, d.FilterType(), d.FilterGroup1(), d.PeriodGrain().String())
+	if err != nil {
+		return time.Time{}, fmt.Errorf("latest period: %w", err)
+	}
+	if latest.IsZero() {
+		return h.now(), nil
+	}
+	return latest, nil
+}
+
 // Handle executes the full viewer pipeline.
 func (h *GetDataHandler) Handle(ctx context.Context, q GetDataQuery) (*Result, error) {
 	// 1. Load dashboard
@@ -89,9 +103,14 @@ func (h *GetDataHandler) Handle(ctx context.Context, q GetDataQuery) (*Result, e
 		}
 	}
 
-	// 4. Plan + execute aggregate query
-	now := h.now()
-	plan, err := Plan(d, q.Filters, now)
+	// 4. Resolve the "as of" anchor (latest loaded period; falls back to now).
+	asOf, err := h.resolveAsOf(ctx, d)
+	if err != nil {
+		return nil, err
+	}
+
+	// 5. Plan + execute aggregate query
+	plan, err := Plan(d, q.Filters, asOf)
 	if err != nil {
 		return nil, fmt.Errorf("plan: %w", err)
 	}
@@ -100,20 +119,20 @@ func (h *GetDataHandler) Handle(ctx context.Context, q GetDataQuery) (*Result, e
 		return nil, fmt.Errorf("execute aggregate: %w", err)
 	}
 
-	// 5. Compute KPIs
+	// 6. Compute KPIs
 	period := ResolvePeriod(q.Filters.PeriodPreset, q.Filters.PeriodFrom, q.Filters.PeriodTo,
-		d.PeriodGrain().String(), now)
-	kpis, err := ComputeKPIs(ctx, h.fact, d, period, now)
+		d.PeriodGrain().String(), asOf)
+	kpis, err := ComputeKPIs(ctx, h.fact, d, period, asOf)
 	if err != nil {
 		return nil, fmt.Errorf("compute kpis: %w", err)
 	}
 
-	// 6. Shape + format
+	// 7. Shape + format
 	drillCtx := BuildDrillContext(d, q.Filters)
 	result := Shape(d, rows, kpis, q.Filters, drillCtx)
 	result.Meta.QueryHash = hashKey
 
-	// 7. Cache (best-effort)
+	// 8. Cache (best-effort)
 	ttl := time.Duration(d.CacheTTL().Seconds()) * time.Second
 	if h.cache != nil && h.hash != nil && ttl > 0 {
 		if err := h.cache.Set(ctx, q.DashboardCode, hashKey, result, ttl); err != nil {

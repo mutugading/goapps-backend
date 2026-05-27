@@ -8,17 +8,19 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
 	financev1 "github.com/mutugading/goapps-backend/gen/finance/v1"
+	"github.com/mutugading/goapps-backend/pkg/costcalc/metrics"
+	"github.com/mutugading/goapps-backend/services/finance/internal/application/auditadapter"
 	chartdataapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/chartdata"
 	dashboardapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/dashboard"
 	datasourceapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/datasource"
 	groupapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/group"
 	jobapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/job"
-	"github.com/mutugading/goapps-backend/pkg/costcalc/metrics"
-	"github.com/mutugading/goapps-backend/services/finance/internal/application/auditadapter"
+	uploadapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/upload"
 	auditapp "github.com/mutugading/goapps-backend/services/finance/internal/application/costauditlog"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/costcalc"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/costcalc/evaluator"
@@ -145,6 +147,8 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	biFactRepo := postgres.NewBiFactMetricRepository(db)
 	biDataSourceRepo := postgres.NewBiDataSourceRepository(db)
 	biJobRepo := postgres.NewBiJobRepository(db)
+	biUploadRepo := postgres.NewBiUploadRepository(db)
+	biAuditRepo := postgres.NewBiAuditRepository(db)
 	biChartCache := redisinfra.NewChartCache(redisClient)
 
 	// Setup gRPC handlers
@@ -349,6 +353,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		groupapp.NewListHandler(biGroupRepo),
 		groupapp.NewUpdateHandler(biGroupRepo),
 		groupapp.NewDeleteHandler(biGroupRepo),
+		biAuditRepo,
 	)
 	if err != nil {
 		return err
@@ -379,6 +384,24 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		return err
 	}
 
+	excelUploadSourceLookup := func(ctx context.Context) (uuid.UUID, error) {
+		ds, err := biDataSourceRepo.GetByCode(ctx, "EXCEL_UPLOAD")
+		if err != nil {
+			return uuid.Nil, err
+		}
+		return ds.ID, nil
+	}
+	biUploadHandler, err := grpcdelivery.NewBIUploadHandler(
+		uploadapp.NewTemplateHandler(),
+		uploadapp.NewParseHandler(biUploadRepo, excelUploadSourceLookup),
+		uploadapp.NewCommitHandler(biUploadRepo),
+		uploadapp.NewCancelHandler(biUploadRepo),
+		uploadapp.NewListHandler(biUploadRepo),
+	)
+	if err != nil {
+		return err
+	}
+
 	// Setup and start servers
 	return startServers(ctx, cfg,
 		uomHandler, rmCategoryHandler, parameterHandler, formulaHandler, uomCategoryHandler,
@@ -389,7 +412,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		costRoutingRuleHandler, costAuditLogHandler, costNotificationHandler,
 		costProductParameterHandler,
 		costCalcHandler,
-		biDashboardHandler, biChartDataHandler, biDataSourceHandler, biJobHandler,
+		biDashboardHandler, biChartDataHandler, biDataSourceHandler, biJobHandler, biUploadHandler,
 		tokenBlacklist)
 }
 
@@ -515,6 +538,7 @@ func startServers(ctx context.Context, cfg *config.Config,
 	biChartDataHandler *grpcdelivery.BIChartDataHandler,
 	biDataSourceHandler *grpcdelivery.BIDataSourceHandler,
 	biJobHandler *grpcdelivery.BIJobHandler,
+	biUploadHandler *grpcdelivery.BIUploadHandler,
 	tokenBlacklist *redisinfra.TokenBlacklist,
 ) error {
 	// Setup gRPC server with JWT auth and token blacklist
@@ -556,6 +580,7 @@ func startServers(ctx context.Context, cfg *config.Config,
 	financev1.RegisterChartDataServiceServer(grpcServer.GRPCServer(), biChartDataHandler)
 	financev1.RegisterDataSourceServiceServer(grpcServer.GRPCServer(), biDataSourceHandler)
 	financev1.RegisterBiJobServiceServer(grpcServer.GRPCServer(), biJobHandler)
+	financev1.RegisterBiUploadServiceServer(grpcServer.GRPCServer(), biUploadHandler)
 
 	// Start gRPC server
 	go func() {

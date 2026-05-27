@@ -94,10 +94,13 @@ func biDomainErrorToBase(err error) *commonv1.BaseResponse {
 	return InternalErrorResponse(msg)
 }
 
+// systemActor is the sentinel user identity for non-interactive (system/anonymous) callers.
+const systemActor = "system"
+
 // userUUIDFromContext parses the authenticated user's UUID from context.
 // Returns uuid.Nil when no user is set (system/anonymous).
 func userUUIDFromContext(userID string) uuid.UUID {
-	if userID == "" || userID == "system" {
+	if userID == "" || userID == systemActor {
 		return uuid.Nil
 	}
 	if id, err := uuid.Parse(userID); err == nil {

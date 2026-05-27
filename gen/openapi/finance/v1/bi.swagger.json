@@ -16,6 +16,9 @@
     },
     {
       "name": "BiJobService"
+    },
+    {
+      "name": "BiUploadService"
     }
   ],
   "consumes": [
@@ -25,6 +28,51 @@
     "application/json"
   ],
   "paths": {
+    "/api/v1/finance/bi/audit": {
+      "get": {
+        "summary": "ListConfigAudit returns the dashboard/group configuration change history.",
+        "operationId": "DashboardService_ListConfigAudit",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListConfigAuditResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "entityType",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "DashboardService"
+        ]
+      }
+    },
     "/api/v1/finance/bi/dashboards": {
       "get": {
         "summary": "ListDashboards returns paginated dashboards for admin.",
@@ -776,10 +824,197 @@
           "ChartDataService"
         ]
       }
+    },
+    "/api/v1/finance/bi/uploads": {
+      "get": {
+        "summary": "ListUploads returns paginated upload session history.",
+        "operationId": "BiUploadService_ListUploads",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListUploadsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "BiUploadService"
+        ]
+      }
+    },
+    "/api/v1/finance/bi/uploads/parse": {
+      "post": {
+        "summary": "ParseUpload parses an uploaded .xlsx, validates rows, writes to staging, returns a preview.",
+        "operationId": "BiUploadService_ParseUpload",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ParseUploadResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ParseUploadRequest"
+            }
+          }
+        ],
+        "tags": [
+          "BiUploadService"
+        ]
+      }
+    },
+    "/api/v1/finance/bi/uploads/template": {
+      "get": {
+        "summary": "DownloadUploadTemplate returns a blank .xlsx template matching the FACT_METRIC shape.",
+        "operationId": "BiUploadService_DownloadUploadTemplate",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DownloadUploadTemplateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "targetType",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "BiUploadService"
+        ]
+      }
+    },
+    "/api/v1/finance/bi/uploads/{uploadId}/cancel": {
+      "post": {
+        "summary": "CancelUpload discards a previewed session without committing.",
+        "operationId": "BiUploadService_CancelUpload",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CancelUploadResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "uploadId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/BiUploadServiceCancelUploadBody"
+            }
+          }
+        ],
+        "tags": [
+          "BiUploadService"
+        ]
+      }
+    },
+    "/api/v1/finance/bi/uploads/{uploadId}/commit": {
+      "post": {
+        "summary": "CommitUpload UPSERTs the staged rows of a previewed session into fact_metric.",
+        "operationId": "BiUploadService_CommitUpload",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CommitUploadResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "uploadId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/BiUploadServiceCommitUploadBody"
+            }
+          }
+        ],
+        "tags": [
+          "BiUploadService"
+        ]
+      }
     }
   },
   "definitions": {
     "BiJobServiceTriggerJobBody": {
+      "type": "object"
+    },
+    "BiUploadServiceCancelUploadBody": {
+      "type": "object"
+    },
+    "BiUploadServiceCommitUploadBody": {
       "type": "object"
     },
     "DashboardServiceDuplicateDashboardBody": {
@@ -975,6 +1210,40 @@
       },
       "description": "BaseResponse is the standard response wrapper for all API responses."
     },
+    "v1BiAuditEntry": {
+      "type": "object",
+      "properties": {
+        "auditId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "entityType": {
+          "type": "string",
+          "title": "dashboard|group"
+        },
+        "entityCode": {
+          "type": "string",
+          "title": "dashboard_code or group_code"
+        },
+        "entityTitle": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string",
+          "title": "CREATE|UPDATE|DELETE"
+        },
+        "changedBy": {
+          "type": "string"
+        },
+        "changedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "summary": {
+          "type": "string"
+        }
+      }
+    },
     "v1BiJob": {
       "type": "object",
       "properties": {
@@ -1061,6 +1330,67 @@
         }
       }
     },
+    "v1BiUpload": {
+      "type": "object",
+      "properties": {
+        "uploadId": {
+          "type": "string"
+        },
+        "targetType": {
+          "type": "string",
+          "title": "FM_TYPE the file targets (e.g. MIS)"
+        },
+        "fileName": {
+          "type": "string"
+        },
+        "fileSize": {
+          "type": "string",
+          "format": "int64"
+        },
+        "status": {
+          "type": "string",
+          "title": "PENDING|PREVIEW|COMMITTED|CANCELLED|FAILED"
+        },
+        "totalRows": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "validRows": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "invalidRows": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "committedRows": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1UploadRowError"
+          }
+        },
+        "uploadedBy": {
+          "type": "string"
+        },
+        "uploadedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "v1CancelUploadResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      }
+    },
     "v1ChartDataResponse": {
       "type": "object",
       "properties": {
@@ -1114,6 +1444,17 @@
         "CHART_TYPE_DATA_TABLE"
       ],
       "default": "CHART_TYPE_UNSPECIFIED"
+    },
+    "v1CommitUploadResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1BiUpload"
+        }
+      }
     },
     "v1CompareMode": {
       "type": "string",
@@ -1439,6 +1780,21 @@
         }
       }
     },
+    "v1DownloadUploadTemplateResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte"
+        },
+        "fileName": {
+          "type": "string"
+        }
+      }
+    },
     "v1DrillContext": {
       "type": "object",
       "properties": {
@@ -1607,6 +1963,24 @@
         }
       }
     },
+    "v1ListConfigAuditResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1BiAuditEntry"
+          }
+        },
+        "pagination": {
+          "$ref": "#/definitions/v1PaginationResponse"
+        }
+      }
+    },
     "v1ListDashboardGroupsResponse": {
       "type": "object",
       "properties": {
@@ -1688,6 +2062,24 @@
         }
       }
     },
+    "v1ListUploadsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1BiUpload"
+          }
+        },
+        "pagination": {
+          "$ref": "#/definitions/v1PaginationResponse"
+        }
+      }
+    },
     "v1Meta": {
       "type": "object",
       "properties": {
@@ -1732,6 +2124,33 @@
         }
       },
       "description": "PaginationResponse contains pagination metadata for list responses."
+    },
+    "v1ParseUploadRequest": {
+      "type": "object",
+      "properties": {
+        "targetType": {
+          "type": "string"
+        },
+        "fileName": {
+          "type": "string"
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte"
+        }
+      }
+    },
+    "v1ParseUploadResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1BiUpload",
+          "title": "preview header + per-row errors"
+        }
+      }
     },
     "v1PeriodeGrain": {
       "type": "string",
@@ -1847,6 +2266,27 @@
         },
         "data": {
           "$ref": "#/definitions/v1Dashboard"
+        }
+      }
+    },
+    "v1UploadRowError": {
+      "type": "object",
+      "properties": {
+        "row": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "column": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "issue": {
+          "type": "string"
+        },
+        "expected": {
+          "type": "string"
         }
       }
     },

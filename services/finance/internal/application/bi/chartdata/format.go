@@ -171,7 +171,15 @@ func isImproving(_ *dashboarddomain.Dashboard, deltaAbs float64) bool {
 func BuildDrillContext(d *dashboarddomain.Dashboard, f ViewerFilters) DrillContext {
 	current := append([]string{}, f.DrillPath...)
 	depth := len(current)
-	maxDepth := d.MaxDrillLevel().Int()
+	// The fact hierarchy is fixed at 3 group levels (group_1→group_2→group_3). The number of
+	// drillable transitions is therefore 2 — or 1 when the dashboard pre-filters group_1, since
+	// that level is consumed by the filter and the viewer only drills group_2→group_3. Cap the
+	// configured max_drill_level by this hard limit so we never offer a drill past group_3.
+	hierarchyMax := 2
+	if d.FilterGroup1() != "" {
+		hierarchyMax = 1
+	}
+	maxDepth := min(d.MaxDrillLevel().Int(), hierarchyMax)
 	canDrill := d.DrillEnabled() && depth < maxDepth
 
 	next := ""

@@ -54,7 +54,10 @@ func computeOneKPI(
 	period PeriodRange,
 	now time.Time,
 ) (factmetric.KpiRow, error) {
-	currentVal, err := runKPIScalar(ctx, repo, d, k, period, "ACTUAL", now)
+	// Each KPI may scope its own window (e.g. "Current Month" vs "YTD") independently
+	// of the period the viewer selected for the main chart; "selected" inherits it.
+	effPeriod := resolveKPIPeriod(k.Period, period, now)
+	currentVal, err := runKPIScalar(ctx, repo, d, k, effPeriod, "ACTUAL", now)
 	if err != nil {
 		return factmetric.KpiRow{}, err
 	}
@@ -63,7 +66,7 @@ func computeOneKPI(
 		Value: currentVal,
 	}
 	if k.Compare != "none" && k.Compare != "" {
-		comparePeriod, compareLabel := compareRange(period, k.Compare, d.PeriodGrain().String(), now)
+		comparePeriod, compareLabel := compareRange(effPeriod, k.Compare, d.PeriodGrain().String(), now)
 		if !comparePeriod.From.IsZero() {
 			compareVal, err := runKPIScalar(ctx, repo, d, k, comparePeriod, "ACTUAL", now)
 			if err != nil {
@@ -196,6 +199,22 @@ func kpiSourceTable(d *dashboarddomain.Dashboard) (source, group1Filter string) 
 		return "mv_bi_metric_g1", d.FilterGroup1()
 	}
 	return "mv_bi_metric_g1", ""
+}
+
+// resolveKPIPeriod maps a per-KPI period scope to a concrete date window. "selected" (and any
+// unrecognized value) inherits the viewer's selected period; the fixed scopes are relative to now
+// so the KPI's label stays accurate regardless of what the viewer picked.
+func resolveKPIPeriod(scope string, selected PeriodRange, now time.Time) PeriodRange {
+	switch scope {
+	case "current_month":
+		return PeriodRange{From: firstOfMonth(now), To: now}
+	case "ytd":
+		return PeriodRange{From: time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location()), To: now}
+	case "l12m":
+		return PeriodRange{From: shiftByMonths(now, -12), To: now}
+	default:
+		return selected
+	}
 }
 
 // compareRange computes the [from, to] window for a KPI compare mode.
