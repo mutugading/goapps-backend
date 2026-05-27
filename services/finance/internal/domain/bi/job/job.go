@@ -40,10 +40,11 @@ type Job struct {
 
 // Status enum.
 const (
-	StatusRunning   = "RUNNING"
-	StatusSuccess   = "SUCCESS"
-	StatusFailed    = "FAILED"
-	StatusCancelled = "CANCELLED"
+	StatusRunning = "RUNNING"
+	StatusSuccess = "SUCCESS"
+	StatusFailed  = "FAILED"
+	// StatusCancelled is the persisted DB/proto value for a canceled job run.
+	StatusCancelled = "CANCELLED" //nolint:misspell // CANCELLED is a persisted DB/proto enum value
 )
 
 // Log is one execution log entry for a Job.

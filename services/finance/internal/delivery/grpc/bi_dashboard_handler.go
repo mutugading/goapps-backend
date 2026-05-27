@@ -17,19 +17,19 @@ var _ = emptypb.Empty{}
 // BIDashboardHandler implements financev1.DashboardServiceServer.
 type BIDashboardHandler struct {
 	financev1.UnimplementedDashboardServiceServer
-	createHandler          *dashboardapp.CreateHandler
-	getHandler             *dashboardapp.GetHandler
-	listHandler            *dashboardapp.ListHandler
-	updateHandler          *dashboardapp.UpdateHandler
-	deleteHandler          *dashboardapp.DeleteHandler
-	duplicateHandler       *dashboardapp.DuplicateHandler
-	setRolesHandler        *dashboardapp.SetRolesHandler
-	listAccessibleHandler  *dashboardapp.ListAccessibleHandler
-	groupCreateHandler     *groupapp.CreateHandler
-	groupListHandler       *groupapp.ListHandler
-	groupUpdateHandler     *groupapp.UpdateHandler
-	groupDeleteHandler     *groupapp.DeleteHandler
-	validationHelper       *ValidationHelper
+	createHandler         *dashboardapp.CreateHandler
+	getHandler            *dashboardapp.GetHandler
+	listHandler           *dashboardapp.ListHandler
+	updateHandler         *dashboardapp.UpdateHandler
+	deleteHandler         *dashboardapp.DeleteHandler
+	duplicateHandler      *dashboardapp.DuplicateHandler
+	setRolesHandler       *dashboardapp.SetRolesHandler
+	listAccessibleHandler *dashboardapp.ListAccessibleHandler
+	groupCreateHandler    *groupapp.CreateHandler
+	groupListHandler      *groupapp.ListHandler
+	groupUpdateHandler    *groupapp.UpdateHandler
+	groupDeleteHandler    *groupapp.DeleteHandler
+	validationHelper      *ValidationHelper
 }
 
 // NewBIDashboardHandler wires the dashboard + group application handlers into a gRPC server.
@@ -175,6 +175,8 @@ func (h *BIDashboardHandler) ListDashboards(ctx context.Context, req *financev1.
 }
 
 // UpdateDashboard mutates a dashboard.
+//
+//nolint:gocyclo // proto optional-field mapping requires one branch per field; extraction would not reduce real complexity
 func (h *BIDashboardHandler) UpdateDashboard(ctx context.Context, req *financev1.UpdateDashboardRequest) (*financev1.UpdateDashboardResponse, error) {
 	if baseResp := h.validationHelper.ValidateRequest(req); baseResp != nil {
 		return &financev1.UpdateDashboardResponse{Base: baseResp}, nil

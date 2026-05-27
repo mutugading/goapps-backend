@@ -55,7 +55,7 @@ func planLevel1(d *dashboarddomain.Dashboard, f ViewerFilters, period PeriodRang
 	if d.FilterGroup1() != "" {
 		// Dashboard pre-narrows to a specific group_1 → render its group_2 breakdown.
 		return buildPlan(buildArgs{
-			Source:     "mv_bi_metric_g2",
+			Source:      "mv_bi_metric_g2",
 			CategoryCol: "group_2",
 			OrderCol:    "group_2_order",
 			Type:        d.FilterType(),

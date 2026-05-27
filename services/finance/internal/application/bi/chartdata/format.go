@@ -166,6 +166,8 @@ func isImproving(_ *dashboarddomain.Dashboard, deltaAbs float64) bool {
 }
 
 // BuildDrillContext computes the DrillContext block from current filters + dashboard depth.
+//
+//nolint:nestif // depth/group branching is naturally nested; extraction would obscure the drill-path logic
 func BuildDrillContext(d *dashboarddomain.Dashboard, f ViewerFilters) DrillContext {
 	current := append([]string{}, f.DrillPath...)
 	depth := len(current)

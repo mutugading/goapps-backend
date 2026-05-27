@@ -3,7 +3,7 @@
 // A Dashboard is the config-driven definition of a BI viewer: which slice of
 // bi_fact_metric to query (filter_type/filter_group_1/periode_grain), which chart
 // type to render, the field mapping into that chart, optional KPI definitions,
-// and behavioural toggles (drill, compare modes, cache TTL, refresh interval).
+// and behavioral toggles (drill, compare modes, cache TTL, refresh interval).
 //
 // All value objects in this file are immutable: construct via the New* constructor,
 // read via the String() (or value-typed) accessor, never via direct field access.

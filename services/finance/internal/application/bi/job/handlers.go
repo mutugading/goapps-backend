@@ -71,7 +71,7 @@ type TriggerHandler struct{ repo jobdomain.Repository }
 // NewTriggerHandler constructs a TriggerHandler.
 func NewTriggerHandler(r jobdomain.Repository) *TriggerHandler { return &TriggerHandler{repo: r} }
 
-// Handle executes the manual trigger (placeholder MVP behaviour).
+// Handle executes the manual trigger (placeholder MVP behavior).
 func (h *TriggerHandler) Handle(ctx context.Context, cmd TriggerCommand) (*jobdomain.Log, error) {
 	if _, err := h.repo.GetByID(ctx, cmd.JobID); err != nil {
 		return nil, err

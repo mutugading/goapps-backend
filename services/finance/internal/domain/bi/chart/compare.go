@@ -50,7 +50,7 @@ func IsValidPeriodGrain(s string) bool {
 //
 // The shift is:
 //   - MoM → 1 period unit (1 day for DAILY, 1 month for MONTHLY, 1 quarter for QUARTERLY, 1 year for YEARLY)
-//   - QoQ → 3 months (only meaningful for MONTHLY/QUARTERLY; behaviour is "3 periods" for other grains)
+//   - QoQ → 3 months (only meaningful for MONTHLY/QUARTERLY; behavior is "3 periods" for other grains)
 //   - YoY → 12 months for MONTHLY, 4 quarters for QUARTERLY, 1 year for YEARLY, 365 days for DAILY
 //   - YTD → returns t itself (YTD compares year-to-date, not a shifted point)
 //   - R12 → returns t shifted back 12 months (rolling 12-month window start)

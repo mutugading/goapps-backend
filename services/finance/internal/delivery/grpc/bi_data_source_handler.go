@@ -10,9 +10,9 @@ import (
 // BIDataSourceHandler implements financev1.DataSourceServiceServer.
 type BIDataSourceHandler struct {
 	financev1.UnimplementedDataSourceServiceServer
-	listHandler         *dsapp.ListHandler
-	distinctsHandler    *dsapp.GetDistinctsHandler
-	validationHelper    *ValidationHelper
+	listHandler      *dsapp.ListHandler
+	distinctsHandler *dsapp.GetDistinctsHandler
+	validationHelper *ValidationHelper
 }
 
 // NewBIDataSourceHandler constructs the gRPC handler.

@@ -15,33 +15,33 @@ import (
 // All fields are private; construction is via NewDashboard and mutation is via Update.
 // Read-only accessors are provided per field. Soft delete is via SoftDelete.
 type Dashboard struct {
-	id                 uuid.UUID
-	code               Code
-	title              string
-	description        string
-	filterType         string
-	filterGroup1       string
-	periodGrain        PeriodGrain
-	defaultPeriod      DefaultPeriod
-	chartType          ChartType
-	chartConfig        ChartConfig
-	layoutConfig       map[string]any
-	kpiConfig          KpiConfig
-	compareModes       CompareModes
-	drillEnabled       bool
-	maxDrillLevel      MaxDrillLevel
-	cacheTTL           CacheTTL
-	refreshInterval    RefreshInterval
-	displayOrder       int
-	groupID            uuid.UUID
-	isActive           bool
-	allowedRoleCodes   []string
-	createdAt          time.Time
-	createdBy          uuid.UUID
-	updatedAt          time.Time
-	updatedBy          uuid.UUID
-	deletedAt          time.Time
-	deletedBy          uuid.UUID
+	id               uuid.UUID
+	code             Code
+	title            string
+	description      string
+	filterType       string
+	filterGroup1     string
+	periodGrain      PeriodGrain
+	defaultPeriod    DefaultPeriod
+	chartType        ChartType
+	chartConfig      ChartConfig
+	layoutConfig     map[string]any
+	kpiConfig        KpiConfig
+	compareModes     CompareModes
+	drillEnabled     bool
+	maxDrillLevel    MaxDrillLevel
+	cacheTTL         CacheTTL
+	refreshInterval  RefreshInterval
+	displayOrder     int
+	groupID          uuid.UUID
+	isActive         bool
+	allowedRoleCodes []string
+	createdAt        time.Time
+	createdBy        uuid.UUID
+	updatedAt        time.Time
+	updatedBy        uuid.UUID
+	deletedAt        time.Time
+	deletedBy        uuid.UUID
 }
 
 // NewDashboardParams are the inputs to NewDashboard.
@@ -49,33 +49,35 @@ type Dashboard struct {
 // All raw values (code, chart_type, period_grain, ...) are validated; pre-validated
 // value objects are not accepted to keep the public surface unambiguous.
 type NewDashboardParams struct {
-	ID                  uuid.UUID
-	Code                string
-	Title               string
-	Description         string
-	FilterType          string
-	FilterGroup1        string
-	PeriodGrain         string
-	DefaultPeriod       string
-	ChartType           string
-	ChartConfigRaw      map[string]any
-	LayoutConfigRaw     map[string]any
-	KpiConfigRaw        []map[string]any
-	CompareModes        []string
-	DrillEnabled        bool
-	MaxDrillLevel       int
-	CacheTTLSec         int
-	RefreshIntervalSec  int
-	DisplayOrder        int
-	GroupID             uuid.UUID
-	IsActive            bool
-	AllowedRoleCodes    []string
-	CreatedBy           uuid.UUID
+	ID                 uuid.UUID
+	Code               string
+	Title              string
+	Description        string
+	FilterType         string
+	FilterGroup1       string
+	PeriodGrain        string
+	DefaultPeriod      string
+	ChartType          string
+	ChartConfigRaw     map[string]any
+	LayoutConfigRaw    map[string]any
+	KpiConfigRaw       []map[string]any
+	CompareModes       []string
+	DrillEnabled       bool
+	MaxDrillLevel      int
+	CacheTTLSec        int
+	RefreshIntervalSec int
+	DisplayOrder       int
+	GroupID            uuid.UUID
+	IsActive           bool
+	AllowedRoleCodes   []string
+	CreatedBy          uuid.UUID
 }
 
 // NewDashboard validates the inputs and constructs a Dashboard.
 //
 // Returns wrapped sentinel errors (ErrInvalidCode, ErrInvalidChartType, ...) on validation failure.
+//
+//nolint:gocyclo // constructor validates many independent value objects; extraction would harm readability
 func NewDashboard(p NewDashboardParams) (*Dashboard, error) {
 	code, err := NewCode(p.Code)
 	if err != nil {
@@ -211,6 +213,8 @@ type UpdateParams struct {
 // field controls which chart_config validation is run; if ChartType is being changed
 // AND ChartConfigRaw is provided, the new config is validated against the new type;
 // if only ChartType is changed, the existing chart_config is re-validated against it.
+//
+//nolint:gocognit,gocyclo // cohesive staged-update pattern; splitting would scatter mutation logic
 func (d *Dashboard) Update(p UpdateParams) error {
 	staged := *d // shallow copy as a transactional buffer
 
@@ -355,41 +359,93 @@ func (d *Dashboard) SoftDelete(by uuid.UUID) {
 // IsDeleted reports whether SoftDelete has been called.
 func (d *Dashboard) IsDeleted() bool { return !d.deletedAt.IsZero() }
 
-// Getters
-func (d *Dashboard) ID() uuid.UUID                  { return d.id }
-func (d *Dashboard) Code() Code                     { return d.code }
-func (d *Dashboard) Title() string                  { return d.title }
-func (d *Dashboard) Description() string            { return d.description }
-func (d *Dashboard) FilterType() string             { return d.filterType }
-func (d *Dashboard) FilterGroup1() string           { return d.filterGroup1 }
-func (d *Dashboard) PeriodGrain() PeriodGrain       { return d.periodGrain }
-func (d *Dashboard) DefaultPeriod() DefaultPeriod   { return d.defaultPeriod }
-func (d *Dashboard) ChartType() ChartType           { return d.chartType }
-func (d *Dashboard) ChartConfig() ChartConfig       { return d.chartConfig }
-func (d *Dashboard) LayoutConfig() map[string]any   { return copyMap(d.layoutConfig) }
-func (d *Dashboard) KpiConfig() KpiConfig           { return d.kpiConfig }
-func (d *Dashboard) CompareModes() CompareModes     { return d.compareModes }
-func (d *Dashboard) DrillEnabled() bool             { return d.drillEnabled }
-func (d *Dashboard) MaxDrillLevel() MaxDrillLevel   { return d.maxDrillLevel }
-func (d *Dashboard) CacheTTL() CacheTTL             { return d.cacheTTL }
+// ID returns the dashboard's unique identifier.
+func (d *Dashboard) ID() uuid.UUID { return d.id }
+
+// Code returns the dashboard's business code.
+func (d *Dashboard) Code() Code { return d.code }
+
+// Title returns the dashboard title.
+func (d *Dashboard) Title() string { return d.title }
+
+// Description returns the dashboard description.
+func (d *Dashboard) Description() string { return d.description }
+
+// FilterType returns the filter_type discriminator.
+func (d *Dashboard) FilterType() string { return d.filterType }
+
+// FilterGroup1 returns the optional group_1 pre-filter.
+func (d *Dashboard) FilterGroup1() string { return d.filterGroup1 }
+
+// PeriodGrain returns the period granularity value object.
+func (d *Dashboard) PeriodGrain() PeriodGrain { return d.periodGrain }
+
+// DefaultPeriod returns the default period preset value object.
+func (d *Dashboard) DefaultPeriod() DefaultPeriod { return d.defaultPeriod }
+
+// ChartType returns the chart type value object.
+func (d *Dashboard) ChartType() ChartType { return d.chartType }
+
+// ChartConfig returns the typed chart configuration.
+func (d *Dashboard) ChartConfig() ChartConfig { return d.chartConfig }
+
+// LayoutConfig returns a shallow copy of the layout configuration map.
+func (d *Dashboard) LayoutConfig() map[string]any { return copyMap(d.layoutConfig) }
+
+// KpiConfig returns the ordered list of KPI card definitions.
+func (d *Dashboard) KpiConfig() KpiConfig { return d.kpiConfig }
+
+// CompareModes returns the allowed comparison modes value object.
+func (d *Dashboard) CompareModes() CompareModes { return d.compareModes }
+
+// DrillEnabled reports whether drill-down navigation is enabled.
+func (d *Dashboard) DrillEnabled() bool { return d.drillEnabled }
+
+// MaxDrillLevel returns the maximum drill depth value object.
+func (d *Dashboard) MaxDrillLevel() MaxDrillLevel { return d.maxDrillLevel }
+
+// CacheTTL returns the cache time-to-live value object.
+func (d *Dashboard) CacheTTL() CacheTTL { return d.cacheTTL }
+
+// RefreshInterval returns the auto-refresh interval value object.
 func (d *Dashboard) RefreshInterval() RefreshInterval { return d.refreshInterval }
-func (d *Dashboard) DisplayOrder() int              { return d.displayOrder }
-func (d *Dashboard) GroupID() uuid.UUID             { return d.groupID }
-func (d *Dashboard) IsActive() bool                 { return d.isActive }
+
+// DisplayOrder returns the display ordering integer.
+func (d *Dashboard) DisplayOrder() int { return d.displayOrder }
+
+// GroupID returns the dashboard group UUID.
+func (d *Dashboard) GroupID() uuid.UUID { return d.groupID }
+
+// IsActive reports whether the dashboard is active.
+func (d *Dashboard) IsActive() bool { return d.isActive }
+
+// AllowedRoleCodes returns a copy of the role-code whitelist.
 func (d *Dashboard) AllowedRoleCodes() []string {
 	out := make([]string, len(d.allowedRoleCodes))
 	copy(out, d.allowedRoleCodes)
 	return out
 }
+
+// CreatedAt returns the creation timestamp.
 func (d *Dashboard) CreatedAt() time.Time { return d.createdAt }
+
+// CreatedBy returns the UUID of the creating user.
 func (d *Dashboard) CreatedBy() uuid.UUID { return d.createdBy }
+
+// UpdatedAt returns the last-update timestamp.
 func (d *Dashboard) UpdatedAt() time.Time { return d.updatedAt }
+
+// UpdatedBy returns the UUID of the last updating user.
 func (d *Dashboard) UpdatedBy() uuid.UUID { return d.updatedBy }
+
+// DeletedAt returns the soft-delete timestamp (zero if not deleted).
 func (d *Dashboard) DeletedAt() time.Time { return d.deletedAt }
+
+// DeletedBy returns the UUID of the deleting user (Nil if not deleted).
 func (d *Dashboard) DeletedBy() uuid.UUID { return d.deletedBy }
 
 // SetAuditFromHydration restores audit fields when loading an existing row from the database.
-// Repositories use this to bypass the constructor's "set createdAt to now" behaviour.
+// Repositories use this to bypass the constructor's "set createdAt to now" behavior.
 func (d *Dashboard) SetAuditFromHydration(createdAt, updatedAt, deletedAt time.Time, createdBy, updatedBy, deletedBy uuid.UUID) {
 	d.createdAt = createdAt
 	d.updatedAt = updatedAt

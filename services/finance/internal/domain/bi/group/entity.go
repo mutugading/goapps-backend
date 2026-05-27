@@ -124,15 +124,35 @@ func (g *Group) SetAuditFromHydration(createdAt, updatedAt time.Time, createdBy,
 	g.updatedBy = updatedBy
 }
 
-// Getters
-func (g *Group) ID() uuid.UUID      { return g.id }
-func (g *Group) Code() string       { return g.code }
-func (g *Group) Name() string       { return g.name }
+// ID returns the group's unique identifier.
+func (g *Group) ID() uuid.UUID { return g.id }
+
+// Code returns the group's business code.
+func (g *Group) Code() string { return g.code }
+
+// Name returns the display name.
+func (g *Group) Name() string { return g.name }
+
+// Description returns the optional description.
 func (g *Group) Description() string { return g.description }
-func (g *Group) Icon() string       { return g.icon }
-func (g *Group) DisplayOrder() int  { return g.displayOrder }
-func (g *Group) IsActive() bool     { return g.isActive }
+
+// Icon returns the optional icon identifier.
+func (g *Group) Icon() string { return g.icon }
+
+// DisplayOrder returns the display ordering integer.
+func (g *Group) DisplayOrder() int { return g.displayOrder }
+
+// IsActive reports whether the group is active.
+func (g *Group) IsActive() bool { return g.isActive }
+
+// CreatedAt returns the creation timestamp.
 func (g *Group) CreatedAt() time.Time { return g.createdAt }
+
+// CreatedBy returns the UUID of the creating user.
 func (g *Group) CreatedBy() uuid.UUID { return g.createdBy }
+
+// UpdatedAt returns the last-update timestamp.
 func (g *Group) UpdatedAt() time.Time { return g.updatedAt }
+
+// UpdatedBy returns the UUID of the last updating user.
 func (g *Group) UpdatedBy() uuid.UUID { return g.updatedBy }

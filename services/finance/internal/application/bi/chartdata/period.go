@@ -21,7 +21,7 @@ type PeriodRange struct {
 // query planner treats as "no period filter".
 //
 // `now` is the reference time (typically time.Now().UTC()); injectable for tests.
-func ResolvePeriod(preset string, customFrom, customTo time.Time, grain string, now time.Time) PeriodRange {
+func ResolvePeriod(preset string, customFrom, customTo time.Time, _ string, now time.Time) PeriodRange {
 	if now.IsZero() {
 		now = time.Now().UTC()
 	}

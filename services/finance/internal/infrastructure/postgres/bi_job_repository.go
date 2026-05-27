@@ -46,7 +46,11 @@ LEFT JOIN LATERAL (
 	if err != nil {
 		return nil, fmt.Errorf("query jobs: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			_ = err
+		}
+	}()
 
 	var out []*job.Job
 	for rows.Next() {
@@ -105,7 +109,11 @@ LIMIT $2 OFFSET $3`
 	if err != nil {
 		return nil, 0, fmt.Errorf("query logs: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			_ = err
+		}
+	}()
 
 	var out []*job.Log
 	for rows.Next() {
@@ -146,8 +154,11 @@ WHERE log_id = $1`
 	if err != nil {
 		return fmt.Errorf("update job log: %w", err)
 	}
-	rows, _ := res.RowsAffected()
-	if rows == 0 {
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if affected == 0 {
 		return job.ErrNotFound
 	}
 	return nil
@@ -185,7 +196,9 @@ func (r *BiJobRepository) scanJob(scan scanFunc) (*job.Job, error) {
 	j.ScheduleCron = nullToString(cron)
 	j.OracleProcedure = nullToString(oracleProc)
 	if len(config) > 0 {
-		_ = json.Unmarshal(config, &j.Config)
+		if err := json.Unmarshal(config, &j.Config); err != nil {
+			return nil, fmt.Errorf("unmarshal job config: %w", err)
+		}
 	}
 	j.CreatedAt = nullTimeOrZero(createdAt)
 	j.UpdatedAt = nullTimeOrZero(updatedAt)
@@ -229,11 +242,8 @@ func (r *BiJobRepository) scanLog(scan scanFunc) (*job.Log, error) {
 
 // nullableTime returns nil for zero time values.
 func nullableTime(t any) any {
-	switch v := t.(type) {
-	case interface{ IsZero() bool }:
-		if v.IsZero() {
-			return nil
-		}
+	if v, ok := t.(interface{ IsZero() bool }); ok && v.IsZero() {
+		return nil
 	}
 	return t
 }

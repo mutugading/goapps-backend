@@ -59,7 +59,11 @@ func (r *BiFactMetricRepository) collectDistinct(ctx context.Context, q string, 
 	if err != nil {
 		return fmt.Errorf("query distincts: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			_ = err
+		}
+	}()
 	for rows.Next() {
 		var s string
 		if err := rows.Scan(&s); err != nil {
@@ -80,7 +84,11 @@ func (r *BiFactMetricRepository) QueryAggregate(ctx context.Context, plan factme
 	if err != nil {
 		return nil, fmt.Errorf("query aggregate: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			_ = err
+		}
+	}()
 
 	var out []factmetric.AggRow
 	for rows.Next() {
@@ -136,7 +144,11 @@ func (r *BiFactMetricRepository) upsertChunk(ctx context.Context, rowsIn []factm
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() {
+		if err := tx.Rollback(); err != nil {
+			_ = err
+		}
+	}()
 
 	const q = `
 INSERT INTO bi_fact_metric (
@@ -158,7 +170,11 @@ DO UPDATE SET
 	if err != nil {
 		return fmt.Errorf("prepare upsert: %w", err)
 	}
-	defer func() { _ = stmt.Close() }()
+	defer func() {
+		if err := stmt.Close(); err != nil {
+			_ = err
+		}
+	}()
 	for _, row := range rowsIn {
 		if _, err := stmt.ExecContext(ctx,
 			row.Type, row.Group1, nullableString(row.Group2), nullableString(row.Group3),

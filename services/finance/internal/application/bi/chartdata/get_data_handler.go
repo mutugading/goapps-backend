@@ -78,7 +78,11 @@ func (h *GetDataHandler) Handle(ctx context.Context, q GetDataQuery) (*Result, e
 	if h.cache != nil && h.hash != nil {
 		hashKey = h.hash(q.Filters)
 		var cached Result
-		if hit, _ := h.cache.Get(ctx, q.DashboardCode, hashKey, &cached); hit {
+		hit, err := h.cache.Get(ctx, q.DashboardCode, hashKey, &cached)
+		if err != nil {
+			_ = err //nolint:errcheck // best-effort cache read; miss is treated as uncached
+		}
+		if hit {
 			cached.Meta.CacheHit = true
 			cached.Meta.QueryHash = hashKey
 			return &cached, nil
@@ -112,7 +116,9 @@ func (h *GetDataHandler) Handle(ctx context.Context, q GetDataQuery) (*Result, e
 	// 7. Cache (best-effort)
 	ttl := time.Duration(d.CacheTTL().Seconds()) * time.Second
 	if h.cache != nil && h.hash != nil && ttl > 0 {
-		_ = h.cache.Set(ctx, q.DashboardCode, hashKey, result, ttl)
+		if err := h.cache.Set(ctx, q.DashboardCode, hashKey, result, ttl); err != nil {
+			_ = err //nolint:errcheck // best-effort cache write; failure is non-fatal
+		}
 	}
 
 	return &result, nil

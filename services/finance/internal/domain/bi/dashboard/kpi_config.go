@@ -56,17 +56,17 @@ func ParseKpiConfig(raw []map[string]any) (KpiConfig, error) {
 
 // parseKpiEntry validates one KPI entry map.
 func parseKpiEntry(m map[string]any, idx int) (KpiEntry, error) {
-	label, _ := m["label"].(string)
+	label := mapStringVal(m, "label")
 	if label == "" {
 		return KpiEntry{}, fmt.Errorf("%w: entry %d missing 'label'", ErrInvalidKpiConfig, idx)
 	}
 
-	valueField, _ := m["value_field"].(string)
+	valueField := mapStringVal(m, "value_field")
 	if valueField == "" {
 		return KpiEntry{}, fmt.Errorf("%w: entry %d missing 'value_field'", ErrInvalidKpiConfig, idx)
 	}
 
-	agg, _ := m["agg"].(string)
+	agg := mapStringVal(m, "agg")
 	if agg == "" {
 		agg = "sum"
 	}
@@ -74,7 +74,7 @@ func parseKpiEntry(m map[string]any, idx int) (KpiEntry, error) {
 		return KpiEntry{}, fmt.Errorf("%w: entry %d agg %q is not one of sum/avg/min/max/last", ErrInvalidKpiConfig, idx, agg)
 	}
 
-	compare, _ := m["compare"].(string)
+	compare := mapStringVal(m, "compare")
 	if compare == "" {
 		compare = "none"
 	}
@@ -82,12 +82,12 @@ func parseKpiEntry(m map[string]any, idx int) (KpiEntry, error) {
 		return KpiEntry{}, fmt.Errorf("%w: entry %d compare %q is not one of MoM/QoQ/YoY/YTD_vs_LY/none", ErrInvalidKpiConfig, idx, compare)
 	}
 
-	format, _ := m["format"].(string)
+	format := mapStringVal(m, "format")
 	if format == "" {
 		format = string(chart.NumberFormatCurrencyThousands)
 	}
 	if !chart.IsValidNumberFormat(format) {
-		return KpiEntry{}, fmt.Errorf("%w: entry %d format %q is not a recognised number-format", ErrInvalidKpiConfig, idx, format)
+		return KpiEntry{}, fmt.Errorf("%w: entry %d format %q is not a recognized number-format", ErrInvalidKpiConfig, idx, format)
 	}
 
 	decimals := 0
@@ -98,7 +98,7 @@ func parseKpiEntry(m map[string]any, idx int) (KpiEntry, error) {
 		return KpiEntry{}, fmt.Errorf("%w: entry %d decimals %d out of [0,6]", ErrInvalidKpiConfig, idx, decimals)
 	}
 
-	showSparkline, _ := m["show_sparkline"].(bool)
+	showSparkline := mapBoolVal(m, "show_sparkline")
 	sparkPeriods := 0
 	if v, ok := mergedAsInt(m, "sparkline_periods"); ok {
 		sparkPeriods = v
@@ -117,6 +117,15 @@ func parseKpiEntry(m map[string]any, idx int) (KpiEntry, error) {
 		ShowSparkline:    showSparkline,
 		SparklinePeriods: sparkPeriods,
 	}, nil
+}
+
+// mapBoolVal extracts a bool value from a map[string]any, returning false if absent or wrong type.
+func mapBoolVal(m map[string]any, key string) bool {
+	v, ok := m[key].(bool)
+	if !ok {
+		return false
+	}
+	return v
 }
 
 // MarshalToList converts a KpiConfig back to a JSON-friendly list of maps.

@@ -73,7 +73,11 @@ func (r *BiDashboardGroupRepository) List(ctx context.Context, includeInactive b
 	if err != nil {
 		return nil, fmt.Errorf("query groups: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			_ = err
+		}
+	}()
 
 	var out []*group.Group
 	for rows.Next() {
@@ -102,8 +106,11 @@ WHERE group_id = $1`
 	if err != nil {
 		return fmt.Errorf("update group: %w", err)
 	}
-	rows, _ := res.RowsAffected()
-	if rows == 0 {
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if affected == 0 {
 		return group.ErrNotFound
 	}
 	return nil
@@ -124,8 +131,11 @@ func (r *BiDashboardGroupRepository) Delete(ctx context.Context, id uuid.UUID) e
 	if err != nil {
 		return fmt.Errorf("delete group: %w", err)
 	}
-	rows, _ := res.RowsAffected()
-	if rows == 0 {
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if affected == 0 {
 		return group.ErrNotFound
 	}
 	return nil

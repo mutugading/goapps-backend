@@ -42,12 +42,12 @@ type ChartConfig struct {
 	DrillTo string
 
 	// Misc
-	SortOrder    string
-	InnerRadius  float64
-	Opacity      float64
-	Smooth       bool
-	ColorScale   string
-	SizeField    string
+	SortOrder     string
+	InnerRadius   float64
+	Opacity       float64
+	Smooth        bool
+	ColorScale    string
+	SizeField     string
 	LabelPosition string
 }
 
@@ -62,6 +62,8 @@ type SeriesDef struct {
 // list, applies defaults, and returns a typed ChartConfig.
 //
 // Returns ErrInvalidChartConfig (wrapping a field-level message) on validation failure.
+//
+//nolint:gocognit // cohesive field-mapping function; splitting by field group would obscure the schema
 func ParseChartConfig(t ChartType, raw map[string]any) (ChartConfig, error) {
 	reg, ok := chart.Lookup(t.Type())
 	if !ok {
@@ -79,22 +81,8 @@ func ParseChartConfig(t ChartType, raw map[string]any) (ChartConfig, error) {
 
 	// Validate required fields
 	for _, req := range reg.RequiredFields {
-		v, present := merged[req]
-		if !present {
-			return ChartConfig{}, fmt.Errorf("%w: %q is required for chart type %s", ErrInvalidChartConfig, req, t)
-		}
-		s, ok := v.(string)
-		if !ok || s == "" {
-			// series_defs is the one required field that's a list, not a string
-			if req == "series_defs" {
-				if _, listOK := v.([]any); listOK {
-					continue
-				}
-				if _, listOK := v.([]map[string]any); listOK {
-					continue
-				}
-			}
-			return ChartConfig{}, fmt.Errorf("%w: %q must be a non-empty string for chart type %s", ErrInvalidChartConfig, req, t)
+		if err := validateRequiredField(merged, req, t); err != nil {
+			return ChartConfig{}, err
 		}
 	}
 
@@ -113,7 +101,7 @@ func ParseChartConfig(t ChartType, raw map[string]any) (ChartConfig, error) {
 
 	if v, ok := merged["number_format"].(string); ok && v != "" {
 		if !chart.IsValidNumberFormat(v) {
-			return ChartConfig{}, fmt.Errorf("%w: number_format %q is not recognised", ErrInvalidChartConfig, v)
+			return ChartConfig{}, fmt.Errorf("%w: number_format %q is not recognized", ErrInvalidChartConfig, v)
 		}
 		cfg.NumberFormat = chart.NumberFormat(v)
 	}
@@ -147,7 +135,7 @@ func ParseChartConfig(t ChartType, raw map[string]any) (ChartConfig, error) {
 	if v, ok := merged["series_defs"]; ok {
 		defs, err := parseSeriesDefs(v)
 		if err != nil {
-			return ChartConfig{}, fmt.Errorf("%w: %v", ErrInvalidChartConfig, err)
+			return ChartConfig{}, fmt.Errorf("%w: %w", ErrInvalidChartConfig, err)
 		}
 		cfg.SeriesDefs = defs
 	}
@@ -244,13 +232,44 @@ func parseSeriesDefs(v any) ([]SeriesDef, error) {
 }
 
 func seriesDefFromMap(m map[string]any, idx int) (SeriesDef, error) {
-	name, _ := m["name"].(string)
-	typ, _ := m["type"].(string)
-	field, _ := m["field"].(string)
+	name := mapStringVal(m, "name")
+	typ := mapStringVal(m, "type")
+	field := mapStringVal(m, "field")
 	if name == "" || typ == "" || field == "" {
 		return SeriesDef{}, fmt.Errorf("series_defs[%d] missing required name/type/field", idx)
 	}
 	return SeriesDef{Name: name, Type: typ, Field: field}, nil
+}
+
+// mapStringVal extracts a string value from a map[string]any, returning "" if absent or wrong type.
+func mapStringVal(m map[string]any, key string) string {
+	v, ok := m[key].(string)
+	if !ok {
+		return ""
+	}
+	return v
+}
+
+// validateRequiredField checks that a required key exists in merged and has a valid value.
+func validateRequiredField(merged map[string]any, req string, t ChartType) error {
+	v, present := merged[req]
+	if !present {
+		return fmt.Errorf("%w: %q is required for chart type %s", ErrInvalidChartConfig, req, t)
+	}
+	s, ok := v.(string)
+	if ok && s != "" {
+		return nil
+	}
+	// series_defs is the one required field that's a list, not a string
+	if req == "series_defs" {
+		if _, listOK := v.([]any); listOK {
+			return nil
+		}
+		if _, listOK := v.([]map[string]any); listOK {
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: %q must be a non-empty string for chart type %s", ErrInvalidChartConfig, req, t)
 }
 
 // applyString sets *dst when the map key is a non-empty string.

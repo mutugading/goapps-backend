@@ -231,7 +231,9 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*dashboa
 		return nil, fmt.Errorf("persist update: %w", err)
 	}
 	if h.cache != nil {
-		_ = h.cache.InvalidateDashboard(ctx, d.Code().String())
+		if err := h.cache.InvalidateDashboard(ctx, d.Code().String()); err != nil {
+			_ = err //nolint:errcheck // best-effort cache invalidation; stale cache is acceptable
+		}
 	}
 	return d, nil
 }
@@ -268,7 +270,9 @@ func (h *DeleteHandler) Handle(ctx context.Context, cmd DeleteCommand) error {
 		return fmt.Errorf("soft delete: %w", err)
 	}
 	if h.cache != nil {
-		_ = h.cache.InvalidateDashboard(ctx, d.Code().String())
+		if err := h.cache.InvalidateDashboard(ctx, d.Code().String()); err != nil {
+			_ = err //nolint:errcheck // best-effort cache invalidation; stale cache is acceptable
+		}
 	}
 	return nil
 }
@@ -333,8 +337,10 @@ func (h *SetRolesHandler) Handle(ctx context.Context, cmd SetRolesCommand) ([]st
 	}
 	// Invalidate the cache for this dashboard so role-gated viewer queries pick up the change.
 	if h.cache != nil {
-		if d, err := h.repo.GetByID(ctx, cmd.DashboardID); err == nil {
-			_ = h.cache.InvalidateDashboard(ctx, d.Code().String())
+		if d, getErr := h.repo.GetByID(ctx, cmd.DashboardID); getErr == nil {
+			if invErr := h.cache.InvalidateDashboard(ctx, d.Code().String()); invErr != nil {
+				_ = invErr //nolint:errcheck // best-effort cache invalidation; stale cache is acceptable
+			}
 		}
 	}
 	return current, nil

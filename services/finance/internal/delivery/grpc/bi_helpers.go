@@ -131,8 +131,9 @@ func periodeGrainToString(g financev1.PeriodeGrain) string {
 		return "QUARTERLY"
 	case financev1.PeriodeGrain_PERIODE_GRAIN_YEARLY:
 		return "YEARLY"
+	default:
+		return ""
 	}
-	return ""
 }
 
 func stringToPeriodeGrain(s string) financev1.PeriodeGrain {
@@ -177,8 +178,9 @@ func chartTypeToString(t financev1.ChartType) string {
 		return "mixed"
 	case financev1.ChartType_CHART_TYPE_DATA_TABLE:
 		return "data_table"
+	default:
+		return ""
 	}
-	return ""
 }
 
 func stringToChartType(s string) financev1.ChartType {
@@ -227,8 +229,9 @@ func compareModeToString(m financev1.CompareMode) string {
 		return "YTD"
 	case financev1.CompareMode_COMPARE_MODE_R12:
 		return "R12"
+	default:
+		return ""
 	}
-	return ""
 }
 
 func stringToCompareMode(s string) financev1.CompareMode {
@@ -247,22 +250,6 @@ func stringToCompareMode(s string) financev1.CompareMode {
 		return financev1.CompareMode_COMPARE_MODE_R12
 	}
 	return financev1.CompareMode_COMPARE_MODE_UNSPECIFIED
-}
-
-func dataSourceTypeToString(t financev1.DataSourceType) string {
-	switch t {
-	case financev1.DataSourceType_DATA_SOURCE_TYPE_ORACLE:
-		return "ORACLE"
-	case financev1.DataSourceType_DATA_SOURCE_TYPE_LARAVEL:
-		return "LARAVEL"
-	case financev1.DataSourceType_DATA_SOURCE_TYPE_EXCEL:
-		return "EXCEL"
-	case financev1.DataSourceType_DATA_SOURCE_TYPE_MANUAL:
-		return "MANUAL"
-	case financev1.DataSourceType_DATA_SOURCE_TYPE_API:
-		return "API"
-	}
-	return ""
 }
 
 func stringToDataSourceType(s string) financev1.DataSourceType {
@@ -394,9 +381,9 @@ func dashboardToProto(d *dashboarddomain.Dashboard) *financev1.Dashboard {
 		KpiConfig:          mapsToStructList(d.KpiConfig().MarshalToList()),
 		DrillEnabled:       d.DrillEnabled(),
 		MaxDrillLevel:      int32(d.MaxDrillLevel().Int()),       //nolint:gosec // bounded 1..3 by VO
-		CacheTtlSec:        int32(d.CacheTTL().Seconds()),         //nolint:gosec // bounded 0..86400
-		RefreshIntervalSec: int32(d.RefreshInterval().Seconds()),  //nolint:gosec // bounded 0..3600
-		DisplayOrder:       int32(d.DisplayOrder()),               //nolint:gosec
+		CacheTtlSec:        int32(d.CacheTTL().Seconds()),        //nolint:gosec // bounded 0..86400
+		RefreshIntervalSec: int32(d.RefreshInterval().Seconds()), //nolint:gosec // bounded 0..3600
+		DisplayOrder:       int32(d.DisplayOrder()),              //nolint:gosec
 		GroupId:            d.GroupID().String(),
 		IsActive:           d.IsActive(),
 		AllowedRoleCodes:   d.AllowedRoleCodes(),

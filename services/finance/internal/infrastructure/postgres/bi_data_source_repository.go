@@ -39,7 +39,11 @@ func (r *BiDataSourceRepository) List(ctx context.Context, includeInactive bool)
 	if err != nil {
 		return nil, fmt.Errorf("query data sources: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			_ = err
+		}
+	}()
 
 	var out []*datasource.DataSource
 	for rows.Next() {

@@ -11,12 +11,12 @@ type NumberFormat string
 
 // All supported number-format keys.
 const (
-	NumberFormatRaw                NumberFormat = "raw"
-	NumberFormatThousands          NumberFormat = "thousands"
-	NumberFormatMillions           NumberFormat = "millions"
-	NumberFormatPercent            NumberFormat = "percent"
-	NumberFormatCurrencyThousands  NumberFormat = "currency_thousands"
-	NumberFormatCurrencyMillions   NumberFormat = "currency_millions"
+	NumberFormatRaw               NumberFormat = "raw"
+	NumberFormatThousands         NumberFormat = "thousands"
+	NumberFormatMillions          NumberFormat = "millions"
+	NumberFormatPercent           NumberFormat = "percent"
+	NumberFormatCurrencyThousands NumberFormat = "currency_thousands"
+	NumberFormatCurrencyMillions  NumberFormat = "currency_millions"
 )
 
 // IsValidNumberFormat reports whether the given string is a known number-format key.
@@ -98,4 +98,3 @@ func insertCommas(intPart string) string {
 	}
 	return out.String()
 }
-

@@ -45,7 +45,7 @@ type Registration struct {
 	Lib Lib
 	// RequiredFields must be present in chart_config for a Dashboard using this type.
 	RequiredFields []string
-	// OptionalFields are recognised but not mandatory.
+	// OptionalFields are recognized but not mandatory.
 	OptionalFields []string
 	// SupportsDrill is true when clicking a data point can drill down a level.
 	SupportsDrill bool

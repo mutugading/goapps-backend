@@ -44,6 +44,8 @@ func ComputeKPIs(
 }
 
 // computeOneKPI runs the current-period query and (if needed) the compare-period query.
+//
+//nolint:nestif // cohesive KPI compute pipeline; nesting reflects natural conditional branching
 func computeOneKPI(
 	ctx context.Context,
 	repo factmetric.Repository,
@@ -185,6 +187,10 @@ ORDER BY periode_date`, aggSQL, source, joinAnd(conds))
 }
 
 // kpiSourceTable picks the right MV given whether the dashboard pre-filters group_1.
+// The source table is always mv_bi_metric_g1 in this implementation; different MVs may
+// be introduced in future when per-grain materialized views are available.
+//
+//nolint:unparam // source is always mv_bi_metric_g1; reserved for future per-grain MV routing
 func kpiSourceTable(d *dashboarddomain.Dashboard) (source, group1Filter string) {
 	if d.FilterGroup1() != "" {
 		return "mv_bi_metric_g1", d.FilterGroup1()

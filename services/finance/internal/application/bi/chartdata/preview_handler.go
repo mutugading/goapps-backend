@@ -16,13 +16,13 @@ import (
 // Used by the admin wizard's right-pane to render chart against real fact data
 // before the user clicks Save. No cache, no role check (admin form is permission-gated).
 type PreviewQuery struct {
-	FilterType    string
-	FilterGroup1  string
-	PeriodGrain   string
-	ChartType     string
-	ChartConfig   map[string]any
-	KpiConfig     []map[string]any
-	CompareModes  []string
+	FilterType   string
+	FilterGroup1 string
+	PeriodGrain  string
+	ChartType    string
+	ChartConfig  map[string]any
+	KpiConfig    []map[string]any
+	CompareModes []string
 }
 
 // PreviewHandler renders an unsaved dashboard configuration.

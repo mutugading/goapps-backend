@@ -28,13 +28,20 @@ func NewBiDashboardRepository(db *DB) *BiDashboardRepository {
 // Verify interface implementation at compile time.
 var _ dashboard.Repository = (*BiDashboardRepository)(nil)
 
+// colDisplayOrder is the SQL column name for dashboard display ordering.
+const colDisplayOrder = "display_order"
+
 // Create inserts a new dashboard row and its role mapping in a single transaction.
 func (r *BiDashboardRepository) Create(ctx context.Context, d *dashboard.Dashboard) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() {
+		if err := tx.Rollback(); err != nil {
+			_ = err
+		}
+	}()
 
 	if err := r.insertDashboardTx(ctx, tx, d); err != nil {
 		return err
@@ -109,7 +116,11 @@ func (r *BiDashboardRepository) replaceRolesTx(ctx context.Context, tx *sql.Tx, 
 	if err != nil {
 		return fmt.Errorf("prepare roles insert: %w", err)
 	}
-	defer func() { _ = stmt.Close() }()
+	defer func() {
+		if err := stmt.Close(); err != nil {
+			_ = err
+		}
+	}()
 	for _, code := range roles {
 		if _, err := stmt.ExecContext(ctx, dashboardID, code, nullableUUID(by)); err != nil {
 			return fmt.Errorf("insert role %q: %w", code, err)
@@ -149,6 +160,8 @@ func (r *BiDashboardRepository) GetByCode(ctx context.Context, code string) (*da
 }
 
 // List paginated dashboards with filter + sort.
+//
+//nolint:gocyclo // dynamic filter/sort query builder; each filter condition adds one branch
 func (r *BiDashboardRepository) List(ctx context.Context, f dashboard.ListFilter) ([]*dashboard.Dashboard, int64, error) {
 	if f.Page < 1 {
 		f.Page = 1
@@ -208,7 +221,11 @@ func (r *BiDashboardRepository) List(ctx context.Context, f dashboard.ListFilter
 	if err != nil {
 		return nil, 0, fmt.Errorf("query list: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			_ = err
+		}
+	}()
 
 	var out []*dashboard.Dashboard
 	for rows.Next() {
@@ -235,7 +252,11 @@ func (r *BiDashboardRepository) Update(ctx context.Context, d *dashboard.Dashboa
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() {
+		if err := tx.Rollback(); err != nil {
+			_ = err
+		}
+	}()
 
 	chartConfig, err := json.Marshal(d.ChartConfig().MarshalToMap())
 	if err != nil {
@@ -291,8 +312,11 @@ WHERE dashboard_id = $1 AND deleted_at IS NULL`
 	if err != nil {
 		return fmt.Errorf("update: %w", err)
 	}
-	rows, _ := res.RowsAffected()
-	if rows == 0 {
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if affected == 0 {
 		return dashboard.ErrNotFound
 	}
 
@@ -315,8 +339,11 @@ WHERE dashboard_id = $1 AND deleted_at IS NULL`
 	if err != nil {
 		return fmt.Errorf("soft delete: %w", err)
 	}
-	rows, _ := res.RowsAffected()
-	if rows == 0 {
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if affected == 0 {
 		return dashboard.ErrNotFound
 	}
 	return nil
@@ -366,7 +393,11 @@ func (r *BiDashboardRepository) SetRoles(ctx context.Context, dashboardID uuid.U
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() {
+		if err := tx.Rollback(); err != nil {
+			_ = err
+		}
+	}()
 	if err := r.replaceRolesTx(ctx, tx, dashboardID, roleCodes, by); err != nil {
 		return err
 	}
@@ -379,7 +410,11 @@ func (r *BiDashboardRepository) GetRoles(ctx context.Context, dashboardID uuid.U
 	if err != nil {
 		return nil, fmt.Errorf("query roles: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			_ = err
+		}
+	}()
 	var out []string
 	for rows.Next() {
 		var s string
@@ -413,7 +448,11 @@ func (r *BiDashboardRepository) ListAccessible(ctx context.Context, userRoles []
 	if err != nil {
 		return nil, fmt.Errorf("query accessible: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			_ = err
+		}
+	}()
 
 	var out []*dashboard.Dashboard
 	for rows.Next() {
@@ -568,7 +607,11 @@ func (r *BiDashboardRepository) hydrateRolesBatch(ctx context.Context, dashboard
 	if err != nil {
 		return fmt.Errorf("query roles batch: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			_ = err
+		}
+	}()
 	for rows.Next() {
 		var did uuid.UUID
 		var code string
@@ -595,10 +638,10 @@ func mapDashboardSortField(field string) string {
 		return "dashboard_title"
 	case "created_at":
 		return "created_at"
-	case "display_order", "":
-		return "display_order"
+	case colDisplayOrder, "":
+		return colDisplayOrder
 	}
-	return "display_order"
+	return colDisplayOrder
 }
 
 // ---- shared utility helpers (used by other bi_* repos as well) ----
@@ -646,9 +689,10 @@ func uuidOrNil(n uuid.NullUUID) uuid.UUID {
 }
 
 // bytesToMap decodes a JSONB column into a Go map.
+// Returns an empty map (not nil) for empty input to avoid nilnil.
 func bytesToMap(b []byte) (map[string]any, error) {
 	if len(b) == 0 {
-		return nil, nil
+		return map[string]any{}, nil
 	}
 	var m map[string]any
 	if err := json.Unmarshal(b, &m); err != nil {
