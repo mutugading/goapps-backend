@@ -54,6 +54,13 @@ func (h *ListLogsHandler) Handle(ctx context.Context, q ListLogsQuery) (ListLogs
 	return ListLogsResult{Items: items, Total: total}, nil
 }
 
+// MVRefresher refreshes BI materialized views.
+// Injected into TriggerHandler so the mv_refresh job kind can trigger a view
+// refresh without executing an Oracle fetch.
+type MVRefresher interface {
+	RefreshMVs(ctx context.Context) error
+}
+
 // TriggerCommand is the payload for TriggerHandler.
 type TriggerCommand struct {
 	JobID       uuid.UUID
@@ -66,35 +73,70 @@ type TriggerCommand struct {
 // rows_affected=0 — a placeholder that lets the admin UI verify the trigger button works
 // without actually running Oracle procedures. Spec 1D replaces this body with a RabbitMQ
 // publish to the finance-bi-worker queue.
-type TriggerHandler struct{ repo jobdomain.Repository }
+//
+// Special case: jobs with config["kind"]=="mv_refresh" skip the Oracle path and only
+// call MVRefresher.RefreshMVs, then mark SUCCESS with rows_affected=0.
+type TriggerHandler struct {
+	repo        jobdomain.Repository
+	mvRefresher MVRefresher // optional — nil when not needed
+}
 
 // NewTriggerHandler constructs a TriggerHandler.
-func NewTriggerHandler(r jobdomain.Repository) *TriggerHandler { return &TriggerHandler{repo: r} }
+func NewTriggerHandler(r jobdomain.Repository, mv MVRefresher) *TriggerHandler {
+	return &TriggerHandler{repo: r, mvRefresher: mv}
+}
 
-// Handle executes the manual trigger (placeholder MVP behavior).
+// Handle executes the manual trigger.
 func (h *TriggerHandler) Handle(ctx context.Context, cmd TriggerCommand) (*jobdomain.Log, error) {
-	if _, err := h.repo.GetByID(ctx, cmd.JobID); err != nil {
+	theJob, err := h.repo.GetByID(ctx, cmd.JobID)
+	if err != nil {
 		return nil, err
 	}
 
 	now := time.Now().UTC()
-	log := &jobdomain.Log{
+	entry := &jobdomain.Log{
 		JobID:       cmd.JobID,
 		StartedAt:   now,
 		Status:      jobdomain.StatusRunning,
 		TriggeredBy: "MANUAL:" + cmd.TriggeredBy.String(),
 	}
-	if err := h.repo.InsertLog(ctx, log); err != nil {
+	if err = h.repo.InsertLog(ctx, entry); err != nil {
 		return nil, fmt.Errorf("insert running log: %w", err)
+	}
+
+	// mv_refresh job kind: refresh materialized views and mark SUCCESS immediately.
+	if theJob.Config["kind"] == "mv_refresh" {
+		return h.handleMVRefresh(ctx, entry, now)
 	}
 
 	// MVP: immediately resolve to SUCCESS placeholder. Real work happens in spec 1D.
 	ended := time.Now().UTC()
-	log.EndedAt = ended
-	log.Status = jobdomain.StatusSuccess
-	log.DurationMs = int(ended.Sub(now).Milliseconds())
-	if err := h.repo.UpdateLog(ctx, log); err != nil {
+	entry.EndedAt = ended
+	entry.Status = jobdomain.StatusSuccess
+	entry.DurationMs = int(ended.Sub(now).Milliseconds())
+	if err = h.repo.UpdateLog(ctx, entry); err != nil {
 		return nil, fmt.Errorf("update completion log: %w", err)
 	}
-	return log, nil
+	return entry, nil
+}
+
+// handleMVRefresh calls RefreshMVs and writes the result back to the log.
+func (h *TriggerHandler) handleMVRefresh(ctx context.Context, entry *jobdomain.Log, started time.Time) (*jobdomain.Log, error) {
+	var refreshErr error
+	if h.mvRefresher != nil {
+		refreshErr = h.mvRefresher.RefreshMVs(ctx)
+	}
+	ended := time.Now().UTC()
+	entry.EndedAt = ended
+	entry.DurationMs = int(ended.Sub(started).Milliseconds())
+	if refreshErr != nil {
+		entry.Status = jobdomain.StatusFailed
+		entry.ErrorMessage = refreshErr.Error()
+	} else {
+		entry.Status = jobdomain.StatusSuccess
+	}
+	if err := h.repo.UpdateLog(ctx, entry); err != nil {
+		return nil, fmt.Errorf("update mv_refresh completion log: %w", err)
+	}
+	return entry, nil
 }
