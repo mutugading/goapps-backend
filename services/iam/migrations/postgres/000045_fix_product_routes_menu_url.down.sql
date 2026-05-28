@@ -3,7 +3,10 @@ BEGIN;
 
 UPDATE public.mst_menu
    SET menu_url   = '/finance/product-orders',
-       menu_title = 'Product Orders'
- WHERE menu_code = 'FINANCE_PRODUCT_ORDERS';
+       menu_title = 'Product Orders',
+       updated_at = NOW(),
+       updated_by = 'seed'
+ WHERE menu_code = 'FINANCE_PRODUCT_ORDERS'
+   AND deleted_at IS NULL;
 
 COMMIT;
