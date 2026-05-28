@@ -9,6 +9,9 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/bi/factmetric"
 )
 
+// compareNoneLC is the lowercase sentinel for "no compare overlay" passed from the frontend.
+const compareNoneLC = "none"
+
 // ViewerFilters carries the runtime filter state from the viewer page.
 type ViewerFilters struct {
 	PeriodPreset string    // L12M | L24M | THIS_YEAR | THIS_QTR | THIS_MONTH | ALL | CUSTOM
@@ -26,8 +29,18 @@ type ViewerFilters struct {
 //   - 2 → bi_fact_metric (group_3 level, raw)
 //   - >max_drill_level → ErrDrillTooDeep
 //
+// Multi-metric path: when chart_config.metric_filter.include_metrics is non-empty,
+// bypasses MVs entirely and builds a UNION ALL query against bi_fact_metric directly.
+// This path is used for SALES-type dashboards that render multiple metrics on one chart.
+//
 // Compare modes produce an extra `prev_value` column via LEFT JOIN on shifted periods.
 func Plan(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time) (factmetric.PlannedQuery, error) {
+	// Multi-metric path: chart_config.metric_filter.include_metrics is set.
+	// Bypasses MVs — builds a UNION ALL query per metric against bi_fact_metric directly.
+	if metrics := metricFilter(d); len(metrics) > 0 {
+		return planMultiMetric(d, f, now, metrics)
+	}
+
 	drillDepth := len(f.DrillPath)
 	if drillDepth > d.MaxDrillLevel().Int() {
 		return factmetric.PlannedQuery{}, fmt.Errorf("%w: depth %d > max %d", factmetric.ErrDrillTooDeep, drillDepth, d.MaxDrillLevel().Int())
@@ -48,6 +61,91 @@ func Plan(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time) (factmet
 		return planLevel3(d, f, period, isTrend)
 	}
 	return factmetric.PlannedQuery{}, fmt.Errorf("%w: drill depth %d not supported", factmetric.ErrInvalidPlan, drillDepth)
+}
+
+// metricFilter extracts include_metrics from chart_config.metric_filter.
+// Returns nil when absent or empty (single-metric / EBITDA pattern → use MV path).
+func metricFilter(d *dashboarddomain.Dashboard) []string {
+	metrics := d.ChartConfig().MetricFilter.IncludeMetrics
+	if len(metrics) == 0 {
+		return nil
+	}
+	return metrics
+}
+
+// planMultiMetric builds a UNION ALL query: one SELECT per metric_name.
+// Each SELECT produces AggRows with Category=metric_name so the shaper (format.go)
+// can split them into separate Series.
+//
+// Does NOT use MVs — queries bi_fact_metric directly since pivoting across
+// metric_names requires per-metric filtering that MVs cannot provide.
+//
+// Safety note: metric_name values are inlined into the SQL string. This is safe because
+// they come exclusively from chart_config.metric_filter.include_metrics (admin-configured,
+// not user input). In addition, metric names are validated as UPPERCASE_SNAKE_CASE by the
+// registry before being stored, so they contain no SQL-injection characters.
+func planMultiMetric(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time, metrics []string) (factmetric.PlannedQuery, error) {
+	period := ResolvePeriod(f.PeriodPreset, f.PeriodFrom, f.PeriodTo, d.PeriodGrain().String(), now)
+
+	// Build common WHERE conditions (shared across all UNION branches).
+	// $1 = type. Additional params indexed from $2.
+	args := []any{d.FilterType()}
+	idx := 2
+	baseConds := []string{"type = $1", "agg_method = 'SUM'", "is_active = TRUE"}
+
+	if grain := d.PeriodGrain().String(); grain != "" {
+		baseConds = append(baseConds, fmt.Sprintf("periode_grain = $%d", idx))
+		args = append(args, grain)
+		idx++
+	}
+	if !period.From.IsZero() && !period.To.IsZero() {
+		baseConds = append(baseConds, fmt.Sprintf("periode_date BETWEEN $%d AND $%d", idx, idx+1))
+		args = append(args, period.From, period.To)
+		idx += 2
+	}
+	if f.Compare != "" && f.Compare != "NONE" && f.Compare != compareNoneLC {
+		baseConds = append(baseConds, fmt.Sprintf("scenario = $%d", idx))
+		args = append(args, "ACTUAL")
+		idx++ //nolint:ineffassign // idx reserved for future conditions added below
+	}
+
+	// Build group filters from dashboard pre-filter or drill path.
+	if d.FilterGroup1() != "" {
+		baseConds = append(baseConds, fmt.Sprintf("group_1 = $%d", idx))
+		args = append(args, d.FilterGroup1())
+		idx++ //nolint:ineffassign // idx reserved for future conditions
+	} else if len(f.DrillPath) > 0 {
+		baseConds = append(baseConds, fmt.Sprintf("group_1 = $%d", idx))
+		args = append(args, f.DrillPath[0])
+		idx++
+		if len(f.DrillPath) > 1 {
+			baseConds = append(baseConds, fmt.Sprintf("group_2 = $%d", idx))
+			args = append(args, f.DrillPath[1])
+			idx++ //nolint:ineffassign // idx reserved for future conditions
+		}
+	}
+
+	allConds := baseConds
+	where := strings.Join(allConds, " AND ")
+
+	// One SELECT per metric — UNION ALL preserves all rows.
+	// Category column = metric_name so format.go can split into separate Series.
+	unions := make([]string, 0, len(metrics))
+	for _, m := range metrics {
+		unions = append(unions, fmt.Sprintf(`
+SELECT TO_CHAR(periode_date,'YYYYMM')::text AS category,
+       periode_date,
+       '%s'::text AS periode_label,
+       COALESCE(SUM(display_value), 0) AS value,
+       0::numeric AS prev_value,
+       0::int AS order_seq
+FROM bi_fact_metric
+WHERE %s AND metric_name = '%s'
+GROUP BY periode_date`, m, where, m))
+	}
+
+	sql := strings.Join(unions, "\nUNION ALL\n") + "\nORDER BY periode_label, category"
+	return factmetric.PlannedQuery{SQL: sql, Args: args, TargetTable: "bi_fact_metric"}, nil
 }
 
 // applyTrend overrides the category/order columns to group by period when the chart

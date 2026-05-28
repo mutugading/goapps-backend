@@ -49,6 +49,16 @@ type ChartConfig struct {
 	ColorScale    string
 	SizeField     string
 	LabelPosition string
+
+	// MetricFilter holds the optional list of metric_names for multi-series dashboards
+	// (e.g. SALES dashboards with GROSS_SALES / NETT_SALES / MARGIN on the same chart).
+	// When non-empty the query planner bypasses MVs and queries bi_fact_metric directly.
+	MetricFilter MetricFilterConfig
+}
+
+// MetricFilterConfig carries the include_metrics list from chart_config.metric_filter.
+type MetricFilterConfig struct {
+	IncludeMetrics []string
 }
 
 // SeriesDef defines one series in a mixed chart.
@@ -140,7 +150,30 @@ func ParseChartConfig(t ChartType, raw map[string]any) (ChartConfig, error) {
 		cfg.SeriesDefs = defs
 	}
 
+	// metric_filter.include_metrics — optional; drives the multi-metric query planner path.
+	cfg.MetricFilter = parseMetricFilter(merged)
+
 	return cfg, nil
+}
+
+// parseMetricFilter extracts MetricFilterConfig from a raw chart-config map.
+// Returns a zero MetricFilterConfig when the key is absent or malformed.
+func parseMetricFilter(merged map[string]any) MetricFilterConfig {
+	mf, ok := merged["metric_filter"].(map[string]any)
+	if !ok {
+		return MetricFilterConfig{}
+	}
+	raw, ok := mf["include_metrics"].([]any)
+	if !ok {
+		return MetricFilterConfig{}
+	}
+	metrics := make([]string, 0, len(raw))
+	for _, v := range raw {
+		if s, ok := v.(string); ok && s != "" {
+			metrics = append(metrics, s)
+		}
+	}
+	return MetricFilterConfig{IncludeMetrics: metrics}
 }
 
 // MarshalToMap converts a ChartConfig back to a map for JSONB storage. Empty/default
@@ -196,6 +229,13 @@ func (c ChartConfig) MarshalToMap() map[string]any {
 			defs[i] = map[string]any{"name": sd.Name, "type": sd.Type, "field": sd.Field}
 		}
 		out["series_defs"] = defs
+	}
+	if len(c.MetricFilter.IncludeMetrics) > 0 {
+		raw := make([]any, len(c.MetricFilter.IncludeMetrics))
+		for i, m := range c.MetricFilter.IncludeMetrics {
+			raw[i] = m
+		}
+		out["metric_filter"] = map[string]any{"include_metrics": raw}
 	}
 	return out
 }
