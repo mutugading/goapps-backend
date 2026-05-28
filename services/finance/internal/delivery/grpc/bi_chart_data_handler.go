@@ -2,8 +2,10 @@ package grpc
 
 import (
 	"context"
+	"strings"
 	"time"
 
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	commonv1 "github.com/mutugading/goapps-backend/gen/common/v1"
@@ -47,6 +49,15 @@ func (h *BIChartDataHandler) GetDashboardData(ctx context.Context, req *financev
 	}
 	if req.GetPeriodTo() != nil {
 		filters.PeriodTo = req.GetPeriodTo().AsTime()
+	}
+	// Read filter-chip values forwarded by the BFF as gRPC metadata headers.
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		if vals := md.Get("x-group1-filter"); len(vals) > 0 && vals[0] != "" {
+			filters.Group1Filter = strings.Split(vals[0], ",")
+		}
+		if vals := md.Get("x-group2-filter"); len(vals) > 0 && vals[0] != "" {
+			filters.Group2Filter = strings.Split(vals[0], ",")
+		}
 	}
 	q := chartdataapp.GetDataQuery{
 		DashboardCode: req.GetDashboardCode(),

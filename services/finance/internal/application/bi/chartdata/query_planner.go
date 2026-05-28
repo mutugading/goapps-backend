@@ -19,6 +19,8 @@ type ViewerFilters struct {
 	PeriodTo     time.Time
 	Compare      string   // none | MoM | QoQ | YoY | YTD | R12
 	DrillPath    []string // depth 0 = aggregate, 1 = into group_2, 2 = into group_3
+	Group1Filter []string // selected group_1 values from filter chips; empty = show all
+	Group2Filter []string // selected group_2 values from filter chips; empty = show all
 }
 
 // Plan turns a Dashboard + ViewerFilters into a PlannedQuery against the right MV / fact table.
@@ -106,24 +108,11 @@ func planMultiMetric(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Tim
 	if f.Compare != "" && f.Compare != "NONE" && f.Compare != compareNoneLC {
 		baseConds = append(baseConds, fmt.Sprintf("scenario = $%d", idx))
 		args = append(args, "ACTUAL")
-		idx++ //nolint:ineffassign // idx reserved for future conditions added below
+		idx++
 	}
 
-	// Build group filters from dashboard pre-filter or drill path.
-	if d.FilterGroup1() != "" {
-		baseConds = append(baseConds, fmt.Sprintf("group_1 = $%d", idx))
-		args = append(args, d.FilterGroup1())
-		idx++ //nolint:ineffassign // idx reserved for future conditions
-	} else if len(f.DrillPath) > 0 {
-		baseConds = append(baseConds, fmt.Sprintf("group_1 = $%d", idx))
-		args = append(args, f.DrillPath[0])
-		idx++
-		if len(f.DrillPath) > 1 {
-			baseConds = append(baseConds, fmt.Sprintf("group_2 = $%d", idx))
-			args = append(args, f.DrillPath[1])
-			idx++ //nolint:ineffassign // idx reserved for future conditions
-		}
-	}
+	// Build group filters from dashboard pre-filter, drill path, and filter chips.
+	baseConds, args, _ = appendGroupConds(baseConds, args, idx, d, f)
 
 	allConds := baseConds
 	where := strings.Join(allConds, " AND ")
@@ -146,6 +135,52 @@ GROUP BY periode_date`, m, where, m))
 
 	sql := strings.Join(unions, "\nUNION ALL\n") + "\nORDER BY periode_label, category"
 	return factmetric.PlannedQuery{SQL: sql, Args: args, TargetTable: "bi_fact_metric"}, nil
+}
+
+// appendGroupConds appends group_1 / group_2 conditions for a multi-metric UNION query.
+//
+// Priority order:
+//  1. Dashboard-level filter_group_1 (pre-pinned by config) → exact match, skips filter chips.
+//  2. Drill path from the viewer page → sequential group_1 / group_2 exact matches.
+//  3. Filter-chip selections → IN (...) conditions for user-toggled group values.
+func appendGroupConds(
+	conds []string, args []any, idx int,
+	d *dashboarddomain.Dashboard, f ViewerFilters,
+) ([]string, []any, int) {
+	if d.FilterGroup1() != "" {
+		conds = append(conds, fmt.Sprintf("group_1 = $%d", idx))
+		args = append(args, d.FilterGroup1())
+		idx++
+	} else if len(f.DrillPath) > 0 {
+		conds = append(conds, fmt.Sprintf("group_1 = $%d", idx))
+		args = append(args, f.DrillPath[0])
+		idx++
+		if len(f.DrillPath) > 1 {
+			conds = append(conds, fmt.Sprintf("group_2 = $%d", idx))
+			args = append(args, f.DrillPath[1])
+			idx++
+		}
+	}
+	// Filter-chip selections (only when dashboard has not pinned group_1).
+	if len(f.Group1Filter) > 0 && d.FilterGroup1() == "" {
+		conds, args, idx = appendINClause(conds, args, idx, "group_1", f.Group1Filter)
+	}
+	if len(f.Group2Filter) > 0 {
+		conds, args, idx = appendINClause(conds, args, idx, "group_2", f.Group2Filter)
+	}
+	return conds, args, idx
+}
+
+// appendINClause adds a "col IN ($n,$n+1,...)" condition and advances idx.
+func appendINClause(conds []string, args []any, idx int, col string, vals []string) ([]string, []any, int) {
+	placeholders := make([]string, len(vals))
+	for i, v := range vals {
+		placeholders[i] = fmt.Sprintf("$%d", idx)
+		args = append(args, v)
+		idx++
+	}
+	conds = append(conds, col+" IN ("+strings.Join(placeholders, ",")+")")
+	return conds, args, idx
 }
 
 // applyTrend overrides the category/order columns to group by period when the chart
