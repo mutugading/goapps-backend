@@ -65,6 +65,19 @@ type Meta struct {
 	QueryHash string
 }
 
+// staticMetricLabels maps UPPERCASE_SNAKE_CASE metric codes to human-readable labels.
+// These are fallback labels — the full registry is in bi_metric_registry but querying
+// it on every request is unnecessary overhead for the viewer.
+var staticMetricLabels = map[string]string{
+	"VALUE":        "Value",
+	"QUANTITY":     "Quantity",
+	"GROSS_SALES":  "Gross Sales",
+	"SELLING_COST": "Selling Cost",
+	"NETT_SALES":   "Net Sales",
+	"COST_PROD":    "Production Cost",
+	"MARGIN":       "Margin",
+}
+
 // Shape turns raw aggregate rows + KPI results into the canonical viewer payload.
 //
 // The chart's primary series is named after the dashboard title. For compare modes,
@@ -73,15 +86,49 @@ type Meta struct {
 //
 // For categorical charts (waterfall/bar/donut etc.) categories come from AggRow.Category;
 // for trend charts (line/area/mixed) they come from period labels.
+//
+// When the dashboard's chart_config has metric_filter.include_metrics set, rows come from
+// planMultiMetric() where Category = metric_name. In that case Shape produces one Series
+// per metric instead of the default single-Series behavior.
 func Shape(d *dashboarddomain.Dashboard, rows []factmetric.AggRow, kpis []factmetric.KpiRow, f ViewerFilters, drillContext DrillContext) Result {
+	// Format KPIs (shared by both paths).
+	numFmt := pickNumberFormat(d.ChartConfig())
+	decimals := d.ChartConfig().Decimals
+
+	formattedKPIs := formatKPIs(d, kpis, d.KpiConfig(), numFmt, decimals)
+
+	// Multi-metric detection: when the dashboard has metric_filter.include_metrics set,
+	// AggRows come from planMultiMetric() where Category = metric_name.
+	// Route to shapeMultiMetric() to produce one Series per metric.
+	if metrics := d.ChartConfig().MetricFilter.IncludeMetrics; len(metrics) > 0 {
+		multiSeries := shapeMultiMetric(rows, staticMetricLabels, numFmt, decimals)
+
+		// Build ordered categories from unique period labels as they appear in the rows.
+		seen := make(map[string]bool, len(rows))
+		cats := make([]string, 0, len(rows))
+		for _, r := range rows {
+			if !seen[r.PeriodLabel] {
+				seen[r.PeriodLabel] = true
+				cats = append(cats, r.PeriodLabel)
+			}
+		}
+
+		return Result{
+			Config:       d.ChartConfig().MarshalToMap(),
+			Series:       multiSeries,
+			Categories:   cats,
+			KPIs:         formattedKPIs,
+			DrillContext: drillContext,
+			Meta:         Meta{AsOf: time.Now().UTC(), RowCount: len(rows)},
+		}
+	}
+
 	primary := Series{
 		Name:   d.Title(),
 		Points: make([]DataPoint, 0, len(rows)),
 	}
 	var comparePts []DataPoint
 	categories := make([]string, 0, len(rows))
-	numFmt := pickNumberFormat(d.ChartConfig())
-	decimals := d.ChartConfig().Decimals
 
 	for _, r := range rows {
 		cat := r.Category
@@ -111,12 +158,22 @@ func Shape(d *dashboarddomain.Dashboard, rows []factmetric.AggRow, kpis []factme
 		})
 	}
 
-	// Format KPIs
-	formattedKPIs := make([]KpiResult, 0, len(kpis))
-	kpiCfg := d.KpiConfig()
+	return Result{
+		Config:       d.ChartConfig().MarshalToMap(),
+		Series:       series,
+		Categories:   categories,
+		KPIs:         formattedKPIs,
+		DrillContext: drillContext,
+		Meta:         Meta{AsOf: time.Now().UTC(), RowCount: len(rows)},
+	}
+}
+
+// formatKPIs formats KPI rows using per-KPI config overrides.
+func formatKPIs(d *dashboarddomain.Dashboard, kpis []factmetric.KpiRow, kpiCfg dashboarddomain.KpiConfig, defaultFmt chart.NumberFormat, defaultDec int) []KpiResult {
+	out := make([]KpiResult, 0, len(kpis))
 	for i, k := range kpis {
-		fmtKey := numFmt
-		dec := decimals
+		fmtKey := defaultFmt
+		dec := defaultDec
 		if i < len(kpiCfg) {
 			if kpiCfg[i].Format != "" {
 				fmtKey = kpiCfg[i].Format
@@ -125,7 +182,7 @@ func Shape(d *dashboarddomain.Dashboard, rows []factmetric.AggRow, kpis []factme
 				dec = kpiCfg[i].Decimals
 			}
 		}
-		formattedKPIs = append(formattedKPIs, KpiResult{
+		out = append(out, KpiResult{
 			Label:              k.Label,
 			Value:              k.Value,
 			ValueFormatted:     chart.Format(k.Value, fmtKey, dec),
@@ -137,15 +194,46 @@ func Shape(d *dashboarddomain.Dashboard, rows []factmetric.AggRow, kpis []factme
 			Sparkline:          k.Sparkline,
 		})
 	}
+	return out
+}
 
-	return Result{
-		Config:       d.ChartConfig().MarshalToMap(),
-		Series:       series,
-		Categories:   categories,
-		KPIs:         formattedKPIs,
-		DrillContext: drillContext,
-		Meta:         Meta{AsOf: time.Now().UTC(), RowCount: len(rows)},
+// shapeMultiMetric groups rows by Category (= metric_name) into separate Series.
+//
+// Each Series has one DataPoint per unique PeriodLabel, in source order.
+// Metric names are resolved to display labels via labelMap.
+func shapeMultiMetric(rows []factmetric.AggRow, labelMap map[string]string, numFmt chart.NumberFormat, decimals int) []Series {
+	if len(rows) == 0 {
+		return nil
 	}
+	// Preserve insertion order of metric names (as they appear in the UNION ALL result).
+	var order []string
+	seen := make(map[string]bool)
+	byMetric := make(map[string][]DataPoint)
+
+	for _, r := range rows {
+		metricCode := r.Category // Category = metric_name from planMultiMetric.
+		period := r.PeriodLabel  // PeriodLabel = YYYYMM.
+
+		if !seen[metricCode] {
+			order = append(order, metricCode)
+			seen[metricCode] = true
+		}
+		byMetric[metricCode] = append(byMetric[metricCode], DataPoint{
+			Category: period,
+			Value:    r.Value,
+			Label:    chart.Format(r.Value, numFmt, decimals),
+		})
+	}
+
+	series := make([]Series, 0, len(order))
+	for _, code := range order {
+		label := labelMap[code]
+		if label == "" {
+			label = code
+		}
+		series = append(series, Series{Name: label, Points: byMetric[code]})
+	}
+	return series
 }
 
 // pickNumberFormat returns the chart_config's number_format or a sensible default.
