@@ -166,6 +166,9 @@ func chartResultToProto(r *chartdataapp.Result) *financev1.ChartDataResponse {
 //   - x-group1-filter: comma-separated group_1 values for filter-chip selections.
 //   - x-group2-filter: comma-separated group_2 values for filter-chip selections.
 //   - x-computed-ratio: JSON-encoded ComputedRatioConfig for the /computed BFF route.
+//   - x-force-trend: when "true", overrides x_axis_field and forces isTrend=true in Plan().
+//     Used by the monthly-detail BFF to fetch period-grouped series from categorical
+//     dashboards (e.g. EBITDA waterfall) without changing the dashboard config.
 func applyMetadataFilters(ctx context.Context, f *chartdataapp.ViewerFilters) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
@@ -184,6 +187,11 @@ func applyMetadataFilters(ctx context.Context, f *chartdataapp.ViewerFilters) {
 		if err := json.Unmarshal([]byte(vals[0]), &cr); err == nil {
 			f.ComputedRatio = &cr
 		}
+	}
+	// x-force-trend: instructs the planner to treat the query as a trend (group-by-period)
+	// regardless of the dashboard's x_axis_field setting.
+	if vals := md.Get("x-force-trend"); len(vals) > 0 && vals[0] == "true" {
+		f.ForceTrend = true
 	}
 }
 

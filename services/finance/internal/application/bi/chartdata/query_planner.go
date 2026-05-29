@@ -21,6 +21,10 @@ type ViewerFilters struct {
 	DrillPath    []string // depth 0 = aggregate, 1 = into group_2, 2 = into group_3
 	Group1Filter []string // selected group_1 values from filter chips; empty = show all
 	Group2Filter []string // selected group_2 values from filter chips; empty = show all
+	// ForceTrend, when true, overrides the chart_config x_axis_field and forces isTrend=true
+	// in Plan(). Used by the monthly-detail BFF to fetch time-series data from dashboards
+	// (e.g. EBITDA) whose chart_config is categorical (waterfall), not period-grouped.
+	ForceTrend bool
 	// ComputedRatio, when non-nil, overrides the normal planning path and routes to
 	// planComputedRatio. Used by the /computed BFF endpoint for secondary charts.
 	ComputedRatio *dashboarddomain.ComputedRatioConfig
@@ -63,7 +67,9 @@ func Plan(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time) (factmet
 
 	// Trend charts (x_axis_field="period") group by period over time; categorical charts
 	// (waterfall/bar/donut) group by the drill-level group column.
-	isTrend := d.ChartConfig().XAxisField == "period"
+	// ForceTrend overrides the chart config (used by monthly-detail BFF to pull time-series
+	// from categorical dashboards such as EBITDA whose x_axis_field="group_2").
+	isTrend := d.ChartConfig().XAxisField == "period" || f.ForceTrend
 
 	switch drillDepth {
 	case 0:
@@ -133,9 +139,9 @@ func planMultiMetric(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Tim
 	unions := make([]string, 0, len(metrics))
 	for _, m := range metrics {
 		unions = append(unions, fmt.Sprintf(`
-SELECT TO_CHAR(periode_date,'YYYYMM')::text AS category,
+SELECT '%s'::text AS category,
        periode_date,
-       '%s'::text AS periode_label,
+       TO_CHAR(periode_date,'YYYYMM')::text AS periode_label,
        COALESCE(SUM(display_value), 0) AS value,
        0::numeric AS prev_value,
        0::int AS order_seq
