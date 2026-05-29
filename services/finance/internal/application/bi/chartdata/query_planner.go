@@ -21,6 +21,9 @@ type ViewerFilters struct {
 	DrillPath    []string // depth 0 = aggregate, 1 = into group_2, 2 = into group_3
 	Group1Filter []string // selected group_1 values from filter chips; empty = show all
 	Group2Filter []string // selected group_2 values from filter chips; empty = show all
+	// ComputedRatio, when non-nil, overrides the normal planning path and routes to
+	// planComputedRatio. Used by the /computed BFF endpoint for secondary charts.
+	ComputedRatio *dashboarddomain.ComputedRatioConfig
 }
 
 // Plan turns a Dashboard + ViewerFilters into a PlannedQuery against the right MV / fact table.
@@ -37,6 +40,13 @@ type ViewerFilters struct {
 //
 // Compare modes produce an extra `prev_value` column via LEFT JOIN on shifted periods.
 func Plan(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time) (factmetric.PlannedQuery, error) {
+	// Computed-ratio path: ViewerFilters.ComputedRatio is set (injected by the /computed BFF).
+	// Bypasses MVs and metric_filter — builds a CASE-WHEN pivot grouped by group_2.
+	if f.ComputedRatio != nil {
+		cr := f.ComputedRatio
+		return planComputedRatio(d, f, now, cr.Numerator, cr.Denominator, cr.Scale)
+	}
+
 	// Multi-metric path: chart_config.metric_filter.include_metrics is set.
 	// Bypasses MVs — builds a UNION ALL query per metric against bi_fact_metric directly.
 	if metrics := metricFilter(d); len(metrics) > 0 {
@@ -407,6 +417,72 @@ ORDER BY cur.periode_date`,
 		shiftMonths)
 
 	return factmetric.PlannedQuery{SQL: sql, Args: args, TargetTable: a.Source}
+}
+
+// planComputedRatio builds a ratio query:
+//
+//	ROUND(SUM(numerator_metric) / NULLIF(SUM(denominator_metric), 0) * scale, 2)
+//
+// grouped by group_2, for the period resolved from ViewerFilters.
+// Result: one AggRow per non-null group_2 where Category=group_2, Value=computed ratio.
+//
+// Safety note: numerator, denominator are metric_name values sourced from admin-configured
+// chart_config (not user input) and are validated as UPPERCASE_SNAKE_CASE by the registry,
+// so inlining them into the SQL does not create an injection risk. scale is a float64 constant.
+func planComputedRatio(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time, numerator, denominator string, scale float64) (factmetric.PlannedQuery, error) { //nolint:unparam
+	period := ResolvePeriod(f.PeriodPreset, f.PeriodFrom, f.PeriodTo, d.PeriodGrain().String(), now)
+	args := []any{d.FilterType()}
+	idx := 2
+	conds := []string{"type = $1", "agg_method = 'SUM'", "is_active = TRUE"}
+
+	if grain := d.PeriodGrain().String(); grain != "" {
+		conds = append(conds, fmt.Sprintf("periode_grain = $%d", idx))
+		args = append(args, grain)
+		idx++
+	}
+	if !period.From.IsZero() && !period.To.IsZero() {
+		conds = append(conds, fmt.Sprintf("periode_date BETWEEN $%d AND $%d", idx, idx+1))
+		args = append(args, period.From, period.To)
+		idx += 2
+	}
+
+	// Dashboard-level group_1 pre-filter or drill path (mirrors appendGroupConds logic).
+	if d.FilterGroup1() != "" {
+		conds = append(conds, fmt.Sprintf("group_1 = $%d", idx))
+		args = append(args, d.FilterGroup1())
+		idx++ //nolint:ineffassign,wastedassign
+	} else if len(f.DrillPath) > 0 {
+		conds = append(conds, fmt.Sprintf("group_1 = $%d", idx))
+		args = append(args, f.DrillPath[0])
+		idx++ //nolint:ineffassign,wastedassign
+	}
+
+	where := strings.Join(conds, " AND ")
+	// scale is a config constant (not user input), safe to inline.
+	scaleStr := fmt.Sprintf("%.6g", scale)
+
+	sql := fmt.Sprintf(`
+SELECT group_2::text AS category,
+       NULL::date    AS periode_date,
+       ''::text      AS periode_label,
+       ROUND(
+         SUM(CASE WHEN metric_name = '%s' THEN display_value END) /
+         NULLIF(SUM(CASE WHEN metric_name = '%s' THEN display_value END), 0) * %s,
+         2
+       ) AS value,
+       0::numeric AS prev_value,
+       MAX(group_2_order) AS order_seq
+FROM bi_fact_metric
+WHERE %s
+  AND metric_name IN ('%s', '%s')
+  AND group_2 IS NOT NULL
+GROUP BY group_2, group_2_order
+ORDER BY value DESC NULLS LAST`,
+		numerator, denominator, scaleStr,
+		where,
+		numerator, denominator)
+
+	return factmetric.PlannedQuery{SQL: sql, Args: args, TargetTable: "bi_fact_metric"}, nil
 }
 
 // compareShiftMonths maps a compare mode to a month offset for the overlay self-join.

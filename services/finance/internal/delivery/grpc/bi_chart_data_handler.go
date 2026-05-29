@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	commonv1 "github.com/mutugading/goapps-backend/gen/common/v1"
 	financev1 "github.com/mutugading/goapps-backend/gen/finance/v1"
 	chartdataapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/chartdata"
+	dashboarddomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/bi/dashboard"
 )
 
 // BIChartDataHandler implements financev1.ChartDataServiceServer.
@@ -50,15 +52,8 @@ func (h *BIChartDataHandler) GetDashboardData(ctx context.Context, req *financev
 	if req.GetPeriodTo() != nil {
 		filters.PeriodTo = req.GetPeriodTo().AsTime()
 	}
-	// Read filter-chip values forwarded by the BFF as gRPC metadata headers.
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		if vals := md.Get("x-group1-filter"); len(vals) > 0 && vals[0] != "" {
-			filters.Group1Filter = strings.Split(vals[0], ",")
-		}
-		if vals := md.Get("x-group2-filter"); len(vals) > 0 && vals[0] != "" {
-			filters.Group2Filter = strings.Split(vals[0], ",")
-		}
-	}
+	// Read filter values forwarded by the BFF as gRPC metadata headers.
+	applyMetadataFilters(ctx, &filters)
 	q := chartdataapp.GetDataQuery{
 		DashboardCode: req.GetDashboardCode(),
 		Filters:       filters,
@@ -161,6 +156,34 @@ func chartResultToProto(r *chartdataapp.Result) *financev1.ChartDataResponse {
 			CanDrill:    r.DrillContext.CanDrill,
 		},
 		Meta: meta,
+	}
+}
+
+// applyMetadataFilters reads BFF-forwarded gRPC metadata headers and populates the filter
+// fields that cannot be expressed in the standard proto request message.
+//
+// Supported headers:
+//   - x-group1-filter: comma-separated group_1 values for filter-chip selections.
+//   - x-group2-filter: comma-separated group_2 values for filter-chip selections.
+//   - x-computed-ratio: JSON-encoded ComputedRatioConfig for the /computed BFF route.
+func applyMetadataFilters(ctx context.Context, f *chartdataapp.ViewerFilters) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return
+	}
+	if vals := md.Get("x-group1-filter"); len(vals) > 0 && vals[0] != "" {
+		f.Group1Filter = strings.Split(vals[0], ",")
+	}
+	if vals := md.Get("x-group2-filter"); len(vals) > 0 && vals[0] != "" {
+		f.Group2Filter = strings.Split(vals[0], ",")
+	}
+	// x-computed-ratio: JSON-encoded ComputedRatioConfig injected by the /computed BFF route.
+	// When present, the query planner switches to planComputedRatio (ratio grouped by group_2).
+	if vals := md.Get("x-computed-ratio"); len(vals) > 0 && vals[0] != "" {
+		var cr dashboarddomain.ComputedRatioConfig
+		if err := json.Unmarshal([]byte(vals[0]), &cr); err == nil {
+			f.ComputedRatio = &cr
+		}
 	}
 }
 

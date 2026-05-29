@@ -54,11 +54,29 @@ type ChartConfig struct {
 	// (e.g. SALES dashboards with GROSS_SALES / NETT_SALES / MARGIN on the same chart).
 	// When non-empty the query planner bypasses MVs and queries bi_fact_metric directly.
 	MetricFilter MetricFilterConfig
+
+	// ComputedRatio, when non-nil, instructs the query planner to use planComputedRatio
+	// instead of the standard MV/multi-metric path. Used for secondary charts such as
+	// "Margin %" that derive a ratio from two existing metric columns.
+	ComputedRatio *ComputedRatioConfig
 }
 
 // MetricFilterConfig carries the include_metrics list from chart_config.metric_filter.
 type MetricFilterConfig struct {
 	IncludeMetrics []string
+}
+
+// ComputedRatioConfig describes a ratio computation: SUM(numerator)/NULLIF(SUM(denominator),0)*scale.
+// When set in chart_config.computed_ratio, the query planner switches to planComputedRatio.
+type ComputedRatioConfig struct {
+	// Numerator is the metric_name for the dividend (e.g. "MARGIN").
+	Numerator string
+	// Denominator is the metric_name for the divisor (e.g. "NETT_SALES").
+	Denominator string
+	// Scale multiplies the ratio result (100 for percent, 1 for raw fraction).
+	Scale float64
+	// GroupBy is the column to group results by (currently only "group_2" is supported).
+	GroupBy string
 }
 
 // SeriesDef defines one series in a mixed chart.
@@ -153,6 +171,9 @@ func ParseChartConfig(t ChartType, raw map[string]any) (ChartConfig, error) {
 	// metric_filter.include_metrics — optional; drives the multi-metric query planner path.
 	cfg.MetricFilter = parseMetricFilter(merged)
 
+	// computed_ratio — optional; drives planComputedRatio for secondary computed charts.
+	cfg.ComputedRatio = parseComputedRatio(merged)
+
 	return cfg, nil
 }
 
@@ -174,6 +195,34 @@ func parseMetricFilter(merged map[string]any) MetricFilterConfig {
 		}
 	}
 	return MetricFilterConfig{IncludeMetrics: metrics}
+}
+
+// parseComputedRatio extracts a ComputedRatioConfig from a raw chart-config map.
+// Returns nil when the key is absent or malformed.
+func parseComputedRatio(merged map[string]any) *ComputedRatioConfig {
+	cr, ok := merged["computed_ratio"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	num := mapStringVal(cr, "numerator")
+	den := mapStringVal(cr, "denominator")
+	if num == "" || den == "" {
+		return nil
+	}
+	scale := 1.0
+	if s, ok2 := mergedAsFloat(cr, "scale"); ok2 && s != 0 {
+		scale = s
+	}
+	groupBy := mapStringVal(cr, "group_by")
+	if groupBy == "" {
+		groupBy = "group_2"
+	}
+	return &ComputedRatioConfig{
+		Numerator:   num,
+		Denominator: den,
+		Scale:       scale,
+		GroupBy:     groupBy,
+	}
 }
 
 // MarshalToMap converts a ChartConfig back to a map for JSONB storage. Empty/default
@@ -236,6 +285,14 @@ func (c ChartConfig) MarshalToMap() map[string]any {
 			raw[i] = m
 		}
 		out["metric_filter"] = map[string]any{"include_metrics": raw}
+	}
+	if c.ComputedRatio != nil {
+		out["computed_ratio"] = map[string]any{
+			"numerator":   c.ComputedRatio.Numerator,
+			"denominator": c.ComputedRatio.Denominator,
+			"scale":       c.ComputedRatio.Scale,
+			"group_by":    c.ComputedRatio.GroupBy,
+		}
 	}
 	return out
 }
