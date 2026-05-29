@@ -41,10 +41,11 @@ type ViewerFilters struct {
 // Compare modes produce an extra `prev_value` column via LEFT JOIN on shifted periods.
 func Plan(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time) (factmetric.PlannedQuery, error) {
 	// Computed-ratio path: ViewerFilters.ComputedRatio is set (injected by the /computed BFF).
-	// Bypasses MVs and metric_filter — builds a CASE-WHEN pivot grouped by group_2.
+	// Bypasses MVs and metric_filter — builds a CASE-WHEN pivot grouped by the configured column.
+	// When Denominator is empty, emits SUM(Numerator) per group (single-metric aggregation).
 	if f.ComputedRatio != nil {
 		cr := f.ComputedRatio
-		return planComputedRatio(d, f, now, cr.Numerator, cr.Denominator, cr.Scale)
+		return planComputedRatio(d, f, now, cr.Numerator, cr.Denominator, cr.Scale, cr.GroupBy)
 	}
 
 	// Multi-metric path: chart_config.metric_filter.include_metrics is set.
@@ -419,17 +420,32 @@ ORDER BY cur.periode_date`,
 	return factmetric.PlannedQuery{SQL: sql, Args: args, TargetTable: a.Source}
 }
 
-// planComputedRatio builds a ratio query:
+// planComputedRatio builds either a ratio query or a single-metric aggregation query,
+// grouped by groupBy (e.g. "group_2" or "group_1"), for the period resolved from ViewerFilters.
+//
+// When denominator is non-empty:
 //
 //	ROUND(SUM(numerator_metric) / NULLIF(SUM(denominator_metric), 0) * scale, 2)
 //
-// grouped by group_2, for the period resolved from ViewerFilters.
-// Result: one AggRow per non-null group_2 where Category=group_2, Value=computed ratio.
+// When denominator is empty:
+//
+//	COALESCE(SUM(numerator_metric), 0) * scale  (single-metric group aggregation)
+//
+// Result: one AggRow per non-null groupBy value where Category=groupBy, Value=computed result.
 //
 // Safety note: numerator, denominator are metric_name values sourced from admin-configured
 // chart_config (not user input) and are validated as UPPERCASE_SNAKE_CASE by the registry,
 // so inlining them into the SQL does not create an injection risk. scale is a float64 constant.
-func planComputedRatio(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time, numerator, denominator string, scale float64) (factmetric.PlannedQuery, error) { //nolint:unparam
+func planComputedRatio( //nolint:unparam
+	d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time,
+	numerator, denominator string, scale float64, groupBy string,
+) (factmetric.PlannedQuery, error) {
+	if groupBy == "" {
+		groupBy = "group_2"
+	}
+	// Derive the order column from the groupBy column (e.g. group_2 → group_2_order).
+	orderCol := groupBy + "_order"
+
 	period := ResolvePeriod(f.PeriodPreset, f.PeriodFrom, f.PeriodTo, d.PeriodGrain().String(), now)
 	args := []any{d.FilterType()}
 	idx := 2
@@ -461,8 +477,31 @@ func planComputedRatio(d *dashboarddomain.Dashboard, f ViewerFilters, now time.T
 	// scale is a config constant (not user input), safe to inline.
 	scaleStr := fmt.Sprintf("%.6g", scale)
 
-	sql := fmt.Sprintf(`
-SELECT group_2::text AS category,
+	var sql string
+	if denominator == "" {
+		// Single-metric aggregation: SUM(numerator) per groupBy column.
+		sql = fmt.Sprintf(`
+SELECT %s::text AS category,
+       NULL::date    AS periode_date,
+       ''::text      AS periode_label,
+       COALESCE(SUM(display_value), 0) * %s AS value,
+       0::numeric AS prev_value,
+       MAX(%s) AS order_seq
+FROM bi_fact_metric
+WHERE %s
+  AND metric_name = '%s'
+  AND %s IS NOT NULL
+GROUP BY %s
+ORDER BY value DESC NULLS LAST`,
+			groupBy, scaleStr, orderCol,
+			where,
+			numerator,
+			groupBy,
+			groupBy)
+	} else {
+		// Ratio query: SUM(numerator) / NULLIF(SUM(denominator), 0) * scale.
+		sql = fmt.Sprintf(`
+SELECT %s::text AS category,
        NULL::date    AS periode_date,
        ''::text      AS periode_label,
        ROUND(
@@ -471,16 +510,21 @@ SELECT group_2::text AS category,
          2
        ) AS value,
        0::numeric AS prev_value,
-       MAX(group_2_order) AS order_seq
+       MAX(%s) AS order_seq
 FROM bi_fact_metric
 WHERE %s
   AND metric_name IN ('%s', '%s')
-  AND group_2 IS NOT NULL
-GROUP BY group_2, group_2_order
+  AND %s IS NOT NULL
+GROUP BY %s
 ORDER BY value DESC NULLS LAST`,
-		numerator, denominator, scaleStr,
-		where,
-		numerator, denominator)
+			groupBy,
+			numerator, denominator, scaleStr,
+			orderCol,
+			where,
+			numerator, denominator,
+			groupBy,
+			groupBy)
+	}
 
 	return factmetric.PlannedQuery{SQL: sql, Args: args, TargetTable: "bi_fact_metric"}, nil
 }

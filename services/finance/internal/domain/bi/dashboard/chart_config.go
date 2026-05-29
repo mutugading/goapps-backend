@@ -224,17 +224,19 @@ func parseMetricFilter(merged map[string]any) MetricFilterConfig {
 }
 
 // parseComputedRatio extracts a ComputedRatioConfig from a raw chart-config map.
-// Returns nil when the key is absent or malformed.
+// Returns nil when the key is absent or numerator is empty.
+// Denominator may be empty — in that case planComputedRatio emits SUM(numerator) per group
+// instead of a ratio. This supports single-metric group aggregation (e.g. Net Sales by Type).
 func parseComputedRatio(merged map[string]any) *ComputedRatioConfig {
 	cr, ok := merged["computed_ratio"].(map[string]any)
 	if !ok {
 		return nil
 	}
 	num := mapStringVal(cr, "numerator")
-	den := mapStringVal(cr, "denominator")
-	if num == "" || den == "" {
+	if num == "" {
 		return nil
 	}
+	den := mapStringVal(cr, "denominator")
 	scale := 1.0
 	if s, ok2 := mergedAsFloat(cr, "scale"); ok2 && s != 0 {
 		scale = s
