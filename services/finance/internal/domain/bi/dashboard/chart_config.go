@@ -50,6 +50,10 @@ type ChartConfig struct {
 	SizeField     string
 	LabelPosition string
 
+	// ViewConfigs holds per-view-type display settings keyed by chart type string.
+	// Stored in chart_config.view_configs JSONB. Falls back to sensible defaults via Dashboard.ViewConfigFor.
+	ViewConfigs map[string]ViewModeConfig
+
 	// MetricFilter holds the optional list of metric_names for multi-series dashboards
 	// (e.g. SALES dashboards with GROSS_SALES / NETT_SALES / MARGIN on the same chart).
 	// When non-empty the query planner bypasses MVs and queries bi_fact_metric directly.
@@ -84,6 +88,18 @@ type SeriesDef struct {
 	Name  string
 	Type  string // 'bar' | 'line' | 'area'
 	Field string
+}
+
+// ViewModeConfig holds per-view-type display settings for a dashboard chart.
+// Stored in chart_config.view_configs JSONB, keyed by chart type string.
+type ViewModeConfig struct {
+	// TitleTemplate is shown in the chart card header. Use {period} as placeholder for YYYYMM period label.
+	TitleTemplate string
+	// DrillEnabled controls whether clicking a bar/segment triggers drill-down navigation.
+	// Should be false for time-series charts (line, area) where x-axis is time, not a drillable category.
+	DrillEnabled bool
+	// Hint is the sub-title hint text shown below the chart card title.
+	Hint string
 }
 
 // ParseChartConfig validates the raw config map against the chart registry's required-field
@@ -173,6 +189,9 @@ func ParseChartConfig(t ChartType, raw map[string]any) (ChartConfig, error) {
 
 	// computed_ratio — optional; drives planComputedRatio for secondary computed charts.
 	cfg.ComputedRatio = parseComputedRatio(merged)
+
+	// view_configs — optional; per-view-type display overrides keyed by chart type string.
+	cfg.ViewConfigs = parseViewConfigs(merged)
 
 	return cfg, nil
 }
@@ -294,7 +313,40 @@ func (c ChartConfig) MarshalToMap() map[string]any {
 			"group_by":    c.ComputedRatio.GroupBy,
 		}
 	}
+	if len(c.ViewConfigs) > 0 {
+		vcMap := make(map[string]any, len(c.ViewConfigs))
+		for k, v := range c.ViewConfigs {
+			vcMap[k] = map[string]any{
+				"title_template": v.TitleTemplate,
+				"drill_enabled":  v.DrillEnabled,
+				"hint":           v.Hint,
+			}
+		}
+		out["view_configs"] = vcMap
+	}
 	return out
+}
+
+// parseViewConfigs extracts a map of ViewModeConfig from a raw chart-config map.
+// Returns nil when the key is absent or malformed.
+func parseViewConfigs(merged map[string]any) map[string]ViewModeConfig {
+	vcRaw, ok := merged["view_configs"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	viewCfgs := make(map[string]ViewModeConfig, len(vcRaw))
+	for chartType, vcEntry := range vcRaw {
+		m, ok2 := vcEntry.(map[string]any)
+		if !ok2 {
+			continue
+		}
+		viewCfgs[chartType] = ViewModeConfig{
+			TitleTemplate: mapStringVal(m, "title_template"),
+			DrillEnabled:  mapBoolVal(m, "drill_enabled"),
+			Hint:          mapStringVal(m, "hint"),
+		}
+	}
+	return viewCfgs
 }
 
 // parseSeriesDefs handles both []any and []map[string]any shapes (JSON decoded vs Go-native).

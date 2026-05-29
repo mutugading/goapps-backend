@@ -455,6 +455,24 @@ func (d *Dashboard) SetAuditFromHydration(createdAt, updatedAt, deletedAt time.T
 	d.deletedBy = deletedBy
 }
 
+// ViewConfigFor returns the ViewModeConfig for the given chart type string.
+// Falls back to sensible defaults: categorical charts (waterfall/bar/donut/treemap) are drillable;
+// time-series and non-drillable charts (line/area/multi_line/scatter/heatmap) are not.
+func (d *Dashboard) ViewConfigFor(chartType string) ViewModeConfig {
+	if cfg, ok := d.chartConfig.ViewConfigs[chartType]; ok {
+		return cfg
+	}
+	nonDrillable := map[string]bool{
+		"line": true, "area": true, "multi_line": true,
+		"scatter": true, "heatmap": true, "kpi_card": true, "data_table": true,
+	}
+	return ViewModeConfig{
+		TitleTemplate: d.title,
+		DrillEnabled:  !nonDrillable[chartType],
+		Hint:          "",
+	}
+}
+
 // SetAllowedRoleCodesFromHydration restores the role mapping loaded from bi_dashboard_role.
 func (d *Dashboard) SetAllowedRoleCodesFromHydration(roles []string) {
 	d.allowedRoleCodes = dedupRoles(roles)
