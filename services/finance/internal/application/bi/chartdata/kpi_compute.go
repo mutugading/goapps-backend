@@ -54,6 +54,10 @@ func computeOneKPI(
 	period PeriodRange,
 	now time.Time,
 ) (factmetric.KpiRow, error) {
+	if k.Agg == "cross_ratio" {
+		return computeCrossRatioKPI(ctx, repo, d, k, now)
+	}
+
 	// Each KPI may scope its own window (e.g. "Current Month" vs "YTD") independently
 	// of the period the viewer selected for the main chart; "selected" inherits it.
 	effPeriod := resolveKPIPeriod(k.Period, period, now)
@@ -92,6 +96,64 @@ func computeOneKPI(
 		row.Sparkline = spark
 	}
 	return row, nil
+}
+
+// computeCrossRatioKPI computes SUM(numerator_group_1) / NULLIF(SUM(denominator_group_1), 0) * scale.
+// Both groups are queried from bi_fact_metric with the dashboard's type, grain, and the KPI's period scope.
+// Returns 0 with no error when the denominator is 0 or data is absent.
+func computeCrossRatioKPI(
+	ctx context.Context,
+	repo factmetric.Repository,
+	d *dashboarddomain.Dashboard,
+	k dashboarddomain.KpiEntry,
+	now time.Time,
+) (factmetric.KpiRow, error) {
+	effPeriod := resolveKPIPeriod(k.Period, PeriodRange{
+		From: shiftByMonths(now, -12),
+		To:   now,
+	}, now)
+
+	grain := d.PeriodGrain().String()
+	buildQuery := func(group1 string) factmetric.PlannedQuery {
+		args := []any{d.FilterType(), group1, grain, effPeriod.From, effPeriod.To}
+		sql := `SELECT 'kpi'::text AS category, NULL::date AS periode_date,
+                       ''::text AS periode_label,
+                       COALESCE(SUM(display_value), 0) AS value,
+                       0::numeric AS prev_value, 0::int AS order_seq
+                FROM bi_fact_metric
+                WHERE type = $1 AND group_1 = $2 AND periode_grain = $3
+                  AND periode_date BETWEEN $4 AND $5
+                  AND is_active = TRUE AND metric_name = 'VALUE'`
+		return factmetric.PlannedQuery{SQL: sql, Args: args, TargetTable: "bi_fact_metric"}
+	}
+
+	numRows, err := repo.QueryAggregate(ctx, buildQuery(k.CrossRatioNumeratorGroup1))
+	if err != nil {
+		return factmetric.KpiRow{Label: k.Label}, fmt.Errorf("cross ratio numerator: %w", err)
+	}
+
+	denRows, err := repo.QueryAggregate(ctx, buildQuery(k.CrossRatioDenominatorGroup1))
+	if err != nil {
+		return factmetric.KpiRow{Label: k.Label}, fmt.Errorf("cross ratio denominator: %w", err)
+	}
+
+	var num, den float64
+	if len(numRows) > 0 {
+		num = numRows[0].Value
+	}
+	if len(denRows) > 0 {
+		den = denRows[0].Value
+	}
+
+	var ratio float64
+	if den != 0 {
+		scale := k.CrossRatioScale
+		if scale == 0 {
+			scale = 1
+		}
+		ratio = num / den * scale
+	}
+	return factmetric.KpiRow{Label: k.Label, Value: ratio}, nil
 }
 
 // runKPIScalar returns a single aggregated value for the given KPI definition + period.

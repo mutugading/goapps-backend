@@ -10,13 +10,20 @@ import (
 type KpiEntry struct {
 	Label            string
 	ValueField       string
-	Agg              string // sum|avg|min|max|last
+	Agg              string // sum|avg|min|max|last|cross_ratio
 	Compare          string // MoM|QoQ|YoY|YTD_vs_LY|none
 	Period           string // selected|current_month|ytd|l12m — scopes the KPI window independently of the viewer's selected period
 	Format           chart.NumberFormat
 	Decimals         int
 	ShowSparkline    bool
 	SparklinePeriods int
+
+	// CrossRatio fields — used when Agg == kpiAggCrossRatio.
+	// Computes SUM(numerator_group_1) / NULLIF(SUM(denominator_group_1), 0) * CrossRatioScale.
+	// Both group_1 values are queried from bi_fact_metric with the same type + grain + period.
+	CrossRatioNumeratorGroup1   string  // e.g. "NET PROFIT"
+	CrossRatioDenominatorGroup1 string  // e.g. "EBITDA"
+	CrossRatioScale             float64 // e.g. 100 for percentage; default 1
 }
 
 // KpiConfig is the ordered list of KPI cards a dashboard renders above its main chart.
@@ -24,7 +31,7 @@ type KpiConfig []KpiEntry
 
 // allowedAggs is the closed set of aggregation keys.
 var allowedAggs = map[string]struct{}{
-	"sum": {}, "avg": {}, "min": {}, "max": {}, "last": {},
+	"sum": {}, "avg": {}, "min": {}, "max": {}, "last": {}, kpiAggCrossRatio: {},
 }
 
 // allowedKpiCompares is the closed set of KPI compare keys (separate from chart compare set:
@@ -35,6 +42,9 @@ var allowedKpiCompares = map[string]struct{}{
 
 // kpiPeriodSelected is the default per-KPI period scope: inherit the viewer's selected period.
 const kpiPeriodSelected = "selected"
+
+// kpiAggCrossRatio is the aggregation key for ratio-between-groups computation.
+const kpiAggCrossRatio = "cross_ratio"
 
 // allowedKpiPeriods is the closed set of per-KPI period-scope keys. "selected" (the default)
 // means the KPI inherits the viewer's currently selected period; the others scope the KPI to a
@@ -73,14 +83,16 @@ func parseKpiEntry(m map[string]any, idx int) (KpiEntry, error) {
 		return KpiEntry{}, fmt.Errorf("%w: entry %d missing 'label'", ErrInvalidKpiConfig, idx)
 	}
 
-	valueField := mapStringVal(m, "value_field")
-	if valueField == "" {
-		return KpiEntry{}, fmt.Errorf("%w: entry %d missing 'value_field'", ErrInvalidKpiConfig, idx)
-	}
-
 	agg, err := parseKpiAgg(m, idx)
 	if err != nil {
 		return KpiEntry{}, err
+	}
+
+	// value_field is required for standard agg modes but not for cross_ratio
+	// (which derives its value from two group_1 queries instead of a single field).
+	valueField := mapStringVal(m, "value_field")
+	if valueField == "" && agg != kpiAggCrossRatio {
+		return KpiEntry{}, fmt.Errorf("%w: entry %d missing 'value_field'", ErrInvalidKpiConfig, idx)
 	}
 
 	compare, err := parseKpiCompare(m, idx)
@@ -118,17 +130,37 @@ func parseKpiEntry(m map[string]any, idx int) (KpiEntry, error) {
 		sparkPeriods = 12
 	}
 
+	crossNumer, crossDenom, crossScale := parseCrossRatioFields(agg, m)
+
 	return KpiEntry{
-		Label:            label,
-		ValueField:       valueField,
-		Agg:              agg,
-		Compare:          compare,
-		Period:           period,
-		Format:           chart.NumberFormat(format),
-		Decimals:         decimals,
-		ShowSparkline:    showSparkline,
-		SparklinePeriods: sparkPeriods,
+		Label:                       label,
+		ValueField:                  valueField,
+		Agg:                         agg,
+		Compare:                     compare,
+		Period:                      period,
+		Format:                      chart.NumberFormat(format),
+		Decimals:                    decimals,
+		ShowSparkline:               showSparkline,
+		SparklinePeriods:            sparkPeriods,
+		CrossRatioNumeratorGroup1:   crossNumer,
+		CrossRatioDenominatorGroup1: crossDenom,
+		CrossRatioScale:             crossScale,
 	}, nil
+}
+
+// parseCrossRatioFields reads cross_ratio-specific fields from the raw map.
+// Returns empty strings and scale=1 when agg is not kpiAggCrossRatio.
+func parseCrossRatioFields(agg string, m map[string]any) (numer, denom string, scale float64) {
+	scale = 1.0
+	if agg != kpiAggCrossRatio {
+		return numer, denom, scale
+	}
+	numer = mapStringVal(m, "numerator_group_1")
+	denom = mapStringVal(m, "denominator_group_1")
+	if v, ok := m["scale"].(float64); ok {
+		scale = v
+	}
+	return numer, denom, scale
 }
 
 // parseKpiAgg reads and validates the aggregation key, defaulting to "sum".
@@ -138,7 +170,7 @@ func parseKpiAgg(m map[string]any, idx int) (string, error) {
 		agg = "sum"
 	}
 	if _, ok := allowedAggs[agg]; !ok {
-		return "", fmt.Errorf("%w: entry %d agg %q is not one of sum/avg/min/max/last", ErrInvalidKpiConfig, idx, agg)
+		return "", fmt.Errorf("%w: entry %d agg %q is not one of sum/avg/min/max/last/cross_ratio", ErrInvalidKpiConfig, idx, agg)
 	}
 	return agg, nil
 }
@@ -197,6 +229,13 @@ func (k KpiConfig) MarshalToList() []map[string]any {
 			m["show_sparkline"] = true
 			if e.SparklinePeriods != 0 {
 				m["sparkline_periods"] = e.SparklinePeriods
+			}
+		}
+		if e.Agg == kpiAggCrossRatio {
+			m["numerator_group_1"] = e.CrossRatioNumeratorGroup1
+			m["denominator_group_1"] = e.CrossRatioDenominatorGroup1
+			if e.CrossRatioScale != 0 && e.CrossRatioScale != 1 {
+				m["scale"] = e.CrossRatioScale
 			}
 		}
 		out[i] = m
