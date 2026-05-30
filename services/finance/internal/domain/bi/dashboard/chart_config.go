@@ -78,13 +78,13 @@ type MetricFilterConfig struct {
 // When set in chart_config.computed_ratio, the query planner switches to planComputedRatio.
 type ComputedRatioConfig struct {
 	// Numerator is the metric_name for the dividend (e.g. "MARGIN").
-	Numerator string
+	Numerator string `json:"numerator"`
 	// Denominator is the metric_name for the divisor (e.g. "NETT_SALES").
-	Denominator string
+	Denominator string `json:"denominator"`
 	// Scale multiplies the ratio result (100 for percent, 1 for raw fraction).
-	Scale float64
-	// GroupBy is the column to group results by (currently only "group_2" is supported).
-	GroupBy string
+	Scale float64 `json:"scale"`
+	// GroupBy is the column to group results by ("group_1" or "group_2").
+	GroupBy string `json:"group_by"`
 }
 
 // SeriesDef defines one series in a mixed chart.
