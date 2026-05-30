@@ -19,6 +19,7 @@ import (
 	chartdataapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/chartdata"
 	dashboardapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/dashboard"
 	datasourceapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/datasource"
+	"github.com/mutugading/goapps-backend/services/finance/internal/application/bi/bietl"
 	groupapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/group"
 	jobapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/job"
 	uploadapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/upload"
@@ -31,6 +32,7 @@ import (
 	grpcdelivery "github.com/mutugading/goapps-backend/services/finance/internal/delivery/grpc"
 	httpdelivery "github.com/mutugading/goapps-backend/services/finance/internal/delivery/httpdelivery"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/config"
+	oracleinfra "github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/oracle"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/postgres"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/rabbitmq"
 	redisinfra "github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/redis"
@@ -377,11 +379,26 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		return err
 	}
 
+	// Oracle BI ETL runner (optional — graceful degradation when Oracle is unavailable).
+	var biETLRunner jobapp.BIETLRunner
+	oracleClient, oracleErr := oracleinfra.NewClient(cfg.Oracle, log.Logger)
+	if oracleErr != nil {
+		log.Warn().Err(oracleErr).Msg("Oracle unavailable; BI ETL jobs (etl_mis/etl_delivery_margin/etl_sales) will fail gracefully")
+	} else {
+		defer func() {
+			if cErr := oracleClient.Close(); cErr != nil {
+				log.Warn().Err(cErr).Msg("Failed to close Oracle connection")
+			}
+		}()
+		biMVRepo := oracleinfra.NewBIMVRepository(oracleClient)
+		biETLRunner = bietl.NewMVLoader(biMVRepo, biFactRepo)
+	}
+
 	biMVRefresher := &biMVRefresherAdapter{db: db}
 	biJobHandler, err := grpcdelivery.NewBIJobHandler(
 		jobapp.NewListHandler(biJobRepo),
 		jobapp.NewListLogsHandler(biJobRepo),
-		jobapp.NewTriggerHandler(biJobRepo, biMVRefresher),
+		jobapp.NewTriggerHandler(biJobRepo, biMVRefresher, biETLRunner),
 		jobapp.NewCreateHandler(biJobRepo),
 		jobapp.NewUpdateHandler(biJobRepo),
 		jobapp.NewDeleteHandler(biJobRepo),

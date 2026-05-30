@@ -7,6 +7,7 @@ package job
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -61,6 +62,14 @@ type MVRefresher interface {
 	RefreshMVs(ctx context.Context) error
 }
 
+// BIETLRunner executes a BI ETL job (Oracle MV → bi_fact_metric).
+// Injected into TriggerHandler; set to nil when Oracle is not configured.
+type BIETLRunner interface {
+	LoadMIS(ctx context.Context) (int, error)
+	LoadDeliveryMargin(ctx context.Context) (int, error)
+	LoadSales(ctx context.Context) (int, error)
+}
+
 // TriggerCommand is the payload for TriggerHandler.
 type TriggerCommand struct {
 	JobID       uuid.UUID
@@ -69,21 +78,22 @@ type TriggerCommand struct {
 
 // TriggerHandler records a manual job trigger.
 //
-// In MVP (spec 1A+1B): inserts a RUNNING log row, then immediately marks it SUCCESS with
-// rows_affected=0 — a placeholder that lets the admin UI verify the trigger button works
-// without actually running Oracle procedures. Spec 1D replaces this body with a RabbitMQ
-// publish to the finance-bi-worker queue.
-//
-// Special case: jobs with config["kind"]=="mv_refresh" skip the Oracle path and only
-// call MVRefresher.RefreshMVs, then mark SUCCESS with rows_affected=0.
+// Dispatches by config["kind"]:
+//   - "mv_refresh"          — refreshes Postgres materialized views, marks SUCCESS.
+//   - "etl_mis"             — loads MGTDAT.MV_DASH_MIS_MGT → bi_fact_metric.
+//   - "etl_delivery_margin" — loads MGTDAT.MV_DASH_DELMAR_MGT → bi_fact_metric.
+//   - "etl_sales"           — loads MGTDAT.MV_DASH_SALES_MGT → bi_fact_metric.
+//   - (other)               — MVP placeholder: immediately marks SUCCESS, rows_affected=0.
 type TriggerHandler struct {
 	repo        jobdomain.Repository
 	mvRefresher MVRefresher // optional — nil when not needed
+	etlRunner   BIETLRunner // optional — nil when Oracle not configured
 }
 
 // NewTriggerHandler constructs a TriggerHandler.
-func NewTriggerHandler(r jobdomain.Repository, mv MVRefresher) *TriggerHandler {
-	return &TriggerHandler{repo: r, mvRefresher: mv}
+// etlRunner may be nil (Oracle unavailable); those job kinds will fail gracefully.
+func NewTriggerHandler(r jobdomain.Repository, mv MVRefresher, etl BIETLRunner) *TriggerHandler {
+	return &TriggerHandler{repo: r, mvRefresher: mv, etlRunner: etl}
 }
 
 // Handle executes the manual trigger.
@@ -104,18 +114,61 @@ func (h *TriggerHandler) Handle(ctx context.Context, cmd TriggerCommand) (*jobdo
 		return nil, fmt.Errorf("insert running log: %w", err)
 	}
 
-	// mv_refresh job kind: refresh materialized views and mark SUCCESS immediately.
-	if theJob.Config["kind"] == "mv_refresh" {
+	// Dispatch by job kind.
+	switch theJob.Config["kind"] {
+	case "mv_refresh":
 		return h.handleMVRefresh(ctx, entry, now)
+	case "etl_mis":
+		return h.handleETL(ctx, entry, now, func(c context.Context) (int, error) {
+			return h.etlRunner.LoadMIS(c)
+		})
+	case "etl_delivery_margin":
+		return h.handleETL(ctx, entry, now, func(c context.Context) (int, error) {
+			return h.etlRunner.LoadDeliveryMargin(c)
+		})
+	case "etl_sales":
+		return h.handleETL(ctx, entry, now, func(c context.Context) (int, error) {
+			return h.etlRunner.LoadSales(c)
+		})
+	default:
+		// MVP placeholder: resolve immediately to SUCCESS without real work.
+		ended := time.Now().UTC()
+		entry.EndedAt = ended
+		entry.Status = jobdomain.StatusSuccess
+		entry.DurationMs = int(ended.Sub(now).Milliseconds()) //nolint:gosec // duration in ms always fits int
+		if err = h.repo.UpdateLog(ctx, entry); err != nil {
+			return nil, fmt.Errorf("update completion log: %w", err)
+		}
+		return entry, nil
 	}
+}
 
-	// MVP: immediately resolve to SUCCESS placeholder. Real work happens in spec 1D.
+// handleETL runs an ETL load function and writes the outcome to the log.
+func (h *TriggerHandler) handleETL(
+	ctx context.Context,
+	entry *jobdomain.Log,
+	started time.Time,
+	run func(context.Context) (int, error),
+) (*jobdomain.Log, error) {
+	rowsAffected, runErr := func() (int, error) {
+		if h.etlRunner == nil {
+			return 0, errors.New("ETL runner not configured (Oracle not connected)")
+		}
+		return run(ctx)
+	}()
+
 	ended := time.Now().UTC()
 	entry.EndedAt = ended
-	entry.Status = jobdomain.StatusSuccess
-	entry.DurationMs = int(ended.Sub(now).Milliseconds())
-	if err = h.repo.UpdateLog(ctx, entry); err != nil {
-		return nil, fmt.Errorf("update completion log: %w", err)
+	entry.DurationMs = int(ended.Sub(started).Milliseconds()) //nolint:gosec // duration in ms always fits int
+	entry.RowsAffected = rowsAffected
+	if runErr != nil {
+		entry.Status = jobdomain.StatusFailed
+		entry.ErrorMessage = runErr.Error()
+	} else {
+		entry.Status = jobdomain.StatusSuccess
+	}
+	if err := h.repo.UpdateLog(ctx, entry); err != nil {
+		return nil, fmt.Errorf("update ETL completion log: %w", err)
 	}
 	return entry, nil
 }
@@ -128,7 +181,7 @@ func (h *TriggerHandler) handleMVRefresh(ctx context.Context, entry *jobdomain.L
 	}
 	ended := time.Now().UTC()
 	entry.EndedAt = ended
-	entry.DurationMs = int(ended.Sub(started).Milliseconds())
+	entry.DurationMs = int(ended.Sub(started).Milliseconds()) //nolint:gosec // duration in ms always fits int
 	if refreshErr != nil {
 		entry.Status = jobdomain.StatusFailed
 		entry.ErrorMessage = refreshErr.Error()
