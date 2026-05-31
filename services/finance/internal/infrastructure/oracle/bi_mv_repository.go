@@ -18,12 +18,6 @@ const (
 	misDefaultAggMethod      = "SUM"
 )
 
-// sourceCodeUUID derives a deterministic UUID v5 from a source code string.
-// Same source code always maps to the same UUID so ETL re-runs are idempotent.
-func sourceCodeUUID(sourceCode string) uuid.UUID {
-	return uuid.NewSHA1(uuid.NameSpaceDNS, []byte(strings.TrimSpace(sourceCode)))
-}
-
 // dimensionKey builds the deduplication key used in bi_fact_metric upsert.
 // Format: type|group_1|group_2|group_3|grain|YYYYMMDD|metric_name|scenario.
 func dimensionKey(fmType, g1, g2, g3, grain string, periodDate time.Time, metricName, scenario string) string {
