@@ -49,6 +49,50 @@ type ChartConfig struct {
 	ColorScale    string
 	SizeField     string
 	LabelPosition string
+
+	// AvailableChartTypes lists additional chart types the viewer may switch to.
+	// Stored in chart_config.available_chart_types JSONB. Managed by the admin wizard.
+	AvailableChartTypes []string
+
+	// ViewConfigs holds per-view-type display settings keyed by chart type string.
+	// Stored in chart_config.view_configs JSONB. Falls back to sensible defaults via Dashboard.ViewConfigFor.
+	ViewConfigs map[string]ViewModeConfig
+
+	// FilterChipsGroup1 lists the static group_1 values shown as filter chips in the viewer
+	// (e.g. ["Export","Local"] for DELIVERY_MARGIN). Stored as filter_chips_group1 in JSONB.
+	FilterChipsGroup1 []string
+
+	// FilterChipsGroup2 lists the static group_2 values shown as filter chips in the viewer
+	// (e.g. ["ACY","FG"] for DELIVERY_MARGIN). Stored as filter_chips_group2 in JSONB.
+	FilterChipsGroup2 []string
+
+	// MetricFilter holds the optional list of metric_names for multi-series dashboards
+	// (e.g. SALES dashboards with GROSS_SALES / NETT_SALES / MARGIN on the same chart).
+	// When non-empty the query planner bypasses MVs and queries bi_fact_metric directly.
+	MetricFilter MetricFilterConfig
+
+	// ComputedRatio, when non-nil, instructs the query planner to use planComputedRatio
+	// instead of the standard MV/multi-metric path. Used for secondary charts such as
+	// "Margin %" that derive a ratio from two existing metric columns.
+	ComputedRatio *ComputedRatioConfig
+}
+
+// MetricFilterConfig carries the include_metrics list from chart_config.metric_filter.
+type MetricFilterConfig struct {
+	IncludeMetrics []string
+}
+
+// ComputedRatioConfig describes a ratio computation: SUM(numerator)/NULLIF(SUM(denominator),0)*scale.
+// When set in chart_config.computed_ratio, the query planner switches to planComputedRatio.
+type ComputedRatioConfig struct {
+	// Numerator is the metric_name for the dividend (e.g. "MARGIN").
+	Numerator string `json:"numerator"`
+	// Denominator is the metric_name for the divisor (e.g. "NETT_SALES").
+	Denominator string `json:"denominator"`
+	// Scale multiplies the ratio result (100 for percent, 1 for raw fraction).
+	Scale float64 `json:"scale"`
+	// GroupBy is the column to group results by ("group_1" or "group_2").
+	GroupBy string `json:"group_by"`
 }
 
 // SeriesDef defines one series in a mixed chart.
@@ -56,6 +100,18 @@ type SeriesDef struct {
 	Name  string
 	Type  string // 'bar' | 'line' | 'area'
 	Field string
+}
+
+// ViewModeConfig holds per-view-type display settings for a dashboard chart.
+// Stored in chart_config.view_configs JSONB, keyed by chart type string.
+type ViewModeConfig struct {
+	// TitleTemplate is shown in the chart card header. Use {period} as placeholder for YYYYMM period label.
+	TitleTemplate string
+	// DrillEnabled controls whether clicking a bar/segment triggers drill-down navigation.
+	// Should be false for time-series charts (line, area) where x-axis is time, not a drillable category.
+	DrillEnabled bool
+	// Hint is the sub-title hint text shown below the chart card title.
+	Hint string
 }
 
 // ParseChartConfig validates the raw config map against the chart registry's required-field
@@ -140,12 +196,80 @@ func ParseChartConfig(t ChartType, raw map[string]any) (ChartConfig, error) {
 		cfg.SeriesDefs = defs
 	}
 
+	// filter_chips_group1/2 — optional; static chip values for viewer filter chips.
+	cfg.FilterChipsGroup1 = parseStringSlice(merged, "filter_chips_group1")
+	cfg.FilterChipsGroup2 = parseStringSlice(merged, "filter_chips_group2")
+
+	// metric_filter.include_metrics — optional; drives the multi-metric query planner path.
+	cfg.MetricFilter = parseMetricFilter(merged)
+
+	// computed_ratio — optional; drives planComputedRatio for secondary computed charts.
+	cfg.ComputedRatio = parseComputedRatio(merged)
+
+	// available_chart_types — optional; list of chart type strings the viewer may switch to.
+	cfg.AvailableChartTypes = parseStringSlice(merged, "available_chart_types")
+
+	// view_configs — optional; per-view-type display overrides keyed by chart type string.
+	cfg.ViewConfigs = parseViewConfigs(merged)
+
 	return cfg, nil
+}
+
+// parseMetricFilter extracts MetricFilterConfig from a raw chart-config map.
+// Returns a zero MetricFilterConfig when the key is absent or malformed.
+func parseMetricFilter(merged map[string]any) MetricFilterConfig {
+	mf, ok := merged["metric_filter"].(map[string]any)
+	if !ok {
+		return MetricFilterConfig{}
+	}
+	raw, ok := mf["include_metrics"].([]any)
+	if !ok {
+		return MetricFilterConfig{}
+	}
+	metrics := make([]string, 0, len(raw))
+	for _, v := range raw {
+		if s, ok := v.(string); ok && s != "" {
+			metrics = append(metrics, s)
+		}
+	}
+	return MetricFilterConfig{IncludeMetrics: metrics}
+}
+
+// parseComputedRatio extracts a ComputedRatioConfig from a raw chart-config map.
+// Returns nil when the key is absent or numerator is empty.
+// Denominator may be empty — in that case planComputedRatio emits SUM(numerator) per group
+// instead of a ratio. This supports single-metric group aggregation (e.g. Net Sales by Type).
+func parseComputedRatio(merged map[string]any) *ComputedRatioConfig {
+	cr, ok := merged["computed_ratio"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	num := mapStringVal(cr, "numerator")
+	if num == "" {
+		return nil
+	}
+	den := mapStringVal(cr, "denominator")
+	scale := 1.0
+	if s, ok2 := mergedAsFloat(cr, "scale"); ok2 && s != 0 {
+		scale = s
+	}
+	groupBy := mapStringVal(cr, "group_by")
+	if groupBy == "" {
+		groupBy = "group_2"
+	}
+	return &ComputedRatioConfig{
+		Numerator:   num,
+		Denominator: den,
+		Scale:       scale,
+		GroupBy:     groupBy,
+	}
 }
 
 // MarshalToMap converts a ChartConfig back to a map for JSONB storage. Empty/default
 // values are omitted so the persisted JSON stays compact.
-func (c ChartConfig) MarshalToMap() map[string]any {
+//
+//nolint:gocyclo // one branch per optional field; splitting by field group would obscure the schema
+func (c ChartConfig) MarshalToMap() map[string]any { //nolint:gocognit // one branch per optional field; cohesive serialization function
 	out := map[string]any{}
 	putString(out, "x_axis_field", c.XAxisField)
 	putString(out, "y_axis_field", c.YAxisField)
@@ -197,7 +321,76 @@ func (c ChartConfig) MarshalToMap() map[string]any {
 		}
 		out["series_defs"] = defs
 	}
+	if len(c.FilterChipsGroup1) > 0 {
+		raw := make([]any, len(c.FilterChipsGroup1))
+		for i, v := range c.FilterChipsGroup1 {
+			raw[i] = v
+		}
+		out["filter_chips_group1"] = raw
+	}
+	if len(c.FilterChipsGroup2) > 0 {
+		raw := make([]any, len(c.FilterChipsGroup2))
+		for i, v := range c.FilterChipsGroup2 {
+			raw[i] = v
+		}
+		out["filter_chips_group2"] = raw
+	}
+	if len(c.MetricFilter.IncludeMetrics) > 0 {
+		raw := make([]any, len(c.MetricFilter.IncludeMetrics))
+		for i, m := range c.MetricFilter.IncludeMetrics {
+			raw[i] = m
+		}
+		out["metric_filter"] = map[string]any{"include_metrics": raw}
+	}
+	if c.ComputedRatio != nil {
+		out["computed_ratio"] = map[string]any{
+			"numerator":   c.ComputedRatio.Numerator,
+			"denominator": c.ComputedRatio.Denominator,
+			"scale":       c.ComputedRatio.Scale,
+			"group_by":    c.ComputedRatio.GroupBy,
+		}
+	}
+	if len(c.AvailableChartTypes) > 0 {
+		raw := make([]any, len(c.AvailableChartTypes))
+		for i, t := range c.AvailableChartTypes {
+			raw[i] = t
+		}
+		out["available_chart_types"] = raw
+	}
+	if len(c.ViewConfigs) > 0 {
+		vcMap := make(map[string]any, len(c.ViewConfigs))
+		for k, v := range c.ViewConfigs {
+			vcMap[k] = map[string]any{
+				"title_template": v.TitleTemplate,
+				"drill_enabled":  v.DrillEnabled,
+				"hint":           v.Hint,
+			}
+		}
+		out["view_configs"] = vcMap
+	}
 	return out
+}
+
+// parseViewConfigs extracts a map of ViewModeConfig from a raw chart-config map.
+// Returns nil when the key is absent or malformed.
+func parseViewConfigs(merged map[string]any) map[string]ViewModeConfig {
+	vcRaw, ok := merged["view_configs"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	viewCfgs := make(map[string]ViewModeConfig, len(vcRaw))
+	for chartType, vcEntry := range vcRaw {
+		m, ok2 := vcEntry.(map[string]any)
+		if !ok2 {
+			continue
+		}
+		viewCfgs[chartType] = ViewModeConfig{
+			TitleTemplate: mapStringVal(m, "title_template"),
+			DrillEnabled:  mapBoolVal(m, "drill_enabled"),
+			Hint:          mapStringVal(m, "hint"),
+		}
+	}
+	return viewCfgs
 }
 
 // parseSeriesDefs handles both []any and []map[string]any shapes (JSON decoded vs Go-native).
@@ -248,6 +441,28 @@ func mapStringVal(m map[string]any, key string) string {
 		return ""
 	}
 	return v
+}
+
+// parseStringSlice extracts a []string from a map[string]any under the given key.
+// Accepts both []any (JSON-decoded) and []string. Returns nil when absent or malformed.
+func parseStringSlice(m map[string]any, key string) []string {
+	v, ok := m[key]
+	if !ok {
+		return nil
+	}
+	switch t := v.(type) {
+	case []string:
+		return t
+	case []any:
+		out := make([]string, 0, len(t))
+		for _, item := range t {
+			if s, ok2 := item.(string); ok2 && s != "" {
+				out = append(out, s)
+			}
+		}
+		return out
+	}
+	return nil
 }
 
 // validateRequiredField checks that a required key exists in merged and has a valid value.

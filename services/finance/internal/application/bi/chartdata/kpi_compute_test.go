@@ -70,7 +70,7 @@ func TestComputeKPIs_NoCompare(t *testing.T) {
 	now := time.Date(2026, 5, 15, 0, 0, 0, 0, time.UTC)
 	period := chartdata.ResolvePeriod("L12M", time.Time{}, time.Time{}, "MONTHLY", now)
 
-	rows, err := chartdata.ComputeKPIs(context.Background(), repo, d, period, now)
+	rows, err := chartdata.ComputeKPIs(context.Background(), repo, d, period, now, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestComputeKPIs_MoM_DeltaComputed(t *testing.T) {
 	now := time.Date(2026, 5, 15, 0, 0, 0, 0, time.UTC)
 	period := chartdata.ResolvePeriod("THIS_MONTH", time.Time{}, time.Time{}, "MONTHLY", now)
 
-	rows, err := chartdata.ComputeKPIs(context.Background(), repo, d, period, now)
+	rows, err := chartdata.ComputeKPIs(context.Background(), repo, d, period, now, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestComputeKPIs_Sparkline(t *testing.T) {
 	now := time.Date(2026, 5, 15, 0, 0, 0, 0, time.UTC)
 	period := chartdata.ResolvePeriod("L12M", time.Time{}, time.Time{}, "MONTHLY", now)
 
-	rows, err := chartdata.ComputeKPIs(context.Background(), repo, d, period, now)
+	rows, err := chartdata.ComputeKPIs(context.Background(), repo, d, period, now, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func TestComputeKPIs_PerKPIPeriodScoping(t *testing.T) {
 	now := time.Date(2026, 5, 15, 0, 0, 0, 0, time.UTC)
 	period := chartdata.ResolvePeriod("L12M", time.Time{}, time.Time{}, "MONTHLY", now)
 
-	if _, err := chartdata.ComputeKPIs(context.Background(), repo, d, period, now); err != nil {
+	if _, err := chartdata.ComputeKPIs(context.Background(), repo, d, period, now, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if len(repo.queries) != 3 {
@@ -185,9 +185,69 @@ func TestComputeKPIs_PerKPIPeriodScoping(t *testing.T) {
 	}
 }
 
+func TestComputeKPIs_CrossRatio_ComputesRatio(t *testing.T) {
+	// Build a dashboard with a cross_ratio KPI.
+	d := dashboardWithKPIs(t, []map[string]any{
+		{
+			"label":               "NP Margin",
+			"agg":                 "cross_ratio",
+			"numerator_group_1":   "NET PROFIT",
+			"denominator_group_1": "EBITDA",
+			"scale":               float64(100),
+			"format":              "percent",
+			"period":              "l12m",
+		},
+	})
+	// First call returns numerator (NET PROFIT sum), second returns denominator (EBITDA sum).
+	repo := &scriptedFactRepo{values: []float64{300_000, 1_000_000}}
+	now := time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC)
+	period := chartdata.ResolvePeriod("L12M", time.Time{}, time.Time{}, "MONTHLY", now)
+
+	rows, err := chartdata.ComputeKPIs(context.Background(), repo, d, period, now, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("want 1 KPI, got %d", len(rows))
+	}
+	// 300_000 / 1_000_000 * 100 = 30.0
+	if rows[0].Value != 30.0 {
+		t.Errorf("cross ratio: want 30.0, got %v", rows[0].Value)
+	}
+	// Should have made exactly 2 QueryAggregate calls (numerator + denominator).
+	if repo.calls != 2 {
+		t.Errorf("cross ratio should make 2 queries, got %d", repo.calls)
+	}
+}
+
+func TestComputeKPIs_CrossRatio_ZeroDenominator_ReturnsZero(t *testing.T) {
+	d := dashboardWithKPIs(t, []map[string]any{
+		{
+			"label":               "Margin",
+			"agg":                 "cross_ratio",
+			"numerator_group_1":   "A",
+			"denominator_group_1": "B",
+			"scale":               float64(100),
+			"format":              "percent",
+		},
+	})
+	repo := &scriptedFactRepo{values: []float64{500, 0}} // denominator is 0
+	rows, err := chartdata.ComputeKPIs(context.Background(), repo, d, chartdata.PeriodRange{}, time.Now(), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("want 1 KPI, got %d", len(rows))
+	}
+	// No divide-by-zero panic — returns 0.
+	if rows[0].Value != 0 {
+		t.Errorf("zero denominator: want 0, got %v", rows[0].Value)
+	}
+}
+
 func TestComputeKPIs_Empty(t *testing.T) {
 	d := dashboardWithKPIs(t, nil)
-	rows, err := chartdata.ComputeKPIs(context.Background(), &scriptedFactRepo{}, d, chartdata.PeriodRange{}, time.Now())
+	rows, err := chartdata.ComputeKPIs(context.Background(), &scriptedFactRepo{}, d, chartdata.PeriodRange{}, time.Now(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

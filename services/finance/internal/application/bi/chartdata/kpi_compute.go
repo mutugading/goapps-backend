@@ -27,6 +27,7 @@ func ComputeKPIs(
 	d *dashboarddomain.Dashboard,
 	periodRange PeriodRange,
 	now time.Time,
+	group1Filters, group2Filters []string,
 ) ([]factmetric.KpiRow, error) {
 	kpis := d.KpiConfig()
 	if len(kpis) == 0 {
@@ -34,7 +35,7 @@ func ComputeKPIs(
 	}
 	out := make([]factmetric.KpiRow, 0, len(kpis))
 	for _, k := range kpis {
-		row, err := computeOneKPI(ctx, repo, d, k, periodRange, now)
+		row, err := computeOneKPI(ctx, repo, d, k, periodRange, now, group1Filters, group2Filters)
 		if err != nil {
 			return nil, fmt.Errorf("kpi %q: %w", k.Label, err)
 		}
@@ -53,11 +54,16 @@ func computeOneKPI(
 	k dashboarddomain.KpiEntry,
 	period PeriodRange,
 	now time.Time,
+	group1Filters, group2Filters []string,
 ) (factmetric.KpiRow, error) {
+	if k.Agg == "cross_ratio" {
+		return computeCrossRatioKPI(ctx, repo, d, k, now, group1Filters, group2Filters)
+	}
+
 	// Each KPI may scope its own window (e.g. "Current Month" vs "YTD") independently
 	// of the period the viewer selected for the main chart; "selected" inherits it.
 	effPeriod := resolveKPIPeriod(k.Period, period, now)
-	currentVal, err := runKPIScalar(ctx, repo, d, k, effPeriod, "ACTUAL", now)
+	currentVal, err := runKPIScalar(ctx, repo, d, k, effPeriod, "ACTUAL", now, group1Filters, group2Filters)
 	if err != nil {
 		return factmetric.KpiRow{}, err
 	}
@@ -68,7 +74,7 @@ func computeOneKPI(
 	if k.Compare != "none" && k.Compare != "" {
 		comparePeriod, compareLabel := compareRange(effPeriod, k.Compare, d.PeriodGrain().String(), now)
 		if !comparePeriod.From.IsZero() {
-			compareVal, err := runKPIScalar(ctx, repo, d, k, comparePeriod, "ACTUAL", now)
+			compareVal, err := runKPIScalar(ctx, repo, d, k, comparePeriod, "ACTUAL", now, group1Filters, group2Filters)
 			if err != nil {
 				return factmetric.KpiRow{}, err
 			}
@@ -85,13 +91,72 @@ func computeOneKPI(
 		if periods <= 0 {
 			periods = 12
 		}
-		spark, err := runSparkline(ctx, repo, d, k, periods, now)
+		spark, err := runSparkline(ctx, repo, d, k, periods, now, group1Filters, group2Filters)
 		if err != nil {
 			return factmetric.KpiRow{}, err
 		}
 		row.Sparkline = spark
 	}
 	return row, nil
+}
+
+// computeCrossRatioKPI computes SUM(numerator_group_1) / NULLIF(SUM(denominator_group_1), 0) * scale.
+// Both groups are queried from bi_fact_metric with the dashboard's type, grain, and the KPI's period scope.
+// Returns 0 with no error when the denominator is 0 or data is absent.
+func computeCrossRatioKPI(
+	ctx context.Context,
+	repo factmetric.Repository,
+	d *dashboarddomain.Dashboard,
+	k dashboarddomain.KpiEntry,
+	now time.Time,
+	_, _ []string, // group1Filters, group2Filters — not applicable for cross_ratio KPIs (fixed group_1 semantics)
+) (factmetric.KpiRow, error) {
+	effPeriod := resolveKPIPeriod(k.Period, PeriodRange{
+		From: shiftByMonths(now, -12),
+		To:   now,
+	}, now)
+
+	grain := d.PeriodGrain().String()
+	buildQuery := func(group1 string) factmetric.PlannedQuery {
+		args := []any{d.FilterType(), group1, grain, effPeriod.From, effPeriod.To}
+		sql := `SELECT 'kpi'::text AS category, NULL::date AS periode_date,
+                       ''::text AS periode_label,
+                       COALESCE(SUM(display_value), 0) AS value,
+                       0::numeric AS prev_value, 0::int AS order_seq
+                FROM bi_fact_metric
+                WHERE type = $1 AND group_1 = $2 AND periode_grain = $3
+                  AND periode_date BETWEEN $4 AND $5
+                  AND is_active = TRUE AND metric_name = 'VALUE'`
+		return factmetric.PlannedQuery{SQL: sql, Args: args, TargetTable: "bi_fact_metric"}
+	}
+
+	numRows, err := repo.QueryAggregate(ctx, buildQuery(k.CrossRatioNumeratorGroup1))
+	if err != nil {
+		return factmetric.KpiRow{Label: k.Label}, fmt.Errorf("cross ratio numerator: %w", err)
+	}
+
+	denRows, err := repo.QueryAggregate(ctx, buildQuery(k.CrossRatioDenominatorGroup1))
+	if err != nil {
+		return factmetric.KpiRow{Label: k.Label}, fmt.Errorf("cross ratio denominator: %w", err)
+	}
+
+	var num, den float64
+	if len(numRows) > 0 {
+		num = numRows[0].Value
+	}
+	if len(denRows) > 0 {
+		den = denRows[0].Value
+	}
+
+	var ratio float64
+	if den != 0 {
+		scale := k.CrossRatioScale
+		if scale == 0 {
+			scale = 1
+		}
+		ratio = num / den * scale
+	}
+	return factmetric.KpiRow{Label: k.Label, Value: ratio}, nil
 }
 
 // runKPIScalar returns a single aggregated value for the given KPI definition + period.
@@ -103,7 +168,14 @@ func runKPIScalar(
 	period PeriodRange,
 	scenario string,
 	_ time.Time,
+	group1Filters, group2Filters []string,
 ) (float64, error) {
+	// When metric_name is specified (multi-metric dashboards like SALES),
+	// query bi_fact_metric directly — MVs don't support per-metric-name aggregation for KPIs.
+	if k.MetricName != "" {
+		return runKPIScalarDirect(ctx, repo, d, k, period, scenario, group1Filters, group2Filters)
+	}
+
 	source, group1Filter := kpiSourceTable(d)
 	args := []any{d.FilterType()}
 	idx := 2
@@ -113,6 +185,14 @@ func runKPIScalar(
 		args = append(args, group1Filter)
 		idx++
 	}
+	// Apply viewer filter-chip selections (group_1 / group_2) when no dashboard-level pre-filter is set.
+	if group1Filter == "" && len(group1Filters) > 0 {
+		conds, args, idx = appendINClause(conds, args, idx, "group_1", group1Filters)
+	}
+	if len(group2Filters) > 0 {
+		conds, args, idx = appendINClause(conds, args, idx, "group_2", group2Filters)
+	}
+	_ = idx
 	conds = append(conds, fmt.Sprintf("periode_grain = $%d", idx))
 	args = append(args, d.PeriodGrain().String())
 	idx++
@@ -148,6 +228,7 @@ func runSparkline(
 	k dashboarddomain.KpiEntry,
 	periods int,
 	now time.Time,
+	group1Filters, group2Filters []string,
 ) ([]float64, error) {
 	source, group1Filter := kpiSourceTable(d)
 	args := []any{d.FilterType()}
@@ -157,6 +238,12 @@ func runSparkline(
 		conds = append(conds, fmt.Sprintf("group_1 = $%d", idx))
 		args = append(args, group1Filter)
 		idx++
+	}
+	if group1Filter == "" && len(group1Filters) > 0 {
+		conds, args, idx = appendINClause(conds, args, idx, "group_1", group1Filters)
+	}
+	if len(group2Filters) > 0 {
+		conds, args, idx = appendINClause(conds, args, idx, "group_2", group2Filters)
 	}
 	conds = append(conds, fmt.Sprintf("periode_grain = $%d", idx))
 	args = append(args, d.PeriodGrain().String())
@@ -187,6 +274,60 @@ ORDER BY periode_date`, aggSQL, source, joinAnd(conds))
 		vals = append(vals, r.Value)
 	}
 	return vals, nil
+}
+
+// runKPIScalarDirect queries bi_fact_metric directly with a metric_name filter.
+// Used for multi-metric dashboards (SALES type) where KPIs need per-metric aggregation.
+func runKPIScalarDirect(
+	ctx context.Context,
+	repo factmetric.Repository,
+	d *dashboarddomain.Dashboard,
+	k dashboarddomain.KpiEntry,
+	period PeriodRange,
+	scenario string,
+	group1Filters, group2Filters []string,
+) (float64, error) {
+	args := []any{d.FilterType(), k.MetricName}
+	idx := 3
+	conds := []string{"type = $1", "metric_name = $2", "is_active = TRUE"}
+
+	if d.FilterGroup1() != "" {
+		conds = append(conds, fmt.Sprintf("group_1 = $%d", idx))
+		args = append(args, d.FilterGroup1())
+		idx++
+	} else if len(group1Filters) > 0 {
+		conds, args, idx = appendINClause(conds, args, idx, "group_1", group1Filters)
+	}
+	if len(group2Filters) > 0 {
+		conds, args, idx = appendINClause(conds, args, idx, "group_2", group2Filters)
+	}
+	if g := d.PeriodGrain().String(); g != "" {
+		conds = append(conds, fmt.Sprintf("periode_grain = $%d", idx))
+		args = append(args, g)
+		idx++
+	}
+	if !period.From.IsZero() && !period.To.IsZero() {
+		conds = append(conds, fmt.Sprintf("periode_date BETWEEN $%d AND $%d", idx, idx+1))
+		args = append(args, period.From, period.To)
+		idx += 2
+	}
+	conds = append(conds, fmt.Sprintf("scenario = $%d", idx))
+	args = append(args, scenario)
+
+	aggSQL := mapAgg(k.Agg) + "(display_value)"
+	sql := fmt.Sprintf(`
+SELECT 'kpi'::text AS category, NULL::date AS periode_date, ''::text AS periode_label,
+       COALESCE(%s, 0) AS value, 0::numeric AS prev_value, 0::int AS order_seq
+FROM bi_fact_metric WHERE %s`, aggSQL, joinAnd(conds))
+
+	rows, err := repo.QueryAggregate(ctx, factmetric.PlannedQuery{SQL: sql, Args: args, TargetTable: "bi_fact_metric"})
+	if err != nil {
+		return 0, err
+	}
+	if len(rows) == 0 {
+		return 0, nil
+	}
+	return rows[0].Value, nil
 }
 
 // kpiSourceTable picks the right MV given whether the dashboard pre-filters group_1.

@@ -28,6 +28,7 @@ const (
 	DashboardService_DuplicateDashboard_FullMethodName       = "/finance.v1.DashboardService/DuplicateDashboard"
 	DashboardService_SetDashboardRoles_FullMethodName        = "/finance.v1.DashboardService/SetDashboardRoles"
 	DashboardService_ListAccessibleDashboards_FullMethodName = "/finance.v1.DashboardService/ListAccessibleDashboards"
+	DashboardService_ListFeaturedDashboards_FullMethodName   = "/finance.v1.DashboardService/ListFeaturedDashboards"
 	DashboardService_CreateDashboardGroup_FullMethodName     = "/finance.v1.DashboardService/CreateDashboardGroup"
 	DashboardService_ListDashboardGroups_FullMethodName      = "/finance.v1.DashboardService/ListDashboardGroups"
 	DashboardService_UpdateDashboardGroup_FullMethodName     = "/finance.v1.DashboardService/UpdateDashboardGroup"
@@ -59,6 +60,8 @@ type DashboardServiceClient interface {
 	SetDashboardRoles(ctx context.Context, in *SetDashboardRolesRequest, opts ...grpc.CallOption) (*SetDashboardRolesResponse, error)
 	// ListAccessibleDashboards returns dashboards visible to the calling user (for viewer sidebar).
 	ListAccessibleDashboards(ctx context.Context, in *ListAccessibleDashboardsRequest, opts ...grpc.CallOption) (*ListAccessibleDashboardsResponse, error)
+	// ListFeaturedDashboards returns dashboards pinned to the Executive Dashboard landing page.
+	ListFeaturedDashboards(ctx context.Context, in *ListFeaturedDashboardsRequest, opts ...grpc.CallOption) (*ListFeaturedDashboardsResponse, error)
 	// CreateDashboardGroup creates a new dashboard group.
 	CreateDashboardGroup(ctx context.Context, in *CreateDashboardGroupRequest, opts ...grpc.CallOption) (*CreateDashboardGroupResponse, error)
 	// ListDashboardGroups returns dashboard groups.
@@ -169,6 +172,16 @@ func (c *dashboardServiceClient) ListAccessibleDashboards(ctx context.Context, i
 	return out, nil
 }
 
+func (c *dashboardServiceClient) ListFeaturedDashboards(ctx context.Context, in *ListFeaturedDashboardsRequest, opts ...grpc.CallOption) (*ListFeaturedDashboardsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListFeaturedDashboardsResponse)
+	err := c.cc.Invoke(ctx, DashboardService_ListFeaturedDashboards_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *dashboardServiceClient) CreateDashboardGroup(ctx context.Context, in *CreateDashboardGroupRequest, opts ...grpc.CallOption) (*CreateDashboardGroupResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreateDashboardGroupResponse)
@@ -243,6 +256,8 @@ type DashboardServiceServer interface {
 	SetDashboardRoles(context.Context, *SetDashboardRolesRequest) (*SetDashboardRolesResponse, error)
 	// ListAccessibleDashboards returns dashboards visible to the calling user (for viewer sidebar).
 	ListAccessibleDashboards(context.Context, *ListAccessibleDashboardsRequest) (*ListAccessibleDashboardsResponse, error)
+	// ListFeaturedDashboards returns dashboards pinned to the Executive Dashboard landing page.
+	ListFeaturedDashboards(context.Context, *ListFeaturedDashboardsRequest) (*ListFeaturedDashboardsResponse, error)
 	// CreateDashboardGroup creates a new dashboard group.
 	CreateDashboardGroup(context.Context, *CreateDashboardGroupRequest) (*CreateDashboardGroupResponse, error)
 	// ListDashboardGroups returns dashboard groups.
@@ -289,6 +304,9 @@ func (UnimplementedDashboardServiceServer) SetDashboardRoles(context.Context, *S
 }
 func (UnimplementedDashboardServiceServer) ListAccessibleDashboards(context.Context, *ListAccessibleDashboardsRequest) (*ListAccessibleDashboardsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListAccessibleDashboards not implemented")
+}
+func (UnimplementedDashboardServiceServer) ListFeaturedDashboards(context.Context, *ListFeaturedDashboardsRequest) (*ListFeaturedDashboardsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListFeaturedDashboards not implemented")
 }
 func (UnimplementedDashboardServiceServer) CreateDashboardGroup(context.Context, *CreateDashboardGroupRequest) (*CreateDashboardGroupResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateDashboardGroup not implemented")
@@ -488,6 +506,24 @@ func _DashboardService_ListAccessibleDashboards_Handler(srv interface{}, ctx con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DashboardService_ListFeaturedDashboards_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListFeaturedDashboardsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DashboardServiceServer).ListFeaturedDashboards(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DashboardService_ListFeaturedDashboards_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DashboardServiceServer).ListFeaturedDashboards(ctx, req.(*ListFeaturedDashboardsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _DashboardService_CreateDashboardGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateDashboardGroupRequest)
 	if err := dec(in); err != nil {
@@ -620,6 +656,10 @@ var DashboardService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListAccessibleDashboards",
 			Handler:    _DashboardService_ListAccessibleDashboards_Handler,
+		},
+		{
+			MethodName: "ListFeaturedDashboards",
+			Handler:    _DashboardService_ListFeaturedDashboards_Handler,
 		},
 		{
 			MethodName: "CreateDashboardGroup",
@@ -946,6 +986,9 @@ const (
 	BiJobService_ListJobs_FullMethodName    = "/finance.v1.BiJobService/ListJobs"
 	BiJobService_ListJobLogs_FullMethodName = "/finance.v1.BiJobService/ListJobLogs"
 	BiJobService_TriggerJob_FullMethodName  = "/finance.v1.BiJobService/TriggerJob"
+	BiJobService_CreateBiJob_FullMethodName = "/finance.v1.BiJobService/CreateBiJob"
+	BiJobService_UpdateBiJob_FullMethodName = "/finance.v1.BiJobService/UpdateBiJob"
+	BiJobService_DeleteBiJob_FullMethodName = "/finance.v1.BiJobService/DeleteBiJob"
 )
 
 // BiJobServiceClient is the client API for BiJobService service.
@@ -960,6 +1003,12 @@ type BiJobServiceClient interface {
 	ListJobLogs(ctx context.Context, in *ListJobLogsRequest, opts ...grpc.CallOption) (*ListJobLogsResponse, error)
 	// TriggerJob manually triggers an ETL job run.
 	TriggerJob(ctx context.Context, in *TriggerJobRequest, opts ...grpc.CallOption) (*TriggerJobResponse, error)
+	// CreateBiJob registers a new ETL job in the bi_job registry.
+	CreateBiJob(ctx context.Context, in *CreateBiJobRequest, opts ...grpc.CallOption) (*CreateBiJobResponse, error)
+	// UpdateBiJob mutates schedule_cron, oracle_procedure, config, or is_active.
+	UpdateBiJob(ctx context.Context, in *UpdateBiJobRequest, opts ...grpc.CallOption) (*UpdateBiJobResponse, error)
+	// DeleteBiJob soft-disables a job (sets is_active=false, preserves logs).
+	DeleteBiJob(ctx context.Context, in *DeleteBiJobRequest, opts ...grpc.CallOption) (*DeleteBiJobResponse, error)
 }
 
 type biJobServiceClient struct {
@@ -1000,6 +1049,36 @@ func (c *biJobServiceClient) TriggerJob(ctx context.Context, in *TriggerJobReque
 	return out, nil
 }
 
+func (c *biJobServiceClient) CreateBiJob(ctx context.Context, in *CreateBiJobRequest, opts ...grpc.CallOption) (*CreateBiJobResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateBiJobResponse)
+	err := c.cc.Invoke(ctx, BiJobService_CreateBiJob_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *biJobServiceClient) UpdateBiJob(ctx context.Context, in *UpdateBiJobRequest, opts ...grpc.CallOption) (*UpdateBiJobResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateBiJobResponse)
+	err := c.cc.Invoke(ctx, BiJobService_UpdateBiJob_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *biJobServiceClient) DeleteBiJob(ctx context.Context, in *DeleteBiJobRequest, opts ...grpc.CallOption) (*DeleteBiJobResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteBiJobResponse)
+	err := c.cc.Invoke(ctx, BiJobService_DeleteBiJob_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BiJobServiceServer is the server API for BiJobService service.
 // All implementations must embed UnimplementedBiJobServiceServer
 // for forward compatibility.
@@ -1012,6 +1091,12 @@ type BiJobServiceServer interface {
 	ListJobLogs(context.Context, *ListJobLogsRequest) (*ListJobLogsResponse, error)
 	// TriggerJob manually triggers an ETL job run.
 	TriggerJob(context.Context, *TriggerJobRequest) (*TriggerJobResponse, error)
+	// CreateBiJob registers a new ETL job in the bi_job registry.
+	CreateBiJob(context.Context, *CreateBiJobRequest) (*CreateBiJobResponse, error)
+	// UpdateBiJob mutates schedule_cron, oracle_procedure, config, or is_active.
+	UpdateBiJob(context.Context, *UpdateBiJobRequest) (*UpdateBiJobResponse, error)
+	// DeleteBiJob soft-disables a job (sets is_active=false, preserves logs).
+	DeleteBiJob(context.Context, *DeleteBiJobRequest) (*DeleteBiJobResponse, error)
 	mustEmbedUnimplementedBiJobServiceServer()
 }
 
@@ -1030,6 +1115,15 @@ func (UnimplementedBiJobServiceServer) ListJobLogs(context.Context, *ListJobLogs
 }
 func (UnimplementedBiJobServiceServer) TriggerJob(context.Context, *TriggerJobRequest) (*TriggerJobResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method TriggerJob not implemented")
+}
+func (UnimplementedBiJobServiceServer) CreateBiJob(context.Context, *CreateBiJobRequest) (*CreateBiJobResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateBiJob not implemented")
+}
+func (UnimplementedBiJobServiceServer) UpdateBiJob(context.Context, *UpdateBiJobRequest) (*UpdateBiJobResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateBiJob not implemented")
+}
+func (UnimplementedBiJobServiceServer) DeleteBiJob(context.Context, *DeleteBiJobRequest) (*DeleteBiJobResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteBiJob not implemented")
 }
 func (UnimplementedBiJobServiceServer) mustEmbedUnimplementedBiJobServiceServer() {}
 func (UnimplementedBiJobServiceServer) testEmbeddedByValue()                      {}
@@ -1106,6 +1200,60 @@ func _BiJobService_TriggerJob_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BiJobService_CreateBiJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateBiJobRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BiJobServiceServer).CreateBiJob(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BiJobService_CreateBiJob_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BiJobServiceServer).CreateBiJob(ctx, req.(*CreateBiJobRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BiJobService_UpdateBiJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateBiJobRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BiJobServiceServer).UpdateBiJob(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BiJobService_UpdateBiJob_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BiJobServiceServer).UpdateBiJob(ctx, req.(*UpdateBiJobRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BiJobService_DeleteBiJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteBiJobRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BiJobServiceServer).DeleteBiJob(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BiJobService_DeleteBiJob_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BiJobServiceServer).DeleteBiJob(ctx, req.(*DeleteBiJobRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BiJobService_ServiceDesc is the grpc.ServiceDesc for BiJobService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1124,6 +1272,18 @@ var BiJobService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "TriggerJob",
 			Handler:    _BiJobService_TriggerJob_Handler,
+		},
+		{
+			MethodName: "CreateBiJob",
+			Handler:    _BiJobService_CreateBiJob_Handler,
+		},
+		{
+			MethodName: "UpdateBiJob",
+			Handler:    _BiJobService_UpdateBiJob_Handler,
+		},
+		{
+			MethodName: "DeleteBiJob",
+			Handler:    _BiJobService_DeleteBiJob_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,6 +16,7 @@ import (
 	financev1 "github.com/mutugading/goapps-backend/gen/finance/v1"
 	"github.com/mutugading/goapps-backend/pkg/costcalc/metrics"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/auditadapter"
+	"github.com/mutugading/goapps-backend/services/finance/internal/application/bi/bietl"
 	chartdataapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/chartdata"
 	dashboardapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/dashboard"
 	datasourceapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/datasource"
@@ -30,6 +32,7 @@ import (
 	grpcdelivery "github.com/mutugading/goapps-backend/services/finance/internal/delivery/grpc"
 	httpdelivery "github.com/mutugading/goapps-backend/services/finance/internal/delivery/httpdelivery"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/config"
+	oracleinfra "github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/oracle"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/postgres"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/rabbitmq"
 	redisinfra "github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/redis"
@@ -349,6 +352,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		dashboardapp.NewDuplicateHandler(biDashboardRepo),
 		dashboardapp.NewSetRolesHandler(biDashboardRepo, biChartCache),
 		dashboardapp.NewListAccessibleHandler(biDashboardRepo),
+		dashboardapp.NewListFeaturedHandler(biDashboardRepo),
 		groupapp.NewCreateHandler(biGroupRepo),
 		groupapp.NewListHandler(biGroupRepo),
 		groupapp.NewUpdateHandler(biGroupRepo),
@@ -375,10 +379,29 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		return err
 	}
 
+	// Oracle BI ETL runner (optional — graceful degradation when Oracle is unavailable).
+	var biETLRunner jobapp.BIETLRunner
+	oracleClient, oracleErr := oracleinfra.NewClient(cfg.Oracle, log.Logger)
+	if oracleErr != nil {
+		log.Warn().Err(oracleErr).Msg("Oracle unavailable; BI ETL jobs (etl_mis/etl_delivery_margin/etl_sales) will fail gracefully")
+	} else {
+		defer func() {
+			if cErr := oracleClient.Close(); cErr != nil {
+				log.Warn().Err(cErr).Msg("Failed to close Oracle connection")
+			}
+		}()
+		biMVRepo := oracleinfra.NewBIMVRepository(oracleClient)
+		biETLRunner = bietl.NewMVLoader(biMVRepo, biFactRepo)
+	}
+
+	biMVRefresher := &biMVRefresherAdapter{db: db}
 	biJobHandler, err := grpcdelivery.NewBIJobHandler(
 		jobapp.NewListHandler(biJobRepo),
 		jobapp.NewListLogsHandler(biJobRepo),
-		jobapp.NewTriggerHandler(biJobRepo),
+		jobapp.NewTriggerHandler(biJobRepo, biMVRefresher, biETLRunner),
+		jobapp.NewCreateHandler(biJobRepo),
+		jobapp.NewUpdateHandler(biJobRepo),
+		jobapp.NewDeleteHandler(biJobRepo),
 	)
 	if err != nil {
 		return err
@@ -648,4 +671,16 @@ func setupRabbitMQ(cfg *config.Config) (*rabbitmq.JobPublisherAdapter, *rabbitmq
 		}
 	}
 	return adapter, costPub, closeFunc
+}
+
+// biMVRefresherAdapter implements jobapp.MVRefresher using a raw DB connection.
+// It calls the bi_refresh_dashboard_mvs() PostgreSQL function which refreshes
+// all BI materialized views (mv_bi_metric_g1, mv_bi_metric_g2) concurrently.
+type biMVRefresherAdapter struct{ db *postgres.DB }
+
+func (a *biMVRefresherAdapter) RefreshMVs(ctx context.Context) error {
+	if _, err := a.db.ExecContext(ctx, "SELECT bi_refresh_dashboard_mvs()"); err != nil {
+		return fmt.Errorf("bi_refresh_dashboard_mvs: %w", err)
+	}
+	return nil
 }

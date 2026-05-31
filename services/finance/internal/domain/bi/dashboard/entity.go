@@ -35,6 +35,8 @@ type Dashboard struct {
 	displayOrder     int
 	groupID          uuid.UUID
 	isActive         bool
+	isFeatured       bool
+	featureOrder     int
 	allowedRoleCodes []string
 	createdAt        time.Time
 	createdBy        uuid.UUID
@@ -69,6 +71,8 @@ type NewDashboardParams struct {
 	DisplayOrder       int
 	GroupID            uuid.UUID
 	IsActive           bool
+	IsFeatured         bool
+	FeatureOrder       int
 	AllowedRoleCodes   []string
 	CreatedBy          uuid.UUID
 }
@@ -174,6 +178,8 @@ func NewDashboard(p NewDashboardParams) (*Dashboard, error) {
 		displayOrder:     p.DisplayOrder,
 		groupID:          p.GroupID,
 		isActive:         p.IsActive,
+		isFeatured:       p.IsFeatured,
+		featureOrder:     p.FeatureOrder,
 		allowedRoleCodes: roleCodes,
 		createdAt:        time.Now().UTC(),
 		createdBy:        p.CreatedBy,
@@ -203,6 +209,8 @@ type UpdateParams struct {
 	DisplayOrder       *int
 	GroupID            *uuid.UUID
 	IsActive           *bool
+	IsFeatured         *bool
+	FeatureOrder       *int
 	AllowedRoleCodes   []string
 	UpdatedBy          uuid.UUID
 }
@@ -336,6 +344,12 @@ func (d *Dashboard) Update(p UpdateParams) error {
 	if p.IsActive != nil {
 		staged.isActive = *p.IsActive
 	}
+	if p.IsFeatured != nil {
+		staged.isFeatured = *p.IsFeatured
+	}
+	if p.FeatureOrder != nil {
+		staged.featureOrder = *p.FeatureOrder
+	}
 	if p.AllowedRoleCodes != nil {
 		staged.allowedRoleCodes = dedupRoles(p.AllowedRoleCodes)
 	}
@@ -419,6 +433,12 @@ func (d *Dashboard) GroupID() uuid.UUID { return d.groupID }
 // IsActive reports whether the dashboard is active.
 func (d *Dashboard) IsActive() bool { return d.isActive }
 
+// IsFeatured reports whether the dashboard is pinned to the Executive Dashboard landing page.
+func (d *Dashboard) IsFeatured() bool { return d.isFeatured }
+
+// FeatureOrder returns the sort position within the featured section (lower = first).
+func (d *Dashboard) FeatureOrder() int { return d.featureOrder }
+
 // AllowedRoleCodes returns a copy of the role-code whitelist.
 func (d *Dashboard) AllowedRoleCodes() []string {
 	out := make([]string, len(d.allowedRoleCodes))
@@ -453,6 +473,24 @@ func (d *Dashboard) SetAuditFromHydration(createdAt, updatedAt, deletedAt time.T
 	d.createdBy = createdBy
 	d.updatedBy = updatedBy
 	d.deletedBy = deletedBy
+}
+
+// ViewConfigFor returns the ViewModeConfig for the given chart type string.
+// Falls back to sensible defaults: categorical charts (waterfall/bar/donut/treemap) are drillable;
+// time-series and non-drillable charts (line/area/multi_line/scatter/heatmap) are not.
+func (d *Dashboard) ViewConfigFor(chartType string) ViewModeConfig {
+	if cfg, ok := d.chartConfig.ViewConfigs[chartType]; ok {
+		return cfg
+	}
+	nonDrillable := map[string]bool{
+		"line": true, "area": true, "multi_line": true,
+		"scatter": true, "heatmap": true, "kpi_card": true, "data_table": true,
+	}
+	return ViewModeConfig{
+		TitleTemplate: d.title,
+		DrillEnabled:  !nonDrillable[chartType],
+		Hint:          "",
+	}
 }
 
 // SetAllowedRoleCodesFromHydration restores the role mapping loaded from bi_dashboard_role.

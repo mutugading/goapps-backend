@@ -2,13 +2,17 @@ package grpc
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"time"
 
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	commonv1 "github.com/mutugading/goapps-backend/gen/common/v1"
 	financev1 "github.com/mutugading/goapps-backend/gen/finance/v1"
 	chartdataapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/chartdata"
+	dashboarddomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/bi/dashboard"
 )
 
 // BIChartDataHandler implements financev1.ChartDataServiceServer.
@@ -48,6 +52,8 @@ func (h *BIChartDataHandler) GetDashboardData(ctx context.Context, req *financev
 	if req.GetPeriodTo() != nil {
 		filters.PeriodTo = req.GetPeriodTo().AsTime()
 	}
+	// Read filter values forwarded by the BFF as gRPC metadata headers.
+	applyMetadataFilters(ctx, &filters)
 	q := chartdataapp.GetDataQuery{
 		DashboardCode: req.GetDashboardCode(),
 		Filters:       filters,
@@ -150,6 +156,42 @@ func chartResultToProto(r *chartdataapp.Result) *financev1.ChartDataResponse {
 			CanDrill:    r.DrillContext.CanDrill,
 		},
 		Meta: meta,
+	}
+}
+
+// applyMetadataFilters reads BFF-forwarded gRPC metadata headers and populates the filter
+// fields that cannot be expressed in the standard proto request message.
+//
+// Supported headers:
+//   - x-group1-filter: comma-separated group_1 values for filter-chip selections.
+//   - x-group2-filter: comma-separated group_2 values for filter-chip selections.
+//   - x-computed-ratio: JSON-encoded ComputedRatioConfig for the /computed BFF route.
+//   - x-force-trend: when "true", overrides x_axis_field and forces isTrend=true in Plan().
+//     Used by the monthly-detail BFF to fetch period-grouped series from categorical
+//     dashboards (e.g. EBITDA waterfall) without changing the dashboard config.
+func applyMetadataFilters(ctx context.Context, f *chartdataapp.ViewerFilters) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return
+	}
+	if vals := md.Get("x-group1-filter"); len(vals) > 0 && vals[0] != "" {
+		f.Group1Filter = strings.Split(vals[0], ",")
+	}
+	if vals := md.Get("x-group2-filter"); len(vals) > 0 && vals[0] != "" {
+		f.Group2Filter = strings.Split(vals[0], ",")
+	}
+	// x-computed-ratio: JSON-encoded ComputedRatioConfig injected by the /computed BFF route.
+	// When present, the query planner switches to planComputedRatio (ratio grouped by group_2).
+	if vals := md.Get("x-computed-ratio"); len(vals) > 0 && vals[0] != "" {
+		var cr dashboarddomain.ComputedRatioConfig
+		if err := json.Unmarshal([]byte(vals[0]), &cr); err == nil {
+			f.ComputedRatio = &cr
+		}
+	}
+	// x-force-trend: instructs the planner to treat the query as a trend (group-by-period)
+	// regardless of the dashboard's x_axis_field setting.
+	if vals := md.Get("x-force-trend"); len(vals) > 0 && vals[0] == "true" {
+		f.ForceTrend = true
 	}
 }
 

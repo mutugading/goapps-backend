@@ -410,6 +410,8 @@ type Dashboard struct {
 	IsActive           bool                   `protobuf:"varint,22,opt,name=is_active,json=isActive,proto3" json:"is_active,omitempty"`
 	AllowedRoleCodes   []string               `protobuf:"bytes,23,rep,name=allowed_role_codes,json=allowedRoleCodes,proto3" json:"allowed_role_codes,omitempty"`
 	Audit              *v1.AuditInfo          `protobuf:"bytes,24,opt,name=audit,proto3" json:"audit,omitempty"`
+	IsFeatured         bool                   `protobuf:"varint,25,opt,name=is_featured,json=isFeatured,proto3" json:"is_featured,omitempty"`
+	FeatureOrder       int32                  `protobuf:"varint,26,opt,name=feature_order,json=featureOrder,proto3" json:"feature_order,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -610,6 +612,20 @@ func (x *Dashboard) GetAudit() *v1.AuditInfo {
 		return x.Audit
 	}
 	return nil
+}
+
+func (x *Dashboard) GetIsFeatured() bool {
+	if x != nil {
+		return x.IsFeatured
+	}
+	return false
+}
+
+func (x *Dashboard) GetFeatureOrder() int32 {
+	if x != nil {
+		return x.FeatureOrder
+	}
+	return 0
 }
 
 type DataSource struct {
@@ -2313,6 +2329,8 @@ type UpdateDashboardRequest struct {
 	DisplayOrder       *int32                 `protobuf:"varint,17,opt,name=display_order,json=displayOrder,proto3,oneof" json:"display_order,omitempty"`
 	GroupId            *string                `protobuf:"bytes,18,opt,name=group_id,json=groupId,proto3,oneof" json:"group_id,omitempty"`
 	IsActive           *bool                  `protobuf:"varint,19,opt,name=is_active,json=isActive,proto3,oneof" json:"is_active,omitempty"`
+	IsFeatured         *bool                  `protobuf:"varint,25,opt,name=is_featured,json=isFeatured,proto3,oneof" json:"is_featured,omitempty"`
+	FeatureOrder       *int32                 `protobuf:"varint,26,opt,name=feature_order,json=featureOrder,proto3,oneof" json:"feature_order,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -2478,6 +2496,20 @@ func (x *UpdateDashboardRequest) GetIsActive() bool {
 		return *x.IsActive
 	}
 	return false
+}
+
+func (x *UpdateDashboardRequest) GetIsFeatured() bool {
+	if x != nil && x.IsFeatured != nil {
+		return *x.IsFeatured
+	}
+	return false
+}
+
+func (x *UpdateDashboardRequest) GetFeatureOrder() int32 {
+	if x != nil && x.FeatureOrder != nil {
+		return *x.FeatureOrder
+	}
+	return 0
 }
 
 type UpdateDashboardResponse struct {
@@ -2924,6 +2956,94 @@ func (x *ListAccessibleDashboardsResponse) GetData() []*Dashboard {
 	return nil
 }
 
+type ListFeaturedDashboardsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListFeaturedDashboardsRequest) Reset() {
+	*x = ListFeaturedDashboardsRequest{}
+	mi := &file_finance_v1_bi_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListFeaturedDashboardsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListFeaturedDashboardsRequest) ProtoMessage() {}
+
+func (x *ListFeaturedDashboardsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_bi_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListFeaturedDashboardsRequest.ProtoReflect.Descriptor instead.
+func (*ListFeaturedDashboardsRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{36}
+}
+
+type ListFeaturedDashboardsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Base          *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	Data          []*Dashboard           `protobuf:"bytes,2,rep,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListFeaturedDashboardsResponse) Reset() {
+	*x = ListFeaturedDashboardsResponse{}
+	mi := &file_finance_v1_bi_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListFeaturedDashboardsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListFeaturedDashboardsResponse) ProtoMessage() {}
+
+func (x *ListFeaturedDashboardsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_bi_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListFeaturedDashboardsResponse.ProtoReflect.Descriptor instead.
+func (*ListFeaturedDashboardsResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *ListFeaturedDashboardsResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *ListFeaturedDashboardsResponse) GetData() []*Dashboard {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
 type ViewerFilters struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PeriodPreset  string                 `protobuf:"bytes,1,opt,name=period_preset,json=periodPreset,proto3" json:"period_preset,omitempty"`
@@ -2937,7 +3057,7 @@ type ViewerFilters struct {
 
 func (x *ViewerFilters) Reset() {
 	*x = ViewerFilters{}
-	mi := &file_finance_v1_bi_proto_msgTypes[36]
+	mi := &file_finance_v1_bi_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2949,7 +3069,7 @@ func (x *ViewerFilters) String() string {
 func (*ViewerFilters) ProtoMessage() {}
 
 func (x *ViewerFilters) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[36]
+	mi := &file_finance_v1_bi_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2962,7 +3082,7 @@ func (x *ViewerFilters) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ViewerFilters.ProtoReflect.Descriptor instead.
 func (*ViewerFilters) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{36}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *ViewerFilters) GetPeriodPreset() string {
@@ -3014,7 +3134,7 @@ type GetDashboardDataRequest struct {
 
 func (x *GetDashboardDataRequest) Reset() {
 	*x = GetDashboardDataRequest{}
-	mi := &file_finance_v1_bi_proto_msgTypes[37]
+	mi := &file_finance_v1_bi_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3026,7 +3146,7 @@ func (x *GetDashboardDataRequest) String() string {
 func (*GetDashboardDataRequest) ProtoMessage() {}
 
 func (x *GetDashboardDataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[37]
+	mi := &file_finance_v1_bi_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3039,7 +3159,7 @@ func (x *GetDashboardDataRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDashboardDataRequest.ProtoReflect.Descriptor instead.
 func (*GetDashboardDataRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{37}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *GetDashboardDataRequest) GetDashboardCode() string {
@@ -3094,7 +3214,7 @@ type GetDashboardDataResponse struct {
 
 func (x *GetDashboardDataResponse) Reset() {
 	*x = GetDashboardDataResponse{}
-	mi := &file_finance_v1_bi_proto_msgTypes[38]
+	mi := &file_finance_v1_bi_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3106,7 +3226,7 @@ func (x *GetDashboardDataResponse) String() string {
 func (*GetDashboardDataResponse) ProtoMessage() {}
 
 func (x *GetDashboardDataResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[38]
+	mi := &file_finance_v1_bi_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3119,7 +3239,7 @@ func (x *GetDashboardDataResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDashboardDataResponse.ProtoReflect.Descriptor instead.
 func (*GetDashboardDataResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{38}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *GetDashboardDataResponse) GetBase() *v1.BaseResponse {
@@ -3151,7 +3271,7 @@ type PreviewDashboardRequest struct {
 
 func (x *PreviewDashboardRequest) Reset() {
 	*x = PreviewDashboardRequest{}
-	mi := &file_finance_v1_bi_proto_msgTypes[39]
+	mi := &file_finance_v1_bi_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3163,7 +3283,7 @@ func (x *PreviewDashboardRequest) String() string {
 func (*PreviewDashboardRequest) ProtoMessage() {}
 
 func (x *PreviewDashboardRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[39]
+	mi := &file_finance_v1_bi_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3176,7 +3296,7 @@ func (x *PreviewDashboardRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreviewDashboardRequest.ProtoReflect.Descriptor instead.
 func (*PreviewDashboardRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{39}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *PreviewDashboardRequest) GetFilterType() string {
@@ -3238,7 +3358,7 @@ type PreviewDashboardResponse struct {
 
 func (x *PreviewDashboardResponse) Reset() {
 	*x = PreviewDashboardResponse{}
-	mi := &file_finance_v1_bi_proto_msgTypes[40]
+	mi := &file_finance_v1_bi_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3250,7 +3370,7 @@ func (x *PreviewDashboardResponse) String() string {
 func (*PreviewDashboardResponse) ProtoMessage() {}
 
 func (x *PreviewDashboardResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[40]
+	mi := &file_finance_v1_bi_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3263,7 +3383,7 @@ func (x *PreviewDashboardResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreviewDashboardResponse.ProtoReflect.Descriptor instead.
 func (*PreviewDashboardResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{40}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *PreviewDashboardResponse) GetBase() *v1.BaseResponse {
@@ -3289,7 +3409,7 @@ type ListDataSourcesRequest struct {
 
 func (x *ListDataSourcesRequest) Reset() {
 	*x = ListDataSourcesRequest{}
-	mi := &file_finance_v1_bi_proto_msgTypes[41]
+	mi := &file_finance_v1_bi_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3301,7 +3421,7 @@ func (x *ListDataSourcesRequest) String() string {
 func (*ListDataSourcesRequest) ProtoMessage() {}
 
 func (x *ListDataSourcesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[41]
+	mi := &file_finance_v1_bi_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3314,7 +3434,7 @@ func (x *ListDataSourcesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDataSourcesRequest.ProtoReflect.Descriptor instead.
 func (*ListDataSourcesRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{41}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *ListDataSourcesRequest) GetIncludeInactive() bool {
@@ -3334,7 +3454,7 @@ type ListDataSourcesResponse struct {
 
 func (x *ListDataSourcesResponse) Reset() {
 	*x = ListDataSourcesResponse{}
-	mi := &file_finance_v1_bi_proto_msgTypes[42]
+	mi := &file_finance_v1_bi_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3346,7 +3466,7 @@ func (x *ListDataSourcesResponse) String() string {
 func (*ListDataSourcesResponse) ProtoMessage() {}
 
 func (x *ListDataSourcesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[42]
+	mi := &file_finance_v1_bi_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3359,7 +3479,7 @@ func (x *ListDataSourcesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDataSourcesResponse.ProtoReflect.Descriptor instead.
 func (*ListDataSourcesResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{42}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ListDataSourcesResponse) GetBase() *v1.BaseResponse {
@@ -3385,7 +3505,7 @@ type GetFactDistinctsRequest struct {
 
 func (x *GetFactDistinctsRequest) Reset() {
 	*x = GetFactDistinctsRequest{}
-	mi := &file_finance_v1_bi_proto_msgTypes[43]
+	mi := &file_finance_v1_bi_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3397,7 +3517,7 @@ func (x *GetFactDistinctsRequest) String() string {
 func (*GetFactDistinctsRequest) ProtoMessage() {}
 
 func (x *GetFactDistinctsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[43]
+	mi := &file_finance_v1_bi_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3410,7 +3530,7 @@ func (x *GetFactDistinctsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetFactDistinctsRequest.ProtoReflect.Descriptor instead.
 func (*GetFactDistinctsRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{43}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *GetFactDistinctsRequest) GetType() string {
@@ -3430,7 +3550,7 @@ type GetFactDistinctsResponse struct {
 
 func (x *GetFactDistinctsResponse) Reset() {
 	*x = GetFactDistinctsResponse{}
-	mi := &file_finance_v1_bi_proto_msgTypes[44]
+	mi := &file_finance_v1_bi_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3442,7 +3562,7 @@ func (x *GetFactDistinctsResponse) String() string {
 func (*GetFactDistinctsResponse) ProtoMessage() {}
 
 func (x *GetFactDistinctsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[44]
+	mi := &file_finance_v1_bi_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3455,7 +3575,7 @@ func (x *GetFactDistinctsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetFactDistinctsResponse.ProtoReflect.Descriptor instead.
 func (*GetFactDistinctsResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{44}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *GetFactDistinctsResponse) GetBase() *v1.BaseResponse {
@@ -3493,7 +3613,7 @@ type BiJob struct {
 
 func (x *BiJob) Reset() {
 	*x = BiJob{}
-	mi := &file_finance_v1_bi_proto_msgTypes[45]
+	mi := &file_finance_v1_bi_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3505,7 +3625,7 @@ func (x *BiJob) String() string {
 func (*BiJob) ProtoMessage() {}
 
 func (x *BiJob) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[45]
+	mi := &file_finance_v1_bi_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3518,7 +3638,7 @@ func (x *BiJob) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BiJob.ProtoReflect.Descriptor instead.
 func (*BiJob) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{45}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *BiJob) GetJobId() string {
@@ -3630,7 +3750,7 @@ type BiJobLog struct {
 
 func (x *BiJobLog) Reset() {
 	*x = BiJobLog{}
-	mi := &file_finance_v1_bi_proto_msgTypes[46]
+	mi := &file_finance_v1_bi_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3642,7 +3762,7 @@ func (x *BiJobLog) String() string {
 func (*BiJobLog) ProtoMessage() {}
 
 func (x *BiJobLog) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[46]
+	mi := &file_finance_v1_bi_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3655,7 +3775,7 @@ func (x *BiJobLog) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BiJobLog.ProtoReflect.Descriptor instead.
 func (*BiJobLog) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{46}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *BiJobLog) GetLogId() int64 {
@@ -3737,7 +3857,7 @@ type ListJobsRequest struct {
 
 func (x *ListJobsRequest) Reset() {
 	*x = ListJobsRequest{}
-	mi := &file_finance_v1_bi_proto_msgTypes[47]
+	mi := &file_finance_v1_bi_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3749,7 +3869,7 @@ func (x *ListJobsRequest) String() string {
 func (*ListJobsRequest) ProtoMessage() {}
 
 func (x *ListJobsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[47]
+	mi := &file_finance_v1_bi_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3762,7 +3882,7 @@ func (x *ListJobsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListJobsRequest.ProtoReflect.Descriptor instead.
 func (*ListJobsRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{47}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *ListJobsRequest) GetIncludeInactive() bool {
@@ -3782,7 +3902,7 @@ type ListJobsResponse struct {
 
 func (x *ListJobsResponse) Reset() {
 	*x = ListJobsResponse{}
-	mi := &file_finance_v1_bi_proto_msgTypes[48]
+	mi := &file_finance_v1_bi_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3794,7 +3914,7 @@ func (x *ListJobsResponse) String() string {
 func (*ListJobsResponse) ProtoMessage() {}
 
 func (x *ListJobsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[48]
+	mi := &file_finance_v1_bi_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3807,7 +3927,7 @@ func (x *ListJobsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListJobsResponse.ProtoReflect.Descriptor instead.
 func (*ListJobsResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{48}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *ListJobsResponse) GetBase() *v1.BaseResponse {
@@ -3835,7 +3955,7 @@ type ListJobLogsRequest struct {
 
 func (x *ListJobLogsRequest) Reset() {
 	*x = ListJobLogsRequest{}
-	mi := &file_finance_v1_bi_proto_msgTypes[49]
+	mi := &file_finance_v1_bi_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3847,7 +3967,7 @@ func (x *ListJobLogsRequest) String() string {
 func (*ListJobLogsRequest) ProtoMessage() {}
 
 func (x *ListJobLogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[49]
+	mi := &file_finance_v1_bi_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3860,7 +3980,7 @@ func (x *ListJobLogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListJobLogsRequest.ProtoReflect.Descriptor instead.
 func (*ListJobLogsRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{49}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *ListJobLogsRequest) GetJobId() string {
@@ -3895,7 +4015,7 @@ type ListJobLogsResponse struct {
 
 func (x *ListJobLogsResponse) Reset() {
 	*x = ListJobLogsResponse{}
-	mi := &file_finance_v1_bi_proto_msgTypes[50]
+	mi := &file_finance_v1_bi_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3907,7 +4027,7 @@ func (x *ListJobLogsResponse) String() string {
 func (*ListJobLogsResponse) ProtoMessage() {}
 
 func (x *ListJobLogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[50]
+	mi := &file_finance_v1_bi_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3920,7 +4040,7 @@ func (x *ListJobLogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListJobLogsResponse.ProtoReflect.Descriptor instead.
 func (*ListJobLogsResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{50}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *ListJobLogsResponse) GetBase() *v1.BaseResponse {
@@ -3953,7 +4073,7 @@ type TriggerJobRequest struct {
 
 func (x *TriggerJobRequest) Reset() {
 	*x = TriggerJobRequest{}
-	mi := &file_finance_v1_bi_proto_msgTypes[51]
+	mi := &file_finance_v1_bi_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3965,7 +4085,7 @@ func (x *TriggerJobRequest) String() string {
 func (*TriggerJobRequest) ProtoMessage() {}
 
 func (x *TriggerJobRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[51]
+	mi := &file_finance_v1_bi_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3978,7 +4098,7 @@ func (x *TriggerJobRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TriggerJobRequest.ProtoReflect.Descriptor instead.
 func (*TriggerJobRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{51}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *TriggerJobRequest) GetJobId() string {
@@ -3998,7 +4118,7 @@ type TriggerJobResponse struct {
 
 func (x *TriggerJobResponse) Reset() {
 	*x = TriggerJobResponse{}
-	mi := &file_finance_v1_bi_proto_msgTypes[52]
+	mi := &file_finance_v1_bi_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4010,7 +4130,7 @@ func (x *TriggerJobResponse) String() string {
 func (*TriggerJobResponse) ProtoMessage() {}
 
 func (x *TriggerJobResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[52]
+	mi := &file_finance_v1_bi_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4023,7 +4143,7 @@ func (x *TriggerJobResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TriggerJobResponse.ProtoReflect.Descriptor instead.
 func (*TriggerJobResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{52}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *TriggerJobResponse) GetBase() *v1.BaseResponse {
@@ -4036,6 +4156,366 @@ func (x *TriggerJobResponse) GetBase() *v1.BaseResponse {
 func (x *TriggerJobResponse) GetData() *BiJobLog {
 	if x != nil {
 		return x.Data
+	}
+	return nil
+}
+
+type CreateBiJobRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	JobName         string                 `protobuf:"bytes,1,opt,name=job_name,json=jobName,proto3" json:"job_name,omitempty"`
+	SourceCode      string                 `protobuf:"bytes,2,opt,name=source_code,json=sourceCode,proto3" json:"source_code,omitempty"`
+	TargetType      string                 `protobuf:"bytes,3,opt,name=target_type,json=targetType,proto3" json:"target_type,omitempty"`
+	ScheduleCron    string                 `protobuf:"bytes,4,opt,name=schedule_cron,json=scheduleCron,proto3" json:"schedule_cron,omitempty"`
+	OracleProcedure string                 `protobuf:"bytes,5,opt,name=oracle_procedure,json=oracleProcedure,proto3" json:"oracle_procedure,omitempty"`
+	Config          *structpb.Struct       `protobuf:"bytes,6,opt,name=config,proto3" json:"config,omitempty"`
+	IsActive        bool                   `protobuf:"varint,7,opt,name=is_active,json=isActive,proto3" json:"is_active,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *CreateBiJobRequest) Reset() {
+	*x = CreateBiJobRequest{}
+	mi := &file_finance_v1_bi_proto_msgTypes[55]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateBiJobRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateBiJobRequest) ProtoMessage() {}
+
+func (x *CreateBiJobRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_bi_proto_msgTypes[55]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateBiJobRequest.ProtoReflect.Descriptor instead.
+func (*CreateBiJobRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{55}
+}
+
+func (x *CreateBiJobRequest) GetJobName() string {
+	if x != nil {
+		return x.JobName
+	}
+	return ""
+}
+
+func (x *CreateBiJobRequest) GetSourceCode() string {
+	if x != nil {
+		return x.SourceCode
+	}
+	return ""
+}
+
+func (x *CreateBiJobRequest) GetTargetType() string {
+	if x != nil {
+		return x.TargetType
+	}
+	return ""
+}
+
+func (x *CreateBiJobRequest) GetScheduleCron() string {
+	if x != nil {
+		return x.ScheduleCron
+	}
+	return ""
+}
+
+func (x *CreateBiJobRequest) GetOracleProcedure() string {
+	if x != nil {
+		return x.OracleProcedure
+	}
+	return ""
+}
+
+func (x *CreateBiJobRequest) GetConfig() *structpb.Struct {
+	if x != nil {
+		return x.Config
+	}
+	return nil
+}
+
+func (x *CreateBiJobRequest) GetIsActive() bool {
+	if x != nil {
+		return x.IsActive
+	}
+	return false
+}
+
+type CreateBiJobResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Base          *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	Data          *BiJob                 `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateBiJobResponse) Reset() {
+	*x = CreateBiJobResponse{}
+	mi := &file_finance_v1_bi_proto_msgTypes[56]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateBiJobResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateBiJobResponse) ProtoMessage() {}
+
+func (x *CreateBiJobResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_bi_proto_msgTypes[56]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateBiJobResponse.ProtoReflect.Descriptor instead.
+func (*CreateBiJobResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{56}
+}
+
+func (x *CreateBiJobResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *CreateBiJobResponse) GetData() *BiJob {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+type UpdateBiJobRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	JobId           string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	ScheduleCron    *string                `protobuf:"bytes,2,opt,name=schedule_cron,json=scheduleCron,proto3,oneof" json:"schedule_cron,omitempty"`
+	OracleProcedure *string                `protobuf:"bytes,3,opt,name=oracle_procedure,json=oracleProcedure,proto3,oneof" json:"oracle_procedure,omitempty"`
+	Config          *structpb.Struct       `protobuf:"bytes,4,opt,name=config,proto3,oneof" json:"config,omitempty"`
+	IsActive        *bool                  `protobuf:"varint,5,opt,name=is_active,json=isActive,proto3,oneof" json:"is_active,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *UpdateBiJobRequest) Reset() {
+	*x = UpdateBiJobRequest{}
+	mi := &file_finance_v1_bi_proto_msgTypes[57]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateBiJobRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateBiJobRequest) ProtoMessage() {}
+
+func (x *UpdateBiJobRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_bi_proto_msgTypes[57]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateBiJobRequest.ProtoReflect.Descriptor instead.
+func (*UpdateBiJobRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{57}
+}
+
+func (x *UpdateBiJobRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *UpdateBiJobRequest) GetScheduleCron() string {
+	if x != nil && x.ScheduleCron != nil {
+		return *x.ScheduleCron
+	}
+	return ""
+}
+
+func (x *UpdateBiJobRequest) GetOracleProcedure() string {
+	if x != nil && x.OracleProcedure != nil {
+		return *x.OracleProcedure
+	}
+	return ""
+}
+
+func (x *UpdateBiJobRequest) GetConfig() *structpb.Struct {
+	if x != nil {
+		return x.Config
+	}
+	return nil
+}
+
+func (x *UpdateBiJobRequest) GetIsActive() bool {
+	if x != nil && x.IsActive != nil {
+		return *x.IsActive
+	}
+	return false
+}
+
+type UpdateBiJobResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Base          *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	Data          *BiJob                 `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateBiJobResponse) Reset() {
+	*x = UpdateBiJobResponse{}
+	mi := &file_finance_v1_bi_proto_msgTypes[58]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateBiJobResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateBiJobResponse) ProtoMessage() {}
+
+func (x *UpdateBiJobResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_bi_proto_msgTypes[58]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateBiJobResponse.ProtoReflect.Descriptor instead.
+func (*UpdateBiJobResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{58}
+}
+
+func (x *UpdateBiJobResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *UpdateBiJobResponse) GetData() *BiJob {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+type DeleteBiJobRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteBiJobRequest) Reset() {
+	*x = DeleteBiJobRequest{}
+	mi := &file_finance_v1_bi_proto_msgTypes[59]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteBiJobRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteBiJobRequest) ProtoMessage() {}
+
+func (x *DeleteBiJobRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_bi_proto_msgTypes[59]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteBiJobRequest.ProtoReflect.Descriptor instead.
+func (*DeleteBiJobRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{59}
+}
+
+func (x *DeleteBiJobRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+type DeleteBiJobResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Base          *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteBiJobResponse) Reset() {
+	*x = DeleteBiJobResponse{}
+	mi := &file_finance_v1_bi_proto_msgTypes[60]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteBiJobResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteBiJobResponse) ProtoMessage() {}
+
+func (x *DeleteBiJobResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_bi_proto_msgTypes[60]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteBiJobResponse.ProtoReflect.Descriptor instead.
+func (*DeleteBiJobResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{60}
+}
+
+func (x *DeleteBiJobResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
 	}
 	return nil
 }
@@ -4053,7 +4533,7 @@ type UploadRowError struct {
 
 func (x *UploadRowError) Reset() {
 	*x = UploadRowError{}
-	mi := &file_finance_v1_bi_proto_msgTypes[53]
+	mi := &file_finance_v1_bi_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4065,7 +4545,7 @@ func (x *UploadRowError) String() string {
 func (*UploadRowError) ProtoMessage() {}
 
 func (x *UploadRowError) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[53]
+	mi := &file_finance_v1_bi_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4078,7 +4558,7 @@ func (x *UploadRowError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UploadRowError.ProtoReflect.Descriptor instead.
 func (*UploadRowError) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{53}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *UploadRowError) GetRow() int32 {
@@ -4136,7 +4616,7 @@ type BiUpload struct {
 
 func (x *BiUpload) Reset() {
 	*x = BiUpload{}
-	mi := &file_finance_v1_bi_proto_msgTypes[54]
+	mi := &file_finance_v1_bi_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4148,7 +4628,7 @@ func (x *BiUpload) String() string {
 func (*BiUpload) ProtoMessage() {}
 
 func (x *BiUpload) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[54]
+	mi := &file_finance_v1_bi_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4161,7 +4641,7 @@ func (x *BiUpload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BiUpload.ProtoReflect.Descriptor instead.
 func (*BiUpload) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{54}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *BiUpload) GetUploadId() string {
@@ -4257,7 +4737,7 @@ type DownloadUploadTemplateRequest struct {
 
 func (x *DownloadUploadTemplateRequest) Reset() {
 	*x = DownloadUploadTemplateRequest{}
-	mi := &file_finance_v1_bi_proto_msgTypes[55]
+	mi := &file_finance_v1_bi_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4269,7 +4749,7 @@ func (x *DownloadUploadTemplateRequest) String() string {
 func (*DownloadUploadTemplateRequest) ProtoMessage() {}
 
 func (x *DownloadUploadTemplateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[55]
+	mi := &file_finance_v1_bi_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4282,7 +4762,7 @@ func (x *DownloadUploadTemplateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DownloadUploadTemplateRequest.ProtoReflect.Descriptor instead.
 func (*DownloadUploadTemplateRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{55}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *DownloadUploadTemplateRequest) GetTargetType() string {
@@ -4303,7 +4783,7 @@ type DownloadUploadTemplateResponse struct {
 
 func (x *DownloadUploadTemplateResponse) Reset() {
 	*x = DownloadUploadTemplateResponse{}
-	mi := &file_finance_v1_bi_proto_msgTypes[56]
+	mi := &file_finance_v1_bi_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4315,7 +4795,7 @@ func (x *DownloadUploadTemplateResponse) String() string {
 func (*DownloadUploadTemplateResponse) ProtoMessage() {}
 
 func (x *DownloadUploadTemplateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[56]
+	mi := &file_finance_v1_bi_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4328,7 +4808,7 @@ func (x *DownloadUploadTemplateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DownloadUploadTemplateResponse.ProtoReflect.Descriptor instead.
 func (*DownloadUploadTemplateResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{56}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *DownloadUploadTemplateResponse) GetBase() *v1.BaseResponse {
@@ -4363,7 +4843,7 @@ type ParseUploadRequest struct {
 
 func (x *ParseUploadRequest) Reset() {
 	*x = ParseUploadRequest{}
-	mi := &file_finance_v1_bi_proto_msgTypes[57]
+	mi := &file_finance_v1_bi_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4375,7 +4855,7 @@ func (x *ParseUploadRequest) String() string {
 func (*ParseUploadRequest) ProtoMessage() {}
 
 func (x *ParseUploadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[57]
+	mi := &file_finance_v1_bi_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4388,7 +4868,7 @@ func (x *ParseUploadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ParseUploadRequest.ProtoReflect.Descriptor instead.
 func (*ParseUploadRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{57}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *ParseUploadRequest) GetTargetType() string {
@@ -4422,7 +4902,7 @@ type ParseUploadResponse struct {
 
 func (x *ParseUploadResponse) Reset() {
 	*x = ParseUploadResponse{}
-	mi := &file_finance_v1_bi_proto_msgTypes[58]
+	mi := &file_finance_v1_bi_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4434,7 +4914,7 @@ func (x *ParseUploadResponse) String() string {
 func (*ParseUploadResponse) ProtoMessage() {}
 
 func (x *ParseUploadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[58]
+	mi := &file_finance_v1_bi_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4447,7 +4927,7 @@ func (x *ParseUploadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ParseUploadResponse.ProtoReflect.Descriptor instead.
 func (*ParseUploadResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{58}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *ParseUploadResponse) GetBase() *v1.BaseResponse {
@@ -4473,7 +4953,7 @@ type CommitUploadRequest struct {
 
 func (x *CommitUploadRequest) Reset() {
 	*x = CommitUploadRequest{}
-	mi := &file_finance_v1_bi_proto_msgTypes[59]
+	mi := &file_finance_v1_bi_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4485,7 +4965,7 @@ func (x *CommitUploadRequest) String() string {
 func (*CommitUploadRequest) ProtoMessage() {}
 
 func (x *CommitUploadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[59]
+	mi := &file_finance_v1_bi_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4498,7 +4978,7 @@ func (x *CommitUploadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommitUploadRequest.ProtoReflect.Descriptor instead.
 func (*CommitUploadRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{59}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *CommitUploadRequest) GetUploadId() string {
@@ -4518,7 +4998,7 @@ type CommitUploadResponse struct {
 
 func (x *CommitUploadResponse) Reset() {
 	*x = CommitUploadResponse{}
-	mi := &file_finance_v1_bi_proto_msgTypes[60]
+	mi := &file_finance_v1_bi_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4530,7 +5010,7 @@ func (x *CommitUploadResponse) String() string {
 func (*CommitUploadResponse) ProtoMessage() {}
 
 func (x *CommitUploadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[60]
+	mi := &file_finance_v1_bi_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4543,7 +5023,7 @@ func (x *CommitUploadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommitUploadResponse.ProtoReflect.Descriptor instead.
 func (*CommitUploadResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{60}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *CommitUploadResponse) GetBase() *v1.BaseResponse {
@@ -4569,7 +5049,7 @@ type CancelUploadRequest struct {
 
 func (x *CancelUploadRequest) Reset() {
 	*x = CancelUploadRequest{}
-	mi := &file_finance_v1_bi_proto_msgTypes[61]
+	mi := &file_finance_v1_bi_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4581,7 +5061,7 @@ func (x *CancelUploadRequest) String() string {
 func (*CancelUploadRequest) ProtoMessage() {}
 
 func (x *CancelUploadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[61]
+	mi := &file_finance_v1_bi_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4594,7 +5074,7 @@ func (x *CancelUploadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelUploadRequest.ProtoReflect.Descriptor instead.
 func (*CancelUploadRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{61}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *CancelUploadRequest) GetUploadId() string {
@@ -4613,7 +5093,7 @@ type CancelUploadResponse struct {
 
 func (x *CancelUploadResponse) Reset() {
 	*x = CancelUploadResponse{}
-	mi := &file_finance_v1_bi_proto_msgTypes[62]
+	mi := &file_finance_v1_bi_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4625,7 +5105,7 @@ func (x *CancelUploadResponse) String() string {
 func (*CancelUploadResponse) ProtoMessage() {}
 
 func (x *CancelUploadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[62]
+	mi := &file_finance_v1_bi_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4638,7 +5118,7 @@ func (x *CancelUploadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelUploadResponse.ProtoReflect.Descriptor instead.
 func (*CancelUploadResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{62}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *CancelUploadResponse) GetBase() *v1.BaseResponse {
@@ -4658,7 +5138,7 @@ type ListUploadsRequest struct {
 
 func (x *ListUploadsRequest) Reset() {
 	*x = ListUploadsRequest{}
-	mi := &file_finance_v1_bi_proto_msgTypes[63]
+	mi := &file_finance_v1_bi_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4670,7 +5150,7 @@ func (x *ListUploadsRequest) String() string {
 func (*ListUploadsRequest) ProtoMessage() {}
 
 func (x *ListUploadsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[63]
+	mi := &file_finance_v1_bi_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4683,7 +5163,7 @@ func (x *ListUploadsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUploadsRequest.ProtoReflect.Descriptor instead.
 func (*ListUploadsRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{63}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *ListUploadsRequest) GetPage() int32 {
@@ -4711,7 +5191,7 @@ type ListUploadsResponse struct {
 
 func (x *ListUploadsResponse) Reset() {
 	*x = ListUploadsResponse{}
-	mi := &file_finance_v1_bi_proto_msgTypes[64]
+	mi := &file_finance_v1_bi_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4723,7 +5203,7 @@ func (x *ListUploadsResponse) String() string {
 func (*ListUploadsResponse) ProtoMessage() {}
 
 func (x *ListUploadsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[64]
+	mi := &file_finance_v1_bi_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4736,7 +5216,7 @@ func (x *ListUploadsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUploadsResponse.ProtoReflect.Descriptor instead.
 func (*ListUploadsResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{64}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *ListUploadsResponse) GetBase() *v1.BaseResponse {
@@ -4776,7 +5256,7 @@ type BiAuditEntry struct {
 
 func (x *BiAuditEntry) Reset() {
 	*x = BiAuditEntry{}
-	mi := &file_finance_v1_bi_proto_msgTypes[65]
+	mi := &file_finance_v1_bi_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4788,7 +5268,7 @@ func (x *BiAuditEntry) String() string {
 func (*BiAuditEntry) ProtoMessage() {}
 
 func (x *BiAuditEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[65]
+	mi := &file_finance_v1_bi_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4801,7 +5281,7 @@ func (x *BiAuditEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BiAuditEntry.ProtoReflect.Descriptor instead.
 func (*BiAuditEntry) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{65}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *BiAuditEntry) GetAuditId() int64 {
@@ -4871,7 +5351,7 @@ type ListConfigAuditRequest struct {
 
 func (x *ListConfigAuditRequest) Reset() {
 	*x = ListConfigAuditRequest{}
-	mi := &file_finance_v1_bi_proto_msgTypes[66]
+	mi := &file_finance_v1_bi_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4883,7 +5363,7 @@ func (x *ListConfigAuditRequest) String() string {
 func (*ListConfigAuditRequest) ProtoMessage() {}
 
 func (x *ListConfigAuditRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[66]
+	mi := &file_finance_v1_bi_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4896,7 +5376,7 @@ func (x *ListConfigAuditRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListConfigAuditRequest.ProtoReflect.Descriptor instead.
 func (*ListConfigAuditRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{66}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *ListConfigAuditRequest) GetPage() int32 {
@@ -4931,7 +5411,7 @@ type ListConfigAuditResponse struct {
 
 func (x *ListConfigAuditResponse) Reset() {
 	*x = ListConfigAuditResponse{}
-	mi := &file_finance_v1_bi_proto_msgTypes[67]
+	mi := &file_finance_v1_bi_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4943,7 +5423,7 @@ func (x *ListConfigAuditResponse) String() string {
 func (*ListConfigAuditResponse) ProtoMessage() {}
 
 func (x *ListConfigAuditResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_bi_proto_msgTypes[67]
+	mi := &file_finance_v1_bi_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4956,7 +5436,7 @@ func (x *ListConfigAuditResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListConfigAuditResponse.ProtoReflect.Descriptor instead.
 func (*ListConfigAuditResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_bi_proto_rawDescGZIP(), []int{67}
+	return file_finance_v1_bi_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *ListConfigAuditResponse) GetBase() *v1.BaseResponse {
@@ -4996,7 +5476,7 @@ const file_finance_v1_bi_proto_rawDesc = "" +
 	"\x04icon\x18\x05 \x01(\tR\x04icon\x12#\n" +
 	"\rdisplay_order\x18\x06 \x01(\x05R\fdisplayOrder\x12\x1b\n" +
 	"\tis_active\x18\a \x01(\bR\bisActive\x12*\n" +
-	"\x05audit\x18\b \x01(\v2\x14.common.v1.AuditInfoR\x05audit\"\x8b\b\n" +
+	"\x05audit\x18\b \x01(\v2\x14.common.v1.AuditInfoR\x05audit\"\xd1\b\n" +
 	"\tDashboard\x12!\n" +
 	"\fdashboard_id\x18\x01 \x01(\tR\vdashboardId\x12%\n" +
 	"\x0edashboard_code\x18\x02 \x01(\tR\rdashboardCode\x12'\n" +
@@ -5027,7 +5507,10 @@ const file_finance_v1_bi_proto_rawDesc = "" +
 	"group_icon\x18\x15 \x01(\tR\tgroupIcon\x12\x1b\n" +
 	"\tis_active\x18\x16 \x01(\bR\bisActive\x12,\n" +
 	"\x12allowed_role_codes\x18\x17 \x03(\tR\x10allowedRoleCodes\x12*\n" +
-	"\x05audit\x18\x18 \x01(\v2\x14.common.v1.AuditInfoR\x05audit\"\x93\x02\n" +
+	"\x05audit\x18\x18 \x01(\v2\x14.common.v1.AuditInfoR\x05audit\x12\x1f\n" +
+	"\vis_featured\x18\x19 \x01(\bR\n" +
+	"isFeatured\x12#\n" +
+	"\rfeature_order\x18\x1a \x01(\x05R\ffeatureOrder\"\x93\x02\n" +
 	"\n" +
 	"DataSource\x12\x1b\n" +
 	"\tsource_id\x18\x01 \x01(\tR\bsourceId\x12\x1f\n" +
@@ -5183,7 +5666,7 @@ const file_finance_v1_bi_proto_rawDesc = "" +
 	"\x04data\x18\x02 \x03(\v2\x15.finance.v1.DashboardR\x04data\x12=\n" +
 	"\n" +
 	"pagination\x18\x03 \x01(\v2\x1d.common.v1.PaginationResponseR\n" +
-	"pagination\"\x8a\v\n" +
+	"pagination\"\xfc\v\n" +
 	"\x16UpdateDashboardRequest\x12+\n" +
 	"\fdashboard_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\vdashboardId\x128\n" +
 	"\x0fdashboard_title\x18\x02 \x01(\tB\n" +
@@ -5211,7 +5694,10 @@ const file_finance_v1_bi_proto_rawDesc = "" +
 	"R\x12refreshIntervalSec\x88\x01\x01\x12(\n" +
 	"\rdisplay_order\x18\x11 \x01(\x05H\vR\fdisplayOrder\x88\x01\x01\x12w\n" +
 	"\bgroup_id\x18\x12 \x01(\tBW\xbaHTrR2P^$|^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$H\fR\agroupId\x88\x01\x01\x12 \n" +
-	"\tis_active\x18\x13 \x01(\bH\rR\bisActive\x88\x01\x01B\x12\n" +
+	"\tis_active\x18\x13 \x01(\bH\rR\bisActive\x88\x01\x01\x12$\n" +
+	"\vis_featured\x18\x19 \x01(\bH\x0eR\n" +
+	"isFeatured\x88\x01\x01\x12(\n" +
+	"\rfeature_order\x18\x1a \x01(\x05H\x0fR\ffeatureOrder\x88\x01\x01B\x12\n" +
 	"\x10_dashboard_titleB\x0e\n" +
 	"\f_descriptionB\x0e\n" +
 	"\f_filter_typeB\x11\n" +
@@ -5226,7 +5712,9 @@ const file_finance_v1_bi_proto_rawDesc = "" +
 	"\x0e_display_orderB\v\n" +
 	"\t_group_idB\f\n" +
 	"\n" +
-	"_is_active\"q\n" +
+	"_is_activeB\x0e\n" +
+	"\f_is_featuredB\x10\n" +
+	"\x0e_feature_order\"q\n" +
 	"\x17UpdateDashboardResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12)\n" +
 	"\x04data\x18\x02 \x01(\v2\x15.finance.v1.DashboardR\x04data\"E\n" +
@@ -5252,6 +5740,10 @@ const file_finance_v1_bi_proto_rawDesc = "" +
 	"role_codes\x18\x02 \x03(\tR\troleCodes\"!\n" +
 	"\x1fListAccessibleDashboardsRequest\"z\n" +
 	" ListAccessibleDashboardsResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12)\n" +
+	"\x04data\x18\x02 \x03(\v2\x15.finance.v1.DashboardR\x04data\"\x1f\n" +
+	"\x1dListFeaturedDashboardsRequest\"x\n" +
+	"\x1eListFeaturedDashboardsResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12)\n" +
 	"\x04data\x18\x02 \x03(\v2\x15.finance.v1.DashboardR\x04data\"\xfc\x01\n" +
 	"\rViewerFilters\x12#\n" +
@@ -5350,7 +5842,38 @@ const file_finance_v1_bi_proto_rawDesc = "" +
 	"\x06job_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x05jobId\"k\n" +
 	"\x12TriggerJobResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12(\n" +
-	"\x04data\x18\x02 \x01(\v2\x14.finance.v1.BiJobLogR\x04data\"\x82\x01\n" +
+	"\x04data\x18\x02 \x01(\v2\x14.finance.v1.BiJobLogR\x04data\"\xd8\x02\n" +
+	"\x12CreateBiJobRequest\x127\n" +
+	"\bjob_name\x18\x01 \x01(\tB\x1c\xbaH\x19r\x17\x10\x02\x18x2\x11^[A-Z][A-Z0-9_]*$R\ajobName\x12*\n" +
+	"\vsource_code\x18\x02 \x01(\tB\t\xbaH\x06r\x04\x10\x02\x18(R\n" +
+	"sourceCode\x12*\n" +
+	"\vtarget_type\x18\x03 \x01(\tB\t\xbaH\x06r\x04\x10\x02\x18(R\n" +
+	"targetType\x12.\n" +
+	"\rschedule_cron\x18\x04 \x01(\tB\t\xbaH\x06r\x04\x10\t\x182R\fscheduleCron\x123\n" +
+	"\x10oracle_procedure\x18\x05 \x01(\tB\b\xbaH\x05r\x03\x18\xc8\x01R\x0foracleProcedure\x12/\n" +
+	"\x06config\x18\x06 \x01(\v2\x17.google.protobuf.StructR\x06config\x12\x1b\n" +
+	"\tis_active\x18\a \x01(\bR\bisActive\"i\n" +
+	"\x13CreateBiJobResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12%\n" +
+	"\x04data\x18\x02 \x01(\v2\x11.finance.v1.BiJobR\x04data\"\xba\x02\n" +
+	"\x12UpdateBiJobRequest\x12\x1f\n" +
+	"\x06job_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x05jobId\x121\n" +
+	"\rschedule_cron\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x182H\x00R\fscheduleCron\x88\x01\x01\x128\n" +
+	"\x10oracle_procedure\x18\x03 \x01(\tB\b\xbaH\x05r\x03\x18\xc8\x01H\x01R\x0foracleProcedure\x88\x01\x01\x124\n" +
+	"\x06config\x18\x04 \x01(\v2\x17.google.protobuf.StructH\x02R\x06config\x88\x01\x01\x12 \n" +
+	"\tis_active\x18\x05 \x01(\bH\x03R\bisActive\x88\x01\x01B\x10\n" +
+	"\x0e_schedule_cronB\x13\n" +
+	"\x11_oracle_procedureB\t\n" +
+	"\a_configB\f\n" +
+	"\n" +
+	"_is_active\"i\n" +
+	"\x13UpdateBiJobResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12%\n" +
+	"\x04data\x18\x02 \x01(\v2\x11.finance.v1.BiJobR\x04data\"5\n" +
+	"\x12DeleteBiJobRequest\x12\x1f\n" +
+	"\x06job_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x05jobId\"B\n" +
+	"\x13DeleteBiJobResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\"\x82\x01\n" +
 	"\x0eUploadRowError\x12\x10\n" +
 	"\x03row\x18\x01 \x01(\x05R\x03row\x12\x16\n" +
 	"\x06column\x18\x02 \x01(\tR\x06column\x12\x14\n" +
@@ -5470,7 +5993,7 @@ const file_finance_v1_bi_proto_rawDesc = "" +
 	"\x18DATA_SOURCE_TYPE_LARAVEL\x10\x02\x12\x1a\n" +
 	"\x16DATA_SOURCE_TYPE_EXCEL\x10\x03\x12\x1b\n" +
 	"\x17DATA_SOURCE_TYPE_MANUAL\x10\x04\x12\x18\n" +
-	"\x14DATA_SOURCE_TYPE_API\x10\x052\xba\x10\n" +
+	"\x14DATA_SOURCE_TYPE_API\x10\x052\xdc\x11\n" +
 	"\x10DashboardService\x12\x84\x01\n" +
 	"\x0fCreateDashboard\x12\".finance.v1.CreateDashboardRequest\x1a#.finance.v1.CreateDashboardResponse\"(\x82\xd3\xe4\x93\x02\":\x01*\"\x1d/api/v1/finance/bi/dashboards\x12\x87\x01\n" +
 	"\fGetDashboard\x12\x1f.finance.v1.GetDashboardRequest\x1a .finance.v1.GetDashboardResponse\"4\x82\xd3\xe4\x93\x02.\x12,/api/v1/finance/bi/dashboards/{dashboard_id}\x12\xa3\x01\n" +
@@ -5480,7 +6003,8 @@ const file_finance_v1_bi_proto_rawDesc = "" +
 	"\x0fDeleteDashboard\x12\".finance.v1.DeleteDashboardRequest\x1a#.finance.v1.DeleteDashboardResponse\"4\x82\xd3\xe4\x93\x02.*,/api/v1/finance/bi/dashboards/{dashboard_id}\x12\xa6\x01\n" +
 	"\x12DuplicateDashboard\x12%.finance.v1.DuplicateDashboardRequest\x1a&.finance.v1.DuplicateDashboardResponse\"A\x82\xd3\xe4\x93\x02;:\x01*\"6/api/v1/finance/bi/dashboards/{dashboard_id}/duplicate\x12\x9f\x01\n" +
 	"\x11SetDashboardRoles\x12$.finance.v1.SetDashboardRolesRequest\x1a%.finance.v1.SetDashboardRolesResponse\"=\x82\xd3\xe4\x93\x027:\x01*\x1a2/api/v1/finance/bi/dashboards/{dashboard_id}/roles\x12\xa7\x01\n" +
-	"\x18ListAccessibleDashboards\x12+.finance.v1.ListAccessibleDashboardsRequest\x1a,.finance.v1.ListAccessibleDashboardsResponse\"0\x82\xd3\xe4\x93\x02*\x12(/api/v1/finance/bi/dashboards/accessible\x12\x8f\x01\n" +
+	"\x18ListAccessibleDashboards\x12+.finance.v1.ListAccessibleDashboardsRequest\x1a,.finance.v1.ListAccessibleDashboardsResponse\"0\x82\xd3\xe4\x93\x02*\x12(/api/v1/finance/bi/dashboards/accessible\x12\x9f\x01\n" +
+	"\x16ListFeaturedDashboards\x12).finance.v1.ListFeaturedDashboardsRequest\x1a*.finance.v1.ListFeaturedDashboardsResponse\".\x82\xd3\xe4\x93\x02(\x12&/api/v1/finance/bi/dashboards/featured\x12\x8f\x01\n" +
 	"\x14CreateDashboardGroup\x12'.finance.v1.CreateDashboardGroupRequest\x1a(.finance.v1.CreateDashboardGroupResponse\"$\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/api/v1/finance/bi/groups\x12\x89\x01\n" +
 	"\x13ListDashboardGroups\x12&.finance.v1.ListDashboardGroupsRequest\x1a'.finance.v1.ListDashboardGroupsResponse\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/api/v1/finance/bi/groups\x12\x9a\x01\n" +
 	"\x14UpdateDashboardGroup\x12'.finance.v1.UpdateDashboardGroupRequest\x1a(.finance.v1.UpdateDashboardGroupResponse\"/\x82\xd3\xe4\x93\x02):\x01*\x1a$/api/v1/finance/bi/groups/{group_id}\x12\x97\x01\n" +
@@ -5491,12 +6015,15 @@ const file_finance_v1_bi_proto_rawDesc = "" +
 	"\x10PreviewDashboard\x12#.finance.v1.PreviewDashboardRequest\x1a$.finance.v1.PreviewDashboardResponse\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/api/v1/finance/bi/preview2\xa4\x02\n" +
 	"\x11DataSourceService\x12\x83\x01\n" +
 	"\x0fListDataSources\x12\".finance.v1.ListDataSourcesRequest\x1a#.finance.v1.ListDataSourcesResponse\"'\x82\xd3\xe4\x93\x02!\x12\x1f/api/v1/finance/bi/data-sources\x12\x88\x01\n" +
-	"\x10GetFactDistincts\x12#.finance.v1.GetFactDistinctsRequest\x1a$.finance.v1.GetFactDistinctsResponse\")\x82\xd3\xe4\x93\x02#\x12!/api/v1/finance/bi/fact/distincts2\xf8\x02\n" +
+	"\x10GetFactDistincts\x12#.finance.v1.GetFactDistinctsRequest\x1a$.finance.v1.GetFactDistinctsResponse\")\x82\xd3\xe4\x93\x02#\x12!/api/v1/finance/bi/fact/distincts2\xe3\x05\n" +
 	"\fBiJobService\x12f\n" +
 	"\bListJobs\x12\x1b.finance.v1.ListJobsRequest\x1a\x1c.finance.v1.ListJobsResponse\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/api/v1/finance/bi/jobs\x12}\n" +
 	"\vListJobLogs\x12\x1e.finance.v1.ListJobLogsRequest\x1a\x1f.finance.v1.ListJobLogsResponse\"-\x82\xd3\xe4\x93\x02'\x12%/api/v1/finance/bi/jobs/{job_id}/logs\x12\x80\x01\n" +
 	"\n" +
-	"TriggerJob\x12\x1d.finance.v1.TriggerJobRequest\x1a\x1e.finance.v1.TriggerJobResponse\"3\x82\xd3\xe4\x93\x02-:\x01*\"(/api/v1/finance/bi/jobs/{job_id}/trigger2\xbd\x05\n" +
+	"TriggerJob\x12\x1d.finance.v1.TriggerJobRequest\x1a\x1e.finance.v1.TriggerJobResponse\"3\x82\xd3\xe4\x93\x02-:\x01*\"(/api/v1/finance/bi/jobs/{job_id}/trigger\x12r\n" +
+	"\vCreateBiJob\x12\x1e.finance.v1.CreateBiJobRequest\x1a\x1f.finance.v1.CreateBiJobResponse\"\"\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/api/v1/finance/bi/jobs\x12{\n" +
+	"\vUpdateBiJob\x12\x1e.finance.v1.UpdateBiJobRequest\x1a\x1f.finance.v1.UpdateBiJobResponse\"+\x82\xd3\xe4\x93\x02%:\x01*\x1a /api/v1/finance/bi/jobs/{job_id}\x12x\n" +
+	"\vDeleteBiJob\x12\x1e.finance.v1.DeleteBiJobRequest\x1a\x1f.finance.v1.DeleteBiJobResponse\"(\x82\xd3\xe4\x93\x02\"* /api/v1/finance/bi/jobs/{job_id}2\xbd\x05\n" +
 	"\x0fBiUploadService\x12\x9c\x01\n" +
 	"\x16DownloadUploadTemplate\x12).finance.v1.DownloadUploadTemplateRequest\x1a*.finance.v1.DownloadUploadTemplateResponse\"+\x82\xd3\xe4\x93\x02%\x12#/api/v1/finance/bi/uploads/template\x12{\n" +
 	"\vParseUpload\x12\x1e.finance.v1.ParseUploadRequest\x1a\x1f.finance.v1.ParseUploadResponse\"+\x82\xd3\xe4\x93\x02%:\x01*\" /api/v1/finance/bi/uploads/parse\x12\x8b\x01\n" +
@@ -5520,7 +6047,7 @@ func file_finance_v1_bi_proto_rawDescGZIP() []byte {
 }
 
 var file_finance_v1_bi_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_finance_v1_bi_proto_msgTypes = make([]protoimpl.MessageInfo, 68)
+var file_finance_v1_bi_proto_msgTypes = make([]protoimpl.MessageInfo, 76)
 var file_finance_v1_bi_proto_goTypes = []any{
 	(PeriodeGrain)(0),                        // 0: finance.v1.PeriodeGrain
 	(CompareMode)(0),                         // 1: finance.v1.CompareMode
@@ -5562,202 +6089,227 @@ var file_finance_v1_bi_proto_goTypes = []any{
 	(*SetDashboardRolesResponse)(nil),        // 37: finance.v1.SetDashboardRolesResponse
 	(*ListAccessibleDashboardsRequest)(nil),  // 38: finance.v1.ListAccessibleDashboardsRequest
 	(*ListAccessibleDashboardsResponse)(nil), // 39: finance.v1.ListAccessibleDashboardsResponse
-	(*ViewerFilters)(nil),                    // 40: finance.v1.ViewerFilters
-	(*GetDashboardDataRequest)(nil),          // 41: finance.v1.GetDashboardDataRequest
-	(*GetDashboardDataResponse)(nil),         // 42: finance.v1.GetDashboardDataResponse
-	(*PreviewDashboardRequest)(nil),          // 43: finance.v1.PreviewDashboardRequest
-	(*PreviewDashboardResponse)(nil),         // 44: finance.v1.PreviewDashboardResponse
-	(*ListDataSourcesRequest)(nil),           // 45: finance.v1.ListDataSourcesRequest
-	(*ListDataSourcesResponse)(nil),          // 46: finance.v1.ListDataSourcesResponse
-	(*GetFactDistinctsRequest)(nil),          // 47: finance.v1.GetFactDistinctsRequest
-	(*GetFactDistinctsResponse)(nil),         // 48: finance.v1.GetFactDistinctsResponse
-	(*BiJob)(nil),                            // 49: finance.v1.BiJob
-	(*BiJobLog)(nil),                         // 50: finance.v1.BiJobLog
-	(*ListJobsRequest)(nil),                  // 51: finance.v1.ListJobsRequest
-	(*ListJobsResponse)(nil),                 // 52: finance.v1.ListJobsResponse
-	(*ListJobLogsRequest)(nil),               // 53: finance.v1.ListJobLogsRequest
-	(*ListJobLogsResponse)(nil),              // 54: finance.v1.ListJobLogsResponse
-	(*TriggerJobRequest)(nil),                // 55: finance.v1.TriggerJobRequest
-	(*TriggerJobResponse)(nil),               // 56: finance.v1.TriggerJobResponse
-	(*UploadRowError)(nil),                   // 57: finance.v1.UploadRowError
-	(*BiUpload)(nil),                         // 58: finance.v1.BiUpload
-	(*DownloadUploadTemplateRequest)(nil),    // 59: finance.v1.DownloadUploadTemplateRequest
-	(*DownloadUploadTemplateResponse)(nil),   // 60: finance.v1.DownloadUploadTemplateResponse
-	(*ParseUploadRequest)(nil),               // 61: finance.v1.ParseUploadRequest
-	(*ParseUploadResponse)(nil),              // 62: finance.v1.ParseUploadResponse
-	(*CommitUploadRequest)(nil),              // 63: finance.v1.CommitUploadRequest
-	(*CommitUploadResponse)(nil),             // 64: finance.v1.CommitUploadResponse
-	(*CancelUploadRequest)(nil),              // 65: finance.v1.CancelUploadRequest
-	(*CancelUploadResponse)(nil),             // 66: finance.v1.CancelUploadResponse
-	(*ListUploadsRequest)(nil),               // 67: finance.v1.ListUploadsRequest
-	(*ListUploadsResponse)(nil),              // 68: finance.v1.ListUploadsResponse
-	(*BiAuditEntry)(nil),                     // 69: finance.v1.BiAuditEntry
-	(*ListConfigAuditRequest)(nil),           // 70: finance.v1.ListConfigAuditRequest
-	(*ListConfigAuditResponse)(nil),          // 71: finance.v1.ListConfigAuditResponse
-	(*v1.AuditInfo)(nil),                     // 72: common.v1.AuditInfo
-	(*structpb.Struct)(nil),                  // 73: google.protobuf.Struct
-	(*timestamppb.Timestamp)(nil),            // 74: google.protobuf.Timestamp
-	(*v1.BaseResponse)(nil),                  // 75: common.v1.BaseResponse
-	(*v1.PaginationResponse)(nil),            // 76: common.v1.PaginationResponse
+	(*ListFeaturedDashboardsRequest)(nil),    // 40: finance.v1.ListFeaturedDashboardsRequest
+	(*ListFeaturedDashboardsResponse)(nil),   // 41: finance.v1.ListFeaturedDashboardsResponse
+	(*ViewerFilters)(nil),                    // 42: finance.v1.ViewerFilters
+	(*GetDashboardDataRequest)(nil),          // 43: finance.v1.GetDashboardDataRequest
+	(*GetDashboardDataResponse)(nil),         // 44: finance.v1.GetDashboardDataResponse
+	(*PreviewDashboardRequest)(nil),          // 45: finance.v1.PreviewDashboardRequest
+	(*PreviewDashboardResponse)(nil),         // 46: finance.v1.PreviewDashboardResponse
+	(*ListDataSourcesRequest)(nil),           // 47: finance.v1.ListDataSourcesRequest
+	(*ListDataSourcesResponse)(nil),          // 48: finance.v1.ListDataSourcesResponse
+	(*GetFactDistinctsRequest)(nil),          // 49: finance.v1.GetFactDistinctsRequest
+	(*GetFactDistinctsResponse)(nil),         // 50: finance.v1.GetFactDistinctsResponse
+	(*BiJob)(nil),                            // 51: finance.v1.BiJob
+	(*BiJobLog)(nil),                         // 52: finance.v1.BiJobLog
+	(*ListJobsRequest)(nil),                  // 53: finance.v1.ListJobsRequest
+	(*ListJobsResponse)(nil),                 // 54: finance.v1.ListJobsResponse
+	(*ListJobLogsRequest)(nil),               // 55: finance.v1.ListJobLogsRequest
+	(*ListJobLogsResponse)(nil),              // 56: finance.v1.ListJobLogsResponse
+	(*TriggerJobRequest)(nil),                // 57: finance.v1.TriggerJobRequest
+	(*TriggerJobResponse)(nil),               // 58: finance.v1.TriggerJobResponse
+	(*CreateBiJobRequest)(nil),               // 59: finance.v1.CreateBiJobRequest
+	(*CreateBiJobResponse)(nil),              // 60: finance.v1.CreateBiJobResponse
+	(*UpdateBiJobRequest)(nil),               // 61: finance.v1.UpdateBiJobRequest
+	(*UpdateBiJobResponse)(nil),              // 62: finance.v1.UpdateBiJobResponse
+	(*DeleteBiJobRequest)(nil),               // 63: finance.v1.DeleteBiJobRequest
+	(*DeleteBiJobResponse)(nil),              // 64: finance.v1.DeleteBiJobResponse
+	(*UploadRowError)(nil),                   // 65: finance.v1.UploadRowError
+	(*BiUpload)(nil),                         // 66: finance.v1.BiUpload
+	(*DownloadUploadTemplateRequest)(nil),    // 67: finance.v1.DownloadUploadTemplateRequest
+	(*DownloadUploadTemplateResponse)(nil),   // 68: finance.v1.DownloadUploadTemplateResponse
+	(*ParseUploadRequest)(nil),               // 69: finance.v1.ParseUploadRequest
+	(*ParseUploadResponse)(nil),              // 70: finance.v1.ParseUploadResponse
+	(*CommitUploadRequest)(nil),              // 71: finance.v1.CommitUploadRequest
+	(*CommitUploadResponse)(nil),             // 72: finance.v1.CommitUploadResponse
+	(*CancelUploadRequest)(nil),              // 73: finance.v1.CancelUploadRequest
+	(*CancelUploadResponse)(nil),             // 74: finance.v1.CancelUploadResponse
+	(*ListUploadsRequest)(nil),               // 75: finance.v1.ListUploadsRequest
+	(*ListUploadsResponse)(nil),              // 76: finance.v1.ListUploadsResponse
+	(*BiAuditEntry)(nil),                     // 77: finance.v1.BiAuditEntry
+	(*ListConfigAuditRequest)(nil),           // 78: finance.v1.ListConfigAuditRequest
+	(*ListConfigAuditResponse)(nil),          // 79: finance.v1.ListConfigAuditResponse
+	(*v1.AuditInfo)(nil),                     // 80: common.v1.AuditInfo
+	(*structpb.Struct)(nil),                  // 81: google.protobuf.Struct
+	(*timestamppb.Timestamp)(nil),            // 82: google.protobuf.Timestamp
+	(*v1.BaseResponse)(nil),                  // 83: common.v1.BaseResponse
+	(*v1.PaginationResponse)(nil),            // 84: common.v1.PaginationResponse
 }
 var file_finance_v1_bi_proto_depIdxs = []int32{
-	72,  // 0: finance.v1.DashboardGroup.audit:type_name -> common.v1.AuditInfo
+	80,  // 0: finance.v1.DashboardGroup.audit:type_name -> common.v1.AuditInfo
 	0,   // 1: finance.v1.Dashboard.periode_grain:type_name -> finance.v1.PeriodeGrain
 	2,   // 2: finance.v1.Dashboard.chart_type:type_name -> finance.v1.ChartType
-	73,  // 3: finance.v1.Dashboard.chart_config:type_name -> google.protobuf.Struct
-	73,  // 4: finance.v1.Dashboard.layout_config:type_name -> google.protobuf.Struct
+	81,  // 3: finance.v1.Dashboard.chart_config:type_name -> google.protobuf.Struct
+	81,  // 4: finance.v1.Dashboard.layout_config:type_name -> google.protobuf.Struct
 	1,   // 5: finance.v1.Dashboard.compare_modes:type_name -> finance.v1.CompareMode
-	73,  // 6: finance.v1.Dashboard.kpi_config:type_name -> google.protobuf.Struct
-	72,  // 7: finance.v1.Dashboard.audit:type_name -> common.v1.AuditInfo
+	81,  // 6: finance.v1.Dashboard.kpi_config:type_name -> google.protobuf.Struct
+	80,  // 7: finance.v1.Dashboard.audit:type_name -> common.v1.AuditInfo
 	3,   // 8: finance.v1.DataSource.source_type:type_name -> finance.v1.DataSourceType
-	72,  // 9: finance.v1.DataSource.audit:type_name -> common.v1.AuditInfo
-	73,  // 10: finance.v1.ChartDataResponse.config:type_name -> google.protobuf.Struct
+	80,  // 9: finance.v1.DataSource.audit:type_name -> common.v1.AuditInfo
+	81,  // 10: finance.v1.ChartDataResponse.config:type_name -> google.protobuf.Struct
 	9,   // 11: finance.v1.ChartDataResponse.series:type_name -> finance.v1.Series
 	11,  // 12: finance.v1.ChartDataResponse.kpis:type_name -> finance.v1.KpiResult
 	12,  // 13: finance.v1.ChartDataResponse.drill_context:type_name -> finance.v1.DrillContext
 	13,  // 14: finance.v1.ChartDataResponse.meta:type_name -> finance.v1.Meta
 	10,  // 15: finance.v1.Series.points:type_name -> finance.v1.DataPoint
-	73,  // 16: finance.v1.DataPoint.meta:type_name -> google.protobuf.Struct
-	74,  // 17: finance.v1.Meta.as_of:type_name -> google.protobuf.Timestamp
-	75,  // 18: finance.v1.CreateDashboardGroupResponse.base:type_name -> common.v1.BaseResponse
+	81,  // 16: finance.v1.DataPoint.meta:type_name -> google.protobuf.Struct
+	82,  // 17: finance.v1.Meta.as_of:type_name -> google.protobuf.Timestamp
+	83,  // 18: finance.v1.CreateDashboardGroupResponse.base:type_name -> common.v1.BaseResponse
 	4,   // 19: finance.v1.CreateDashboardGroupResponse.data:type_name -> finance.v1.DashboardGroup
-	75,  // 20: finance.v1.ListDashboardGroupsResponse.base:type_name -> common.v1.BaseResponse
+	83,  // 20: finance.v1.ListDashboardGroupsResponse.base:type_name -> common.v1.BaseResponse
 	4,   // 21: finance.v1.ListDashboardGroupsResponse.data:type_name -> finance.v1.DashboardGroup
-	75,  // 22: finance.v1.UpdateDashboardGroupResponse.base:type_name -> common.v1.BaseResponse
+	83,  // 22: finance.v1.UpdateDashboardGroupResponse.base:type_name -> common.v1.BaseResponse
 	4,   // 23: finance.v1.UpdateDashboardGroupResponse.data:type_name -> finance.v1.DashboardGroup
-	75,  // 24: finance.v1.DeleteDashboardGroupResponse.base:type_name -> common.v1.BaseResponse
+	83,  // 24: finance.v1.DeleteDashboardGroupResponse.base:type_name -> common.v1.BaseResponse
 	0,   // 25: finance.v1.CreateDashboardRequest.periode_grain:type_name -> finance.v1.PeriodeGrain
 	2,   // 26: finance.v1.CreateDashboardRequest.chart_type:type_name -> finance.v1.ChartType
-	73,  // 27: finance.v1.CreateDashboardRequest.chart_config:type_name -> google.protobuf.Struct
-	73,  // 28: finance.v1.CreateDashboardRequest.layout_config:type_name -> google.protobuf.Struct
+	81,  // 27: finance.v1.CreateDashboardRequest.chart_config:type_name -> google.protobuf.Struct
+	81,  // 28: finance.v1.CreateDashboardRequest.layout_config:type_name -> google.protobuf.Struct
 	1,   // 29: finance.v1.CreateDashboardRequest.compare_modes:type_name -> finance.v1.CompareMode
-	73,  // 30: finance.v1.CreateDashboardRequest.kpi_config:type_name -> google.protobuf.Struct
-	75,  // 31: finance.v1.CreateDashboardResponse.base:type_name -> common.v1.BaseResponse
+	81,  // 30: finance.v1.CreateDashboardRequest.kpi_config:type_name -> google.protobuf.Struct
+	83,  // 31: finance.v1.CreateDashboardResponse.base:type_name -> common.v1.BaseResponse
 	5,   // 32: finance.v1.CreateDashboardResponse.data:type_name -> finance.v1.Dashboard
-	75,  // 33: finance.v1.GetDashboardResponse.base:type_name -> common.v1.BaseResponse
+	83,  // 33: finance.v1.GetDashboardResponse.base:type_name -> common.v1.BaseResponse
 	5,   // 34: finance.v1.GetDashboardResponse.data:type_name -> finance.v1.Dashboard
-	75,  // 35: finance.v1.GetDashboardByCodeResponse.base:type_name -> common.v1.BaseResponse
+	83,  // 35: finance.v1.GetDashboardByCodeResponse.base:type_name -> common.v1.BaseResponse
 	5,   // 36: finance.v1.GetDashboardByCodeResponse.data:type_name -> finance.v1.Dashboard
-	75,  // 37: finance.v1.ListDashboardsResponse.base:type_name -> common.v1.BaseResponse
+	83,  // 37: finance.v1.ListDashboardsResponse.base:type_name -> common.v1.BaseResponse
 	5,   // 38: finance.v1.ListDashboardsResponse.data:type_name -> finance.v1.Dashboard
-	76,  // 39: finance.v1.ListDashboardsResponse.pagination:type_name -> common.v1.PaginationResponse
+	84,  // 39: finance.v1.ListDashboardsResponse.pagination:type_name -> common.v1.PaginationResponse
 	0,   // 40: finance.v1.UpdateDashboardRequest.periode_grain:type_name -> finance.v1.PeriodeGrain
 	2,   // 41: finance.v1.UpdateDashboardRequest.chart_type:type_name -> finance.v1.ChartType
-	73,  // 42: finance.v1.UpdateDashboardRequest.chart_config:type_name -> google.protobuf.Struct
-	73,  // 43: finance.v1.UpdateDashboardRequest.layout_config:type_name -> google.protobuf.Struct
+	81,  // 42: finance.v1.UpdateDashboardRequest.chart_config:type_name -> google.protobuf.Struct
+	81,  // 43: finance.v1.UpdateDashboardRequest.layout_config:type_name -> google.protobuf.Struct
 	1,   // 44: finance.v1.UpdateDashboardRequest.compare_modes:type_name -> finance.v1.CompareMode
-	73,  // 45: finance.v1.UpdateDashboardRequest.kpi_config:type_name -> google.protobuf.Struct
-	75,  // 46: finance.v1.UpdateDashboardResponse.base:type_name -> common.v1.BaseResponse
+	81,  // 45: finance.v1.UpdateDashboardRequest.kpi_config:type_name -> google.protobuf.Struct
+	83,  // 46: finance.v1.UpdateDashboardResponse.base:type_name -> common.v1.BaseResponse
 	5,   // 47: finance.v1.UpdateDashboardResponse.data:type_name -> finance.v1.Dashboard
-	75,  // 48: finance.v1.DeleteDashboardResponse.base:type_name -> common.v1.BaseResponse
-	75,  // 49: finance.v1.DuplicateDashboardResponse.base:type_name -> common.v1.BaseResponse
+	83,  // 48: finance.v1.DeleteDashboardResponse.base:type_name -> common.v1.BaseResponse
+	83,  // 49: finance.v1.DuplicateDashboardResponse.base:type_name -> common.v1.BaseResponse
 	5,   // 50: finance.v1.DuplicateDashboardResponse.data:type_name -> finance.v1.Dashboard
-	75,  // 51: finance.v1.SetDashboardRolesResponse.base:type_name -> common.v1.BaseResponse
-	75,  // 52: finance.v1.ListAccessibleDashboardsResponse.base:type_name -> common.v1.BaseResponse
+	83,  // 51: finance.v1.SetDashboardRolesResponse.base:type_name -> common.v1.BaseResponse
+	83,  // 52: finance.v1.ListAccessibleDashboardsResponse.base:type_name -> common.v1.BaseResponse
 	5,   // 53: finance.v1.ListAccessibleDashboardsResponse.data:type_name -> finance.v1.Dashboard
-	74,  // 54: finance.v1.ViewerFilters.period_from:type_name -> google.protobuf.Timestamp
-	74,  // 55: finance.v1.ViewerFilters.period_to:type_name -> google.protobuf.Timestamp
-	1,   // 56: finance.v1.ViewerFilters.compare:type_name -> finance.v1.CompareMode
-	74,  // 57: finance.v1.GetDashboardDataRequest.period_from:type_name -> google.protobuf.Timestamp
-	74,  // 58: finance.v1.GetDashboardDataRequest.period_to:type_name -> google.protobuf.Timestamp
-	1,   // 59: finance.v1.GetDashboardDataRequest.compare:type_name -> finance.v1.CompareMode
-	75,  // 60: finance.v1.GetDashboardDataResponse.base:type_name -> common.v1.BaseResponse
-	8,   // 61: finance.v1.GetDashboardDataResponse.data:type_name -> finance.v1.ChartDataResponse
-	0,   // 62: finance.v1.PreviewDashboardRequest.periode_grain:type_name -> finance.v1.PeriodeGrain
-	2,   // 63: finance.v1.PreviewDashboardRequest.chart_type:type_name -> finance.v1.ChartType
-	73,  // 64: finance.v1.PreviewDashboardRequest.chart_config:type_name -> google.protobuf.Struct
-	73,  // 65: finance.v1.PreviewDashboardRequest.kpi_config:type_name -> google.protobuf.Struct
-	1,   // 66: finance.v1.PreviewDashboardRequest.compare_modes:type_name -> finance.v1.CompareMode
-	75,  // 67: finance.v1.PreviewDashboardResponse.base:type_name -> common.v1.BaseResponse
-	8,   // 68: finance.v1.PreviewDashboardResponse.data:type_name -> finance.v1.ChartDataResponse
-	75,  // 69: finance.v1.ListDataSourcesResponse.base:type_name -> common.v1.BaseResponse
-	6,   // 70: finance.v1.ListDataSourcesResponse.data:type_name -> finance.v1.DataSource
-	75,  // 71: finance.v1.GetFactDistinctsResponse.base:type_name -> common.v1.BaseResponse
-	7,   // 72: finance.v1.GetFactDistinctsResponse.data:type_name -> finance.v1.FactMetricDistinct
-	73,  // 73: finance.v1.BiJob.config:type_name -> google.protobuf.Struct
-	74,  // 74: finance.v1.BiJob.last_run_at:type_name -> google.protobuf.Timestamp
-	72,  // 75: finance.v1.BiJob.audit:type_name -> common.v1.AuditInfo
-	74,  // 76: finance.v1.BiJobLog.started_at:type_name -> google.protobuf.Timestamp
-	74,  // 77: finance.v1.BiJobLog.ended_at:type_name -> google.protobuf.Timestamp
-	75,  // 78: finance.v1.ListJobsResponse.base:type_name -> common.v1.BaseResponse
-	49,  // 79: finance.v1.ListJobsResponse.data:type_name -> finance.v1.BiJob
-	75,  // 80: finance.v1.ListJobLogsResponse.base:type_name -> common.v1.BaseResponse
-	50,  // 81: finance.v1.ListJobLogsResponse.data:type_name -> finance.v1.BiJobLog
-	76,  // 82: finance.v1.ListJobLogsResponse.pagination:type_name -> common.v1.PaginationResponse
-	75,  // 83: finance.v1.TriggerJobResponse.base:type_name -> common.v1.BaseResponse
-	50,  // 84: finance.v1.TriggerJobResponse.data:type_name -> finance.v1.BiJobLog
-	57,  // 85: finance.v1.BiUpload.errors:type_name -> finance.v1.UploadRowError
-	74,  // 86: finance.v1.BiUpload.uploaded_at:type_name -> google.protobuf.Timestamp
-	75,  // 87: finance.v1.DownloadUploadTemplateResponse.base:type_name -> common.v1.BaseResponse
-	75,  // 88: finance.v1.ParseUploadResponse.base:type_name -> common.v1.BaseResponse
-	58,  // 89: finance.v1.ParseUploadResponse.data:type_name -> finance.v1.BiUpload
-	75,  // 90: finance.v1.CommitUploadResponse.base:type_name -> common.v1.BaseResponse
-	58,  // 91: finance.v1.CommitUploadResponse.data:type_name -> finance.v1.BiUpload
-	75,  // 92: finance.v1.CancelUploadResponse.base:type_name -> common.v1.BaseResponse
-	75,  // 93: finance.v1.ListUploadsResponse.base:type_name -> common.v1.BaseResponse
-	58,  // 94: finance.v1.ListUploadsResponse.data:type_name -> finance.v1.BiUpload
-	76,  // 95: finance.v1.ListUploadsResponse.pagination:type_name -> common.v1.PaginationResponse
-	74,  // 96: finance.v1.BiAuditEntry.changed_at:type_name -> google.protobuf.Timestamp
-	75,  // 97: finance.v1.ListConfigAuditResponse.base:type_name -> common.v1.BaseResponse
-	69,  // 98: finance.v1.ListConfigAuditResponse.data:type_name -> finance.v1.BiAuditEntry
-	76,  // 99: finance.v1.ListConfigAuditResponse.pagination:type_name -> common.v1.PaginationResponse
-	22,  // 100: finance.v1.DashboardService.CreateDashboard:input_type -> finance.v1.CreateDashboardRequest
-	24,  // 101: finance.v1.DashboardService.GetDashboard:input_type -> finance.v1.GetDashboardRequest
-	26,  // 102: finance.v1.DashboardService.GetDashboardByCode:input_type -> finance.v1.GetDashboardByCodeRequest
-	28,  // 103: finance.v1.DashboardService.ListDashboards:input_type -> finance.v1.ListDashboardsRequest
-	30,  // 104: finance.v1.DashboardService.UpdateDashboard:input_type -> finance.v1.UpdateDashboardRequest
-	32,  // 105: finance.v1.DashboardService.DeleteDashboard:input_type -> finance.v1.DeleteDashboardRequest
-	34,  // 106: finance.v1.DashboardService.DuplicateDashboard:input_type -> finance.v1.DuplicateDashboardRequest
-	36,  // 107: finance.v1.DashboardService.SetDashboardRoles:input_type -> finance.v1.SetDashboardRolesRequest
-	38,  // 108: finance.v1.DashboardService.ListAccessibleDashboards:input_type -> finance.v1.ListAccessibleDashboardsRequest
-	14,  // 109: finance.v1.DashboardService.CreateDashboardGroup:input_type -> finance.v1.CreateDashboardGroupRequest
-	16,  // 110: finance.v1.DashboardService.ListDashboardGroups:input_type -> finance.v1.ListDashboardGroupsRequest
-	18,  // 111: finance.v1.DashboardService.UpdateDashboardGroup:input_type -> finance.v1.UpdateDashboardGroupRequest
-	20,  // 112: finance.v1.DashboardService.DeleteDashboardGroup:input_type -> finance.v1.DeleteDashboardGroupRequest
-	70,  // 113: finance.v1.DashboardService.ListConfigAudit:input_type -> finance.v1.ListConfigAuditRequest
-	41,  // 114: finance.v1.ChartDataService.GetDashboardData:input_type -> finance.v1.GetDashboardDataRequest
-	43,  // 115: finance.v1.ChartDataService.PreviewDashboard:input_type -> finance.v1.PreviewDashboardRequest
-	45,  // 116: finance.v1.DataSourceService.ListDataSources:input_type -> finance.v1.ListDataSourcesRequest
-	47,  // 117: finance.v1.DataSourceService.GetFactDistincts:input_type -> finance.v1.GetFactDistinctsRequest
-	51,  // 118: finance.v1.BiJobService.ListJobs:input_type -> finance.v1.ListJobsRequest
-	53,  // 119: finance.v1.BiJobService.ListJobLogs:input_type -> finance.v1.ListJobLogsRequest
-	55,  // 120: finance.v1.BiJobService.TriggerJob:input_type -> finance.v1.TriggerJobRequest
-	59,  // 121: finance.v1.BiUploadService.DownloadUploadTemplate:input_type -> finance.v1.DownloadUploadTemplateRequest
-	61,  // 122: finance.v1.BiUploadService.ParseUpload:input_type -> finance.v1.ParseUploadRequest
-	63,  // 123: finance.v1.BiUploadService.CommitUpload:input_type -> finance.v1.CommitUploadRequest
-	65,  // 124: finance.v1.BiUploadService.CancelUpload:input_type -> finance.v1.CancelUploadRequest
-	67,  // 125: finance.v1.BiUploadService.ListUploads:input_type -> finance.v1.ListUploadsRequest
-	23,  // 126: finance.v1.DashboardService.CreateDashboard:output_type -> finance.v1.CreateDashboardResponse
-	25,  // 127: finance.v1.DashboardService.GetDashboard:output_type -> finance.v1.GetDashboardResponse
-	27,  // 128: finance.v1.DashboardService.GetDashboardByCode:output_type -> finance.v1.GetDashboardByCodeResponse
-	29,  // 129: finance.v1.DashboardService.ListDashboards:output_type -> finance.v1.ListDashboardsResponse
-	31,  // 130: finance.v1.DashboardService.UpdateDashboard:output_type -> finance.v1.UpdateDashboardResponse
-	33,  // 131: finance.v1.DashboardService.DeleteDashboard:output_type -> finance.v1.DeleteDashboardResponse
-	35,  // 132: finance.v1.DashboardService.DuplicateDashboard:output_type -> finance.v1.DuplicateDashboardResponse
-	37,  // 133: finance.v1.DashboardService.SetDashboardRoles:output_type -> finance.v1.SetDashboardRolesResponse
-	39,  // 134: finance.v1.DashboardService.ListAccessibleDashboards:output_type -> finance.v1.ListAccessibleDashboardsResponse
-	15,  // 135: finance.v1.DashboardService.CreateDashboardGroup:output_type -> finance.v1.CreateDashboardGroupResponse
-	17,  // 136: finance.v1.DashboardService.ListDashboardGroups:output_type -> finance.v1.ListDashboardGroupsResponse
-	19,  // 137: finance.v1.DashboardService.UpdateDashboardGroup:output_type -> finance.v1.UpdateDashboardGroupResponse
-	21,  // 138: finance.v1.DashboardService.DeleteDashboardGroup:output_type -> finance.v1.DeleteDashboardGroupResponse
-	71,  // 139: finance.v1.DashboardService.ListConfigAudit:output_type -> finance.v1.ListConfigAuditResponse
-	42,  // 140: finance.v1.ChartDataService.GetDashboardData:output_type -> finance.v1.GetDashboardDataResponse
-	44,  // 141: finance.v1.ChartDataService.PreviewDashboard:output_type -> finance.v1.PreviewDashboardResponse
-	46,  // 142: finance.v1.DataSourceService.ListDataSources:output_type -> finance.v1.ListDataSourcesResponse
-	48,  // 143: finance.v1.DataSourceService.GetFactDistincts:output_type -> finance.v1.GetFactDistinctsResponse
-	52,  // 144: finance.v1.BiJobService.ListJobs:output_type -> finance.v1.ListJobsResponse
-	54,  // 145: finance.v1.BiJobService.ListJobLogs:output_type -> finance.v1.ListJobLogsResponse
-	56,  // 146: finance.v1.BiJobService.TriggerJob:output_type -> finance.v1.TriggerJobResponse
-	60,  // 147: finance.v1.BiUploadService.DownloadUploadTemplate:output_type -> finance.v1.DownloadUploadTemplateResponse
-	62,  // 148: finance.v1.BiUploadService.ParseUpload:output_type -> finance.v1.ParseUploadResponse
-	64,  // 149: finance.v1.BiUploadService.CommitUpload:output_type -> finance.v1.CommitUploadResponse
-	66,  // 150: finance.v1.BiUploadService.CancelUpload:output_type -> finance.v1.CancelUploadResponse
-	68,  // 151: finance.v1.BiUploadService.ListUploads:output_type -> finance.v1.ListUploadsResponse
-	126, // [126:152] is the sub-list for method output_type
-	100, // [100:126] is the sub-list for method input_type
-	100, // [100:100] is the sub-list for extension type_name
-	100, // [100:100] is the sub-list for extension extendee
-	0,   // [0:100] is the sub-list for field type_name
+	83,  // 54: finance.v1.ListFeaturedDashboardsResponse.base:type_name -> common.v1.BaseResponse
+	5,   // 55: finance.v1.ListFeaturedDashboardsResponse.data:type_name -> finance.v1.Dashboard
+	82,  // 56: finance.v1.ViewerFilters.period_from:type_name -> google.protobuf.Timestamp
+	82,  // 57: finance.v1.ViewerFilters.period_to:type_name -> google.protobuf.Timestamp
+	1,   // 58: finance.v1.ViewerFilters.compare:type_name -> finance.v1.CompareMode
+	82,  // 59: finance.v1.GetDashboardDataRequest.period_from:type_name -> google.protobuf.Timestamp
+	82,  // 60: finance.v1.GetDashboardDataRequest.period_to:type_name -> google.protobuf.Timestamp
+	1,   // 61: finance.v1.GetDashboardDataRequest.compare:type_name -> finance.v1.CompareMode
+	83,  // 62: finance.v1.GetDashboardDataResponse.base:type_name -> common.v1.BaseResponse
+	8,   // 63: finance.v1.GetDashboardDataResponse.data:type_name -> finance.v1.ChartDataResponse
+	0,   // 64: finance.v1.PreviewDashboardRequest.periode_grain:type_name -> finance.v1.PeriodeGrain
+	2,   // 65: finance.v1.PreviewDashboardRequest.chart_type:type_name -> finance.v1.ChartType
+	81,  // 66: finance.v1.PreviewDashboardRequest.chart_config:type_name -> google.protobuf.Struct
+	81,  // 67: finance.v1.PreviewDashboardRequest.kpi_config:type_name -> google.protobuf.Struct
+	1,   // 68: finance.v1.PreviewDashboardRequest.compare_modes:type_name -> finance.v1.CompareMode
+	83,  // 69: finance.v1.PreviewDashboardResponse.base:type_name -> common.v1.BaseResponse
+	8,   // 70: finance.v1.PreviewDashboardResponse.data:type_name -> finance.v1.ChartDataResponse
+	83,  // 71: finance.v1.ListDataSourcesResponse.base:type_name -> common.v1.BaseResponse
+	6,   // 72: finance.v1.ListDataSourcesResponse.data:type_name -> finance.v1.DataSource
+	83,  // 73: finance.v1.GetFactDistinctsResponse.base:type_name -> common.v1.BaseResponse
+	7,   // 74: finance.v1.GetFactDistinctsResponse.data:type_name -> finance.v1.FactMetricDistinct
+	81,  // 75: finance.v1.BiJob.config:type_name -> google.protobuf.Struct
+	82,  // 76: finance.v1.BiJob.last_run_at:type_name -> google.protobuf.Timestamp
+	80,  // 77: finance.v1.BiJob.audit:type_name -> common.v1.AuditInfo
+	82,  // 78: finance.v1.BiJobLog.started_at:type_name -> google.protobuf.Timestamp
+	82,  // 79: finance.v1.BiJobLog.ended_at:type_name -> google.protobuf.Timestamp
+	83,  // 80: finance.v1.ListJobsResponse.base:type_name -> common.v1.BaseResponse
+	51,  // 81: finance.v1.ListJobsResponse.data:type_name -> finance.v1.BiJob
+	83,  // 82: finance.v1.ListJobLogsResponse.base:type_name -> common.v1.BaseResponse
+	52,  // 83: finance.v1.ListJobLogsResponse.data:type_name -> finance.v1.BiJobLog
+	84,  // 84: finance.v1.ListJobLogsResponse.pagination:type_name -> common.v1.PaginationResponse
+	83,  // 85: finance.v1.TriggerJobResponse.base:type_name -> common.v1.BaseResponse
+	52,  // 86: finance.v1.TriggerJobResponse.data:type_name -> finance.v1.BiJobLog
+	81,  // 87: finance.v1.CreateBiJobRequest.config:type_name -> google.protobuf.Struct
+	83,  // 88: finance.v1.CreateBiJobResponse.base:type_name -> common.v1.BaseResponse
+	51,  // 89: finance.v1.CreateBiJobResponse.data:type_name -> finance.v1.BiJob
+	81,  // 90: finance.v1.UpdateBiJobRequest.config:type_name -> google.protobuf.Struct
+	83,  // 91: finance.v1.UpdateBiJobResponse.base:type_name -> common.v1.BaseResponse
+	51,  // 92: finance.v1.UpdateBiJobResponse.data:type_name -> finance.v1.BiJob
+	83,  // 93: finance.v1.DeleteBiJobResponse.base:type_name -> common.v1.BaseResponse
+	65,  // 94: finance.v1.BiUpload.errors:type_name -> finance.v1.UploadRowError
+	82,  // 95: finance.v1.BiUpload.uploaded_at:type_name -> google.protobuf.Timestamp
+	83,  // 96: finance.v1.DownloadUploadTemplateResponse.base:type_name -> common.v1.BaseResponse
+	83,  // 97: finance.v1.ParseUploadResponse.base:type_name -> common.v1.BaseResponse
+	66,  // 98: finance.v1.ParseUploadResponse.data:type_name -> finance.v1.BiUpload
+	83,  // 99: finance.v1.CommitUploadResponse.base:type_name -> common.v1.BaseResponse
+	66,  // 100: finance.v1.CommitUploadResponse.data:type_name -> finance.v1.BiUpload
+	83,  // 101: finance.v1.CancelUploadResponse.base:type_name -> common.v1.BaseResponse
+	83,  // 102: finance.v1.ListUploadsResponse.base:type_name -> common.v1.BaseResponse
+	66,  // 103: finance.v1.ListUploadsResponse.data:type_name -> finance.v1.BiUpload
+	84,  // 104: finance.v1.ListUploadsResponse.pagination:type_name -> common.v1.PaginationResponse
+	82,  // 105: finance.v1.BiAuditEntry.changed_at:type_name -> google.protobuf.Timestamp
+	83,  // 106: finance.v1.ListConfigAuditResponse.base:type_name -> common.v1.BaseResponse
+	77,  // 107: finance.v1.ListConfigAuditResponse.data:type_name -> finance.v1.BiAuditEntry
+	84,  // 108: finance.v1.ListConfigAuditResponse.pagination:type_name -> common.v1.PaginationResponse
+	22,  // 109: finance.v1.DashboardService.CreateDashboard:input_type -> finance.v1.CreateDashboardRequest
+	24,  // 110: finance.v1.DashboardService.GetDashboard:input_type -> finance.v1.GetDashboardRequest
+	26,  // 111: finance.v1.DashboardService.GetDashboardByCode:input_type -> finance.v1.GetDashboardByCodeRequest
+	28,  // 112: finance.v1.DashboardService.ListDashboards:input_type -> finance.v1.ListDashboardsRequest
+	30,  // 113: finance.v1.DashboardService.UpdateDashboard:input_type -> finance.v1.UpdateDashboardRequest
+	32,  // 114: finance.v1.DashboardService.DeleteDashboard:input_type -> finance.v1.DeleteDashboardRequest
+	34,  // 115: finance.v1.DashboardService.DuplicateDashboard:input_type -> finance.v1.DuplicateDashboardRequest
+	36,  // 116: finance.v1.DashboardService.SetDashboardRoles:input_type -> finance.v1.SetDashboardRolesRequest
+	38,  // 117: finance.v1.DashboardService.ListAccessibleDashboards:input_type -> finance.v1.ListAccessibleDashboardsRequest
+	40,  // 118: finance.v1.DashboardService.ListFeaturedDashboards:input_type -> finance.v1.ListFeaturedDashboardsRequest
+	14,  // 119: finance.v1.DashboardService.CreateDashboardGroup:input_type -> finance.v1.CreateDashboardGroupRequest
+	16,  // 120: finance.v1.DashboardService.ListDashboardGroups:input_type -> finance.v1.ListDashboardGroupsRequest
+	18,  // 121: finance.v1.DashboardService.UpdateDashboardGroup:input_type -> finance.v1.UpdateDashboardGroupRequest
+	20,  // 122: finance.v1.DashboardService.DeleteDashboardGroup:input_type -> finance.v1.DeleteDashboardGroupRequest
+	78,  // 123: finance.v1.DashboardService.ListConfigAudit:input_type -> finance.v1.ListConfigAuditRequest
+	43,  // 124: finance.v1.ChartDataService.GetDashboardData:input_type -> finance.v1.GetDashboardDataRequest
+	45,  // 125: finance.v1.ChartDataService.PreviewDashboard:input_type -> finance.v1.PreviewDashboardRequest
+	47,  // 126: finance.v1.DataSourceService.ListDataSources:input_type -> finance.v1.ListDataSourcesRequest
+	49,  // 127: finance.v1.DataSourceService.GetFactDistincts:input_type -> finance.v1.GetFactDistinctsRequest
+	53,  // 128: finance.v1.BiJobService.ListJobs:input_type -> finance.v1.ListJobsRequest
+	55,  // 129: finance.v1.BiJobService.ListJobLogs:input_type -> finance.v1.ListJobLogsRequest
+	57,  // 130: finance.v1.BiJobService.TriggerJob:input_type -> finance.v1.TriggerJobRequest
+	59,  // 131: finance.v1.BiJobService.CreateBiJob:input_type -> finance.v1.CreateBiJobRequest
+	61,  // 132: finance.v1.BiJobService.UpdateBiJob:input_type -> finance.v1.UpdateBiJobRequest
+	63,  // 133: finance.v1.BiJobService.DeleteBiJob:input_type -> finance.v1.DeleteBiJobRequest
+	67,  // 134: finance.v1.BiUploadService.DownloadUploadTemplate:input_type -> finance.v1.DownloadUploadTemplateRequest
+	69,  // 135: finance.v1.BiUploadService.ParseUpload:input_type -> finance.v1.ParseUploadRequest
+	71,  // 136: finance.v1.BiUploadService.CommitUpload:input_type -> finance.v1.CommitUploadRequest
+	73,  // 137: finance.v1.BiUploadService.CancelUpload:input_type -> finance.v1.CancelUploadRequest
+	75,  // 138: finance.v1.BiUploadService.ListUploads:input_type -> finance.v1.ListUploadsRequest
+	23,  // 139: finance.v1.DashboardService.CreateDashboard:output_type -> finance.v1.CreateDashboardResponse
+	25,  // 140: finance.v1.DashboardService.GetDashboard:output_type -> finance.v1.GetDashboardResponse
+	27,  // 141: finance.v1.DashboardService.GetDashboardByCode:output_type -> finance.v1.GetDashboardByCodeResponse
+	29,  // 142: finance.v1.DashboardService.ListDashboards:output_type -> finance.v1.ListDashboardsResponse
+	31,  // 143: finance.v1.DashboardService.UpdateDashboard:output_type -> finance.v1.UpdateDashboardResponse
+	33,  // 144: finance.v1.DashboardService.DeleteDashboard:output_type -> finance.v1.DeleteDashboardResponse
+	35,  // 145: finance.v1.DashboardService.DuplicateDashboard:output_type -> finance.v1.DuplicateDashboardResponse
+	37,  // 146: finance.v1.DashboardService.SetDashboardRoles:output_type -> finance.v1.SetDashboardRolesResponse
+	39,  // 147: finance.v1.DashboardService.ListAccessibleDashboards:output_type -> finance.v1.ListAccessibleDashboardsResponse
+	41,  // 148: finance.v1.DashboardService.ListFeaturedDashboards:output_type -> finance.v1.ListFeaturedDashboardsResponse
+	15,  // 149: finance.v1.DashboardService.CreateDashboardGroup:output_type -> finance.v1.CreateDashboardGroupResponse
+	17,  // 150: finance.v1.DashboardService.ListDashboardGroups:output_type -> finance.v1.ListDashboardGroupsResponse
+	19,  // 151: finance.v1.DashboardService.UpdateDashboardGroup:output_type -> finance.v1.UpdateDashboardGroupResponse
+	21,  // 152: finance.v1.DashboardService.DeleteDashboardGroup:output_type -> finance.v1.DeleteDashboardGroupResponse
+	79,  // 153: finance.v1.DashboardService.ListConfigAudit:output_type -> finance.v1.ListConfigAuditResponse
+	44,  // 154: finance.v1.ChartDataService.GetDashboardData:output_type -> finance.v1.GetDashboardDataResponse
+	46,  // 155: finance.v1.ChartDataService.PreviewDashboard:output_type -> finance.v1.PreviewDashboardResponse
+	48,  // 156: finance.v1.DataSourceService.ListDataSources:output_type -> finance.v1.ListDataSourcesResponse
+	50,  // 157: finance.v1.DataSourceService.GetFactDistincts:output_type -> finance.v1.GetFactDistinctsResponse
+	54,  // 158: finance.v1.BiJobService.ListJobs:output_type -> finance.v1.ListJobsResponse
+	56,  // 159: finance.v1.BiJobService.ListJobLogs:output_type -> finance.v1.ListJobLogsResponse
+	58,  // 160: finance.v1.BiJobService.TriggerJob:output_type -> finance.v1.TriggerJobResponse
+	60,  // 161: finance.v1.BiJobService.CreateBiJob:output_type -> finance.v1.CreateBiJobResponse
+	62,  // 162: finance.v1.BiJobService.UpdateBiJob:output_type -> finance.v1.UpdateBiJobResponse
+	64,  // 163: finance.v1.BiJobService.DeleteBiJob:output_type -> finance.v1.DeleteBiJobResponse
+	68,  // 164: finance.v1.BiUploadService.DownloadUploadTemplate:output_type -> finance.v1.DownloadUploadTemplateResponse
+	70,  // 165: finance.v1.BiUploadService.ParseUpload:output_type -> finance.v1.ParseUploadResponse
+	72,  // 166: finance.v1.BiUploadService.CommitUpload:output_type -> finance.v1.CommitUploadResponse
+	74,  // 167: finance.v1.BiUploadService.CancelUpload:output_type -> finance.v1.CancelUploadResponse
+	76,  // 168: finance.v1.BiUploadService.ListUploads:output_type -> finance.v1.ListUploadsResponse
+	139, // [139:169] is the sub-list for method output_type
+	109, // [109:139] is the sub-list for method input_type
+	109, // [109:109] is the sub-list for extension type_name
+	109, // [109:109] is the sub-list for extension extendee
+	0,   // [0:109] is the sub-list for field type_name
 }
 
 func init() { file_finance_v1_bi_proto_init() }
@@ -5767,13 +6319,14 @@ func file_finance_v1_bi_proto_init() {
 	}
 	file_finance_v1_bi_proto_msgTypes[14].OneofWrappers = []any{}
 	file_finance_v1_bi_proto_msgTypes[26].OneofWrappers = []any{}
+	file_finance_v1_bi_proto_msgTypes[57].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_finance_v1_bi_proto_rawDesc), len(file_finance_v1_bi_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   68,
+			NumMessages:   76,
 			NumExtensions: 0,
 			NumServices:   5,
 		},
