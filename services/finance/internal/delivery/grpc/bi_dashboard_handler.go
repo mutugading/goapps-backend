@@ -214,7 +214,7 @@ func (h *BIDashboardHandler) ListDashboards(ctx context.Context, req *financev1.
 // UpdateDashboard mutates a dashboard.
 //
 //nolint:gocyclo // proto optional-field mapping requires one branch per field; extraction would not reduce real complexity
-func (h *BIDashboardHandler) UpdateDashboard(ctx context.Context, req *financev1.UpdateDashboardRequest) (*financev1.UpdateDashboardResponse, error) {
+func (h *BIDashboardHandler) UpdateDashboard(ctx context.Context, req *financev1.UpdateDashboardRequest) (*financev1.UpdateDashboardResponse, error) { //nolint:gocognit // sequential optional-field mapping; extracting helpers would obscure the proto↔command contract
 	if baseResp := h.validationHelper.ValidateRequest(req); baseResp != nil {
 		return &financev1.UpdateDashboardResponse{Base: baseResp}, nil
 	}

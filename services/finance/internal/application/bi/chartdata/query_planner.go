@@ -12,6 +12,12 @@ import (
 // compareNoneLC is the lowercase sentinel for "no compare overlay" passed from the frontend.
 const compareNoneLC = "none"
 
+// colGroup1 / colGroup2 are the bi_fact_metric column names for the two grouping dimensions.
+const (
+	colGroup1 = "group_1"
+	colGroup2 = "group_2"
+)
+
 // ViewerFilters carries the runtime filter state from the viewer page.
 type ViewerFilters struct {
 	PeriodPreset string    // L12M | L24M | THIS_YEAR | THIS_QTR | THIS_MONTH | ALL | CUSTOM
@@ -180,10 +186,10 @@ func appendGroupConds(
 	}
 	// Filter-chip selections (only when dashboard has not pinned group_1).
 	if len(f.Group1Filter) > 0 && d.FilterGroup1() == "" {
-		conds, args, idx = appendINClause(conds, args, idx, "group_1", f.Group1Filter)
+		conds, args, idx = appendINClause(conds, args, idx, colGroup1, f.Group1Filter)
 	}
 	if len(f.Group2Filter) > 0 {
-		conds, args, idx = appendINClause(conds, args, idx, "group_2", f.Group2Filter)
+		conds, args, idx = appendINClause(conds, args, idx, colGroup2, f.Group2Filter)
 	}
 	return conds, args, idx
 }
@@ -220,7 +226,7 @@ func planLevel1(d *dashboarddomain.Dashboard, f ViewerFilters, period PeriodRang
 		// Dashboard pre-narrows to a specific group_1 → render its group_2 breakdown.
 		return buildPlan(applyTrend(buildArgs{
 			Source:      "mv_bi_metric_g2",
-			CategoryCol: "group_2",
+			CategoryCol: colGroup2,
 			OrderCol:    "group_2_order",
 			Type:        d.FilterType(),
 			Group1:      d.FilterGroup1(),
@@ -231,7 +237,7 @@ func planLevel1(d *dashboarddomain.Dashboard, f ViewerFilters, period PeriodRang
 	}
 	return buildPlan(applyTrend(buildArgs{
 		Source:      "mv_bi_metric_g1",
-		CategoryCol: "group_1",
+		CategoryCol: colGroup1,
 		OrderCol:    "group_1_order",
 		Type:        d.FilterType(),
 		Period:      period,
@@ -259,7 +265,7 @@ func planLevel2(d *dashboarddomain.Dashboard, f ViewerFilters, period PeriodRang
 	}
 	return buildPlan(applyTrend(buildArgs{
 		Source:      "mv_bi_metric_g2",
-		CategoryCol: "group_2",
+		CategoryCol: colGroup2,
 		OrderCol:    "group_2_order",
 		Type:        d.FilterType(),
 		Group1:      f.DrillPath[0],
@@ -447,7 +453,7 @@ func planComputedRatio( //nolint:unparam
 	numerator, denominator string, scale float64, groupBy string,
 ) (factmetric.PlannedQuery, error) {
 	if groupBy == "" {
-		groupBy = "group_2"
+		groupBy = colGroup2
 	}
 	// Derive the order column from the groupBy column (e.g. group_2 → group_2_order).
 	orderCol := groupBy + "_order"
@@ -469,23 +475,24 @@ func planComputedRatio( //nolint:unparam
 	}
 
 	// Dashboard-level group_1 pre-filter or drill path (mirrors appendGroupConds logic).
-	if d.FilterGroup1() != "" {
+	switch {
+	case d.FilterGroup1() != "":
 		conds = append(conds, fmt.Sprintf("group_1 = $%d", idx))
 		args = append(args, d.FilterGroup1())
 		idx++
-	} else if len(f.DrillPath) > 0 {
+	case len(f.DrillPath) > 0:
 		conds = append(conds, fmt.Sprintf("group_1 = $%d", idx))
 		args = append(args, f.DrillPath[0])
 		idx++
-	} else if len(f.Group1Filter) > 0 {
+	case len(f.Group1Filter) > 0:
 		// Filter-chip group_1 selections (e.g. ["Export", "Local"]) narrow the ratio
-		// to only those delivery types, mirroring appendGroupConds behaviour.
-		conds, args, idx = appendINClause(conds, args, idx, "group_1", f.Group1Filter)
+		// to only those delivery types, mirroring appendGroupConds behavior.
+		conds, args, idx = appendINClause(conds, args, idx, colGroup1, f.Group1Filter)
 	}
 	// Filter-chip group_2 selections narrow the computed groupBy dimension when
 	// groupBy=="group_2" (e.g. show margin % only for selected product categories).
-	if len(f.Group2Filter) > 0 && groupBy == "group_2" {
-		conds, args, idx = appendINClause(conds, args, idx, "group_2", f.Group2Filter)
+	if len(f.Group2Filter) > 0 && groupBy == colGroup2 {
+		conds, args, idx = appendINClause(conds, args, idx, colGroup2, f.Group2Filter)
 	}
 	_ = idx // consumed by appendINClause above; satisfy linter
 

@@ -269,7 +269,7 @@ func parseComputedRatio(merged map[string]any) *ComputedRatioConfig {
 // values are omitted so the persisted JSON stays compact.
 //
 //nolint:gocyclo // one branch per optional field; splitting by field group would obscure the schema
-func (c ChartConfig) MarshalToMap() map[string]any {
+func (c ChartConfig) MarshalToMap() map[string]any { //nolint:gocognit // one branch per optional field; cohesive serialization function
 	out := map[string]any{}
 	putString(out, "x_axis_field", c.XAxisField)
 	putString(out, "y_axis_field", c.YAxisField)

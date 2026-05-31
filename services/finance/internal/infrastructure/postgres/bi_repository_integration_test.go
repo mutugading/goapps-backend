@@ -112,7 +112,7 @@ func (s *BIRepositorySuite) setupSchema() {
 			group_2 VARCHAR(120), group_3 VARCHAR(120), group_1_order INT, group_2_order INT, group_3_order INT,
 			periode_grain VARCHAR(10) NOT NULL, periode_date DATE NOT NULL, periode_label VARCHAR(20) NOT NULL,
 			value NUMERIC(20,4) NOT NULL, display_value NUMERIC(20,4) NOT NULL, uom VARCHAR(20),
-			scenario VARCHAR(20) NOT NULL DEFAULT 'ACTUAL', source_id UUID NOT NULL REFERENCES bi_data_source(source_id),
+			scenario VARCHAR(20) NOT NULL DEFAULT 'ACTUAL', source_id UUID NOT NULL REFERENCES bi_data_source(source_id), metric_name VARCHAR(50) NOT NULL DEFAULT 'VALUE', metric_category VARCHAR(20) NOT NULL DEFAULT 'VALUE', agg_method VARCHAR(20) NOT NULL DEFAULT 'SUM',
 			dimension_key VARCHAR(200) NOT NULL DEFAULT '', uploaded_by UUID, loaded_at TIMESTAMP NOT NULL DEFAULT NOW(),
 			is_active BOOLEAN NOT NULL DEFAULT TRUE,
 			CONSTRAINT uq_bi_fm_bk_itest UNIQUE NULLS NOT DISTINCT (type, group_1, group_2, group_3, periode_grain, periode_date, scenario, dimension_key))`,
