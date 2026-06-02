@@ -192,7 +192,7 @@ func runKPIScalar(
 	// group_2 filter is only applicable when the source has a group_2 column.
 	// mv_bi_metric_g1 aggregates across all group_2 values and does not expose the column —
 	// adding a group_2 condition against it would fail with "column group_2 does not exist".
-	if len(group2Filters) > 0 && source != "mv_bi_metric_g1" {
+	if len(group2Filters) > 0 && source != mvBiMetricG1 {
 		conds, args, idx = appendINClause(conds, args, idx, "group_2", group2Filters)
 	}
 	_ = idx
@@ -246,7 +246,7 @@ func runSparkline(
 		conds, args, idx = appendINClause(conds, args, idx, "group_1", group1Filters)
 	}
 	// mv_bi_metric_g1 does not have a group_2 column — skip the filter to avoid SQL error.
-	if len(group2Filters) > 0 && source != "mv_bi_metric_g1" {
+	if len(group2Filters) > 0 && source != mvBiMetricG1 {
 		conds, args, idx = appendINClause(conds, args, idx, "group_2", group2Filters)
 	}
 	conds = append(conds, fmt.Sprintf("periode_grain = $%d", idx))
@@ -334,6 +334,11 @@ FROM bi_fact_metric WHERE %s`, aggSQL, joinAnd(conds))
 	return rows[0].Value, nil
 }
 
+// mvBiMetricG1 is the materialized view aggregated at group_1 level.
+// It does not expose group_2 — adding a group_2 WHERE condition against it fails
+// with "column group_2 does not exist". runKPIScalar and runSparkline guard on this.
+const mvBiMetricG1 = "mv_bi_metric_g1"
+
 // kpiSourceTable picks the right MV given whether the dashboard pre-filters group_1.
 // The source table is always mv_bi_metric_g1 in this implementation; different MVs may
 // be introduced in future when per-grain materialized views are available.
@@ -341,9 +346,9 @@ FROM bi_fact_metric WHERE %s`, aggSQL, joinAnd(conds))
 //nolint:unparam // source is always mv_bi_metric_g1; reserved for future per-grain MV routing
 func kpiSourceTable(d *dashboarddomain.Dashboard) (source, group1Filter string) {
 	if d.FilterGroup1() != "" {
-		return "mv_bi_metric_g1", d.FilterGroup1()
+		return mvBiMetricG1, d.FilterGroup1()
 	}
-	return "mv_bi_metric_g1", ""
+	return mvBiMetricG1, ""
 }
 
 // resolveKPIPeriod maps a per-KPI period scope to a concrete date window. "selected" (and any
