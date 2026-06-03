@@ -10,20 +10,24 @@
 
 BEGIN;
 
--- kpi_config is stored as {"items": [...]} — must preserve the "items" wrapper.
--- jsonb_agg returns a plain array; wrap it back with jsonb_build_object.
+-- kpi_config is stored in PostgreSQL as a raw JSON array [...] (not wrapped in {"items":[...]}).
+-- The {"items":[...]} wrapper only exists in the gRPC proto/Struct layer.
+-- bytesToMapList() in the repository decodes the JSONB column directly into []map[string]any.
+-- Therefore: jsonb_agg() returns a plain array which is exactly the correct DB format.
+-- Set selected_ytd for YTD EBITDA; remove explicit period from others → "selected" scope
+-- (no period field = inherits viewer's period, fully dynamic with month picker).
 UPDATE bi_dashboard
-SET kpi_config = jsonb_build_object('items', (
+SET kpi_config = (
     SELECT jsonb_agg(
         CASE
             WHEN (kpi->>'label') = 'YTD EBITDA'
             THEN jsonb_set(kpi, '{period}', '"selected_ytd"')
-            ELSE kpi
+            ELSE kpi - 'period'
         END
     )
-    FROM jsonb_array_elements(kpi_config->'items') AS kpi
-))
+    FROM jsonb_array_elements(kpi_config) AS kpi
+)
 WHERE dashboard_code = 'EBITDA'
-  AND kpi_config->'items' IS NOT NULL;
+  AND jsonb_typeof(kpi_config) = 'array';
 
 COMMIT;
