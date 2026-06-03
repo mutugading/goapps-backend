@@ -53,6 +53,9 @@ const kpiAggCrossRatio = "cross_ratio"
 // regardless of what the viewer selected.
 var allowedKpiPeriods = map[string]struct{}{
 	kpiPeriodSelected: {}, "current_month": {}, "ytd": {}, "l12m": {},
+	// "selected_ytd" computes Jan 1 of the selected period's year → selected.To,
+	// making the KPI follow the viewer's month picker for year-to-date values.
+	"selected_ytd": {},
 }
 
 // ParseKpiConfig validates every entry in the raw list and returns a typed KpiConfig.
