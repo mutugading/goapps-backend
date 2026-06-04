@@ -12,6 +12,18 @@ import (
 	jobdomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/bi/job"
 )
 
+// log key constants for structured zerolog fields.
+const (
+	logKeyJobID   = "job_id"
+	logKeyJobName = "job_name"
+)
+
+// CronTriggerer is the minimal interface the scheduler needs from TriggerHandler.
+// Using an interface makes BiJobScheduler testable with a stub.
+type CronTriggerer interface {
+	CronTrigger(ctx context.Context, jobID uuid.UUID) (*jobdomain.Log, error)
+}
+
 // BiJobScheduler reads active bi_job rows that have a schedule_cron and fires
 // them automatically via CronTrigger. It re-syncs the job list from the DB
 // every syncInterval to pick up admin changes without a service restart.
@@ -21,7 +33,7 @@ import (
 // runaway accumulation when a job (e.g. ETL) takes longer than its interval.
 type BiJobScheduler struct {
 	repo         jobdomain.Repository
-	trigger      *TriggerHandler
+	trigger      CronTriggerer
 	log          zerolog.Logger
 	c            *cron.Cron
 	entryIDs     map[string]cron.EntryID // jobID string -> cron entry ID
@@ -34,7 +46,7 @@ type BiJobScheduler struct {
 // job list is refreshed from the DB (recommended: 5 * time.Minute).
 func NewBiJobScheduler(
 	repo jobdomain.Repository,
-	trigger *TriggerHandler,
+	trigger CronTriggerer,
 	logger zerolog.Logger,
 	syncInterval time.Duration,
 ) *BiJobScheduler {
@@ -55,7 +67,7 @@ func (s *BiJobScheduler) Start(ctx context.Context) {
 	s.log.Info().Msg("BI job scheduler starting.")
 
 	if err := s.syncJobs(ctx); err != nil {
-		s.log.Error().Err(err).Msg("initial job schedule sync failed — will retry at next tick.")
+		s.log.Error().Err(err).Msg("initial job schedule sync failed - will retry at next tick.")
 	}
 
 	s.c.Start()
@@ -73,7 +85,7 @@ func (s *BiJobScheduler) Start(ctx context.Context) {
 			return
 		case <-ticker.C:
 			if err := s.syncJobs(ctx); err != nil {
-				s.log.Error().Err(err).Msg("job schedule sync failed — retrying at next tick.")
+				s.log.Error().Err(err).Msg("job schedule sync failed - retrying at next tick.")
 			}
 		}
 	}
@@ -104,7 +116,7 @@ func (s *BiJobScheduler) syncJobs(ctx context.Context) error {
 		if _, ok := wanted[idStr]; !ok {
 			s.c.Remove(entryID)
 			delete(s.entryIDs, idStr)
-			s.log.Info().Str("job_id", idStr).Msg("unregistered cron entry (job removed or deactivated).")
+			s.log.Info().Str(logKeyJobID, idStr).Msg("unregistered cron entry (job removed or deactivated).")
 		}
 	}
 
@@ -126,17 +138,17 @@ func (s *BiJobScheduler) syncJobs(ctx context.Context) error {
 		})
 		if addErr != nil {
 			s.log.Error().Err(addErr).
-				Str("job_id", idStr).
-				Str("job_name", jobName).
+				Str(logKeyJobID, idStr).
+				Str(logKeyJobName, jobName).
 				Str("cron", expr).
-				Msg("failed to register cron entry — invalid expression.")
+				Msg("failed to register cron entry - invalid expression.")
 			continue
 		}
 
 		s.entryIDs[idStr] = entryID
 		s.log.Info().
-			Str("job_id", idStr).
-			Str("job_name", jobName).
+			Str(logKeyJobID, idStr).
+			Str(logKeyJobName, jobName).
 			Str("cron", expr).
 			Msg("registered cron entry.")
 	}
@@ -152,9 +164,9 @@ func (s *BiJobScheduler) fire(ctx context.Context, jobID uuid.UUID, jobName stri
 	// Overlap guard: skip this tick if the previous run is still in-flight.
 	if _, loaded := s.running.LoadOrStore(idStr, struct{}{}); loaded {
 		s.log.Warn().
-			Str("job_id", idStr).
-			Str("job_name", jobName).
-			Msg("cron tick skipped — previous run still in progress.")
+			Str(logKeyJobID, idStr).
+			Str(logKeyJobName, jobName).
+			Msg("cron tick skipped - previous run still in progress.")
 		return
 	}
 
@@ -162,22 +174,22 @@ func (s *BiJobScheduler) fire(ctx context.Context, jobID uuid.UUID, jobName stri
 		defer s.running.Delete(idStr)
 
 		s.log.Info().
-			Str("job_id", idStr).
-			Str("job_name", jobName).
+			Str(logKeyJobID, idStr).
+			Str(logKeyJobName, jobName).
 			Msg("cron job started.")
 
 		result, err := s.trigger.CronTrigger(ctx, jobID)
 		if err != nil {
 			s.log.Error().Err(err).
-				Str("job_id", idStr).
-				Str("job_name", jobName).
+				Str(logKeyJobID, idStr).
+				Str(logKeyJobName, jobName).
 				Msg("cron job dispatch error.")
 			return
 		}
 
 		s.log.Info().
-			Str("job_id", idStr).
-			Str("job_name", jobName).
+			Str(logKeyJobID, idStr).
+			Str(logKeyJobName, jobName).
 			Str("status", string(result.Status)).
 			Int("rows_affected", result.RowsAffected).
 			Int("duration_ms", result.DurationMs).
