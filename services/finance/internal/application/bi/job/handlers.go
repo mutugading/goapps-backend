@@ -101,8 +101,8 @@ type TriggerCommand struct {
 //   - (other)       — MVP placeholder: immediately marks SUCCESS, rows_affected=0.
 type TriggerHandler struct {
 	repo        jobdomain.Repository
-	mvRefresher MVRefresher        // optional — nil when not needed
-	etlRunner   BIETLRunner        // optional — nil when Oracle not configured
+	mvRefresher MVRefresher           // optional — nil when not needed
+	etlRunner   BIETLRunner           // optional — nil when Oracle not configured
 	chartCache  ChartCacheInvalidator // optional — nil when cache not configured
 }
 
