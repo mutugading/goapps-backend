@@ -37,6 +37,7 @@ type BiJobScheduler struct {
 	log          zerolog.Logger
 	c            *cron.Cron
 	entryIDs     map[string]cron.EntryID // jobID string -> cron entry ID
+	entryCrons   map[string]string       // jobID string -> registered cron expression
 	mu           sync.Mutex
 	running      sync.Map // jobID string -> struct{} sentinel
 	syncInterval time.Duration
@@ -56,6 +57,7 @@ func NewBiJobScheduler(
 		log:          logger.With().Str("component", "bi_job_scheduler").Logger(),
 		c:            cron.New(),
 		entryIDs:     make(map[string]cron.EntryID),
+		entryCrons:   make(map[string]string),
 		syncInterval: syncInterval,
 	}
 }
@@ -116,16 +118,30 @@ func (s *BiJobScheduler) syncJobs(ctx context.Context) error {
 		if _, ok := wanted[idStr]; !ok {
 			s.c.Remove(entryID)
 			delete(s.entryIDs, idStr)
+			delete(s.entryCrons, idStr)
 			s.log.Info().Str(logKeyJobID, idStr).Msg("unregistered cron entry (job removed or deactivated).")
 		}
 	}
 
-	// Register new jobs. Already-registered jobs are skipped; if a cron expression
-	// changes in the admin panel, the admin must deactivate then re-activate the job
-	// to force a remove+add cycle.
+	// Register new jobs, or re-register if the cron expression changed.
+	// When schedule_cron is updated in the admin panel and the next 5-min sync
+	// runs, the old entry is removed and a new one with the updated expression
+	// is registered — no deactivate/reactivate cycle required.
 	for idStr, j := range wanted {
-		if _, exists := s.entryIDs[idStr]; exists {
-			continue
+		if existingCron, exists := s.entryCrons[idStr]; exists {
+			if existingCron == j.ScheduleCron {
+				continue // same cron, nothing to do
+			}
+			// Cron expression changed — remove old entry before re-registering.
+			s.c.Remove(s.entryIDs[idStr])
+			delete(s.entryIDs, idStr)
+			delete(s.entryCrons, idStr)
+			s.log.Info().
+				Str(logKeyJobID, idStr).
+				Str(logKeyJobName, j.Name).
+				Str("old_cron", existingCron).
+				Str("new_cron", j.ScheduleCron).
+				Msg("cron expression changed — re-registering entry.")
 		}
 
 		// Capture loop variables for the closure.
@@ -146,6 +162,7 @@ func (s *BiJobScheduler) syncJobs(ctx context.Context) error {
 		}
 
 		s.entryIDs[idStr] = entryID
+		s.entryCrons[idStr] = expr
 		s.log.Info().
 			Str(logKeyJobID, idStr).
 			Str(logKeyJobName, jobName).
