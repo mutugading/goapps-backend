@@ -207,7 +207,7 @@ func (s *BiJobScheduler) fire(ctx context.Context, jobID uuid.UUID, jobName stri
 		s.log.Info().
 			Str(logKeyJobID, idStr).
 			Str(logKeyJobName, jobName).
-			Str("status", string(result.Status)).
+			Str("status", result.Status).
 			Int("rows_affected", result.RowsAffected).
 			Int("duration_ms", result.DurationMs).
 			Msg("cron job completed.")

@@ -226,23 +226,34 @@ func (h *TriggerHandler) handleETL(
 	entry.EndedAt = ended
 	entry.DurationMs = int(ended.Sub(started).Milliseconds()) //nolint:gosec // duration in ms always fits int
 	entry.RowsAffected = rowsAffected
-	if runErr != nil {
-		entry.Status = jobdomain.StatusFailed
-		entry.ErrorMessage = runErr.Error()
-	} else {
-		entry.Status = jobdomain.StatusSuccess
-		// Invalidate chart cache after a successful ETL load so any subsequent
-		// MV_REFRESH also serves fresh data; avoids stale cache after ETL + MV_REFRESH.
-		if h.chartCache != nil {
-			if cErr := h.chartCache.InvalidateAll(ctx); cErr != nil {
-				_ = cErr // best-effort
-			}
-		}
+	applyETLOutcome(entry, runErr)
+	if runErr == nil {
+		h.invalidateCache(ctx)
 	}
 	if err := h.repo.UpdateLog(ctx, entry); err != nil {
 		return nil, fmt.Errorf("update ETL completion log: %w", err)
 	}
 	return entry, nil
+}
+
+// applyETLOutcome sets the log entry status and error message based on the ETL run result.
+func applyETLOutcome(entry *jobdomain.Log, runErr error) {
+	if runErr != nil {
+		entry.Status = jobdomain.StatusFailed
+		entry.ErrorMessage = runErr.Error()
+		return
+	}
+	entry.Status = jobdomain.StatusSuccess
+}
+
+// invalidateCache clears the Redis chart cache. Best-effort: failure is ignored.
+func (h *TriggerHandler) invalidateCache(ctx context.Context) {
+	if h.chartCache == nil {
+		return
+	}
+	if cErr := h.chartCache.InvalidateAll(ctx); cErr != nil {
+		_ = cErr // best-effort; stale cache is acceptable
+	}
 }
 
 // handleMVRefresh calls RefreshMVs and writes the result back to the log.
@@ -254,18 +265,9 @@ func (h *TriggerHandler) handleMVRefresh(ctx context.Context, entry *jobdomain.L
 	ended := time.Now().UTC()
 	entry.EndedAt = ended
 	entry.DurationMs = int(ended.Sub(started).Milliseconds()) //nolint:gosec // duration in ms always fits int
-	if refreshErr != nil {
-		entry.Status = jobdomain.StatusFailed
-		entry.ErrorMessage = refreshErr.Error()
-	} else {
-		entry.Status = jobdomain.StatusSuccess
-		// Invalidate Redis chart cache so users immediately see the refreshed MV data
-		// without waiting for TTL expiry or restarting the service.
-		if h.chartCache != nil {
-			if cErr := h.chartCache.InvalidateAll(ctx); cErr != nil {
-				_ = cErr // best-effort; stale cache is acceptable, log omitted to avoid noise
-			}
-		}
+	applyETLOutcome(entry, refreshErr)
+	if refreshErr == nil {
+		h.invalidateCache(ctx)
 	}
 	if err := h.repo.UpdateLog(ctx, entry); err != nil {
 		return nil, fmt.Errorf("update mv_refresh completion log: %w", err)
