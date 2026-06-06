@@ -46,6 +46,10 @@ type TaskRepository interface {
 	MarkNotified(ctx context.Context, taskID int64) error
 	// ListOverdue returns unfinished tasks past SLA whose last notify is stale.
 	ListOverdue(ctx context.Context, reminderGapHours int) ([]*Task, error)
+	// ListPendingFill returns ACTIVE/FILLING tasks whose last notify is stale (not yet submitted).
+	ListPendingFill(ctx context.Context, reminderGapHours int) ([]*Task, error)
+	// ListPendingApproval returns APPROVAL_PENDING tasks whose last notify is stale.
+	ListPendingApproval(ctx context.Context, reminderGapHours int) ([]*Task, error)
 	// AddApproval records an approval/rejection event.
 	AddApproval(ctx context.Context, a *Approval) error
 	// ListApprovals returns a task's approval history newest-first.

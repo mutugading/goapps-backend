@@ -27,12 +27,16 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/costcalc"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/costcalc/evaluator"
 	fillapp "github.com/mutugading/goapps-backend/services/finance/internal/application/costfillassignment"
+	costnotifapp "github.com/mutugading/goapps-backend/services/finance/internal/application/costnotification"
 	cppapp "github.com/mutugading/goapps-backend/services/finance/internal/application/costproductparameter"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/oraclesync"
 	apprmcost "github.com/mutugading/goapps-backend/services/finance/internal/application/rmcost"
 	grpcdelivery "github.com/mutugading/goapps-backend/services/finance/internal/delivery/grpc"
 	httpdelivery "github.com/mutugading/goapps-backend/services/finance/internal/delivery/httpdelivery"
+	"github.com/robfig/cron/v3"
+
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/config"
+	fillnotifierinfra "github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/fillnotifier"
 	oracleinfra "github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/oracle"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/postgres"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/rabbitmq"
@@ -310,6 +314,9 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	if err != nil {
 		return err
 	}
+	// Shared notification emitter used by both gRPC handlers and cron jobs.
+	costNotifEmitter := costnotifapp.NewEmitter(costNotificationRepo)
+
 	costProductParameterApp := cppapp.New(costProductParameterRepo)
 	costProductParameterHandler := grpcdelivery.NewCostProductParameterHandler(costProductParameterApp)
 
@@ -329,6 +336,22 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		upsertGlobalHandler, upsertOverrideHandler, deleteGlobalHandler, listGlobalHandler,
 	)
 	costFillTaskHandler := grpcdelivery.NewCostFillTaskHandler(fillTaskRepo)
+
+	// SLA + reminder cron jobs for fill-assignment notifications.
+	// reminderGapHours=4: at most one reminder per task per 4 hours.
+	const reminderGapHours = 4
+	fillSLANotifier := fillnotifierinfra.New(fillTaskRepo, costNotifEmitter)
+	slaJob := fillapp.NewSLANotifierJob(fillTaskRepo, fillSLANotifier, reminderGapHours)
+	reminderJob := fillnotifierinfra.NewReminderJob(fillTaskRepo, costNotifEmitter, reminderGapHours)
+	fillCron := cron.New()
+	if _, addErr := fillCron.AddFunc("0 * * * *", slaJob.Run); addErr != nil {
+		return fmt.Errorf("register sla notifier cron: %w", addErr)
+	}
+	if _, addErr := fillCron.AddFunc("30 * * * *", reminderJob.Run); addErr != nil {
+		return fmt.Errorf("register reminder cron: %w", addErr)
+	}
+	fillCron.Start()
+	defer fillCron.Stop()
 
 	// S8b: real CostCalcService wiring. Service holds 5 repos + loader + evaluator
 	// cache; 11 application handlers wrap individual use cases. Audit emitter is

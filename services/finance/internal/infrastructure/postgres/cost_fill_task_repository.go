@@ -230,6 +230,48 @@ func (r *CostFillTaskRepository) ListOverdue(ctx context.Context, reminderGapHou
 	return scanTaskRows(rows)
 }
 
+// ListPendingFill returns ACTIVE or FILLING tasks whose last notify is stale.
+// These are tasks waiting for the filler to submit parameter values.
+func (r *CostFillTaskRepository) ListPendingFill(ctx context.Context, reminderGapHours int) ([]*domain.Task, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT `+cftCols+`
+		   FROM cost_fill_task
+		  WHERE cft_status IN ('ACTIVE','FILLING')
+		    AND (cft_last_notified_at IS NULL
+		         OR cft_last_notified_at < NOW() - ($1 || ' hours')::interval)`,
+		reminderGapHours)
+	if err != nil {
+		return nil, fmt.Errorf("list pending fill tasks: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			_ = closeErr
+		}
+	}()
+	return scanTaskRows(rows)
+}
+
+// ListPendingApproval returns APPROVAL_PENDING tasks whose last notify is stale.
+// These are tasks waiting for the approver to approve or reject.
+func (r *CostFillTaskRepository) ListPendingApproval(ctx context.Context, reminderGapHours int) ([]*domain.Task, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT `+cftCols+`
+		   FROM cost_fill_task
+		  WHERE cft_status = 'APPROVAL_PENDING'
+		    AND (cft_last_notified_at IS NULL
+		         OR cft_last_notified_at < NOW() - ($1 || ' hours')::interval)`,
+		reminderGapHours)
+	if err != nil {
+		return nil, fmt.Errorf("list pending approval tasks: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			_ = closeErr
+		}
+	}()
+	return scanTaskRows(rows)
+}
+
 // AddApproval records an approval/rejection event.
 func (r *CostFillTaskRepository) AddApproval(ctx context.Context, a *domain.Approval) error {
 	_, err := r.db.ExecContext(ctx,

@@ -109,6 +109,14 @@ func (m *mockTaskRepo) ListOverdue(_ context.Context, _ int) ([]*domain.Task, er
 	return nil, nil
 }
 
+func (m *mockTaskRepo) ListPendingFill(_ context.Context, _ int) ([]*domain.Task, error) {
+	return nil, nil
+}
+
+func (m *mockTaskRepo) ListPendingApproval(_ context.Context, _ int) ([]*domain.Task, error) {
+	return nil, nil
+}
+
 func (m *mockTaskRepo) AddApproval(_ context.Context, _ *domain.Approval) error { return nil }
 
 func (m *mockTaskRepo) ListApprovals(_ context.Context, _ int64) ([]*domain.Approval, error) {
