@@ -26,6 +26,7 @@ import (
 	auditapp "github.com/mutugading/goapps-backend/services/finance/internal/application/costauditlog"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/costcalc"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/costcalc/evaluator"
+	fillapp "github.com/mutugading/goapps-backend/services/finance/internal/application/costfillassignment"
 	cppapp "github.com/mutugading/goapps-backend/services/finance/internal/application/costproductparameter"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/oraclesync"
 	apprmcost "github.com/mutugading/goapps-backend/services/finance/internal/application/rmcost"
@@ -312,6 +313,23 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	costProductParameterApp := cppapp.New(costProductParameterRepo)
 	costProductParameterHandler := grpcdelivery.NewCostProductParameterHandler(costProductParameterApp)
 
+	// Fill-assignment repositories + handlers.
+	fillConfigRepo := postgres.NewCostFillConfigRepository(db)
+	fillTaskRepo := postgres.NewCostFillTaskRepository(db)
+
+	upsertGlobalHandler := fillapp.NewUpsertGlobalConfigHandler(fillConfigRepo)
+	upsertOverrideHandler := fillapp.NewUpsertOverrideHandler(fillConfigRepo)
+	deleteGlobalHandler := fillapp.NewDeleteGlobalConfigHandler(fillConfigRepo)
+	listGlobalHandler := fillapp.NewListGlobalConfigHandler(fillConfigRepo)
+
+	createAllTasksHandler := fillapp.NewCreateAllTasksHandler(fillConfigRepo, fillTaskRepo)
+	costProductRequestHandler.WithFillCreator(createAllTasksHandler)
+
+	costFillConfigHandler := grpcdelivery.NewCostFillConfigHandler(
+		upsertGlobalHandler, upsertOverrideHandler, deleteGlobalHandler, listGlobalHandler,
+	)
+	costFillTaskHandler := grpcdelivery.NewCostFillTaskHandler(fillTaskRepo)
+
 	// S8b: real CostCalcService wiring. Service holds 5 repos + loader + evaluator
 	// cache; 11 application handlers wrap individual use cases. Audit emitter is
 	// nil for now (cost_audit_log integration lands in S8c orchestrator).
@@ -440,6 +458,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		costRoutingRuleHandler, costAuditLogHandler, costNotificationHandler,
 		costProductParameterHandler,
 		costCalcHandler,
+		costFillConfigHandler, costFillTaskHandler,
 		biDashboardHandler, biChartDataHandler, biDataSourceHandler, biJobHandler, biUploadHandler,
 		tokenBlacklist)
 }
@@ -562,6 +581,8 @@ func startServers(ctx context.Context, cfg *config.Config,
 	costNotificationHandler *grpcdelivery.CostNotificationHandler,
 	costProductParameterHandler *grpcdelivery.CostProductParameterHandler,
 	costCalcHandler *grpcdelivery.CostCalcHandler,
+	costFillConfigHandler *grpcdelivery.CostFillConfigHandler,
+	costFillTaskHandler *grpcdelivery.CostFillTaskHandler,
 	biDashboardHandler *grpcdelivery.BIDashboardHandler,
 	biChartDataHandler *grpcdelivery.BIChartDataHandler,
 	biDataSourceHandler *grpcdelivery.BIDataSourceHandler,
@@ -602,6 +623,10 @@ func startServers(ctx context.Context, cfg *config.Config,
 	financev1.RegisterCostProductParameterServiceServer(grpcServer.GRPCServer(), costProductParameterHandler)
 	// S8a foundation: CostCalcService stub.
 	financev1.RegisterCostCalcServiceServer(grpcServer.GRPCServer(), costCalcHandler)
+
+	// Fill-assignment services.
+	financev1.RegisterCostLevelAssignmentConfigServiceServer(grpcServer.GRPCServer(), costFillConfigHandler)
+	financev1.RegisterCostFillTaskServiceServer(grpcServer.GRPCServer(), costFillTaskHandler)
 
 	// BI services
 	financev1.RegisterDashboardServiceServer(grpcServer.GRPCServer(), biDashboardHandler)

@@ -49,6 +49,13 @@ func NewCostProductRequestHandler(repo domain.Repository, routeRepo routeDomain.
 	}, nil
 }
 
+// WithFillCreator attaches a fill-task creator to the transition handler so that
+// fill tasks are created when MarkParameterPending is called.
+func (h *CostProductRequestHandler) WithFillCreator(c app.FillTaskCreator) *CostProductRequestHandler {
+	h.transitionHandler = h.transitionHandler.WithFillCreator(c)
+	return h
+}
+
 // =============================================================================
 // CRUD
 // =============================================================================
