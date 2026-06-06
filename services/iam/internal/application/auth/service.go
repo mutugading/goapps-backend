@@ -481,6 +481,24 @@ func (s *Service) UpdatePassword(ctx context.Context, userID uuid.UUID, currentP
 	return nil
 }
 
+// ValidateUnlockPassword verifies the user's current password for cell-unlock authorization.
+// Returns nil if the password matches, or shared.ErrInvalidCredentials if it does not.
+func (s *Service) ValidateUnlockPassword(ctx context.Context, userID uuid.UUID, pwd string) error {
+	u, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, shared.ErrNotFound) {
+			return shared.ErrInvalidCredentials
+		}
+		return fmt.Errorf("failed to get user: %w", err)
+	}
+
+	if err := s.verifyPassword(u.PasswordHash(), pwd); err != nil {
+		return shared.ErrInvalidCredentials
+	}
+
+	return nil
+}
+
 // Enable2FA initiates 2FA setup.
 func (s *Service) Enable2FA(ctx context.Context, userID uuid.UUID) (*domainAuth.Enable2FAResult, error) {
 	if s.otpCache == nil {
