@@ -191,8 +191,10 @@ type CostProductRequest struct {
 	ExistingProductSysId int64 `protobuf:"varint,28,opt,name=existing_product_sys_id,json=existingProductSysId,proto3" json:"existing_product_sys_id,omitempty"`
 	// Active route head linked to this request (many requests → one route head when spec matches).
 	LinkedRouteHeadId int64 `protobuf:"varint,29,opt,name=linked_route_head_id,json=linkedRouteHeadId,proto3" json:"linked_route_head_id,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// IAM workflow instance ID linked to this request (empty if no workflow attached).
+	WflInstanceId string `protobuf:"bytes,30,opt,name=wfl_instance_id,json=wflInstanceId,proto3" json:"wfl_instance_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CostProductRequest) Reset() {
@@ -426,6 +428,13 @@ func (x *CostProductRequest) GetLinkedRouteHeadId() int64 {
 		return x.LinkedRouteHeadId
 	}
 	return 0
+}
+
+func (x *CostProductRequest) GetWflInstanceId() string {
+	if x != nil {
+		return x.WflInstanceId
+	}
+	return ""
 }
 
 type SpecInput struct {
@@ -2755,7 +2764,7 @@ const file_finance_v1_cost_product_request_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\v \x01(\tR\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"created_by\x18\f \x01(\tR\tcreatedBy\"\xd5\t\n" +
+	"created_by\x18\f \x01(\tR\tcreatedBy\"\xfd\t\n" +
 	"\x12CostProductRequest\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\x03R\trequestId\x12\x1d\n" +
@@ -2788,7 +2797,8 @@ const file_finance_v1_cost_product_request_proto_rawDesc = "" +
 	"\x05audit\x18\x1a \x01(\v2\x14.common.v1.AuditInfoR\x05audit\x12/\n" +
 	"\x04spec\x18\x1b \x01(\v2\x1b.finance.v1.CostProductSpecR\x04spec\x125\n" +
 	"\x17existing_product_sys_id\x18\x1c \x01(\x03R\x14existingProductSysId\x12/\n" +
-	"\x14linked_route_head_id\x18\x1d \x01(\x03R\x11linkedRouteHeadId\"\xa9\x03\n" +
+	"\x14linked_route_head_id\x18\x1d \x01(\x03R\x11linkedRouteHeadId\x12&\n" +
+	"\x0fwfl_instance_id\x18\x1e \x01(\tR\rwflInstanceId\"\xa9\x03\n" +
 	"\tSpecInput\x12d\n" +
 	"\x11raw_material_type\x18\x01 \x01(\tB8\xbaH5r3R\rPOY_BOUGHTOUTR\bCHIPS_SDR\tCHIPS_BRTR\rCHIPS_RECYCLER\x0frawMaterialType\x12;\n" +
 	"\x13product_description\x18\x02 \x01(\tB\n" +

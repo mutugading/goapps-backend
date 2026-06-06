@@ -1118,6 +1118,10 @@
           "type": "string",
           "format": "int64",
           "description": "Active route head linked to this request (many requests → one route head when spec matches)."
+        },
+        "wflInstanceId": {
+          "type": "string",
+          "description": "IAM workflow instance ID linked to this request (empty if no workflow attached)."
         }
       }
     },
