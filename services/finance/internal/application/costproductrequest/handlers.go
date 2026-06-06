@@ -6,9 +6,12 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/rs/zerolog/log"
+
 	fillDomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costfillassignment"
 	domain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductrequest"
 	routeDomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costroute"
+	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/iamclient"
 )
 
 // CreateCommand is the create-time input.
@@ -194,8 +197,9 @@ type FillTaskCreator interface {
 type TransitionHandler struct {
 	repo        domain.Repository
 	emitter     AuditEmitter
-	routeRepo   routeDomain.Repository // optional; used by MarkParameterPending
-	fillCreator FillTaskCreator        // optional; if nil, fill task creation is skipped
+	routeRepo   routeDomain.Repository   // optional; used by MarkParameterPending
+	fillCreator FillTaskCreator          // optional; if nil, fill task creation is skipped
+	wflClient   iamclient.WorkflowClient // optional; if nil, IAM workflow wiring is skipped
 }
 
 // NewTransitionHandler constructs a TransitionHandler. Pass emitter=nil to skip auditing.
@@ -220,6 +224,15 @@ func (h *TransitionHandler) WithRouteRepo(rr routeDomain.Repository) *Transition
 // transition in MarkParameterPending. Returns the receiver for chaining.
 func (h *TransitionHandler) WithFillCreator(c FillTaskCreator) *TransitionHandler {
 	h.fillCreator = c
+	return h
+}
+
+// WithWorkflowClient attaches an IAM workflow client used by Submit to start an
+// approval instance after a successful DRAFT → SUBMITTED transition. This is
+// best-effort: if the client returns an error the submit still succeeds.
+// Pass nil (or omit) to disable IAM workflow wiring.
+func (h *TransitionHandler) WithWorkflowClient(c iamclient.WorkflowClient) *TransitionHandler {
+	h.wflClient = c
 	return h
 }
 
@@ -281,8 +294,48 @@ const (
 )
 
 // Submit transitions DRAFT → SUBMITTED.
+// After a successful transition, if a WorkflowClient is configured, it
+// attempts to start an IAM approval instance. This is best-effort: a failure
+// to reach IAM is logged as a warning but does not roll back the transition.
 func (h *TransitionHandler) Submit(ctx context.Context, requestID int64, actor string) (*domain.Request, error) {
-	return h.apply(ctx, requestID, func(r *domain.Request) error { return r.Submit() }, applyOpts{operation: auditOpStatusChange, actorID: actor})
+	req, err := h.apply(ctx, requestID, func(r *domain.Request) error { return r.Submit() }, applyOpts{operation: auditOpStatusChange, actorID: actor})
+	if err != nil {
+		return nil, err
+	}
+	h.startWorkflowInstance(ctx, req, actor)
+	return req, nil
+}
+
+// startWorkflowInstance fires the IAM workflow engine for the submitted request.
+// It is always best-effort: errors are logged as warnings and never propagated.
+// The instance ID is logged; persistence into cpr_wfl_instance_id will be wired
+// in T18 once the full gRPC delivery layer and repository method are in place.
+func (h *TransitionHandler) startWorkflowInstance(ctx context.Context, req *domain.Request, actor string) {
+	if h.wflClient == nil {
+		return
+	}
+	instanceID, wflErr := h.wflClient.StartInstance(
+		ctx,
+		"CPR_APPROVAL",
+		"COST_PRODUCT_REQUEST",
+		req.RequestNo(),
+		actor,
+	)
+	if wflErr != nil {
+		log.Warn().
+			Err(wflErr).
+			Int64("request_id", req.RequestID()).
+			Str("request_no", req.RequestNo()).
+			Msg("workflow start failed (non-fatal); CPR submit succeeded")
+		return
+	}
+	if instanceID != "" {
+		log.Info().
+			Str("instance_id", instanceID).
+			Int64("request_id", req.RequestID()).
+			Str("request_no", req.RequestNo()).
+			Msg("IAM workflow instance started for CPR submit")
+	}
 }
 
 // StartReview transitions SUBMITTED → UNDER_REVIEW.
