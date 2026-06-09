@@ -4,20 +4,20 @@ package notification
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // DBUserResolver queries the IAM PostgreSQL database to resolve recipient
 // user IDs from semantic rules (permission, dept, role, user_id).
 type DBUserResolver struct {
-	db *pgxpool.Pool
+	db *sql.DB
 }
 
 // NewDBUserResolver constructs the resolver.
-func NewDBUserResolver(db *pgxpool.Pool) *DBUserResolver {
+func NewDBUserResolver(db *sql.DB) *DBUserResolver {
 	return &DBUserResolver{db: db}
 }
 
@@ -80,7 +80,7 @@ func (r *DBUserResolver) GetByUserID(ctx context.Context, userID uuid.UUID) ([]u
 }
 
 func (r *DBUserResolver) scan(ctx context.Context, q string, arg any) ([]uuid.UUID, error) {
-	rows, err := r.db.Query(ctx, q, arg)
+	rows, err := r.db.QueryContext(ctx, q, arg)
 	if err != nil {
 		return nil, fmt.Errorf("user resolver query: %w", err)
 	}

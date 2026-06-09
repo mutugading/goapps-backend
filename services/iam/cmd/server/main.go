@@ -175,11 +175,13 @@ func run() error {
 	notifArchive := appnotif.NewArchiveHandler(notificationRepo)
 	notifDelete := appnotif.NewDeleteHandler(notificationRepo)
 	notifStream := appnotif.NewStreamHandler(notificationRepo, notifBroadcaster, 30*time.Second)
+	notifUserResolver := notifinfra.NewDBUserResolver(db.DB)
+	notifRequestHandler := appnotif.NewRequestHandler(notifCreate, notifUserResolver, nil)
 	notificationHandler := grpcdelivery.NewNotificationHandler(
 		notifCreate, notifGet, notifList, notifUnread,
 		notifMarkRead, notifMarkAllRead, notifArchive, notifDelete,
 		notifStream, validationHelper,
-	)
+	).WithRequestHandler(notifRequestHandler)
 
 	// Setup gRPC server with interceptor chain (pass JWT + session cache + session repo for auth & activity tracking)
 	grpcServer, err := grpcdelivery.NewServer(&cfg.Server, db, jwtService, sessionCache, sessionRepo, cfg.Security.InternalServiceToken)

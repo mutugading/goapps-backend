@@ -2,26 +2,27 @@ package notification_test
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"testing"
 
+	_ "github.com/jackc/pgx/v5/stdlib" // pgx driver
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	notifinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/notification"
 )
 
-func testDB(t *testing.T) *pgxpool.Pool {
+func testDB(t *testing.T) *sql.DB {
 	t.Helper()
 	dsn := os.Getenv("IAM_DATABASE_URL")
 	if dsn == "" {
 		dsn = "postgres://iam:iam123@localhost:5435/iam_db?sslmode=disable"
 	}
-	db, err := pgxpool.New(context.Background(), dsn)
+	db, err := sql.Open("pgx", dsn)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	return db
 }
 
