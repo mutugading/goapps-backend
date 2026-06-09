@@ -512,6 +512,16 @@ func (h *TransitionHandler) StartReview(ctx context.Context, requestID int64, ac
 		RequestID:       req.RequestID(),
 		Payload:         `{"status":"UNDER_REVIEW","request_no":"` + req.RequestNo() + `"}`,
 	})
+	// Rule-based notification: inform the requester that review has started.
+	h.emitCPREvent(ctx, CPREvent{
+		EventType:       "CPR_UNDER_REVIEW",
+		RequestID:       req.RequestID(),
+		RequestNo:       req.RequestNo(),
+		RequesterUserID: req.RequesterUserID(),
+		Rules: []CPRNotifRule{
+			{RuleType: "BY_USER_ID", Value: req.RequesterUserID()},
+		},
+	})
 	return req, nil
 }
 
@@ -544,6 +554,20 @@ func (h *TransitionHandler) DecideFeasibility(ctx context.Context, requestID int
 			Payload:         `{"status":"ROUTING_DEFINED","request_no":"` + req.RequestNo() + `"}`,
 		})
 	}
+	// Rule-based notification: inform the requester of the feasibility decision.
+	eventType := "CPR_NOT_FEASIBLE"
+	if decision == domain.FeasibilityFeasible {
+		eventType = "CPR_FEASIBLE"
+	}
+	h.emitCPREvent(ctx, CPREvent{
+		EventType:       eventType,
+		RequestID:       req.RequestID(),
+		RequestNo:       req.RequestNo(),
+		RequesterUserID: req.RequesterUserID(),
+		Rules: []CPRNotifRule{
+			{RuleType: "BY_USER_ID", Value: req.RequesterUserID()},
+		},
+	})
 	return req, nil
 }
 
@@ -635,9 +659,33 @@ func sortInt32Slice(s []int32) {
 // gRPC layer is responsible for asserting no required params are missing via
 // cost_product_parameter.CheckMissingRequiredParams before calling this.
 func (h *TransitionHandler) MarkParameterComplete(ctx context.Context, requestID int64, actor string) (*domain.Request, error) {
-	return h.apply(ctx, requestID, func(r *domain.Request) error {
+	req, err := h.apply(ctx, requestID, func(r *domain.Request) error {
 		return r.MarkParameterComplete()
 	}, applyOpts{operation: auditOpStatusChange, actorID: actor})
+	if err != nil {
+		return nil, err
+	}
+	// Notify the requester that parameter filling is complete.
+	h.emitCPREvent(ctx, CPREvent{
+		EventType:       "CPR_PARAM_COMPLETE_REQUESTER",
+		RequestID:       req.RequestID(),
+		RequestNo:       req.RequestNo(),
+		RequesterUserID: req.RequesterUserID(),
+		Rules: []CPRNotifRule{
+			{RuleType: "BY_USER_ID", Value: req.RequesterUserID()},
+		},
+	})
+	// Notify costing team that the request is ready for calculation.
+	h.emitCPREvent(ctx, CPREvent{
+		EventType:       "CPR_PARAM_COMPLETE_COSTING",
+		RequestID:       req.RequestID(),
+		RequestNo:       req.RequestNo(),
+		RequesterUserID: req.RequesterUserID(),
+		Rules: []CPRNotifRule{
+			{RuleType: "BY_PERMISSION", Value: "finance.cost.caljob.trigger"},
+		},
+	})
+	return req, nil
 }
 
 // UseExistingCosting jumps UNDER_REVIEW → QUOTE_READY, recording the reused
@@ -661,6 +709,16 @@ func (h *TransitionHandler) Reject(ctx context.Context, requestID int64, reason,
 		RequestID:       req.RequestID(),
 		Payload:         `{"status":"REJECTED","request_no":"` + req.RequestNo() + `"}`,
 	})
+	// Rule-based notification: inform the requester their request was rejected.
+	h.emitCPREvent(ctx, CPREvent{
+		EventType:       "CPR_REJECTED",
+		RequestID:       req.RequestID(),
+		RequestNo:       req.RequestNo(),
+		RequesterUserID: req.RequesterUserID(),
+		Rules: []CPRNotifRule{
+			{RuleType: "BY_USER_ID", Value: req.RequesterUserID()},
+		},
+	})
 	return req, nil
 }
 
@@ -681,7 +739,21 @@ func (h *TransitionHandler) Cancel(ctx context.Context, requestID int64, reason,
 
 // Close sets closed_substatus.
 func (h *TransitionHandler) Close(ctx context.Context, requestID int64, substatus, actor string) (*domain.Request, error) {
-	return h.apply(ctx, requestID, func(r *domain.Request) error { return r.Close(substatus) }, applyOpts{operation: auditOpStatusChange, actorID: actor})
+	req, err := h.apply(ctx, requestID, func(r *domain.Request) error { return r.Close(substatus) }, applyOpts{operation: auditOpStatusChange, actorID: actor})
+	if err != nil {
+		return nil, err
+	}
+	// Notify the requester that the request has been closed.
+	h.emitCPREvent(ctx, CPREvent{
+		EventType:       "CPR_CLOSED",
+		RequestID:       req.RequestID(),
+		RequestNo:       req.RequestNo(),
+		RequesterUserID: req.RequesterUserID(),
+		Rules: []CPRNotifRule{
+			{RuleType: "BY_USER_ID", Value: req.RequesterUserID()},
+		},
+	})
+	return req, nil
 }
 
 // Assign updates assignee_user_id.
