@@ -67,8 +67,19 @@ func (h *CreateHandler) Handle(ctx context.Context, cmd CreateCommand) (*domain.
 	if err := h.repo.Create(ctx, req); err != nil {
 		return nil, err
 	}
+	// Notify submitters (finance) that a new draft is waiting for their submission.
 	h.emitCPREvent(ctx, CPREvent{
 		EventType:       "CPR_DRAFT_CREATED",
+		RequestID:       req.RequestID(),
+		RequestNo:       req.RequestNo(),
+		RequesterUserID: req.RequesterUserID(),
+		Rules: []CPRNotifRule{
+			{RuleType: "BY_PERMISSION", Value: "finance.product.request.submit"},
+		},
+	})
+	// Acknowledge to the creator that their draft was saved.
+	h.emitCPREvent(ctx, CPREvent{
+		EventType:       "CPR_DRAFT_CREATED_ACK",
 		RequestID:       req.RequestID(),
 		RequestNo:       req.RequestNo(),
 		RequesterUserID: req.RequesterUserID(),

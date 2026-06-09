@@ -70,9 +70,14 @@ func cprEventMeta(eventType, requestNo string) (title, body string, notifType ia
 
 	switch eventType {
 	case "CPR_DRAFT_CREATED":
-		return "New product request ready for submission",
-			fmt.Sprintf("Product request %s has been created and is awaiting submission.", ref),
+		return "New product request awaiting submission",
+			fmt.Sprintf("Product request %s has been created as a draft and is waiting to be submitted.", ref),
 			iamv1.NotificationType_NOTIFICATION_TYPE_ASSIGNMENT,
+			iamv1.NotificationSeverity_NOTIFICATION_SEVERITY_INFO
+	case "CPR_DRAFT_CREATED_ACK":
+		return "Your product request has been saved",
+			fmt.Sprintf("Product request %s has been saved as a draft.", ref),
+			iamv1.NotificationType_NOTIFICATION_TYPE_SYSTEM,
 			iamv1.NotificationSeverity_NOTIFICATION_SEVERITY_INFO
 	case "CPR_SUBMITTED_REVIEWER":
 		return "Product request submitted — review required",
