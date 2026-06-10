@@ -176,7 +176,8 @@ func run() error {
 	notifDelete := appnotif.NewDeleteHandler(notificationRepo)
 	notifStream := appnotif.NewStreamHandler(notificationRepo, notifBroadcaster, 30*time.Second)
 	notifUserResolver := notifinfra.NewDBUserResolver(db.DB)
-	notifRequestHandler := appnotif.NewRequestHandler(notifCreate, notifUserResolver, nil)
+	notifEmailDispatcher := emailinfra.NewNotificationDispatcher(emailService, notifUserResolver)
+	notifRequestHandler := appnotif.NewRequestHandler(notifCreate, notifUserResolver, notifEmailDispatcher)
 	notificationHandler := grpcdelivery.NewNotificationHandler(
 		notifCreate, notifGet, notifList, notifUnread,
 		notifMarkRead, notifMarkAllRead, notifArchive, notifDelete,

@@ -5,6 +5,7 @@ package notification
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -77,6 +78,24 @@ func (r *DBUserResolver) GetByUserID(ctx context.Context, userID uuid.UUID) ([]u
 		SELECT user_id FROM mst_user
 		WHERE user_id = $1 AND deleted_at IS NULL AND is_active = true`
 	return r.scan(ctx, q, userID)
+}
+
+// LookupEmail returns the email address and display name for the given user ID.
+// Returns ("", "", nil) when the user does not exist or is soft-deleted.
+func (r *DBUserResolver) LookupEmail(ctx context.Context, userID uuid.UUID) (email, displayName string, err error) {
+	const q = `
+		SELECT u.email, COALESCE(ud.full_name, u.username) AS display_name
+		FROM mst_user u
+		LEFT JOIN mst_user_detail ud ON ud.user_id = u.user_id
+		WHERE u.user_id = $1 AND u.deleted_at IS NULL`
+	row := r.db.QueryRowContext(ctx, q, userID)
+	if scanErr := row.Scan(&email, &displayName); scanErr != nil {
+		if errors.Is(scanErr, sql.ErrNoRows) {
+			return "", "", nil
+		}
+		return "", "", fmt.Errorf("lookup user email: %w", scanErr)
+	}
+	return email, displayName, nil
 }
 
 func (r *DBUserResolver) scan(ctx context.Context, q string, arg any) ([]uuid.UUID, error) {

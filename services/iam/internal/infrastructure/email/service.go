@@ -84,6 +84,31 @@ func (s *Service) Send2FANotification(ctx context.Context, email, action string)
 	return s.send(ctx, email, subject, body)
 }
 
+// SendNotification sends a platform notification email to the given recipient.
+// Uses a minimal HTML template. When the SMTP host is unconfigured, it is a no-op.
+func (s *Service) SendNotification(ctx context.Context, toEmail, toName, title, body string) error {
+	if s.cfg.SMTPHost == "" {
+		return nil
+	}
+	subject := fmt.Sprintf("[GoApps] %s", title)
+	htmlBody := fmt.Sprintf(`<!DOCTYPE html>
+<html><body style="font-family:sans-serif;max-width:600px;margin:40px auto;padding:0 20px">
+<h2 style="color:#1a1a1a">%s</h2>
+<p style="color:#444;line-height:1.6">%s</p>
+<hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+<p style="color:#999;font-size:12px">You received this notification from GoApps.</p>
+</body></html>`,
+		escapeHTML(title), escapeHTML(body))
+	return s.send(ctx, toEmail, subject, htmlBody)
+}
+
+func escapeHTML(s string) string {
+	r := strings.NewReplacer(
+		"&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;",
+	)
+	return r.Replace(s)
+}
+
 func (s *Service) send(ctx context.Context, to, subject, htmlBody string) error {
 	addr := fmt.Sprintf("%s:%d", s.cfg.SMTPHost, s.cfg.SMTPPort)
 
