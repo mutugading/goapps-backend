@@ -23,6 +23,7 @@ func NewCostFillTaskRepository(db *DB) *CostFillTaskRepository {
 
 var _ domain.TaskRepository = (*CostFillTaskRepository)(nil)
 
+// cftCols is used in RETURNING clauses (correlated subqueries are not allowed there).
 const cftCols = `
 	cft_task_id, cft_request_id, cft_route_head_id, cft_route_level,
 	cft_filler_type, cft_filler_value,
@@ -30,6 +31,35 @@ const cftCols = `
 	cft_status, COALESCE(cft_claimed_by,''),
 	cft_reapprove_on_change, cft_sla_fill_hours, cft_sla_approve_hours,
 	cft_total_params, cft_filled_params, cft_activated_at`
+
+// cftSelectCols is used in SELECT queries. It computes cft_filled_params dynamically
+// by counting cost_product_parameter rows for non-CALCULATED applicable params at this
+// task's route level. CALCULATED params are excluded because they are computed by the
+// calc engine and must not block fill submission.
+// Queries using this constant MUST alias the table as "t".
+const cftSelectCols = `
+	t.cft_task_id, t.cft_request_id, t.cft_route_head_id, t.cft_route_level,
+	t.cft_filler_type, t.cft_filler_value,
+	COALESCE(t.cft_approver_type,''), COALESCE(t.cft_approver_value,''),
+	t.cft_status, COALESCE(t.cft_claimed_by,''),
+	t.cft_reapprove_on_change, t.cft_sla_fill_hours, t.cft_sla_approve_hours,
+	t.cft_total_params,
+	(
+	    SELECT COUNT(*)::int4
+	      FROM cost_product_applicable_param ca
+	      JOIN cost_route_seq crs
+	        ON crs.crs_product_sys_id = ca.capp_product_sys_id
+	       AND crs.crs_head_id = t.cft_route_head_id
+	       AND crs.crs_route_level = t.cft_route_level
+	      JOIN mst_parameter mp ON mp.id = ca.capp_param_id
+	                            AND mp.param_category != 'CALCULATED'
+	     WHERE EXISTS (
+	           SELECT 1 FROM cost_product_parameter cpp
+	           WHERE cpp.cpp_product_sys_id = ca.capp_product_sys_id
+	             AND cpp.cpp_param_id = ca.capp_param_id
+	     )
+	) AS cft_filled_params,
+	t.cft_activated_at`
 
 // BulkInsert creates all fill tasks for a request in a single transaction.
 func (r *CostFillTaskRepository) BulkInsert(ctx context.Context, tasks []*domain.Task) error {
@@ -69,9 +99,9 @@ func (r *CostFillTaskRepository) BulkInsert(ctx context.Context, tasks []*domain
 // GetByID loads a single fill task.
 func (r *CostFillTaskRepository) GetByID(ctx context.Context, taskID int64) (*domain.Task, error) {
 	row := r.db.QueryRowContext(ctx,
-		`SELECT `+cftCols+`
-		   FROM cost_fill_task
-		  WHERE cft_task_id=$1`, taskID)
+		`SELECT `+cftSelectCols+`
+		   FROM cost_fill_task t
+		  WHERE t.cft_task_id=$1`, taskID)
 	t, err := scanTask(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, domain.ErrTaskNotFound
@@ -82,9 +112,9 @@ func (r *CostFillTaskRepository) GetByID(ctx context.Context, taskID int64) (*do
 // GetByRequestLevel loads the task for (request, level).
 func (r *CostFillTaskRepository) GetByRequestLevel(ctx context.Context, requestID int64, routeLevel int32) (*domain.Task, error) {
 	row := r.db.QueryRowContext(ctx,
-		`SELECT `+cftCols+`
-		   FROM cost_fill_task
-		  WHERE cft_request_id=$1 AND cft_route_level=$2`,
+		`SELECT `+cftSelectCols+`
+		   FROM cost_fill_task t
+		  WHERE t.cft_request_id=$1 AND t.cft_route_level=$2`,
 		requestID, routeLevel)
 	t, err := scanTask(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -96,10 +126,10 @@ func (r *CostFillTaskRepository) GetByRequestLevel(ctx context.Context, requestI
 // ListByRequest returns all tasks for a request ordered by route level desc.
 func (r *CostFillTaskRepository) ListByRequest(ctx context.Context, requestID int64) ([]*domain.Task, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT `+cftCols+`
-		   FROM cost_fill_task
-		  WHERE cft_request_id=$1
-		  ORDER BY cft_route_level DESC`, requestID)
+		`SELECT `+cftSelectCols+`
+		   FROM cost_fill_task t
+		  WHERE t.cft_request_id=$1
+		  ORDER BY t.cft_route_level DESC`, requestID)
 	if err != nil {
 		return nil, fmt.Errorf("list tasks by request: %w", err)
 	}
@@ -114,16 +144,16 @@ func (r *CostFillTaskRepository) ListByRequest(ctx context.Context, requestID in
 // ListForUser returns tasks assigned to a user (by user ID or dept codes).
 func (r *CostFillTaskRepository) ListForUser(ctx context.Context, userID string, deptCodes []string) ([]*domain.Task, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT `+cftCols+`
-		   FROM cost_fill_task
+		`SELECT `+cftSelectCols+`
+		   FROM cost_fill_task t
 		  WHERE (
-		    (cft_filler_type='USER' AND cft_filler_value=$1)
-		    OR (cft_filler_type='DEPT' AND cft_filler_value = ANY($2))
-		    OR (cft_approver_type='USER' AND cft_approver_value=$1)
-		    OR (cft_approver_type='DEPT' AND cft_approver_value = ANY($2))
+		    (t.cft_filler_type='USER' AND t.cft_filler_value=$1)
+		    OR (t.cft_filler_type='DEPT' AND t.cft_filler_value = ANY($2))
+		    OR (t.cft_approver_type='USER' AND t.cft_approver_value=$1)
+		    OR (t.cft_approver_type='DEPT' AND t.cft_approver_value = ANY($2))
 		  )
-		  AND cft_status <> 'APPROVED'
-		  ORDER BY cft_activated_at DESC`,
+		  AND t.cft_status <> 'APPROVED'
+		  ORDER BY t.cft_activated_at DESC`,
 		userID, pq.Array(deptCodes))
 	if err != nil {
 		return nil, fmt.Errorf("list tasks for user: %w", err)
@@ -198,6 +228,35 @@ func (r *CostFillTaskRepository) CountNonApproved(ctx context.Context, requestID
 	return n, nil
 }
 
+// CountNonApprovedBelow returns tasks with route_level < maxLevel that are not APPROVED.
+func (r *CostFillTaskRepository) CountNonApprovedBelow(ctx context.Context, requestID int64, maxLevel int32) (int, error) {
+	var n int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM cost_fill_task
+		  WHERE cft_request_id=$1
+		    AND cft_route_level < $2
+		    AND cft_status <> 'APPROVED'`,
+		requestID, maxLevel).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("count non-approved below %d: %w", maxLevel, err)
+	}
+	return n, nil
+}
+
+// ActivateTask sets the status to ACTIVE and stamps activated_at to now.
+// Only transitions tasks that are currently INACTIVE (status='INACTIVE').
+func (r *CostFillTaskRepository) ActivateTask(ctx context.Context, taskID int64) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE cost_fill_task
+		    SET cft_status='ACTIVE', cft_activated_at=NOW()
+		  WHERE cft_task_id=$1`,
+		taskID)
+	if err != nil {
+		return fmt.Errorf("activate task %d: %w", taskID, err)
+	}
+	return nil
+}
+
 // MarkNotified stamps last_notified_at for a task.
 func (r *CostFillTaskRepository) MarkNotified(ctx context.Context, taskID int64) error {
 	_, err := r.db.ExecContext(ctx,
@@ -212,12 +271,12 @@ func (r *CostFillTaskRepository) MarkNotified(ctx context.Context, taskID int64)
 // ListOverdue returns unfinished tasks past SLA whose last reminder is stale.
 func (r *CostFillTaskRepository) ListOverdue(ctx context.Context, reminderGapHours int) ([]*domain.Task, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT `+cftCols+`
-		   FROM cost_fill_task
-		  WHERE cft_status IN ('ACTIVE','FILLING','APPROVAL_PENDING')
-		    AND cft_activated_at + (cft_sla_fill_hours || ' hours')::interval < NOW()
-		    AND (cft_last_notified_at IS NULL
-		         OR cft_last_notified_at < NOW() - ($1 || ' hours')::interval)`,
+		`SELECT `+cftSelectCols+`
+		   FROM cost_fill_task t
+		  WHERE t.cft_status IN ('ACTIVE','FILLING','APPROVAL_PENDING')
+		    AND t.cft_activated_at + (t.cft_sla_fill_hours || ' hours')::interval < NOW()
+		    AND (t.cft_last_notified_at IS NULL
+		         OR t.cft_last_notified_at < NOW() - ($1 || ' hours')::interval)`,
 		reminderGapHours)
 	if err != nil {
 		return nil, fmt.Errorf("list overdue tasks: %w", err)
@@ -234,11 +293,11 @@ func (r *CostFillTaskRepository) ListOverdue(ctx context.Context, reminderGapHou
 // These are tasks waiting for the filler to submit parameter values.
 func (r *CostFillTaskRepository) ListPendingFill(ctx context.Context, reminderGapHours int) ([]*domain.Task, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT `+cftCols+`
-		   FROM cost_fill_task
-		  WHERE cft_status IN ('ACTIVE','FILLING')
-		    AND (cft_last_notified_at IS NULL
-		         OR cft_last_notified_at < NOW() - ($1 || ' hours')::interval)`,
+		`SELECT `+cftSelectCols+`
+		   FROM cost_fill_task t
+		  WHERE t.cft_status IN ('ACTIVE','FILLING')
+		    AND (t.cft_last_notified_at IS NULL
+		         OR t.cft_last_notified_at < NOW() - ($1 || ' hours')::interval)`,
 		reminderGapHours)
 	if err != nil {
 		return nil, fmt.Errorf("list pending fill tasks: %w", err)
@@ -255,11 +314,11 @@ func (r *CostFillTaskRepository) ListPendingFill(ctx context.Context, reminderGa
 // These are tasks waiting for the approver to approve or reject.
 func (r *CostFillTaskRepository) ListPendingApproval(ctx context.Context, reminderGapHours int) ([]*domain.Task, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT `+cftCols+`
-		   FROM cost_fill_task
-		  WHERE cft_status = 'APPROVAL_PENDING'
-		    AND (cft_last_notified_at IS NULL
-		         OR cft_last_notified_at < NOW() - ($1 || ' hours')::interval)`,
+		`SELECT `+cftSelectCols+`
+		   FROM cost_fill_task t
+		  WHERE t.cft_status = 'APPROVAL_PENDING'
+		    AND (t.cft_last_notified_at IS NULL
+		         OR t.cft_last_notified_at < NOW() - ($1 || ' hours')::interval)`,
 		reminderGapHours)
 	if err != nil {
 		return nil, fmt.Errorf("list pending approval tasks: %w", err)
