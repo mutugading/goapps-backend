@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS cost_request_status_history (
     crsh_created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_crsh_request_id
-    ON cost_request_status_history(crsh_request_id);
-CREATE INDEX IF NOT EXISTS idx_crsh_created_at
-    ON cost_request_status_history(crsh_created_at DESC);
+-- Composite index supports the primary query pattern:
+-- WHERE crsh_request_id = $1 ORDER BY crsh_created_at ASC
+CREATE INDEX IF NOT EXISTS idx_crsh_request_id_created_at
+    ON cost_request_status_history(crsh_request_id, crsh_created_at ASC);

@@ -45,11 +45,7 @@ func (r *RequestHistoryRepository) ListByRequestID(ctx context.Context, requestI
 	if err != nil {
 		return nil, fmt.Errorf("request_history list: %w", err)
 	}
-	defer func() {
-		if cerr := rows.Close(); cerr != nil {
-			_ = cerr
-		}
-	}()
+	defer closeRows(rows)
 
 	var result []*requesthistory.Entry
 	for rows.Next() {
