@@ -57,10 +57,12 @@ func (h *CostRequestCommentHandler) CreateCostRequestComment(ctx context.Context
 		return &financev1.CreateCostRequestCommentResponse{Base: baseResp}, nil
 	}
 	actor, _ := GetUserIDFromCtx(ctx)
+	authorName, _ := GetUsernameFromCtx(ctx)
 	c, err := h.createHandler.Handle(ctx, app.CreateCommand{
 		RequestID:        req.GetRequestId(),
 		ParentCommentID:  req.GetParentCommentId(),
 		AuthorUserID:     actor,
+		AuthorName:       authorName,
 		BodyRichtext:     req.GetBodyRichtext(),
 		BodyPlaintext:    req.GetBodyPlaintext(),
 		MentionedUserIDs: req.GetMentionedUserIds(),

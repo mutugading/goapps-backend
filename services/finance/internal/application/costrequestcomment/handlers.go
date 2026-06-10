@@ -16,6 +16,7 @@ type CreateCommand struct {
 	RequestID        int64
 	ParentCommentID  int64
 	AuthorUserID     string
+	AuthorName       string // display name for notifications
 	BodyRichtext     string
 	BodyPlaintext    string
 	MentionedUserIDs []string
@@ -55,12 +56,12 @@ func (h *CreateHandler) Handle(ctx context.Context, cmd CreateCommand) (*domain.
 	if err := h.repo.Create(ctx, c); err != nil {
 		return nil, err
 	}
-	h.emitCommentAdded(ctx, cmd.RequestID)
+	h.emitCommentAdded(ctx, cmd.RequestID, cmd.AuthorName, cmd.MentionedUserIDs)
 	return c, nil
 }
 
-// emitCommentAdded fires CPR_COMMENT_ADDED best-effort; never fails the request.
-func (h *CreateHandler) emitCommentAdded(ctx context.Context, requestID int64) {
+// emitCommentAdded fires CPR_COMMENT_ADDED (and CPR_MENTIONED per mention) best-effort.
+func (h *CreateHandler) emitCommentAdded(ctx context.Context, requestID int64, authorName string, mentionedUserIDs []string) {
 	if h.cprNotifier == nil || h.cprRepo == nil {
 		return
 	}
@@ -75,6 +76,7 @@ func (h *CreateHandler) emitCommentAdded(ctx context.Context, requestID int64) {
 		RequestID:       requestID,
 		RequestNo:       req.RequestNo(),
 		RequesterUserID: req.RequesterUserID(),
+		ActorName:       authorName,
 		Rules: []cprapp.CPRNotifRule{
 			{RuleType: "BY_USER_ID", Value: req.RequesterUserID()},
 			{RuleType: "BY_PERMISSION", Value: "finance.product.request.review"},
@@ -84,6 +86,33 @@ func (h *CreateHandler) emitCommentAdded(ctx context.Context, requestID int64) {
 		log.Warn().Err(notifyErr).Int64("request_id", requestID).
 			Msg("CreateCommentHandler: emit CPR_COMMENT_ADDED failed (non-fatal)")
 	}
+	// Emit a separate CPR_MENTIONED notification per mentioned user.
+	for _, uid := range dedupStrings(mentionedUserIDs) {
+		mentionEvent := cprapp.CPREvent{
+			EventType:       "CPR_MENTIONED",
+			RequestID:       requestID,
+			RequestNo:       req.RequestNo(),
+			RequesterUserID: req.RequesterUserID(),
+			ActorName:       authorName,
+			Rules:           []cprapp.CPRNotifRule{{RuleType: "BY_USER_ID", Value: uid}},
+		}
+		if notifyErr := h.cprNotifier.NotifyEvent(ctx, mentionEvent); notifyErr != nil {
+			log.Warn().Err(notifyErr).Str("user_id", uid).
+				Msg("CreateCommentHandler: emit CPR_MENTIONED failed (non-fatal)")
+		}
+	}
+}
+
+func dedupStrings(ss []string) []string {
+	seen := make(map[string]struct{}, len(ss))
+	out := make([]string, 0, len(ss))
+	for _, s := range ss {
+		if _, ok := seen[s]; !ok {
+			seen[s] = struct{}{}
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // UpdateCommand input.

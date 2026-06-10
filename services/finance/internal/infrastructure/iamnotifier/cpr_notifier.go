@@ -42,7 +42,7 @@ func (n *CPRNotifier) buildParams(event cprapp.CPREvent) iamclient.RequestNotifi
 		})
 	}
 
-	title, body, notifType, severity := cprEventMeta(event.EventType, event.RequestNo)
+	title, body, notifType, severity := cprEventMeta(event.EventType, event.RequestNo, event.ActorName)
 
 	return iamclient.RequestNotificationParams{
 		EventType:      event.EventType,
@@ -61,8 +61,8 @@ func (n *CPRNotifier) buildParams(event cprapp.CPREvent) iamclient.RequestNotifi
 }
 
 // cprEventMeta returns the display text and notification metadata for each
-// CPR event type.
-func cprEventMeta(eventType, requestNo string) (title, body string, notifType iamv1.NotificationType, severity iamv1.NotificationSeverity) {
+// CPR event type. actorName is only relevant for comment/mention events.
+func cprEventMeta(eventType, requestNo, actorName string) (title, body string, notifType iamv1.NotificationType, severity iamv1.NotificationSeverity) {
 	ref := requestNo
 	if ref == "" {
 		ref = "a product request"
@@ -97,8 +97,13 @@ func cprEventMeta(eventType, requestNo string) (title, body string, notifType ia
 	case "CPR_FEASIBLE":
 		return "Product request assessed as feasible",
 			fmt.Sprintf("Product request %s has been assessed as feasible.", ref),
-			iamv1.NotificationType_NOTIFICATION_TYPE_APPROVAL,
+			iamv1.NotificationType_NOTIFICATION_TYPE_SYSTEM,
 			iamv1.NotificationSeverity_NOTIFICATION_SEVERITY_SUCCESS
+	case "CPR_ROUTING_NEEDED":
+		return "Product request ready for routing",
+			fmt.Sprintf("Product request %s has been assessed as feasible — please define the routing.", ref),
+			iamv1.NotificationType_NOTIFICATION_TYPE_ASSIGNMENT,
+			iamv1.NotificationSeverity_NOTIFICATION_SEVERITY_INFO
 	case "CPR_NOT_FEASIBLE":
 		return "Product request assessed as not feasible",
 			fmt.Sprintf("Product request %s has been assessed as not feasible.", ref),
@@ -114,14 +119,62 @@ func cprEventMeta(eventType, requestNo string) (title, body string, notifType ia
 			fmt.Sprintf("All parameters for product request %s have been filled and approved.", ref),
 			iamv1.NotificationType_NOTIFICATION_TYPE_SYSTEM,
 			iamv1.NotificationSeverity_NOTIFICATION_SEVERITY_SUCCESS
-	case "CPR_PARAM_COMPLETE_COSTING":
-		return "Product request ready for costing",
-			fmt.Sprintf("Product request %s has all parameters filled — costing can now be triggered.", ref),
+	case "CPR_PARAM_COMPLETE_CONFIRM":
+		return "Product request awaiting confirmation",
+			fmt.Sprintf("All parameters for product request %s are complete — please confirm.", ref),
+			iamv1.NotificationType_NOTIFICATION_TYPE_ASSIGNMENT,
+			iamv1.NotificationSeverity_NOTIFICATION_SEVERITY_INFO
+	case "CPR_CONFIRMED_REQUESTER":
+		return "Your product request has been confirmed",
+			fmt.Sprintf("Product request %s has been confirmed and is awaiting management approval.", ref),
+			iamv1.NotificationType_NOTIFICATION_TYPE_SYSTEM,
+			iamv1.NotificationSeverity_NOTIFICATION_SEVERITY_SUCCESS
+	case "CPR_CONFIRMED_APPROVE":
+		return "Product request awaiting approval",
+			fmt.Sprintf("Product request %s has been confirmed — please approve.", ref),
+			iamv1.NotificationType_NOTIFICATION_TYPE_APPROVAL,
+			iamv1.NotificationSeverity_NOTIFICATION_SEVERITY_INFO
+	case "CPR_APPROVED_REQUESTER":
+		return "Your product request has been approved",
+			fmt.Sprintf("Product request %s has been approved and is awaiting release.", ref),
+			iamv1.NotificationType_NOTIFICATION_TYPE_SYSTEM,
+			iamv1.NotificationSeverity_NOTIFICATION_SEVERITY_SUCCESS
+	case "CPR_APPROVED_RELEASE":
+		return "Product request awaiting release",
+			fmt.Sprintf("Product request %s has been approved — please release for costing.", ref),
+			iamv1.NotificationType_NOTIFICATION_TYPE_ASSIGNMENT,
+			iamv1.NotificationSeverity_NOTIFICATION_SEVERITY_INFO
+	case "CPR_RELEASED_REQUESTER":
+		return "Your product request has been released",
+			fmt.Sprintf("Product request %s has been released and is ready for cost calculation.", ref),
+			iamv1.NotificationType_NOTIFICATION_TYPE_SYSTEM,
+			iamv1.NotificationSeverity_NOTIFICATION_SEVERITY_SUCCESS
+	case "CPR_RELEASED_CALC":
+		return "Product request released — ready to calculate",
+			fmt.Sprintf("Product request %s has been released — cost calculation can now be triggered.", ref),
 			iamv1.NotificationType_NOTIFICATION_TYPE_ASSIGNMENT,
 			iamv1.NotificationSeverity_NOTIFICATION_SEVERITY_INFO
 	case "CPR_CLOSED":
 		return "Product request closed",
 			fmt.Sprintf("Product request %s has been closed.", ref),
+			iamv1.NotificationType_NOTIFICATION_TYPE_SYSTEM,
+			iamv1.NotificationSeverity_NOTIFICATION_SEVERITY_INFO
+	case "CPR_COMMENT_ADDED":
+		commenter := actorName
+		if commenter == "" {
+			commenter = "Someone"
+		}
+		return fmt.Sprintf("New comment on %s", ref),
+			fmt.Sprintf("%s commented on product request %s.", commenter, ref),
+			iamv1.NotificationType_NOTIFICATION_TYPE_SYSTEM,
+			iamv1.NotificationSeverity_NOTIFICATION_SEVERITY_INFO
+	case "CPR_MENTIONED":
+		commenter := actorName
+		if commenter == "" {
+			commenter = "Someone"
+		}
+		return fmt.Sprintf("You were mentioned in %s", ref),
+			fmt.Sprintf("%s mentioned you in a comment on product request %s.", commenter, ref),
 			iamv1.NotificationType_NOTIFICATION_TYPE_SYSTEM,
 			iamv1.NotificationSeverity_NOTIFICATION_SEVERITY_INFO
 	default:

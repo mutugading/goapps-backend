@@ -238,6 +238,13 @@ type CPREvent struct {
 	// Rules defines who receives the notification. When empty the default rule
 	// for the event type is applied by the implementation.
 	Rules []CPRNotifRule
+	// ActorName is the display name of the user who triggered the event.
+	// Used in comment/mention notifications to say "X commented on...".
+	ActorName string
+	// MentionedUserIDs is populated for CPR_COMMENT_ADDED events when the
+	// comment body contains @mentions. Each UUID receives a separate
+	// CPR_MENTIONED notification.
+	MentionedUserIDs []string
 }
 
 // CPRNotifRule is a single recipient resolution rule embedded in a CPREvent.
