@@ -368,6 +368,7 @@ func (h *TransitionHandler) WithHistoryRepo(r requesthistory.Repository) *Transi
 type applyOpts struct {
 	operation string // CAL operation tag (e.g. STATUS_CHANGE, FEASIBILITY)
 	actorID   string
+	actorName string
 }
 
 func (h *TransitionHandler) apply(ctx context.Context, requestID int64, mutate func(*domain.Request) error, opts applyOpts) (*domain.Request, error) {
@@ -383,21 +384,25 @@ func (h *TransitionHandler) apply(ctx context.Context, requestID int64, mutate f
 		return nil, err
 	}
 	h.emitAudit(ctx, req, beforeStatus, opts)
-	h.insertHistory(ctx, req, beforeStatus)
+	h.insertHistory(ctx, req, beforeStatus, opts)
 	return req, nil
 }
 
 // insertHistory records a status transition in the approval trace (best-effort).
-func (h *TransitionHandler) insertHistory(ctx context.Context, req *domain.Request, beforeStatus string) {
+func (h *TransitionHandler) insertHistory(ctx context.Context, req *domain.Request, beforeStatus string, opts applyOpts) {
 	if h.historyRepo == nil {
 		return
+	}
+	actorName := opts.actorName
+	if actorName == "" {
+		actorName = opts.actorID
 	}
 	entry := &requesthistory.Entry{
 		RequestID:   req.RequestID(),
 		FromStatus:  beforeStatus,
 		ToStatus:    req.Status(),
-		ActorUserID: actorIDFromCtx(ctx),
-		ActorName:   actorNameFromCtx(ctx),
+		ActorUserID: opts.actorID,
+		ActorName:   actorName,
 	}
 	if insertErr := h.historyRepo.Insert(ctx, entry); insertErr != nil {
 		log.Warn().Err(insertErr).Int64("request_id", req.RequestID()).
@@ -495,8 +500,8 @@ func (h *CreateHandler) emitCPREvent(ctx context.Context, event CPREvent) {
 // to reach IAM is logged as a warning but does not roll back the transition.
 // If a NotificationEmitter is configured, a STATUS_CHANGE notification is sent
 // to the assigned reviewer (if any); falls back to the requester if unassigned.
-func (h *TransitionHandler) Submit(ctx context.Context, requestID int64, actor string) (*domain.Request, error) {
-	req, err := h.apply(ctx, requestID, func(r *domain.Request) error { return r.Submit() }, applyOpts{operation: auditOpStatusChange, actorID: actor})
+func (h *TransitionHandler) Submit(ctx context.Context, requestID int64, actor, actorName string) (*domain.Request, error) {
+	req, err := h.apply(ctx, requestID, func(r *domain.Request) error { return r.Submit() }, applyOpts{operation: auditOpStatusChange, actorID: actor, actorName: actorName})
 	if err != nil {
 		return nil, err
 	}
@@ -572,8 +577,8 @@ func (h *TransitionHandler) startWorkflowInstance(ctx context.Context, req *doma
 // StartReview transitions SUBMITTED → UNDER_REVIEW.
 // Emits an ASSIGNED notification to the reviewer (actor) and a STATUS_CHANGE
 // notification to the requester informing them the review has started.
-func (h *TransitionHandler) StartReview(ctx context.Context, requestID int64, actor string) (*domain.Request, error) {
-	req, err := h.apply(ctx, requestID, func(r *domain.Request) error { return r.StartReview() }, applyOpts{operation: auditOpStatusChange, actorID: actor})
+func (h *TransitionHandler) StartReview(ctx context.Context, requestID int64, actor, actorName string) (*domain.Request, error) {
+	req, err := h.apply(ctx, requestID, func(r *domain.Request) error { return r.StartReview() }, applyOpts{operation: auditOpStatusChange, actorID: actor, actorName: actorName})
 	if err != nil {
 		return nil, err
 	}
@@ -605,15 +610,15 @@ func (h *TransitionHandler) StartReview(ctx context.Context, requestID int64, ac
 }
 
 // VerifyClassification sets verified_classification + (required) override_reason.
-func (h *TransitionHandler) VerifyClassification(ctx context.Context, requestID int64, verified, reason, actor string) (*domain.Request, error) {
-	return h.apply(ctx, requestID, func(r *domain.Request) error { return r.VerifyClassification(verified, reason) }, applyOpts{operation: auditOpClassificationOverride, actorID: actor})
+func (h *TransitionHandler) VerifyClassification(ctx context.Context, requestID int64, verified, reason, actor, actorName string) (*domain.Request, error) {
+	return h.apply(ctx, requestID, func(r *domain.Request) error { return r.VerifyClassification(verified, reason) }, applyOpts{operation: auditOpClassificationOverride, actorID: actor, actorName: actorName})
 }
 
 // DecideFeasibility advances UNDER_REVIEW → ROUTING_DEFINED or REJECTED.
 // Emits a FEASIBILITY notification to the requester with the decision outcome,
 // and a STATUS_CHANGE notification to the assigned engineer (if any) on FEASIBLE.
-func (h *TransitionHandler) DecideFeasibility(ctx context.Context, requestID int64, decision, note, actor string) (*domain.Request, error) {
-	req, err := h.apply(ctx, requestID, func(r *domain.Request) error { return r.DecideFeasibility(decision, note, actor) }, applyOpts{operation: auditOpFeasibility, actorID: actor})
+func (h *TransitionHandler) DecideFeasibility(ctx context.Context, requestID int64, decision, note, actor, actorName string) (*domain.Request, error) {
+	req, err := h.apply(ctx, requestID, func(r *domain.Request) error { return r.DecideFeasibility(decision, note, actor) }, applyOpts{operation: auditOpFeasibility, actorID: actor, actorName: actorName})
 	if err != nil {
 		return nil, err
 	}
@@ -669,7 +674,7 @@ func (h *TransitionHandler) DecideFeasibility(ctx context.Context, requestID int
 // When a FillTaskCreator is configured via WithFillCreator, fill tasks are created
 // for every route level BEFORE the state transition is committed. If config is
 // missing for any level, the method returns an error and the transition is aborted.
-func (h *TransitionHandler) MarkParameterPending(ctx context.Context, requestID int64, actor string) (*domain.Request, error) {
+func (h *TransitionHandler) MarkParameterPending(ctx context.Context, requestID int64, actor, actorName string) (*domain.Request, error) {
 	if h.fillCreator != nil {
 		if err := h.createFillTasksForRequest(ctx, requestID); err != nil {
 			return nil, fmt.Errorf("create fill tasks: %w", err)
@@ -677,7 +682,7 @@ func (h *TransitionHandler) MarkParameterPending(ctx context.Context, requestID 
 	}
 	return h.apply(ctx, requestID, func(r *domain.Request) error {
 		return r.MarkParameterPending()
-	}, applyOpts{operation: auditOpStatusChange, actorID: actor})
+	}, applyOpts{operation: auditOpStatusChange, actorID: actor, actorName: actorName})
 }
 
 // createFillTasksForRequest loads the request + linked route graph, extracts the
@@ -777,7 +782,7 @@ const completionLevelMin = int32(100)
 // MarkParameterComplete advances PARAMETER_PENDING → PARAMETER_COMPLETE.
 // When a FillCompletionChecker is attached via WithFillChecker, all regular
 // fill levels (below L100) must be APPROVED before the transition is allowed.
-func (h *TransitionHandler) MarkParameterComplete(ctx context.Context, requestID int64, actor string) (*domain.Request, error) {
+func (h *TransitionHandler) MarkParameterComplete(ctx context.Context, requestID int64, actor, actorName string) (*domain.Request, error) {
 	if h.fillChecker != nil {
 		pending, checkErr := h.fillChecker.CountNonApprovedBelow(ctx, requestID, completionLevelMin)
 		if checkErr != nil {
@@ -789,7 +794,7 @@ func (h *TransitionHandler) MarkParameterComplete(ctx context.Context, requestID
 	}
 	req, err := h.apply(ctx, requestID, func(r *domain.Request) error {
 		return r.MarkParameterComplete()
-	}, applyOpts{operation: auditOpStatusChange, actorID: actor})
+	}, applyOpts{operation: auditOpStatusChange, actorID: actor, actorName: actorName})
 	if err != nil {
 		return nil, err
 	}
@@ -817,8 +822,8 @@ func (h *TransitionHandler) MarkParameterComplete(ctx context.Context, requestID
 }
 
 // Confirm advances PARAMETER_COMPLETE → CONFIRMED.
-func (h *TransitionHandler) Confirm(ctx context.Context, requestID int64, actor string) (*domain.Request, error) {
-	req, err := h.apply(ctx, requestID, func(r *domain.Request) error { return r.Confirm() }, applyOpts{operation: auditOpStatusChange, actorID: actor})
+func (h *TransitionHandler) Confirm(ctx context.Context, requestID int64, actor, actorName string) (*domain.Request, error) {
+	req, err := h.apply(ctx, requestID, func(r *domain.Request) error { return r.Confirm() }, applyOpts{operation: auditOpStatusChange, actorID: actor, actorName: actorName})
 	if err != nil {
 		return nil, err
 	}
@@ -846,8 +851,8 @@ func (h *TransitionHandler) Confirm(ctx context.Context, requestID int64, actor 
 }
 
 // Approve advances CONFIRMED → APPROVED.
-func (h *TransitionHandler) Approve(ctx context.Context, requestID int64, actor string) (*domain.Request, error) {
-	req, err := h.apply(ctx, requestID, func(r *domain.Request) error { return r.Approve() }, applyOpts{operation: auditOpStatusChange, actorID: actor})
+func (h *TransitionHandler) Approve(ctx context.Context, requestID int64, actor, actorName string) (*domain.Request, error) {
+	req, err := h.apply(ctx, requestID, func(r *domain.Request) error { return r.Approve() }, applyOpts{operation: auditOpStatusChange, actorID: actor, actorName: actorName})
 	if err != nil {
 		return nil, err
 	}
@@ -876,8 +881,8 @@ func (h *TransitionHandler) Approve(ctx context.Context, requestID int64, actor 
 
 // Release advances APPROVED → RELEASED. After release the request is locked
 // and the cost calculation engine can proceed.
-func (h *TransitionHandler) Release(ctx context.Context, requestID int64, actor string) (*domain.Request, error) {
-	req, err := h.apply(ctx, requestID, func(r *domain.Request) error { return r.Release() }, applyOpts{operation: auditOpStatusChange, actorID: actor})
+func (h *TransitionHandler) Release(ctx context.Context, requestID int64, actor, actorName string) (*domain.Request, error) {
+	req, err := h.apply(ctx, requestID, func(r *domain.Request) error { return r.Release() }, applyOpts{operation: auditOpStatusChange, actorID: actor, actorName: actorName})
 	if err != nil {
 		return nil, err
 	}
@@ -906,16 +911,16 @@ func (h *TransitionHandler) Release(ctx context.Context, requestID int64, actor 
 
 // UseExistingCosting jumps UNDER_REVIEW → QUOTE_READY, recording the reused
 // product master on the request so QUOTE_READY traces back to a concrete product.
-func (h *TransitionHandler) UseExistingCosting(ctx context.Context, requestID int64, existingProductSysID int64, actor string) (*domain.Request, error) {
+func (h *TransitionHandler) UseExistingCosting(ctx context.Context, requestID int64, existingProductSysID int64, actor, actorName string) (*domain.Request, error) {
 	return h.apply(ctx, requestID, func(r *domain.Request) error {
 		return r.UseExistingCosting(existingProductSysID)
-	}, applyOpts{operation: auditOpStatusChange, actorID: actor})
+	}, applyOpts{operation: auditOpStatusChange, actorID: actor, actorName: actorName})
 }
 
 // Reject sends to REJECTED with a reason.
 // Emits a REQUEST_REJECTED notification to the requester.
-func (h *TransitionHandler) Reject(ctx context.Context, requestID int64, reason, actor string) (*domain.Request, error) {
-	req, err := h.apply(ctx, requestID, func(r *domain.Request) error { return r.Reject(reason) }, applyOpts{operation: auditOpStatusChange, actorID: actor})
+func (h *TransitionHandler) Reject(ctx context.Context, requestID int64, reason, actor, actorName string) (*domain.Request, error) {
+	req, err := h.apply(ctx, requestID, func(r *domain.Request) error { return r.Reject(reason) }, applyOpts{operation: auditOpStatusChange, actorID: actor, actorName: actorName})
 	if err != nil {
 		return nil, err
 	}
@@ -939,23 +944,23 @@ func (h *TransitionHandler) Reject(ctx context.Context, requestID int64, reason,
 }
 
 // Revise re-submits a REJECTED request.
-func (h *TransitionHandler) Revise(ctx context.Context, requestID int64, actor string) (*domain.Request, error) {
-	return h.apply(ctx, requestID, func(r *domain.Request) error { return r.Revise() }, applyOpts{operation: auditOpStatusChange, actorID: actor})
+func (h *TransitionHandler) Revise(ctx context.Context, requestID int64, actor, actorName string) (*domain.Request, error) {
+	return h.apply(ctx, requestID, func(r *domain.Request) error { return r.Revise() }, applyOpts{operation: auditOpStatusChange, actorID: actor, actorName: actorName})
 }
 
 // Reopen moves a CLOSED request back to DRAFT.
-func (h *TransitionHandler) Reopen(ctx context.Context, requestID int64, actor string) (*domain.Request, error) {
-	return h.apply(ctx, requestID, func(r *domain.Request) error { return r.Reopen() }, applyOpts{operation: auditOpStatusChange, actorID: actor})
+func (h *TransitionHandler) Reopen(ctx context.Context, requestID int64, actor, actorName string) (*domain.Request, error) {
+	return h.apply(ctx, requestID, func(r *domain.Request) error { return r.Reopen() }, applyOpts{operation: auditOpStatusChange, actorID: actor, actorName: actorName})
 }
 
 // Cancel closes a non-CLOSED request with closed_substatus = cancelled.
-func (h *TransitionHandler) Cancel(ctx context.Context, requestID int64, reason, actor string) (*domain.Request, error) {
-	return h.apply(ctx, requestID, func(r *domain.Request) error { return r.Cancel(reason) }, applyOpts{operation: auditOpStatusChange, actorID: actor})
+func (h *TransitionHandler) Cancel(ctx context.Context, requestID int64, reason, actor, actorName string) (*domain.Request, error) {
+	return h.apply(ctx, requestID, func(r *domain.Request) error { return r.Cancel(reason) }, applyOpts{operation: auditOpStatusChange, actorID: actor, actorName: actorName})
 }
 
 // Close sets closed_substatus.
-func (h *TransitionHandler) Close(ctx context.Context, requestID int64, substatus, actor string) (*domain.Request, error) {
-	req, err := h.apply(ctx, requestID, func(r *domain.Request) error { return r.Close(substatus) }, applyOpts{operation: auditOpStatusChange, actorID: actor})
+func (h *TransitionHandler) Close(ctx context.Context, requestID int64, substatus, actor, actorName string) (*domain.Request, error) {
+	req, err := h.apply(ctx, requestID, func(r *domain.Request) error { return r.Close(substatus) }, applyOpts{operation: auditOpStatusChange, actorID: actor, actorName: actorName})
 	if err != nil {
 		return nil, err
 	}
@@ -973,6 +978,6 @@ func (h *TransitionHandler) Close(ctx context.Context, requestID int64, substatu
 }
 
 // Assign updates assignee_user_id.
-func (h *TransitionHandler) Assign(ctx context.Context, requestID int64, assignee, actor string) (*domain.Request, error) {
-	return h.apply(ctx, requestID, func(r *domain.Request) error { return r.Assign(assignee) }, applyOpts{operation: auditOpAssign, actorID: actor})
+func (h *TransitionHandler) Assign(ctx context.Context, requestID int64, assignee, actor, actorName string) (*domain.Request, error) {
+	return h.apply(ctx, requestID, func(r *domain.Request) error { return r.Assign(assignee) }, applyOpts{operation: auditOpAssign, actorID: actor, actorName: actorName})
 }

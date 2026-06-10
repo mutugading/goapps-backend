@@ -328,6 +328,7 @@ func getRequiredPermission(fullMethod string) string {
 		"/finance.v1.CostProductRequestService/AssignCostProductRequest":                "finance.product.request.assign",
 		"/finance.v1.CostProductRequestService/MarkParameterComplete":                   "",
 		"/finance.v1.CostProductRequestService/ReopenCostProductRequest":                "finance.product.request.reopen",
+		"/finance.v1.CostProductRequestService/GetCostProductRequestHistory":            "finance.product.request.view",
 		"/finance.v1.CostProductRequestService/LinkExistingRoute":                       "finance.product.route.update",
 		"/finance.v1.CostProductRequestService/UnlinkRoute":                             "finance.product.route.update",
 

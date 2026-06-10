@@ -100,7 +100,7 @@ func (h *CostProductRequestHandler) WithHistoryRepo(r requesthistory.Repository)
 // It is called by the completion gate after L102 is approved — the caller ("system")
 // is recorded as the actor since the transition is automated.
 func (h *CostProductRequestHandler) MarkParameterCompleteForGate(ctx context.Context, requestID int64, actor string) (requesterUserID, requestNo string, err error) {
-	req, tErr := h.transitionHandler.MarkParameterComplete(ctx, requestID, actor)
+	req, tErr := h.transitionHandler.MarkParameterComplete(ctx, requestID, actor, actor)
 	if tErr != nil {
 		return "", "", tErr
 	}
@@ -238,7 +238,8 @@ func (h *CostProductRequestHandler) SubmitCostProductRequest(ctx context.Context
 		return &financev1.SubmitCostProductRequestResponse{Base: baseResp}, nil
 	}
 	actor, _ := GetUserIDFromCtx(ctx)
-	r, err := h.transitionHandler.Submit(ctx, req.GetRequestId(), actor)
+	actorName, _ := GetUsernameFromCtx(ctx)
+	r, err := h.transitionHandler.Submit(ctx, req.GetRequestId(), actor, actorName)
 	if err != nil {
 		return &financev1.SubmitCostProductRequestResponse{Base: requestErrToBase(err)}, nil
 	}
@@ -251,7 +252,8 @@ func (h *CostProductRequestHandler) StartCostProductRequestReview(ctx context.Co
 		return &financev1.StartCostProductRequestReviewResponse{Base: baseResp}, nil
 	}
 	actor, _ := GetUserIDFromCtx(ctx)
-	r, err := h.transitionHandler.StartReview(ctx, req.GetRequestId(), actor)
+	actorName, _ := GetUsernameFromCtx(ctx)
+	r, err := h.transitionHandler.StartReview(ctx, req.GetRequestId(), actor, actorName)
 	if err != nil {
 		return &financev1.StartCostProductRequestReviewResponse{Base: requestErrToBase(err)}, nil
 	}
@@ -264,7 +266,8 @@ func (h *CostProductRequestHandler) VerifyCostProductRequestClassification(ctx c
 		return &financev1.VerifyCostProductRequestClassificationResponse{Base: baseResp}, nil
 	}
 	actor, _ := GetUserIDFromCtx(ctx)
-	r, err := h.transitionHandler.VerifyClassification(ctx, req.GetRequestId(), req.GetVerifiedClassification(), req.GetOverrideReason(), actor)
+	actorName, _ := GetUsernameFromCtx(ctx)
+	r, err := h.transitionHandler.VerifyClassification(ctx, req.GetRequestId(), req.GetVerifiedClassification(), req.GetOverrideReason(), actor, actorName)
 	if err != nil {
 		return &financev1.VerifyCostProductRequestClassificationResponse{Base: requestErrToBase(err)}, nil
 	}
@@ -277,7 +280,8 @@ func (h *CostProductRequestHandler) DecideCostProductRequestFeasibility(ctx cont
 		return &financev1.DecideCostProductRequestFeasibilityResponse{Base: baseResp}, nil
 	}
 	actor, _ := GetUserIDFromCtx(ctx)
-	r, err := h.transitionHandler.DecideFeasibility(ctx, req.GetRequestId(), req.GetDecision(), req.GetNote(), actor)
+	actorName, _ := GetUsernameFromCtx(ctx)
+	r, err := h.transitionHandler.DecideFeasibility(ctx, req.GetRequestId(), req.GetDecision(), req.GetNote(), actor, actorName)
 	if err != nil {
 		return &financev1.DecideCostProductRequestFeasibilityResponse{Base: requestErrToBase(err)}, nil
 	}
@@ -290,7 +294,8 @@ func (h *CostProductRequestHandler) UseExistingCostingForCostProductRequest(ctx 
 		return &financev1.UseExistingCostingForCostProductRequestResponse{Base: baseResp}, nil
 	}
 	actor, _ := GetUserIDFromCtx(ctx)
-	r, err := h.transitionHandler.UseExistingCosting(ctx, req.GetRequestId(), req.GetExistingProductSysId(), actor)
+	actorName, _ := GetUsernameFromCtx(ctx)
+	r, err := h.transitionHandler.UseExistingCosting(ctx, req.GetRequestId(), req.GetExistingProductSysId(), actor, actorName)
 	if err != nil {
 		return &financev1.UseExistingCostingForCostProductRequestResponse{Base: requestErrToBase(err)}, nil
 	}
@@ -303,7 +308,8 @@ func (h *CostProductRequestHandler) RejectCostProductRequest(ctx context.Context
 		return &financev1.RejectCostProductRequestResponse{Base: baseResp}, nil
 	}
 	actor, _ := GetUserIDFromCtx(ctx)
-	r, err := h.transitionHandler.Reject(ctx, req.GetRequestId(), req.GetReason(), actor)
+	actorName, _ := GetUsernameFromCtx(ctx)
+	r, err := h.transitionHandler.Reject(ctx, req.GetRequestId(), req.GetReason(), actor, actorName)
 	if err != nil {
 		return &financev1.RejectCostProductRequestResponse{Base: requestErrToBase(err)}, nil
 	}
@@ -317,7 +323,8 @@ func (h *CostProductRequestHandler) MarkParameterPending(ctx context.Context, re
 		return &financev1.MarkParameterPendingResponse{Base: baseResp}, nil
 	}
 	actor, _ := GetUserIDFromCtx(ctx)
-	r, err := h.transitionHandler.MarkParameterPending(ctx, req.GetRequestId(), actor)
+	actorName, _ := GetUsernameFromCtx(ctx)
+	r, err := h.transitionHandler.MarkParameterPending(ctx, req.GetRequestId(), actor, actorName)
 	if err != nil {
 		return &financev1.MarkParameterPendingResponse{Base: requestErrToBase(err)}, nil
 	}
@@ -339,7 +346,8 @@ func (h *CostProductRequestHandler) MarkParameterComplete(ctx context.Context, r
 		return &financev1.MarkParameterCompleteResponse{Base: baseResp}, nil
 	}
 	actor, _ := GetUserIDFromCtx(ctx)
-	r, err := h.transitionHandler.MarkParameterComplete(ctx, req.GetRequestId(), actor)
+	actorName, _ := GetUsernameFromCtx(ctx)
+	r, err := h.transitionHandler.MarkParameterComplete(ctx, req.GetRequestId(), actor, actorName)
 	if err != nil {
 		return &financev1.MarkParameterCompleteResponse{Base: requestErrToBase(err)}, nil
 	}
@@ -355,7 +363,8 @@ func (h *CostProductRequestHandler) ReviseCostProductRequest(ctx context.Context
 		return &financev1.ReviseCostProductRequestResponse{Base: baseResp}, nil
 	}
 	actor, _ := GetUserIDFromCtx(ctx)
-	r, err := h.transitionHandler.Revise(ctx, req.GetRequestId(), actor)
+	actorName, _ := GetUsernameFromCtx(ctx)
+	r, err := h.transitionHandler.Revise(ctx, req.GetRequestId(), actor, actorName)
 	if err != nil {
 		return &financev1.ReviseCostProductRequestResponse{Base: requestErrToBase(err)}, nil
 	}
@@ -368,7 +377,8 @@ func (h *CostProductRequestHandler) ReopenCostProductRequest(ctx context.Context
 		return &financev1.ReopenCostProductRequestResponse{Base: baseResp}, nil
 	}
 	actor, _ := GetUserIDFromCtx(ctx)
-	r, err := h.transitionHandler.Reopen(ctx, req.GetRequestId(), actor)
+	actorName, _ := GetUsernameFromCtx(ctx)
+	r, err := h.transitionHandler.Reopen(ctx, req.GetRequestId(), actor, actorName)
 	if err != nil {
 		return &financev1.ReopenCostProductRequestResponse{Base: requestErrToBase(err)}, nil
 	}
@@ -381,7 +391,8 @@ func (h *CostProductRequestHandler) CancelCostProductRequest(ctx context.Context
 		return &financev1.CancelCostProductRequestResponse{Base: baseResp}, nil
 	}
 	actor, _ := GetUserIDFromCtx(ctx)
-	r, err := h.transitionHandler.Cancel(ctx, req.GetRequestId(), req.GetReason(), actor)
+	actorName, _ := GetUsernameFromCtx(ctx)
+	r, err := h.transitionHandler.Cancel(ctx, req.GetRequestId(), req.GetReason(), actor, actorName)
 	if err != nil {
 		return &financev1.CancelCostProductRequestResponse{Base: requestErrToBase(err)}, nil
 	}
@@ -394,7 +405,8 @@ func (h *CostProductRequestHandler) CloseCostProductRequest(ctx context.Context,
 		return &financev1.CloseCostProductRequestResponse{Base: baseResp}, nil
 	}
 	actor, _ := GetUserIDFromCtx(ctx)
-	r, err := h.transitionHandler.Close(ctx, req.GetRequestId(), req.GetClosedSubstatus(), actor)
+	actorName, _ := GetUsernameFromCtx(ctx)
+	r, err := h.transitionHandler.Close(ctx, req.GetRequestId(), req.GetClosedSubstatus(), actor, actorName)
 	if err != nil {
 		return &financev1.CloseCostProductRequestResponse{Base: requestErrToBase(err)}, nil
 	}
@@ -407,7 +419,8 @@ func (h *CostProductRequestHandler) AssignCostProductRequest(ctx context.Context
 		return &financev1.AssignCostProductRequestResponse{Base: baseResp}, nil
 	}
 	actor, _ := GetUserIDFromCtx(ctx)
-	r, err := h.transitionHandler.Assign(ctx, req.GetRequestId(), req.GetAssigneeUserId(), actor)
+	actorName, _ := GetUsernameFromCtx(ctx)
+	r, err := h.transitionHandler.Assign(ctx, req.GetRequestId(), req.GetAssigneeUserId(), actor, actorName)
 	if err != nil {
 		return &financev1.AssignCostProductRequestResponse{Base: requestErrToBase(err)}, nil
 	}
@@ -420,7 +433,8 @@ func (h *CostProductRequestHandler) ConfirmCostProductRequest(ctx context.Contex
 		return &financev1.ConfirmCostProductRequestResponse{Base: baseResp}, nil
 	}
 	actor, _ := GetUserIDFromCtx(ctx)
-	r, err := h.transitionHandler.Confirm(ctx, req.GetRequestId(), actor)
+	actorName, _ := GetUsernameFromCtx(ctx)
+	r, err := h.transitionHandler.Confirm(ctx, req.GetRequestId(), actor, actorName)
 	if err != nil {
 		return &financev1.ConfirmCostProductRequestResponse{Base: requestErrToBase(err)}, nil
 	}
@@ -433,7 +447,8 @@ func (h *CostProductRequestHandler) ApproveCostProductRequest(ctx context.Contex
 		return &financev1.ApproveCostProductRequestResponse{Base: baseResp}, nil
 	}
 	actor, _ := GetUserIDFromCtx(ctx)
-	r, err := h.transitionHandler.Approve(ctx, req.GetRequestId(), actor)
+	actorName, _ := GetUsernameFromCtx(ctx)
+	r, err := h.transitionHandler.Approve(ctx, req.GetRequestId(), actor, actorName)
 	if err != nil {
 		return &financev1.ApproveCostProductRequestResponse{Base: requestErrToBase(err)}, nil
 	}
@@ -446,7 +461,8 @@ func (h *CostProductRequestHandler) ReleaseCostProductRequest(ctx context.Contex
 		return &financev1.ReleaseCostProductRequestResponse{Base: baseResp}, nil
 	}
 	actor, _ := GetUserIDFromCtx(ctx)
-	r, err := h.transitionHandler.Release(ctx, req.GetRequestId(), actor)
+	actorName, _ := GetUsernameFromCtx(ctx)
+	r, err := h.transitionHandler.Release(ctx, req.GetRequestId(), actor, actorName)
 	if err != nil {
 		return &financev1.ReleaseCostProductRequestResponse{Base: requestErrToBase(err)}, nil
 	}
