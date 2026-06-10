@@ -103,6 +103,12 @@ func (m *mockTaskRepo) IncrementFilled(_ context.Context, _ int64, _ int32, _ in
 
 func (m *mockTaskRepo) CountNonApproved(_ context.Context, _ int64) (int, error) { return 0, nil }
 
+func (m *mockTaskRepo) CountNonApprovedBelow(_ context.Context, _ int64, _ int32) (int, error) {
+	return 0, nil
+}
+
+func (m *mockTaskRepo) ActivateTask(_ context.Context, _ int64) error { return nil }
+
 func (m *mockTaskRepo) MarkNotified(_ context.Context, _ int64) error { return nil }
 
 func (m *mockTaskRepo) ListOverdue(_ context.Context, _ int) ([]*domain.Task, error) {
@@ -127,7 +133,7 @@ func (m *mockTaskRepo) ListApprovals(_ context.Context, _ int64) ([]*domain.Appr
 
 type mockCompletionGate struct{ called bool }
 
-func (m *mockCompletionGate) CheckAndAdvance(_ context.Context, _ int64) error {
+func (m *mockCompletionGate) CheckAndAdvance(_ context.Context, _ int64, _ int32) error {
 	m.called = true
 	return nil
 }
@@ -148,7 +154,8 @@ func newFillingTask() *domain.Task {
 		SLAFillHours: 48, SLAApproveHours: 24,
 	}
 	t := domain.NewTask(1, 10, rc, 5)
-	_ = t.Claim("u-filler") // ACTIVE → FILLING
+	t.FilledParams = t.TotalParams // all params filled — ready to submit
+	_ = t.Claim("u-filler")       // ACTIVE → FILLING
 	return t
 }
 
@@ -159,7 +166,8 @@ func newFillingTaskWithApprover() *domain.Task {
 		SLAFillHours: 48, SLAApproveHours: 24,
 	}
 	t := domain.NewTask(1, 10, rc, 5)
-	_ = t.Claim("u-filler") // ACTIVE → FILLING
+	t.FilledParams = t.TotalParams // all params filled — ready to submit
+	_ = t.Claim("u-filler")       // ACTIVE → FILLING
 	return t
 }
 
@@ -350,6 +358,21 @@ func TestSubmitFillHandler_ZeroTaskID(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestSubmitFillHandler_Incomplete_ReturnsErrFillIncomplete(t *testing.T) {
+	// Task has TotalParams=5 but FilledParams=2 → Submit must be rejected.
+	rc := domain.ResolvedConfig{RouteLevel: 1, FillerType: testFillerType, FillerValue: testFillerValue}
+	task := domain.NewTask(1, 10, rc, 5)
+	require.NoError(t, task.Claim("u-filler")) // ACTIVE → FILLING
+	// FilledParams stays at 0 (< TotalParams 5) — simulate incomplete fill.
+	repo := &mockTaskRepo{tasks: []*domain.Task{task}}
+	gate := &mockCompletionGate{}
+	h := app.NewSubmitFillHandler(repo, gate)
+	err := h.Handle(context.Background(), app.SubmitFillCommand{TaskID: 1, RequestID: 1, UserID: "u-filler"})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, domain.ErrFillIncomplete), "expected ErrFillIncomplete, got: %v", err)
+	assert.False(t, gate.called, "gate must not fire when fill is incomplete")
+}
+
 // ---------------------------------------------------------------------------
 // ApproveTaskHandler
 // ---------------------------------------------------------------------------
@@ -429,6 +452,7 @@ func TestFillLifecycle_ClaimSubmitApprove(t *testing.T) {
 		SLAFillHours: 48, SLAApproveHours: 24,
 	}
 	task := domain.NewTask(1, 10, rc, 3)
+	task.FilledParams = task.TotalParams // simulate all params filled
 	repo := &mockTaskRepo{claimOK: true, tasks: []*domain.Task{task}}
 	gate := &mockCompletionGate{}
 
@@ -461,6 +485,7 @@ func TestFillLifecycle_ClaimSubmitRejectResubmitApprove(t *testing.T) {
 		SLAFillHours: 48, SLAApproveHours: 24,
 	}
 	task := domain.NewTask(1, 10, rc, 3)
+	task.FilledParams = task.TotalParams // simulate all params filled
 	repo := &mockTaskRepo{claimOK: true, tasks: []*domain.Task{task}}
 	gate := &mockCompletionGate{}
 

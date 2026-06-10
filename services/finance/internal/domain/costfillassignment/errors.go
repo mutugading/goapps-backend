@@ -20,4 +20,6 @@ var (
 	ErrAlreadyClaimed = errors.New("fill task already claimed")
 	// ErrNoApprover when approving/rejecting a task that has no approver.
 	ErrNoApprover = errors.New("fill task has no approver")
+	// ErrFillIncomplete when submitting a task that still has unfilled parameters.
+	ErrFillIncomplete = errors.New("all parameters must be filled before submitting")
 )

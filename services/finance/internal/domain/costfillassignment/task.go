@@ -4,12 +4,19 @@ import "time"
 
 // Fill task statuses.
 const (
+	StatusInactive        = "INACTIVE"
 	StatusActive          = "ACTIVE"
 	StatusFilling         = "FILLING"
 	StatusFilled          = "FILLED"
 	StatusApprovalPending = "APPROVAL_PENDING"
 	StatusApproved        = "APPROVED"
 	StatusRejected        = "REJECTED"
+)
+
+// Completion-chain level constants (L100–L102 are the post-routing sign-off steps).
+const (
+	CompletionLevelStart = int32(100) // first completion level; all regular levels must be < 100
+	CompletionLevelFin   = int32(102) // last completion level; approving this triggers PARAMETER_COMPLETE
 )
 
 // Task is one fill task = one (request × route_level). Config is snapshotted at
@@ -54,6 +61,14 @@ func NewTask(requestID, routeHeadID int64, rc ResolvedConfig, totalParams int32)
 	}
 }
 
+// NewInactiveTask builds a completion-chain task (L101, L102) that starts INACTIVE.
+// It is activated by CompletionGate when the preceding level is approved.
+func NewInactiveTask(requestID, routeHeadID int64, rc ResolvedConfig, totalParams int32) *Task {
+	t := NewTask(requestID, routeHeadID, rc, totalParams)
+	t.status = StatusInactive
+	return t
+}
+
 // Hydrate rebuilds a Task from persisted columns (repository use only).
 func Hydrate(taskID, requestID, routeHeadID int64, routeLevel int32,
 	fillerType, fillerValue, approverType, approverValue, status, claimedBy string,
@@ -88,10 +103,13 @@ func (t *Task) Claim(userID string) error {
 }
 
 // Submit advances a FILLING task: APPROVAL_PENDING if it has an approver,
-// otherwise straight to APPROVED.
+// otherwise straight to APPROVED. All parameters must be filled first.
 func (t *Task) Submit() error {
 	if t.status != StatusFilling {
 		return ErrInvalidTransition
+	}
+	if t.TotalParams > 0 && t.FilledParams < t.TotalParams {
+		return ErrFillIncomplete
 	}
 	now := time.Now()
 	t.FilledAt = &now

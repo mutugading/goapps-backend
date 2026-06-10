@@ -11,7 +11,9 @@ func newTaskForTest(approver bool) *Task {
 		rc.ApproverType = "USER"
 		rc.ApproverValue = "u-boss"
 	}
-	return NewTask(100, 200, rc, 5)
+	task := NewTask(100, 200, rc, 5)
+	task.FilledParams = task.TotalParams // all params filled — ready to submit
+	return task
 }
 
 func TestTask_ClaimThenFill_NoApprover_GoesApproved(t *testing.T) {
