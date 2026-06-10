@@ -370,6 +370,10 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	// Wire IAM-backed CPR notifier for rule-based multi-recipient fan-out.
 	costProductRequestHandler.WithCPRNotifier(cprIAMNotifier)
 
+	// Wire CPR notifier into the comment handler so that CPR_COMMENT_ADDED
+	// notifications are emitted whenever a new comment is posted.
+	costRequestCommentHandler.WithCPRNotifier(costProductRequestRepo, cprIAMNotifier)
+
 	// Wire approval trace repository so every state transition is recorded and
 	// the GetCostProductRequestHistory RPC is enabled.
 	costProductRequestHandler.WithHistoryRepo(requestHistoryRepo)

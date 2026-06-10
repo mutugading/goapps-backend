@@ -8,7 +8,9 @@ import (
 	commonv1 "github.com/mutugading/goapps-backend/gen/common/v1"
 	financev1 "github.com/mutugading/goapps-backend/gen/finance/v1"
 	app "github.com/mutugading/goapps-backend/services/finance/internal/application/costrequestcomment"
+	cprapp "github.com/mutugading/goapps-backend/services/finance/internal/application/costproductrequest"
 	domain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costrequestcomment"
+	cprdomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductrequest"
 )
 
 // CostRequestCommentHandler implements financev1.CostRequestCommentServiceServer.
@@ -22,6 +24,13 @@ type CostRequestCommentHandler struct {
 	listByRequestHandler   *app.ListByRequestHandler
 	listEditHistoryHandler *app.ListEditHistoryHandler
 	validation             *ValidationHelper
+}
+
+// WithCPRNotifier wires CPR notification support into the create-comment use case.
+// Both arguments must be non-nil.
+func (h *CostRequestCommentHandler) WithCPRNotifier(repo cprdomain.Repository, notifier cprapp.CPRNotifier) *CostRequestCommentHandler {
+	h.createHandler.WithCPRNotifier(repo, notifier)
+	return h
 }
 
 // NewCostRequestCommentHandler constructs the handler.
