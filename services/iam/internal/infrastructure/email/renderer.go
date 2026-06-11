@@ -53,7 +53,7 @@ type CTAData struct {
 
 // TableData is an optional inline data table for notification emails.
 type TableData struct {
-	Caption string     // optional table title
+	Caption string // optional table title
 	Headers []string
 	Rows    [][]string
 }
@@ -147,14 +147,17 @@ func (r *Renderer) loadTemplate(name string) (*template.Template, error) {
 // between digit groups: "840921" → ["8","4","0","-","9","2","1"].
 // Non-6-digit inputs are returned as a single-element slice.
 func SplitOTP(otp string) []string {
-	const otpLen = 6
+	const (
+		otpLen   = 6
+		otpSplit = otpLen / 2
+	)
 	if len(otp) != otpLen {
 		return []string{otp}
 	}
 	return []string{
 		string(otp[0]), string(otp[1]), string(otp[2]),
 		"-",
-		string(otp[3]), string(otp[4]), string(otp[5]),
+		string(otp[otpSplit]), string(otp[otpSplit+1]), string(otp[otpSplit+2]),
 	}
 }
 
