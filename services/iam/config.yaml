@@ -69,6 +69,7 @@ security:
   reset_token_expiry: 10m
   single_device_login: true  # Force logout previous session on new login
   session_idle_timeout: 2h   # Auto-logout after 2 hours of inactivity
+  internal_service_token: "dev-internal-token-2026"  # Shared secret for service-to-service calls; must match finance iam_client.internal_service_token
 
 tracing:
   enabled: true

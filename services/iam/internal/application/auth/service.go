@@ -96,12 +96,12 @@ func (s *Service) Login(ctx context.Context, input domainAuth.LoginInput) (*doma
 		return nil, err
 	}
 
-	// Only embed roles in JWT (not permissions) to keep token size small.
-	// Permissions are returned in the response body and loaded via /me endpoint.
-	tokenPair, err := s.jwtService.GenerateTokenPair(u.ID(), u.Username(), u.Email(), roleNames, nil, nil)
+	tokenPair, err := s.jwtService.GenerateTokenPair(u.ID(), u.Username(), u.Email(), roleNames, permNames, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate tokens: %w", err)
 	}
+
+	s.cachePermissions(ctx, u.ID().String(), permNames)
 
 	if err := s.recordSuccessfulLogin(ctx, u, input); err != nil {
 		return nil, err
@@ -296,16 +296,17 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (*domai
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
-	roleNames, _, err := s.getUserRolePermNames(ctx, u.ID())
+	roleNames, permNames, err := s.getUserRolePermNames(ctx, u.ID())
 	if err != nil {
 		log.Warn().Err(err).Str("userID", u.ID().String()).Msg("failed to get user role/permission names during token refresh")
 	}
 
-	// Only embed roles in JWT (not permissions) to keep token size small.
-	tokenPair, err := s.jwtService.GenerateTokenPair(u.ID(), u.Username(), u.Email(), roleNames, nil, nil)
+	tokenPair, err := s.jwtService.GenerateTokenPair(u.ID(), u.Username(), u.Email(), roleNames, permNames, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate tokens: %w", err)
 	}
+
+	s.cachePermissions(ctx, u.ID().String(), permNames)
 
 	s.blacklistToken(ctx, claims.ID, claims.ExpiresAt.Unix())
 
@@ -343,6 +344,16 @@ func (s *Service) blacklistToken(ctx context.Context, tokenID string, expiresAtU
 				log.Warn().Err(err).Msg("failed to blacklist token")
 			}
 		}
+	}
+}
+
+func (s *Service) cachePermissions(ctx context.Context, userID string, permissions []string) {
+	if s.sessionCache == nil {
+		return
+	}
+	ttl := time.Duration(s.jwtService.GetAccessTTLSeconds()) * time.Second
+	if err := s.sessionCache.StoreUserPermissions(ctx, userID, permissions, ttl); err != nil {
+		log.Warn().Err(err).Str("userID", userID).Msg("failed to cache user permissions in Redis")
 	}
 }
 

@@ -88,8 +88,9 @@ func (s *Service) GenerateTokenPair(userID uuid.UUID, username, email string, ro
 		Username:      username,
 		Email:         email,
 		Roles:         roles,
-		Permissions:   permissions,
 		ServiceAccess: serviceAccess,
+		// Permissions intentionally omitted — too large for a browser cookie.
+		// They are cached in Redis under iam:user_perms:{userID} and looked up by auth interceptors.
 	}
 
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
