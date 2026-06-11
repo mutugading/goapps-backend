@@ -72,3 +72,51 @@ func TestRenderer_RenderOTP(t *testing.T) {
 	assert.NotContains(t, html, "cdn.tailwindcss.com")
 	assert.NotContains(t, html, "<script")
 }
+
+func TestRenderer_RenderSecurity(t *testing.T) {
+	r := NewRenderer(BaseData{AppName: "GoApps", AppURL: "http://localhost:3000"})
+	data := SecurityData{
+		BaseData:      r.BaseData(),
+		RecipientName: "Ilham Ramadhan",
+		Feature:       "Two-Factor Authentication",
+		Action:        "enabled",
+		IPAddress:     "192.168.1.1",
+		OccurredAt:    "June 11, 2026 at 14:30 WIB",
+		SecureURL:     "http://localhost:3000/settings/security",
+	}
+	html, err := r.Render("security", data)
+	require.NoError(t, err)
+	assert.Contains(t, html, "Ilham Ramadhan")
+	assert.Contains(t, html, "Two-Factor Authentication")
+	assert.Contains(t, html, "enabled")
+	assert.Contains(t, html, "192.168.1.1")
+	assert.Contains(t, html, "Review Account")
+}
+
+func TestRenderer_RenderSecurity_NoIPNoUserAgent(t *testing.T) {
+	r := NewRenderer(BaseData{AppName: "GoApps", AppURL: "http://localhost:3000"})
+	data := SecurityData{
+		BaseData:  r.BaseData(),
+		Feature:   "Password",
+		Action:    "reset",
+		SecureURL: "http://localhost:3000/settings/security",
+	}
+	html, err := r.Render("security", data)
+	require.NoError(t, err)
+	assert.NotContains(t, html, "IP Address")
+}
+
+func TestRenderer_RenderWelcome(t *testing.T) {
+	r := NewRenderer(BaseData{AppName: "GoApps", AppURL: "http://localhost:3000"})
+	data := WelcomeData{
+		BaseData:       r.BaseData(),
+		RecipientName:  "Ilham Ramadhan",
+		RecipientEmail: "ilham@mutugading.com",
+		LoginURL:       "http://localhost:3000/login",
+	}
+	html, err := r.Render("welcome", data)
+	require.NoError(t, err)
+	assert.Contains(t, html, "Ilham Ramadhan")
+	assert.Contains(t, html, "ilham@mutugading.com")
+	assert.Contains(t, html, "http://localhost:3000/login")
+}
