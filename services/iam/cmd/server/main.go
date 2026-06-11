@@ -110,9 +110,17 @@ func run() error {
 
 	// Setup email service with template renderer.
 	emailRenderer := emailinfra.NewRenderer(emailinfra.BaseData{
-		AppName:    cfg.Email.AppName,
-		AppURL:     cfg.Email.AppURL,
-		SupportURL: cfg.Email.SupportURL,
+		AppName:        cfg.Email.AppName,
+		AppURL:         cfg.Email.AppURL,
+		SupportURL:     cfg.Email.SupportURL,
+		HeaderTagline:  cfg.Email.HeaderTagline,
+		CompanyName:    cfg.Email.CompanyName,
+		CompanyAddress: cfg.Email.CompanyAddress,
+		PrivacyURL:     cfg.Email.PrivacyURL,
+		TermsURL:       cfg.Email.TermsURL,
+		LogoURL:        cfg.Email.LogoURL,
+		HeaderBgURL:    cfg.Email.HeaderBgURL,
+		SocialLinks:    buildSocialLinks(cfg.Email),
 	})
 	emailService := emailinfra.NewService(&cfg.Email, emailRenderer)
 	authService.SetEmailService(emailService)
@@ -335,4 +343,20 @@ func closeRedis(client *redisinfra.Client) {
 	if err := client.Close(); err != nil {
 		log.Warn().Err(err).Msg("Failed to close Redis connection")
 	}
+}
+
+// buildSocialLinks converts individual social URL config fields into a slice
+// of SocialLink values for the email renderer.
+func buildSocialLinks(cfg config.EmailConfig) []emailinfra.SocialLink {
+	var links []emailinfra.SocialLink
+	if cfg.SocialLinkedIn != "" {
+		links = append(links, emailinfra.SocialLink{Name: "LinkedIn", URL: cfg.SocialLinkedIn})
+	}
+	if cfg.SocialInstagram != "" {
+		links = append(links, emailinfra.SocialLink{Name: "Instagram", URL: cfg.SocialInstagram})
+	}
+	if cfg.SocialCompanyProfile != "" {
+		links = append(links, emailinfra.SocialLink{Name: "Company Profile", URL: cfg.SocialCompanyProfile})
+	}
+	return links
 }

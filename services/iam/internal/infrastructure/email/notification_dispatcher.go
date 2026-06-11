@@ -2,6 +2,8 @@ package email
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
@@ -46,10 +48,31 @@ func (d *NotificationDispatcher) Dispatch(ctx context.Context, n *notification.N
 			Msg("NotificationDispatcher: no email for user, skip")
 		return
 	}
-	if sendErr := d.svc.SendNotification(ctx, email, displayName, n.Title(), n.Body()); sendErr != nil {
+	ctaURL := d.buildCTAURL(n)
+	if sendErr := d.svc.SendNotification(ctx, email, displayName, n.Title(), n.Body(), ctaURL); sendErr != nil {
 		log.Warn().Err(sendErr).
 			Str("notification_id", n.ID().String()).
 			Str("recipient", email).
 			Msg("NotificationDispatcher: send email failed (non-fatal)")
 	}
+}
+
+// buildCTAURL returns a full URL for NAVIGATE-type notifications, or an empty
+// string for all other action types. The path from action_payload is appended
+// to the application base URL.
+func (d *NotificationDispatcher) buildCTAURL(n *notification.Notification) string {
+	if n.ActionType() != notification.ActionNavigate {
+		return ""
+	}
+	var payload struct {
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal([]byte(n.ActionPayload()), &payload); err != nil || payload.Path == "" {
+		return ""
+	}
+	base := strings.TrimRight(d.svc.AppURL(), "/")
+	if base == "" {
+		return ""
+	}
+	return base + payload.Path
 }

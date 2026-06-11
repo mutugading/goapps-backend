@@ -4,6 +4,7 @@ package email
 import (
 	"bytes"
 	"embed"
+	"encoding/base64"
 	"fmt"
 	"html/template"
 	"strings"
@@ -14,13 +15,32 @@ import (
 //go:embed templates/*.html.tmpl
 var templateFS embed.FS
 
+//go:embed assets
+var assetFS embed.FS
+
+// SocialLink holds a social media link rendered in the email footer.
+type SocialLink struct {
+	Name string // e.g., "LinkedIn", "Twitter", "Instagram"
+	URL  string
+}
+
 // BaseData is embedded in every email data struct and provides branding fields
 // used by the shared base template.
 type BaseData struct {
-	AppName    string // e.g., "GoApps"
-	AppURL     string // e.g., "https://app.mutugading.com"
-	SupportURL string // optional; empty omits the support link in the footer
-	Year       int    // set automatically in NewRenderer if zero
+	AppName        string       // e.g., "GoApps"
+	AppURL         string       // e.g., "https://app.mutugading.com"
+	SupportURL     string       // optional; empty omits the support link in the footer.
+	Year           int          // set automatically in NewRenderer if zero.
+	HeaderTagline  string       // optional tagline shown in the pre-header row (outside the card).
+	HeaderTitle    string       // large bold title shown in the card hero banner.
+	HeaderSubtitle string       // small text shown above HeaderTitle in the hero banner.
+	CompanyName    string       // full legal name used in footer copyright.
+	CompanyAddress string       // optional physical address shown in footer.
+	PrivacyURL     string       // link to privacy policy; auto-derived from AppURL if empty.
+	TermsURL       string       // link to terms of service; auto-derived from AppURL if empty.
+	LogoURL        string       // optional logo image URL; falls back to text logo when empty.
+	HeaderBgURL    string       // optional header background image URL.
+	SocialLinks    []SocialLink // optional; empty omits the social row in footer.
 }
 
 // OTPData is used to render the OTP email (password reset + email verification).
@@ -58,15 +78,23 @@ type TableData struct {
 	Rows    [][]string
 }
 
+// MetaItem holds a label-value pair for transaction metadata in notification emails.
+// Use it to show structured detail like "Request #", "Product", "Status".
+type MetaItem struct {
+	Label string
+	Value string
+}
+
 // NotificationData is used to render the general notification email.
 type NotificationData struct {
 	BaseData
 	RecipientName string
 	Title         string
-	Paragraphs    []string   // use SplitParagraphs() to build from a body string
-	CTA           CTAData    // zero value = no button
-	Table         *TableData // nil = no table
-	AlertLevel    string     // "" | "info" | "warning" | "error"
+	MetaItems     []MetaItem // key-value transaction details shown before body paragraphs.
+	Paragraphs    []string   // use SplitParagraphs() to build from a body string.
+	CTA           CTAData    // zero value = no button.
+	Table         *TableData // nil = no table.
+	AlertLevel    string     // "" | "info" | "warning" | "error".
 }
 
 // WelcomeData is used to render the welcome email.
@@ -86,9 +114,29 @@ type Renderer struct {
 
 // NewRenderer creates a Renderer populated with branding data derived from config.
 // The Year field is auto-set to the current year if zero.
+// If LogoURL or HeaderBgURL are empty, the renderer auto-populates them from the
+// embedded asset files (assets/logo.png, assets/header-bg.jpg) as base64 data URIs.
+// Providing explicit URLs in BaseData overrides the embedded assets.
 func NewRenderer(base BaseData) *Renderer {
 	if base.Year == 0 {
 		base.Year = time.Now().Year()
+	}
+	if base.LogoURL == "" {
+		if data, err := assetFS.ReadFile("assets/logo.png"); err == nil {
+			base.LogoURL = "data:image/png;base64," + base64.StdEncoding.EncodeToString(data)
+		}
+	}
+	appBase := strings.TrimRight(base.AppURL, "/")
+	// Auto-construct URLs from AppURL so staging/production domains are picked up
+	// automatically when app_url is configured. Override via explicit config fields.
+	if base.HeaderBgURL == "" && appBase != "" {
+		base.HeaderBgURL = appBase + "/mutugading-base.jpg"
+	}
+	if base.PrivacyURL == "" && appBase != "" {
+		base.PrivacyURL = appBase + "/privacy"
+	}
+	if base.TermsURL == "" && appBase != "" {
+		base.TermsURL = appBase + "/terms"
 	}
 	return &Renderer{
 		cache: make(map[string]*template.Template),
@@ -131,7 +179,12 @@ func (r *Renderer) loadTemplate(name string) (*template.Template, error) {
 	if tmpl, ok := r.cache[name]; ok {
 		return tmpl, nil
 	}
-	tmpl, err := template.New("").ParseFS(
+	funcs := template.FuncMap{
+		// safeURL marks a string as a trusted URL, bypassing html/template's
+		// sanitization of data: URIs and other non-http schemes.
+		"safeURL": func(s string) template.URL { return template.URL(s) },
+	}
+	tmpl, err := template.New("").Funcs(funcs).ParseFS(
 		templateFS,
 		"templates/_base.html.tmpl",
 		fmt.Sprintf("templates/%s.html.tmpl", name),

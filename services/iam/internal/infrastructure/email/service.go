@@ -33,8 +33,11 @@ func NewService(cfg *config.EmailConfig, renderer *Renderer) *Service {
 
 // SendOTP sends a password reset OTP to the user's email.
 func (s *Service) SendOTP(ctx context.Context, email, otp string, expiryMinutes int) error {
+	base := s.renderer.BaseData()
+	base.HeaderTitle = "Password Reset"
+	base.HeaderSubtitle = "One-time verification code"
 	data := OTPData{
-		BaseData:       s.renderer.BaseData(),
+		BaseData:       base,
 		RecipientEmail: email,
 		OTPDigits:      SplitOTP(otp),
 		ExpiryMinutes:  expiryMinutes,
@@ -49,8 +52,11 @@ func (s *Service) SendOTP(ctx context.Context, email, otp string, expiryMinutes 
 
 // SendEmailVerification sends an email verification OTP to the user's email.
 func (s *Service) SendEmailVerification(ctx context.Context, email, otp string, expiryMinutes int) error {
+	base := s.renderer.BaseData()
+	base.HeaderTitle = "Verify Your Email"
+	base.HeaderSubtitle = "One-time verification code"
 	data := OTPData{
-		BaseData:       s.renderer.BaseData(),
+		BaseData:       base,
 		RecipientEmail: email,
 		OTPDigits:      SplitOTP(otp),
 		ExpiryMinutes:  expiryMinutes,
@@ -65,8 +71,11 @@ func (s *Service) SendEmailVerification(ctx context.Context, email, otp string, 
 
 // Send2FANotification sends a notification about a 2FA status change.
 func (s *Service) Send2FANotification(ctx context.Context, email, action string) error {
+	base := s.renderer.BaseData()
+	base.HeaderTitle = "Security Update"
+	base.HeaderSubtitle = "Account security notification"
 	data := SecurityData{
-		BaseData:  s.renderer.BaseData(),
+		BaseData:  base,
 		Feature:   "Two-Factor Authentication",
 		Action:    action,
 		SecureURL: s.cfg.AppURL + "/settings/security",
@@ -79,17 +88,46 @@ func (s *Service) Send2FANotification(ctx context.Context, email, action string)
 	return s.send(ctx, email, subject, body)
 }
 
+// SendWelcomeUser sends a welcome email to a newly created user.
+func (s *Service) SendWelcomeUser(ctx context.Context, toEmail, toName string) error {
+	base := s.renderer.BaseData()
+	base.HeaderTitle = "Welcome to " + s.cfg.AppName
+	base.HeaderSubtitle = "Your account is ready"
+	data := WelcomeData{
+		BaseData:       base,
+		RecipientName:  toName,
+		RecipientEmail: toEmail,
+		LoginURL:       s.cfg.AppURL,
+	}
+	body, err := s.renderer.Render("welcome", data)
+	if err != nil {
+		return fmt.Errorf("render welcome email: %w", err)
+	}
+	return s.send(ctx, toEmail, "Welcome to "+s.cfg.AppName, body)
+}
+
+// AppURL returns the configured application base URL used for constructing CTA links.
+func (s *Service) AppURL() string {
+	return s.cfg.AppURL
+}
+
 // SendNotification sends a general platform notification email.
+// ctaURL is optional; when non-empty a "View Details" button is shown in the email.
 // When SMTP host is unconfigured, this is a no-op.
-func (s *Service) SendNotification(ctx context.Context, toEmail, toName, title, body string) error {
+func (s *Service) SendNotification(ctx context.Context, toEmail, toName, title, body, ctaURL string) error {
 	if s.cfg.SMTPHost == "" {
 		return nil
 	}
+	base := s.renderer.BaseData()
+	base.HeaderTitle = title
 	data := NotificationData{
-		BaseData:      s.renderer.BaseData(),
+		BaseData:      base,
 		RecipientName: toName,
 		Title:         title,
 		Paragraphs:    SplitParagraphs(body),
+	}
+	if ctaURL != "" {
+		data.CTA = CTAData{Label: "View Details", URL: ctaURL}
 	}
 	htmlBody, err := s.renderer.Render("notification", data)
 	if err != nil {
@@ -108,8 +146,10 @@ func (s *Service) SendNotificationWithAttachments(
 	if s.cfg.SMTPHost == "" {
 		return nil
 	}
+	base := s.renderer.BaseData()
+	base.HeaderTitle = title
 	data := NotificationData{
-		BaseData:      s.renderer.BaseData(),
+		BaseData:      base,
 		RecipientName: toName,
 		Title:         title,
 		Paragraphs:    SplitParagraphs(body),
@@ -132,8 +172,10 @@ func (s *Service) SendNotificationWithTable(
 	if s.cfg.SMTPHost == "" {
 		return nil
 	}
+	base := s.renderer.BaseData()
+	base.HeaderTitle = title
 	data := NotificationData{
-		BaseData:      s.renderer.BaseData(),
+		BaseData:      base,
 		RecipientName: toName,
 		Title:         title,
 		Paragraphs:    SplitParagraphs(body),

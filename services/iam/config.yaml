@@ -54,6 +54,16 @@ email:
   app_name: "GoApps"
   app_url: "http://localhost:3000"
   support_url: ""
+  header_tagline: "Advanced Yarns. Engineered Performance. Global Impact"
+  company_name: "PT. Mutu Gading Tekstil"
+  company_address: ""
+  privacy_url: ""       # leave empty to auto-derive from app_url (e.g. http://localhost:3000/privacy)
+  terms_url: ""         # leave empty to auto-derive from app_url (e.g. http://localhost:3000/terms)
+  logo_url: ""          # leave empty — auto-loaded from embedded assets/logo.png
+  header_bg_url: ""     # leave empty to auto-derive from app_url; staging/prod: set to the public frontend URL + /mutugading-base.jpg
+  social_linkedin: "https://www.linkedin.com/company/pt-mutu-gading-tekstil/posts/?feedView=all"
+  social_instagram: "https://www.instagram.com/mutugading"
+  social_company_profile: "https://website.mutugading.com/"
 
 totp:
   issuer: "GoApps"
