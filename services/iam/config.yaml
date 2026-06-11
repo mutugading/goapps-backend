@@ -48,9 +48,12 @@ email:
   smtp_user: ""
   smtp_password: ""
   from_address: "noreply@goapps.local"
-  from_name: "GoApps IAM"
+  from_name: "GoApps"
   use_tls: false
   skip_verify: true
+  app_name: "GoApps"
+  app_url: "http://localhost:3000"
+  support_url: ""
 
 totp:
   issuer: "GoApps"

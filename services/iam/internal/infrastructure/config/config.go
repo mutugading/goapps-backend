@@ -103,6 +103,9 @@ type EmailConfig struct {
 	FromName     string `mapstructure:"from_name"`
 	UseTLS       bool   `mapstructure:"use_tls"`
 	SkipVerify   bool   `mapstructure:"skip_verify"`
+	AppName      string `mapstructure:"app_name"`    // brand name used in templates.
+	AppURL       string `mapstructure:"app_url"`     // base URL for CTA links.
+	SupportURL   string `mapstructure:"support_url"` // optional support link in footer.
 }
 
 // TOTPConfig holds TOTP 2FA configuration.
@@ -248,9 +251,12 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("email.smtp_user", "")
 	v.SetDefault("email.smtp_password", "")
 	v.SetDefault("email.from_address", "noreply@goapps.local")
-	v.SetDefault("email.from_name", "GoApps IAM")
+	v.SetDefault("email.from_name", "GoApps")
 	v.SetDefault("email.use_tls", false)
 	v.SetDefault("email.skip_verify", true)
+	v.SetDefault("email.app_name", "GoApps")
+	v.SetDefault("email.app_url", "http://localhost:3000")
+	v.SetDefault("email.support_url", "")
 
 	// TOTP defaults
 	v.SetDefault("totp.issuer", "GoApps")
@@ -332,6 +338,9 @@ func bindEnvVars(v *viper.Viper) {
 		{"email.from_name", "SMTP_FROM_NAME"},
 		{"email.use_tls", "SMTP_USE_TLS"},
 		{"email.skip_verify", "SMTP_SKIP_VERIFY"},
+		{"email.app_name", "EMAIL_APP_NAME"},
+		{"email.app_url", "EMAIL_APP_URL"},
+		{"email.support_url", "EMAIL_SUPPORT_URL"},
 		// CORS
 		{"cors.allowed_origins", "CORS_ALLOWED_ORIGINS"},
 		// Tracing
