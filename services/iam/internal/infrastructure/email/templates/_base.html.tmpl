@@ -1,1 +1,51 @@
-{{define "base"}}{{template "content" .}}{{end}}
+{{define "base"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch><o:AllowPNG/></o:OfficeDocumentSettings></xml><![endif]-->
+</head>
+<body style="margin:0; padding:0; background-color:#f9f9ff; font-family:Arial,Helvetica,sans-serif; -webkit-font-smoothing:antialiased; mso-line-height-rule:exactly;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f9f9ff">
+    <tr>
+      <td align="center" style="padding:40px 20px;">
+        <!--[if mso]><table width="600" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="max-width:600px; width:100%; border-radius:12px; border:1px solid #dee8ff; box-shadow:0 4px 24px rgba(0,0,0,0.07);">
+          <!-- Logo header -->
+          <tr>
+            <td style="padding:28px 40px 24px 40px; border-bottom:1px solid #dee8ff; background-color:#ffffff; border-radius:12px 12px 0 0;">
+              <a href="{{.AppURL}}" style="text-decoration:none; display:inline-block;">
+                <span style="font-size:20px; font-weight:700; color:#3525cd; letter-spacing:-0.3px; font-family:Arial,Helvetica,sans-serif;">{{.AppName}}</span>
+              </a>
+            </td>
+          </tr>
+          <!-- Content block -->
+          <tr>
+            <td style="padding:32px 40px 24px 40px; background-color:#ffffff;">
+              {{template "content" .}}
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="padding:20px 40px 28px 40px; border-top:1px solid #dee8ff; background-color:#f9f9ff; border-radius:0 0 12px 12px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center">
+                    <p style="margin:0 0 6px 0; font-size:12px; color:#5c5f61; font-family:Arial,Helvetica,sans-serif;">
+                      <a href="{{.AppURL}}" style="color:#3525cd; text-decoration:none;">{{.AppName}}</a>{{if .SupportURL}}&nbsp;&middot;&nbsp;<a href="{{.SupportURL}}" style="color:#3525cd; text-decoration:none;">Contact Support</a>{{end}}
+                    </p>
+                    <p style="margin:0; font-size:11px; color:#777587; font-family:Arial,Helvetica,sans-serif;">&copy; {{.Year}} {{.AppName}}. All rights reserved.</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+        <!--[if mso]></td></tr></table><![endif]-->
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+{{end}}

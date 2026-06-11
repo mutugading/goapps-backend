@@ -52,3 +52,23 @@ func TestRenderer_UnknownTemplate_ReturnsError(t *testing.T) {
 	_, err := r.Render("nonexistent", nil)
 	assert.Error(t, err)
 }
+
+func TestRenderer_RenderOTP(t *testing.T) {
+	r := NewRenderer(BaseData{AppName: "GoApps", AppURL: "http://localhost:3000"})
+	data := OTPData{
+		BaseData:       r.BaseData(),
+		RecipientEmail: "test@example.com",
+		OTPDigits:      SplitOTP("840921"),
+		ExpiryMinutes:  10,
+		Purpose:        "password reset",
+	}
+	html, err := r.Render("otp", data)
+	require.NoError(t, err)
+	assert.Contains(t, html, "GoApps")
+	assert.Contains(t, html, "password reset")
+	assert.Contains(t, html, "Expires in 10 minutes")
+	assert.Contains(t, html, ">8<") // first OTP digit in a td
+	assert.Contains(t, html, ">9<") // first digit of second group
+	assert.NotContains(t, html, "cdn.tailwindcss.com")
+	assert.NotContains(t, html, "<script")
+}
