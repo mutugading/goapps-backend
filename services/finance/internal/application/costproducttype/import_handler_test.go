@@ -215,7 +215,6 @@ func TestImportHandler_Handle(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -296,7 +295,6 @@ func TestParseIsActive(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.raw+"_default_"+boolStr(tc.def), func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tc.expected, parseIsActive(tc.raw, tc.def))

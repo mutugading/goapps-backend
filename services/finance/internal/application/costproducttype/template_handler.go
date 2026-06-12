@@ -31,7 +31,7 @@ type cptExcelWriter struct {
 }
 
 // setCellValue sets a cell value and collects any error.
-func (ew *cptExcelWriter) setCellValue(cell string, value interface{}) {
+func (ew *cptExcelWriter) setCellValue(cell string, value any) {
 	if err := ew.f.SetCellValue(ew.sheetName, cell, value); err != nil {
 		ew.errs = append(ew.errs, fmt.Errorf("cell %s: %w", cell, err))
 	}
@@ -132,7 +132,7 @@ func writeCPTTemplateHeaders(f *excelize.File, sheetName string) error {
 }
 
 func writeCPTSampleData(writer *cptExcelWriter) {
-	sampleData := [][]interface{}{
+	sampleData := [][]any{
 		{"POY", "Partially Oriented Yarn", true},
 		{"PTY", "Polyester Textured Yarn", true},
 	}
