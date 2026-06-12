@@ -1,5 +1,65 @@
 # Changelog
 
+## [0.15.1](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.15.0...iam-service/v0.15.1) (2026-06-12)
+
+
+### Bug Fixes
+
+* **iam:** fix email logo and social icons for Gmail/Outlook compatibility ([#118](https://github.com/mutugading/goapps-backend/issues/118)) ([1d9b0c5](https://github.com/mutugading/goapps-backend/commit/1d9b0c53c4db9f0bf905fb92299c0db0f59d7106))
+
+## [0.15.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.14.0...iam-service/v0.15.0) (2026-06-12)
+
+
+### Features
+
+* **bi-service:** Enhance BI module with migrations, dashboard features, and gRPC support ([060b249](https://github.com/mutugading/goapps-backend/commit/060b2495db306f617b04385f1f68bdbecc483f17))
+* **bi:** add EBITDA + NET_PROFIT per-dashboard sidebar menu entries (IAM 000047) ([cc97e61](https://github.com/mutugading/goapps-backend/commit/cc97e6139a004e5ea28d9d7aa146bcd77e4a15c4))
+* **bi:** seed DELIVERY_MARGIN dashboard config + IAM menu/permissions (000324+000046) ([ab4dcef](https://github.com/mutugading/goapps-backend/commit/ab4dcefdc7bdb9c569697aeb991d40eed8c99299))
+* **costing:** Cost Fill Assignments, CPR Workflow, and IAM Notification Redesign ([5399842](https://github.com/mutugading/goapps-backend/commit/5399842feed2de8951891db737d72f877e13e3c0))
+* **finance:** wire SLA + fill-assignment reminder notifications to cron scheduler ([e2d09d3](https://github.com/mutugading/goapps-backend/commit/e2d09d30c253885f87a2f9d7f319db6ee1e6d34b))
+* **iam/db:** add migrations 000050-000053 for CPR roles, permissions, and section assignments ([de311c6](https://github.com/mutugading/goapps-backend/commit/de311c6ab31c34ae47b20b184fd2d4ad93354336))
+* **iam/email:** add app_url config, CTA link routing, and asset embedding ([3aa4c78](https://github.com/mutugading/goapps-backend/commit/3aa4c780d032a13eeac6565cdf693ba94980b34d))
+* **iam/email:** add AppName/AppURL/SupportURL to EmailConfig; fix from_name ([be9b8ab](https://github.com/mutugading/goapps-backend/commit/be9b8abeccb723ec6129b452b89d6fec7c92c97b))
+* **iam/email:** add base shell and OTP HTML templates; OTP renderer test ([a183a5c](https://github.com/mutugading/goapps-backend/commit/a183a5c52625bfe5d1280c102819d3371139e2f5))
+* **iam/email:** add multipart MIME builder with attachment support ([fecc2dd](https://github.com/mutugading/goapps-backend/commit/fecc2dd8dacdf4e02c2567de895ec400a1c529c2))
+* **iam/email:** add notification template with table/alert/CTA support ([0a61538](https://github.com/mutugading/goapps-backend/commit/0a615388cdbb7896d9d39ec5375f170c4a7bf3dd))
+* **iam/email:** add Renderer with data structs, template cache, SplitOTP/SplitParagraphs ([0264e60](https://github.com/mutugading/goapps-backend/commit/0264e60b94c17a3649105c5280a32be67e6cc98a))
+* **iam/email:** add security and welcome HTML templates with integration tests ([1ae3da4](https://github.com/mutugading/goapps-backend/commit/1ae3da48afe3398ded9e0b509509ae5c03effed3))
+* **iam/email:** redesign email templates — branding header, social icons, mobile responsive ([3f98295](https://github.com/mutugading/goapps-backend/commit/3f98295d1ebae2418b6dafe864afe2c3725b7627))
+* **iam/email:** rewrite Service to use Renderer; add WithAttachments/WithTable methods; clean subjects ([86ef918](https://github.com/mutugading/goapps-backend/commit/86ef918f88862d16c51ae036b51f51cf0c2d7b18))
+* **iam/email:** wire Renderer into main.go; email template system complete ([01e1a49](https://github.com/mutugading/goapps-backend/commit/01e1a4948c1986698fbad44582afee8af124cf8a))
+* **iam:** add RequestHandler for rule-based notification fan-out with deduplication ([7b33a7d](https://github.com/mutugading/goapps-backend/commit/7b33a7d621793d865d172cf68fa3da24e54dbb8a))
+* **iam:** add UserResolver interface and DB implementation for notification recipient resolution ([6fd761e](https://github.com/mutugading/goapps-backend/commit/6fd761e4ab673e253d58e028fc8e535286124a90))
+* **iam:** add ValidateUnlockPassword use case ([c0b07d1](https://github.com/mutugading/goapps-backend/commit/c0b07d15bef450abd91034652a97d4787696fbd5))
+* **iam:** cache user permissions in Redis on login/refresh; auth interceptor resolves from cache ([4789cd5](https://github.com/mutugading/goapps-backend/commit/4789cd5bd768895d96e48f22f36531e13fee07f8))
+* **iam:** commit PRD v1.3 batch — company-mapping, approval workflow, encrypted chat ([ce4da89](https://github.com/mutugading/goapps-backend/commit/ce4da8924091c890406d5c9d0c0459ff17c9da2c))
+* **iam:** implement NotificationEmailDispatcher; wire into RequestHandler so CPR events send emails via SMTP/Mailpit ([ee34d9f](https://github.com/mutugading/goapps-backend/commit/ee34d9f39973313944de6f3e9abb597b12455209))
+* **iam:** implement RequestNotification gRPC handler with rule-based UserResolver and wire into server ([6080129](https://github.com/mutugading/goapps-backend/commit/60801293c86d999da5f3ee6258ba2b44f351f835))
+* **iam:** populate section_code/department_code in AuthUser (Task 6 A3) ([baec8af](https://github.com/mutugading/goapps-backend/commit/baec8af8957ccc7ad70ebc20ff687b42117d0585))
+* **iam:** seed BI permissions, menus, and SUPER_ADMIN role assignments ([23b7dda](https://github.com/mutugading/goapps-backend/commit/23b7ddae8b7f37d951e4e59eb141cc29c5b68b2d))
+* **iam:** seed calc jobs + cost results sidebar menus ([6874c9b](https://github.com/mutugading/goapps-backend/commit/6874c9b6921d2869bb0d6cc4e9223b2c864c25b9))
+* **iam:** seed fill-assignment permissions for finance costing ([b6cf87b](https://github.com/mutugading/goapps-backend/commit/b6cf87bac7df0552da14ea846e0c476666087903))
+* **iam:** seed permissions for cost calc engine ([979590e](https://github.com/mutugading/goapps-backend/commit/979590eeef97cede35f86739e7433c1caba3b19e))
+* **iam:** seed product costing permissions + sidebar menu (phase 1) ([2f9a284](https://github.com/mutugading/goapps-backend/commit/2f9a2845c9f774db90149e8eaca2520aec5ade5a))
+* **product-cost:** Implement product costing system with migrations, handlers, and services ([173ddc6](https://github.com/mutugading/goapps-backend/commit/173ddc60c61e280da79ef78401ce0e73dd207a80))
+
+
+### Bug Fixes
+
+* **bi-dashboard:** Enhance BI metrics and dashboards with schema v1.1 updates ([bbb088d](https://github.com/mutugading/goapps-backend/commit/bbb088d8cd7c199f936113f11731506dd76a711c))
+* **ci:** fix goimports local-prefix grouping across finance and iam ([7a73b25](https://github.com/mutugading/goapps-backend/commit/7a73b254c454ef94646514c95cba77822cec5d0e))
+* **ci:** resolve golangci-lint and test failures on PR [#117](https://github.com/mutugading/goapps-backend/issues/117) ([0c9fd0f](https://github.com/mutugading/goapps-backend/commit/0c9fd0f8dca878a8f9e17c87b7948c7efef40e23))
+* Dynamic YTD KPI for BI Dashboards & IAM Menu Permissions ([#115](https://github.com/mutugading/goapps-backend/issues/115)) ([69e9171](https://github.com/mutugading/goapps-backend/commit/69e9171597b06b47b512dd46b151ee1ed7cf51ab))
+* **iam:** add audit fields + soft-delete guard to migration 000045 ([b098fa8](https://github.com/mutugading/goapps-backend/commit/b098fa8d338b0ac8ddf7507bc73294795b891feb))
+* **iam:** add RequestNotification to permission interceptor allow-list (internal service RPC) ([40aea89](https://github.com/mutugading/goapps-backend/commit/40aea8919e88ac04ec894806f067256b97d36c6e))
+* **iam:** company mapping delete only blocks on active users; return 409 on ErrAssignedToUser/ErrComboTaken ([079db53](https://github.com/mutugading/goapps-backend/commit/079db530d7b594c12e38e5ec4dc7b819a68d9fc0))
+* **iam:** correct FINANCE_PRODUCT_ORDERS menu url to /finance/routes ([7a1c989](https://github.com/mutugading/goapps-backend/commit/7a1c989407e258725634f1d713a34fb4b1ec0f8d))
+* **iam:** correct FINANCE_PRODUCT_ORDERS menu url to /finance/routes ([0bc4606](https://github.com/mutugading/goapps-backend/commit/0bc4606f7930093d317ab3b31d6db5dae0155374))
+* **iam:** gate RM Pricing and Product Costing parent menus ([082fd67](https://github.com/mutugading/goapps-backend/commit/082fd6721bf75e067d8c170369a92cbbaabd39e7))
+* **iam:** remove finance.product.request.create from CPR_ADMIN role ([4c401b4](https://github.com/mutugading/goapps-backend/commit/4c401b4145b8bf9fe426fdb7800b6d738b9feff8))
+* **iam:** replace interface{} with any in UserResolver scan helper ([6066175](https://github.com/mutugading/goapps-backend/commit/606617547058c72e4acb952065ff35000263ba13))
+* **iam:** resolve golangci-lint v2.3.0 CI failures (74 issues → 0) ([b33f749](https://github.com/mutugading/goapps-backend/commit/b33f7498af9fe51498e22d7d06a15654a6bfa82d))
+
 ## [0.14.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.13.0...iam-service/v0.14.0) (2026-05-07)
 
 
