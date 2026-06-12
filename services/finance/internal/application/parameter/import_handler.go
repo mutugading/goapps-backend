@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -118,20 +119,77 @@ type paramRowData struct {
 	defaultValue  string
 	minValue      string
 	maxValue      string
+
+	// Costing extension columns (cols 9–14).
+	ownerDepartment      string
+	isRequiredForCosting string
+	isPeriodDependent    string
+	lookupMasterCode     string
+	displayOrder         string
+	displayGroup         string
 }
 
 // parseParamRow extracts cell values from a row.
 func parseParamRow(row []string) paramRowData {
 	return paramRowData{
-		code:          getParamCell(row, 0),
-		name:          getParamCell(row, 1),
-		shortName:     getParamCell(row, 2),
-		dataType:      getParamCell(row, 3),
-		paramCategory: getParamCell(row, 4),
-		uomCode:       getParamCell(row, 5),
-		defaultValue:  getParamCell(row, 6),
-		minValue:      getParamCell(row, 7),
-		maxValue:      getParamCell(row, 8),
+		code:                 getParamCell(row, 0),
+		name:                 getParamCell(row, 1),
+		shortName:            getParamCell(row, 2),
+		dataType:             normalizeDataType(getParamCell(row, 3)),
+		paramCategory:        normalizeParamCategory(getParamCell(row, 4)),
+		uomCode:              getParamCell(row, 5),
+		defaultValue:         getParamCell(row, 6),
+		minValue:             getParamCell(row, 7),
+		maxValue:             getParamCell(row, 8),
+		ownerDepartment:      getParamCell(row, 9),
+		isRequiredForCosting: getParamCell(row, 10),
+		isPeriodDependent:    getParamCell(row, 11),
+		lookupMasterCode:     getParamCell(row, 12),
+		displayOrder:         getParamCell(row, 13),
+		displayGroup:         getParamCell(row, 14),
+	}
+}
+
+// normalizeDataType converts legacy Excel data type names to DB values.
+func normalizeDataType(s string) string {
+	if strings.EqualFold(strings.TrimSpace(s), "CHAR") {
+		return "TEXT"
+	}
+	return strings.ToUpper(strings.TrimSpace(s))
+}
+
+// normalizeParamCategory defaults an empty category to INPUT.
+func normalizeParamCategory(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return "INPUT"
+	}
+	return strings.ToUpper(strings.TrimSpace(s))
+}
+
+// parseCostingMetadata converts raw string row fields into a CostingMetadata struct.
+func parseCostingMetadata(data paramRowData) parameter.CostingMetadata {
+	isRequired := strings.EqualFold(data.isRequiredForCosting, "true") ||
+		data.isRequiredForCosting == "1" ||
+		strings.EqualFold(data.isRequiredForCosting, "yes")
+
+	isPeriod := strings.EqualFold(data.isPeriodDependent, "true") ||
+		data.isPeriodDependent == "1" ||
+		strings.EqualFold(data.isPeriodDependent, "yes")
+
+	var displayOrder int32
+	if data.displayOrder != "" {
+		if n, err := strconv.ParseInt(data.displayOrder, 10, 32); err == nil && n >= 0 {
+			displayOrder = int32(n) //nolint:gosec // ParseInt with bitSize=32 guarantees int32 range
+		}
+	}
+
+	return parameter.CostingMetadata{
+		OwnerDepartment:      data.ownerDepartment,
+		IsRequiredForCosting: isRequired,
+		IsPeriodDependent:    isPeriod,
+		LookupMasterCode:     data.lookupMasterCode,
+		DisplayOrder:         displayOrder,
+		DisplayGroup:         data.displayGroup,
 	}
 }
 
@@ -251,24 +309,33 @@ func (h *ImportHandler) updateExisting(ctx context.Context, code parameter.Code,
 		maxValue = &xvp
 	}
 
-	// Resolve UOM code to UUID if provided
+	// Resolve UOM code to UUID if provided. A missing UOM is a warning — import
+	// continues with no UOM assigned rather than failing the row.
 	var uomIDPtr **uuid.UUID
 	if data.uomCode != "" {
 		resolvedID, resolveErr := h.repo.ResolveUOMCode(ctx, data.uomCode)
 		if errors.Is(resolveErr, parameter.ErrUOMNotFound) {
-			result.FailedCount++
-			result.Errors = append(result.Errors, ImportError{RowNumber: rowNum, Field: "uom_code", Message: fmt.Sprintf("UOM code '%s' not found", data.uomCode)})
-			return
-		}
-		if resolveErr != nil {
+			result.Errors = append(result.Errors, ImportError{RowNumber: rowNum, Field: "uom_code", Message: fmt.Sprintf("UOM code '%s' not found, field left unchanged", data.uomCode)})
+		} else if resolveErr != nil {
 			result.FailedCount++
 			result.Errors = append(result.Errors, ImportError{RowNumber: rowNum, Field: "uom_code", Message: fmt.Sprintf("failed to resolve UOM code: %v", resolveErr)})
 			return
+		} else {
+			uomIDPtr = &resolvedID
 		}
-		uomIDPtr = &resolvedID
 	}
 
-	if err := existing.Update(&data.name, &data.shortName, &dataType, &paramCategory, uomIDPtr, defaultValue, minValue, maxValue, nil, parameter.CostingUpdate{}, updatedBy); err != nil {
+	costing := parseCostingMetadata(data)
+	costingUpdate := parameter.CostingUpdate{
+		OwnerDepartment:      &costing.OwnerDepartment,
+		IsRequiredForCosting: &costing.IsRequiredForCosting,
+		IsPeriodDependent:    &costing.IsPeriodDependent,
+		LookupMasterCode:     &costing.LookupMasterCode,
+		DisplayOrder:         &costing.DisplayOrder,
+		DisplayGroup:         &costing.DisplayGroup,
+	}
+
+	if err := existing.Update(&data.name, &data.shortName, &dataType, &paramCategory, uomIDPtr, defaultValue, minValue, maxValue, nil, costingUpdate, updatedBy); err != nil {
 		result.FailedCount++
 		result.Errors = append(result.Errors, ImportError{RowNumber: rowNum, Field: "update", Message: err.Error()})
 		return
@@ -305,28 +372,27 @@ func (h *ImportHandler) createParameter(
 		maxValue = &data.maxValue
 	}
 
-	// Resolve UOM code to UUID if provided
+	// Resolve UOM code to UUID if provided. A missing UOM is a warning — import
+	// continues with no UOM assigned rather than failing the row.
 	var uomID *uuid.UUID
 	if data.uomCode != "" {
 		resolvedID, resolveErr := h.repo.ResolveUOMCode(ctx, data.uomCode)
 		if errors.Is(resolveErr, parameter.ErrUOMNotFound) {
-			result.FailedCount++
-			result.Errors = append(result.Errors, ImportError{RowNumber: rowNum, Field: "uom_code", Message: fmt.Sprintf("UOM code '%s' not found", data.uomCode)})
-			return
-		}
-		if resolveErr != nil {
+			result.Errors = append(result.Errors, ImportError{RowNumber: rowNum, Field: "uom_code", Message: fmt.Sprintf("UOM code '%s' not found, field skipped", data.uomCode)})
+		} else if resolveErr != nil {
 			result.FailedCount++
 			result.Errors = append(result.Errors, ImportError{RowNumber: rowNum, Field: "uom_code", Message: fmt.Sprintf("failed to resolve UOM code: %v", resolveErr)})
 			return
+		} else {
+			uomID = resolvedID
 		}
-		uomID = resolvedID
 	}
 
 	entity, err := parameter.NewParameter(
 		code, data.name, data.shortName,
 		dataType, paramCategory, uomID,
 		defaultValue, minValue, maxValue,
-		parameter.CostingMetadata{},
+		parseCostingMetadata(data),
 		createdBy,
 	)
 	if err != nil {
