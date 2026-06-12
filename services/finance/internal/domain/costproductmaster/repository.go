@@ -23,4 +23,8 @@ type Repository interface {
 	GetByCode(ctx context.Context, code string) (*CostProductMaster, error)
 	Update(ctx context.Context, p *CostProductMaster) error
 	List(ctx context.Context, f Filter) (items []*CostProductMaster, total int64, err error)
+	// BulkCreate upserts a batch of products and returns product_code → assigned sysID mapping.
+	BulkCreate(ctx context.Context, items []*CostProductMaster, updatedBy string) (map[string]int64, error)
+	// ListAll returns all products matching the filter with no pagination cap, for export/sync use.
+	ListAll(ctx context.Context, f Filter) ([]*CostProductMaster, error)
 }

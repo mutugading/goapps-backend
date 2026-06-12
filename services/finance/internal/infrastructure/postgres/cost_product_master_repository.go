@@ -29,7 +29,8 @@ const cpmColumns = `
 	cpm_erp_item_code,cpm_erp_grade_code_1,cpm_erp_grade_code_2,
 	cpm_erp_linked_at,cpm_erp_linked_by,
 	cpm_is_active,
-	cpm_created_at,cpm_created_by,cpm_updated_at,cpm_updated_by`
+	cpm_created_at,cpm_created_by,cpm_updated_at,cpm_updated_by,
+	COALESCE(cpm_shade_name,''),COALESCE(cpm_flex_01,''),COALESCE(cpm_flex_02,''),COALESCE(cpm_flex_03,'')`
 
 // Create inserts the product. product_code is generated atomically via generate_cost_product_code()
 // inside the same INSERT, returning the new sys_id and code.
@@ -195,6 +196,80 @@ func (r *CostProductMasterRepository) List(ctx context.Context, f costproductmas
 	return items, total, nil
 }
 
+// BulkCreate upserts a batch of products in a single transaction.
+// Returns product_code → assigned sysID mapping for FK resolution by callers.
+func (r *CostProductMasterRepository) BulkCreate(ctx context.Context, items []*costproductmaster.CostProductMaster, updatedBy string) (map[string]int64, error) {
+	if len(items) == 0 {
+		return map[string]int64{}, nil
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin BulkCreate tx: %w", err)
+	}
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			_ = rbErr
+		}
+	}()
+
+	// $1=code $2=typeID $3=name $4=shadeCode $5=gradeCode $6=desc
+	// $7=shadeName $8=flex01 $9=flex02 $10=flex03
+	// $11=isActive $12=now $13=updatedBy
+	const q = `
+		INSERT INTO cost_product_master (
+			cpm_product_code,cpm_product_type_id,cpm_product_name,
+			cpm_shade_code,cpm_grade_code,cpm_description,
+			cpm_shade_name,cpm_flex_01,cpm_flex_02,cpm_flex_03,
+			cpm_is_active,cpm_created_at,cpm_created_by,cpm_updated_at,cpm_updated_by
+		) VALUES (
+			$1, $2, $3,
+			$4, $5, $6,
+			$7, $8, $9, $10,
+			$11, $12, $13, $12, $13
+		)
+		ON CONFLICT (cpm_product_code) DO UPDATE SET
+			cpm_product_name    = EXCLUDED.cpm_product_name,
+			cpm_shade_code      = EXCLUDED.cpm_shade_code,
+			cpm_grade_code      = EXCLUDED.cpm_grade_code,
+			cpm_description     = EXCLUDED.cpm_description,
+			cpm_shade_name      = EXCLUDED.cpm_shade_name,
+			cpm_flex_01         = EXCLUDED.cpm_flex_01,
+			cpm_flex_02         = EXCLUDED.cpm_flex_02,
+			cpm_flex_03         = EXCLUDED.cpm_flex_03,
+			cpm_updated_at      = EXCLUDED.cpm_updated_at,
+			cpm_updated_by      = EXCLUDED.cpm_updated_by
+		RETURNING cpm_product_code, cpm_product_sys_id`
+
+	result := make(map[string]int64, len(items))
+	now := time.Now().UTC()
+	for _, p := range items {
+		var code string
+		var sysID int64
+		if scanErr := tx.QueryRowContext(ctx, q,
+			p.ProductCode(), p.ProductTypeID(), p.ProductName(),
+			p.ShadeCode(), p.GradeCode(), p.Description(),
+			p.ShadeName(), p.Flex01(), p.Flex02(), p.Flex03(),
+			p.IsActive(), now, updatedBy,
+		).Scan(&code, &sysID); scanErr != nil {
+			return nil, fmt.Errorf("BulkCreate upsert: %w", scanErr)
+		}
+		result[code] = sysID
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit BulkCreate: %w", err)
+	}
+	return result, nil
+}
+
+// ListAll returns all products matching the filter with no pagination cap.
+func (r *CostProductMasterRepository) ListAll(ctx context.Context, f costproductmaster.Filter) ([]*costproductmaster.CostProductMaster, error) {
+	f.Page = 1
+	f.PageSize = 100000
+	items, _, err := r.List(ctx, f)
+	return items, err
+}
+
 // =============================================================================
 // scan helpers
 // =============================================================================
@@ -215,6 +290,10 @@ type cpmRow struct {
 	createdBy    string
 	updatedAt    time.Time
 	updatedBy    string
+	shadeName    string
+	flex01       string
+	flex02       string
+	flex03       string
 }
 
 func (r *CostProductMasterRepository) scanRow(row *sql.Row) (*costproductmaster.CostProductMaster, error) {
@@ -226,6 +305,7 @@ func (r *CostProductMasterRepository) scanRow(row *sql.Row) (*costproductmaster.
 		&d.erpAt, &d.erpBy,
 		&d.active,
 		&d.createdAt, &d.createdBy, &d.updatedAt, &d.updatedBy,
+		&d.shadeName, &d.flex01, &d.flex02, &d.flex03,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, costproductmaster.ErrNotFound
@@ -244,6 +324,7 @@ func (r *CostProductMasterRepository) scanRows(rows *sql.Rows) (*costproductmast
 		&d.erpAt, &d.erpBy,
 		&d.active,
 		&d.createdAt, &d.createdBy, &d.updatedAt, &d.updatedBy,
+		&d.shadeName, &d.flex01, &d.flex02, &d.flex03,
 	); err != nil {
 		return nil, fmt.Errorf("scan cost_product_master row: %w", err)
 	}
@@ -267,6 +348,7 @@ func cpmFromRow(d cpmRow) *costproductmaster.CostProductMaster {
 		erpAt, d.erpBy.String,
 		d.active,
 		d.createdAt, d.createdBy, d.updatedAt, d.updatedBy,
+		d.shadeName, d.flex01, d.flex02, d.flex03,
 	)
 }
 
