@@ -72,12 +72,13 @@ func NewInactiveTask(requestID, routeHeadID int64, rc ResolvedConfig, totalParam
 // Hydrate rebuilds a Task from persisted columns (repository use only).
 func Hydrate(taskID, requestID, routeHeadID int64, routeLevel int32,
 	fillerType, fillerValue, approverType, approverValue, status, claimedBy string,
-	reapprove bool, slaFill, slaApprove, total, filled int32, activatedAt time.Time) *Task {
+	reapprove bool, slaFill, slaApprove, total, filled int32, activatedAt time.Time, filledAt *time.Time) *Task {
 	return &Task{
 		TaskID: taskID, RequestID: requestID, RouteHeadID: routeHeadID, RouteLevel: routeLevel,
 		FillerType: fillerType, FillerValue: fillerValue, ApproverType: approverType, ApproverValue: approverValue,
 		ReapproveOnChange: reapprove, SLAFillHours: slaFill, SLAApproveHours: slaApprove,
 		status: status, TotalParams: total, FilledParams: filled, ClaimedBy: claimedBy, ActivatedAt: activatedAt,
+		FilledAt: filledAt,
 	}
 }
 

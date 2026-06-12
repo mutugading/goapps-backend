@@ -7,10 +7,10 @@ import (
 
 	commonv1 "github.com/mutugading/goapps-backend/gen/common/v1"
 	financev1 "github.com/mutugading/goapps-backend/gen/finance/v1"
-	app "github.com/mutugading/goapps-backend/services/finance/internal/application/costrequestcomment"
 	cprapp "github.com/mutugading/goapps-backend/services/finance/internal/application/costproductrequest"
-	domain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costrequestcomment"
+	app "github.com/mutugading/goapps-backend/services/finance/internal/application/costrequestcomment"
 	cprdomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductrequest"
+	domain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costrequestcomment"
 )
 
 // CostRequestCommentHandler implements financev1.CostRequestCommentServiceServer.

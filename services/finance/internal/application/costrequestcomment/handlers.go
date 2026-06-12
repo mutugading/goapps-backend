@@ -6,9 +6,9 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	domain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costrequestcomment"
 	cprapp "github.com/mutugading/goapps-backend/services/finance/internal/application/costproductrequest"
 	cprdomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductrequest"
+	domain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costrequestcomment"
 )
 
 // CreateCommand input.

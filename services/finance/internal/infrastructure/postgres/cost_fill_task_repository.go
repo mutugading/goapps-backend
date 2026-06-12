@@ -30,7 +30,7 @@ const cftCols = `
 	COALESCE(cft_approver_type,''), COALESCE(cft_approver_value,''),
 	cft_status, COALESCE(cft_claimed_by,''),
 	cft_reapprove_on_change, cft_sla_fill_hours, cft_sla_approve_hours,
-	cft_total_params, cft_filled_params, cft_activated_at`
+	cft_total_params, cft_filled_params, cft_activated_at, cft_filled_at`
 
 // cftSelectCols is used in SELECT queries. It computes cft_filled_params dynamically
 // by counting cost_product_parameter rows for non-CALCULATED applicable params at this
@@ -59,7 +59,7 @@ const cftSelectCols = `
 	             AND cpp.cpp_param_id = ca.capp_param_id
 	     )
 	) AS cft_filled_params,
-	t.cft_activated_at`
+	t.cft_activated_at, t.cft_filled_at`
 
 // BulkInsert creates all fill tasks for a request in a single transaction.
 func (r *CostFillTaskRepository) BulkInsert(ctx context.Context, tasks []*domain.Task) error {
@@ -396,6 +396,7 @@ func scanTask(s taskScanner) (*domain.Task, error) {
 		slaFill, slaApprove            int32
 		total, filled                  int32
 		activatedAt                    time.Time
+		filledAt                       *time.Time
 	)
 	if err := s.Scan(
 		&taskID, &requestID, &routeHeadID, &routeLevel,
@@ -403,7 +404,7 @@ func scanTask(s taskScanner) (*domain.Task, error) {
 		&approverType, &approverValue,
 		&status, &claimedBy,
 		&reapprove, &slaFill, &slaApprove,
-		&total, &filled, &activatedAt,
+		&total, &filled, &activatedAt, &filledAt,
 	); err != nil {
 		return nil, err
 	}
@@ -411,7 +412,7 @@ func scanTask(s taskScanner) (*domain.Task, error) {
 		taskID, requestID, routeHeadID, routeLevel,
 		fillerType, fillerValue, approverType, approverValue,
 		status, claimedBy,
-		reapprove, slaFill, slaApprove, total, filled, activatedAt,
+		reapprove, slaFill, slaApprove, total, filled, activatedAt, filledAt,
 	), nil
 }
 
