@@ -68,7 +68,8 @@ func (l *productLoader) LoadProducts(ctx context.Context, ids []int64) (map[int6
 		       COALESCE(cpm_erp_item_code, ''), COALESCE(cpm_erp_grade_code_1, ''), COALESCE(cpm_erp_grade_code_2, ''),
 		       cpm_erp_linked_at, COALESCE(cpm_erp_linked_by, ''),
 		       cpm_is_active,
-		       cpm_created_at, cpm_created_by, cpm_updated_at, COALESCE(cpm_updated_by, '')
+		       cpm_created_at, cpm_created_by, cpm_updated_at, COALESCE(cpm_updated_by, ''),
+		       COALESCE(cpm_shade_name,''), COALESCE(cpm_flex_01,''), COALESCE(cpm_flex_02,''), COALESCE(cpm_flex_03,'')
 		FROM cost_product_master
 		WHERE cpm_product_sys_id = ANY($1)`
 	rows, err := l.db.QueryContext(ctx, q, pq.Array(ids))
@@ -97,11 +98,16 @@ func (l *productLoader) LoadProducts(ctx context.Context, ids []int64) (map[int6
 			createdBy    string
 			updatedAt    time.Time
 			updatedBy    string
+			shadeName    string
+			flex01       string
+			flex02       string
+			flex03       string
 		)
 		if scanErr := rows.Scan(
 			&sysID, &code, &typeID, &name, &shade, &grade, &desc,
 			&erpItem, &erpG1, &erpG2, &erpAt, &erpBy,
 			&active, &createdAt, &createdBy, &updatedAt, &updatedBy,
+			&shadeName, &flex01, &flex02, &flex03,
 		); scanErr != nil {
 			return nil, fmt.Errorf("scan product row: %w", scanErr)
 		}
@@ -114,6 +120,7 @@ func (l *productLoader) LoadProducts(ctx context.Context, ids []int64) (map[int6
 			sysID, code, typeID, name, shade, grade, desc,
 			erpItem, erpG1, erpG2, erpAtPtr, erpBy,
 			active, createdAt, createdBy, updatedAt, updatedBy,
+			shadeName, flex01, flex02, flex03,
 		)
 	}
 	if err := rows.Err(); err != nil {

@@ -2,6 +2,7 @@ package rabbitmq
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -51,6 +52,20 @@ func (a *JobPublisherAdapter) PublishRMCostExport(
 		GroupHeadID:      groupHeadID,
 	}
 	return a.publisher.PublishJob(ctx, RoutingKeyRMCostExport, msg)
+}
+
+// PublishImportJob publishes a costing data import job message.
+// jobID is the int64 primary key from cost_import_job. entity is the entity type (e.g. "product_master").
+// requestingUserID is the UUID of the user who submitted the import; used to route
+// the completion notification. Empty string is safe (notification is skipped).
+func (a *JobPublisherAdapter) PublishImportJob(ctx context.Context, jobID int64, entity, requestingUserID string) error {
+	msg := JobMessage{
+		JobID:            fmt.Sprintf("%d", jobID),
+		JobType:          "costing_import",
+		Subtype:          entity,
+		RequestingUserID: requestingUserID,
+	}
+	return a.publisher.PublishJob(ctx, RoutingKeyImportJob, msg)
 }
 
 // PublishRMCostCalculation publishes an RM landed-cost calculation job message.

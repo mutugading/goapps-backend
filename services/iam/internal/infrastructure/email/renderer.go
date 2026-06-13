@@ -16,8 +16,9 @@ var templateFS embed.FS
 
 // SocialLink holds a social media link rendered in the email footer.
 type SocialLink struct {
-	Name string // e.g., "LinkedIn", "Twitter", "Instagram"
-	URL  string
+	Name    string // e.g., "LinkedIn", "Twitter", "Instagram"
+	URL     string
+	IconURL string // hosted PNG icon URL; empty falls back to branded pill button
 }
 
 // BaseData is embedded in every email data struct and provides branding fields
@@ -113,7 +114,7 @@ type Renderer struct {
 // Logo, header background, and footer URLs are auto-derived from AppURL when not
 // explicitly set. All images are served via public frontend URLs — data: URIs are
 // avoided because Gmail and Outlook block them since 2023.
-func NewRenderer(base BaseData) *Renderer {
+func NewRenderer(base BaseData) *Renderer { //nolint:gocyclo // cohesive URL-derivation setup: each branch is a simple field default
 	if base.Year == 0 {
 		base.Year = time.Now().Year()
 	}
@@ -131,6 +132,24 @@ func NewRenderer(base BaseData) *Renderer {
 	}
 	if base.TermsURL == "" && appBase != "" {
 		base.TermsURL = appBase + "/terms"
+	}
+	// Auto-derive social icon URLs from AppURL when not explicitly set.
+	// Files must exist in goapps-frontend/public/email-icons/ (linkedin.png, instagram.png, web.png).
+	if appBase != "" {
+		iconBase := appBase + "/email-icons/"
+		for i, sl := range base.SocialLinks {
+			if sl.IconURL != "" {
+				continue
+			}
+			switch sl.Name {
+			case "LinkedIn":
+				base.SocialLinks[i].IconURL = iconBase + "linkedin.png"
+			case "Instagram":
+				base.SocialLinks[i].IconURL = iconBase + "instagram.png"
+			case "Company Profile":
+				base.SocialLinks[i].IconURL = iconBase + "web.png"
+			}
+		}
 	}
 	return &Renderer{
 		cache: make(map[string]*template.Template),

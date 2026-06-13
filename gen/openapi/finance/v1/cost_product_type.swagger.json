@@ -112,6 +112,90 @@
         ]
       }
     },
+    "/api/v1/finance/cost-product-types/export": {
+      "get": {
+        "operationId": "CostProductTypeService_ExportCostProductTypes",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ExportCostProductTypesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "activeFilter",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "CostProductTypeService"
+        ]
+      }
+    },
+    "/api/v1/finance/cost-product-types/import": {
+      "post": {
+        "operationId": "CostProductTypeService_ImportCostProductTypes",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ImportCostProductTypesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ImportCostProductTypesRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CostProductTypeService"
+        ]
+      }
+    },
+    "/api/v1/finance/cost-product-types/template": {
+      "get": {
+        "operationId": "CostProductTypeService_DownloadCostProductTypeTemplate",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DownloadCostProductTypeTemplateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "CostProductTypeService"
+        ]
+      }
+    },
     "/api/v1/finance/cost-product-types/{typeId}": {
       "get": {
         "operationId": "CostProductTypeService_GetCostProductType",
@@ -313,6 +397,36 @@
         }
       }
     },
+    "v1DownloadCostProductTypeTemplateResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte"
+        },
+        "fileName": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ExportCostProductTypesResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte"
+        },
+        "fileName": {
+          "type": "string"
+        }
+      }
+    },
     "v1GetCostProductTypeResponse": {
       "type": "object",
       "properties": {
@@ -323,6 +437,71 @@
           "$ref": "#/definitions/v1CostProductType"
         }
       }
+    },
+    "v1ImportCostProductTypesRequest": {
+      "type": "object",
+      "properties": {
+        "fileContent": {
+          "type": "string",
+          "format": "byte"
+        },
+        "fileName": {
+          "type": "string"
+        },
+        "duplicateAction": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ImportCostProductTypesResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "successCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "skippedCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "updatedCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "failedCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ImportError"
+          }
+        }
+      }
+    },
+    "v1ImportError": {
+      "type": "object",
+      "properties": {
+        "rowNumber": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Row number in the Excel file."
+        },
+        "field": {
+          "type": "string",
+          "description": "Field that caused the error."
+        },
+        "message": {
+          "type": "string",
+          "description": "Error message."
+        }
+      },
+      "description": "ImportError represents a single import error."
     },
     "v1ListCostProductTypesResponse": {
       "type": "object",
