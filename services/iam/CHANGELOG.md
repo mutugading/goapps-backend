@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.16.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.15.1...iam-service/v0.16.0) (2026-06-13)
+
+
+### Features
+
+* **email:** reduce social icon display size from 36px to 30px ([8d6131d](https://github.com/mutugading/goapps-backend/commit/8d6131daf85659b56812cf1a7377121730950221))
+* **email:** replace pill buttons with hosted PNG social icons in footer ([a5e70f2](https://github.com/mutugading/goapps-backend/commit/a5e70f2c32684af2125193be628d45dc6f5f9d7b))
+
+
+### Bug Fixes
+
+* **import:** Async Cost Data Import Engine, CPM Extensions & Email Assets ([780cb08](https://github.com/mutugading/goapps-backend/commit/780cb08c30cb387f0922eda609cbd288f13c4d8a))
+* **lint:** resolve golangci-lint v2 issues across finance and iam ([393ee82](https://github.com/mutugading/goapps-backend/commit/393ee82c221a0ed06e01726d4a2ffb18d4238e55))
+* **notifications:** Multi-replica SSE via Redis Pub/Sub & Email Client Compatibility ([#120](https://github.com/mutugading/goapps-backend/issues/120)) ([ad4c9e4](https://github.com/mutugading/goapps-backend/commit/ad4c9e43323501e8b023fa619d04b75212bae410))
+
 ## [0.15.1](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.15.0...iam-service/v0.15.1) (2026-06-12)
 
 
