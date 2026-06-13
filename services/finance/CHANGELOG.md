@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.14.0](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.13.0...finance-service/v0.14.0) (2026-06-13)
+
+
+### Features
+
+* **finance:** add async import, export, template handlers for product_master, CAPP, CPP ([edd2ece](https://github.com/mutugading/goapps-backend/commit/edd2ece58b433d40198d26a21733fbbd4c774bf3))
+* **finance:** add CostDataImportHandler gRPC delivery + extend cost_product_type and cost_product_master handlers ([16a4aad](https://github.com/mutugading/goapps-backend/commit/16a4aad7fbff98d20008009d15a139c07f8c648a))
+* **finance:** add costimportjob domain entity + postgres repository ([c4b8fb9](https://github.com/mutugading/goapps-backend/commit/c4b8fb900b697f587676381696150f3effec2195))
+* **finance:** add costing_import RabbitMQ routing + CostingImportHandler worker ([78f2934](https://github.com/mutugading/goapps-backend/commit/78f29344a8de401a7199659fad8f4dba589067a7))
+* **finance:** add import/export/template handlers for cost_product_type ([5d4fc57](https://github.com/mutugading/goapps-backend/commit/5d4fc5735fe3b82eac73381af418f1329458586a))
+* **finance:** add shade_name/flex fields and BulkCreate/ListAll to CostProductMaster ([7f33986](https://github.com/mutugading/goapps-backend/commit/7f33986c0258e3d087c13f9ad8d1092cc854c446))
+* **finance:** enhance parameter import — CHAR→TEXT, INPUT default, UOM warn, costing columns ([c1c5a92](https://github.com/mutugading/goapps-backend/commit/c1c5a9258f0b5e15de57184e2251121558cbf2f9))
+* **finance:** persist requesting_user_id in costing import jobs for notifications ([687bec8](https://github.com/mutugading/goapps-backend/commit/687bec86f035ffbca7e32d72509870d54a5c0516))
+* **finance:** use English for costing import completion notifications ([718cf02](https://github.com/mutugading/goapps-backend/commit/718cf0270467fc32c83928bfa01c87691bc228ea))
+
+
+### Bug Fixes
+
+* **finance:** allow hyphens in parameter code validation pattern ([f1498ab](https://github.com/mutugading/goapps-backend/commit/f1498ab3527ceb18353adc9322f7155e4bc6a1fc))
+* **finance:** auto-generate product_code on blank import rows ([f178e50](https://github.com/mutugading/goapps-backend/commit/f178e50ca456c00b94255a1969d12fbc18ecaa10))
+* **finance:** fix cptExcelWriter undefined in costproducttype export handler ([c6cc071](https://github.com/mutugading/goapps-backend/commit/c6cc07131b833c1ef09a2ba84b5fe77d1025af81))
+* **finance:** replace interface{} with any in CostProductParameterRepository ([ec6f5aa](https://github.com/mutugading/goapps-backend/commit/ec6f5aaa55b00cca285f47ac9fd94ef955e65d83))
+* **finance:** suppress unused fileName param in enqueueImport helper ([22350c9](https://github.com/mutugading/goapps-backend/commit/22350c90fde3088cd51d02d7e4f272508a1361bb))
+* **import:** Async Cost Data Import Engine, CPM Extensions & Email Assets ([780cb08](https://github.com/mutugading/goapps-backend/commit/780cb08c30cb387f0922eda609cbd288f13c4d8a))
+* **lint:** gofmt cost_product_type_handler.go ([78abd1e](https://github.com/mutugading/goapps-backend/commit/78abd1e806a50e533af3632704cb2668a8ebd61b))
+* **lint:** gofmt remaining finance delivery and server files ([653211b](https://github.com/mutugading/goapps-backend/commit/653211bb0864d23bb6adafed826cba88c64dff32))
+* **lint:** resolve golangci-lint v2 issues across finance and iam ([393ee82](https://github.com/mutugading/goapps-backend/commit/393ee82c221a0ed06e01726d4a2ffb18d4238e55))
+* **notifications:** Multi-replica SSE via Redis Pub/Sub & Email Client Compatibility ([#120](https://github.com/mutugading/goapps-backend/issues/120)) ([ad4c9e4](https://github.com/mutugading/goapps-backend/commit/ad4c9e43323501e8b023fa619d04b75212bae410))
+
 ## [0.13.0](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.12.0...finance-service/v0.13.0) (2026-06-12)
 
 
