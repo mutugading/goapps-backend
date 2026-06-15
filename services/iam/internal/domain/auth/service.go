@@ -51,6 +51,10 @@ type Service interface {
 	// ValidateUnlockPassword verifies the user's current password for cell-unlock authorization.
 	// Returns nil if the password matches, or ErrInvalidCredentials if it does not.
 	ValidateUnlockPassword(ctx context.Context, userID uuid.UUID, password string) error
+
+	// CheckPassword verifies a plain-text password against the stored hash for the given user ID.
+	// Always returns ErrInvalidCredentials on mismatch or user-not-found to prevent user enumeration.
+	CheckPassword(ctx context.Context, userID uuid.UUID, password string) error
 }
 
 // LoginInput contains the login request parameters.

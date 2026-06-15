@@ -510,6 +510,19 @@ func (s *Service) ValidateUnlockPassword(ctx context.Context, userID uuid.UUID, 
 	return nil
 }
 
+// CheckPassword verifies a plain-text password against the stored hash for the given user ID.
+// Always returns shared.ErrInvalidCredentials on mismatch or user-not-found to prevent user enumeration.
+func (s *Service) CheckPassword(ctx context.Context, userID uuid.UUID, pwd string) error {
+	u, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, shared.ErrNotFound) {
+			return shared.ErrInvalidCredentials
+		}
+		return fmt.Errorf("check password: get user: %w", err)
+	}
+	return s.verifyPassword(u.PasswordHash(), pwd)
+}
+
 // Enable2FA initiates 2FA setup.
 func (s *Service) Enable2FA(ctx context.Context, userID uuid.UUID) (*domainAuth.Enable2FAResult, error) {
 	if s.otpCache == nil {

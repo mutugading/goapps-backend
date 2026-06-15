@@ -448,6 +448,30 @@ func (h *AuthHandler) ResendEmailVerification(ctx context.Context, _ *iamv1.Rese
 	}, nil
 }
 
+// VerifyPassword checks whether the supplied password matches the stored hash for the given user.
+func (h *AuthHandler) VerifyPassword(ctx context.Context, req *iamv1.VerifyPasswordRequest) (*iamv1.VerifyPasswordResponse, error) {
+	if baseResp := h.validationHelper.ValidateRequest(req); baseResp != nil {
+		return &iamv1.VerifyPasswordResponse{Base: baseResp}, nil
+	}
+
+	userID, err := uuid.Parse(req.GetUserId())
+	if err != nil {
+		return &iamv1.VerifyPasswordResponse{
+			Base: domainErrorToBaseResponse(shared.ErrInvalidCredentials),
+		}, nil //nolint:nilerr // error returned in response body
+	}
+
+	if err := h.authService.CheckPassword(ctx, userID, req.GetPassword()); err != nil {
+		return &iamv1.VerifyPasswordResponse{
+			Base: domainErrorToBaseResponse(err),
+		}, nil //nolint:nilerr // error returned in response body
+	}
+
+	return &iamv1.VerifyPasswordResponse{
+		Base: SuccessResponse("Password verified"),
+	}, nil
+}
+
 // getUserIDFromContext extracts the user ID from the context.
 // The user ID is set by AuthInterceptor using the UserIDKey typed context key.
 func getUserIDFromContext(ctx context.Context) (uuid.UUID, error) {
