@@ -84,6 +84,55 @@ func (r *CostParamEditLogRepository) GetLastEditInfoPerLevel(ctx context.Context
 	return result, nil
 }
 
+// ListByRequestLevel returns all edit log entries for one fill level of a request,
+// ordered newest-first. It satisfies cprapp.ParamEditLogByLevelReader.
+func (r *CostParamEditLogRepository) ListByRequestLevel(ctx context.Context, requestID int64, routeLevel int) ([]cprapp.ParamEditLogRow, error) {
+	const q = `
+SELECT cpel_id, cpel_request_id, cpel_route_level, cpel_param_code,
+       cpel_old_value, cpel_new_value, cpel_changed_by, cpel_changed_at
+FROM cost_param_edit_log
+WHERE cpel_request_id = $1
+  AND cpel_route_level = $2
+ORDER BY cpel_changed_at DESC`
+
+	rows, err := r.db.QueryContext(ctx, q, requestID, routeLevel)
+	if err != nil {
+		return nil, fmt.Errorf("list_param_edit_log query: %w", err)
+	}
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
+
+	var rows2 []cprapp.ParamEditLogRow
+	for rows.Next() {
+		var id, requestID int64
+		var routeLvl int
+		var paramCode string
+		var oldVal, newVal sql.NullString
+		var changedBy string
+		var changedAt time.Time
+		if err := rows.Scan(
+			&id, &requestID, &routeLvl, &paramCode,
+			&oldVal, &newVal, &changedBy, &changedAt,
+		); err != nil {
+			return nil, fmt.Errorf("list_param_edit_log scan: %w", err)
+		}
+		rows2 = append(rows2, cprapp.ParamEditLogRow{
+			ParamCode: paramCode,
+			OldValue:  oldVal.String,
+			NewValue:  newVal.String,
+			ChangedBy: changedBy,
+			ChangedAt: changedAt.UTC().Format("2006-01-02T15:04:05Z"),
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list_param_edit_log rows: %w", err)
+	}
+	return rows2, nil
+}
+
 // GetLastEditPerLevel returns the most recent edit log entry per route level for
 // a given request. The map key is route_level.
 func (r *CostParamEditLogRepository) GetLastEditPerLevel(ctx context.Context, requestID int64) (map[int]ParamEditLogEntry, error) {

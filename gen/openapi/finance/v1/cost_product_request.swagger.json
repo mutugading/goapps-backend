@@ -1731,8 +1731,7 @@
       "type": "object",
       "properties": {
         "paramId": {
-          "type": "string",
-          "format": "int64"
+          "type": "string"
         },
         "paramCode": {
           "type": "string"

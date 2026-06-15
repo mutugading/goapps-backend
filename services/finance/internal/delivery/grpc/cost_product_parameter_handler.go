@@ -10,14 +10,16 @@ import (
 	commonv1 "github.com/mutugading/goapps-backend/gen/common/v1"
 	financev1 "github.com/mutugading/goapps-backend/gen/finance/v1"
 	cppapp "github.com/mutugading/goapps-backend/services/finance/internal/application/costproductparameter"
+	cprapp "github.com/mutugading/goapps-backend/services/finance/internal/application/costproductrequest"
 	cpp "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductparameter"
 )
 
 // CostProductParameterHandler implements the CPP_ gRPC service.
 type CostProductParameterHandler struct {
 	financev1.UnimplementedCostProductParameterServiceServer
-	app      *cppapp.Handlers
-	override *cppapp.OverrideParamValuesHandler
+	app         *cppapp.Handlers
+	override    *cppapp.OverrideParamValuesHandler
+	editLogRepo cprapp.ParamEditLogByLevelReader
 }
 
 // NewCostProductParameterHandler wires the handler.
@@ -29,6 +31,37 @@ func NewCostProductParameterHandler(app *cppapp.Handlers) *CostProductParameterH
 func (h *CostProductParameterHandler) WithOverrideHandler(o *cppapp.OverrideParamValuesHandler) *CostProductParameterHandler {
 	h.override = o
 	return h
+}
+
+// WithEditLogRepo attaches the edit log reader used by ListParamEditLog.
+func (h *CostProductParameterHandler) WithEditLogRepo(r cprapp.ParamEditLogByLevelReader) *CostProductParameterHandler {
+	h.editLogRepo = r
+	return h
+}
+
+// ListParamEditLog returns the override audit history for one fill level of a CPR.
+func (h *CostProductParameterHandler) ListParamEditLog(ctx context.Context, req *financev1.ListParamEditLogRequest) (*financev1.ListParamEditLogResponse, error) {
+	if h.editLogRepo == nil {
+		return &financev1.ListParamEditLogResponse{Base: InternalErrorResponse("edit log not configured")}, nil //nolint:nilerr // feature-not-configured surfaced via BaseResponse
+	}
+	entries, err := h.editLogRepo.ListByRequestLevel(ctx, req.RequestId, int(req.RouteLevel))
+	if err != nil {
+		return &financev1.ListParamEditLogResponse{Base: InternalErrorResponse("failed to load edit log")}, nil //nolint:nilerr // internal error surfaced via BaseResponse
+	}
+	out := make([]*financev1.ParamEditLogEntry, 0, len(entries))
+	for _, e := range entries {
+		out = append(out, &financev1.ParamEditLogEntry{
+			ParamCode: e.ParamCode,
+			OldValue:  e.OldValue,
+			NewValue:  e.NewValue,
+			ChangedBy: e.ChangedBy,
+			ChangedAt: e.ChangedAt,
+		})
+	}
+	return &financev1.ListParamEditLogResponse{
+		Base:    cppSuccessResponse("Edit log loaded"),
+		Entries: out,
+	}, nil
 }
 
 // ListProductRequiredParams returns form contents per product.

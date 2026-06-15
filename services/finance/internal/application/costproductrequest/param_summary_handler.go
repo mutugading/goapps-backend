@@ -57,6 +57,20 @@ type ParamEditLogLoader interface {
 	GetLastEditInfoPerLevel(ctx context.Context, requestID int64) (map[int]LevelEditInfo, error)
 }
 
+// ParamEditLogRow is a single audit record returned by ListParamEditLog.
+type ParamEditLogRow struct {
+	ParamCode string
+	OldValue  string
+	NewValue  string
+	ChangedBy string
+	ChangedAt string // RFC-3339
+}
+
+// ParamEditLogByLevelReader returns the full override audit history for one fill level.
+type ParamEditLogByLevelReader interface {
+	ListByRequestLevel(ctx context.Context, requestID int64, routeLevel int) ([]ParamEditLogRow, error)
+}
+
 // GetParamSummaryHandler fetches the param summary for a CPR.
 type GetParamSummaryHandler struct {
 	repo      ParamSummaryRepository

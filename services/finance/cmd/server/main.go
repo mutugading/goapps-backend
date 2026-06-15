@@ -410,6 +410,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	overrideParamHandler := cppapp.NewOverrideParamValuesHandler(costProductParameterRepo, costRouteRepo, paramEditLogRepo)
 	overrideParamHandler.WithTaskResetter(fillTaskRepo)
 	costProductParameterHandler.WithOverrideHandler(overrideParamHandler)
+	costProductParameterHandler.WithEditLogRepo(paramEditLogRepo)
 
 	// Wire param summary handler for GetParamSummary RPC.
 	paramSummaryRepo := postgres.NewParamSummaryRepository(db)

@@ -664,6 +664,7 @@ func (h *CostProductRequestHandler) GetParamSummary(ctx context.Context, req *fi
 			params := make([]*financev1.ParamValueEntry, 0, len(l.Params))
 			for _, pv := range l.Params {
 				params = append(params, &financev1.ParamValueEntry{
+					ParamId:      pv.ParamID,
 					ParamCode:    pv.ParamCode,
 					ParamName:    pv.ParamName,
 					DataType:     pv.DataType,

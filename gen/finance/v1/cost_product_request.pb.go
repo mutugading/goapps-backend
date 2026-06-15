@@ -3345,7 +3345,7 @@ func (x *UnlinkRouteResponse) GetData() *CostProductRequest {
 // ParamValueEntry is one parameter cell in the summary.
 type ParamValueEntry struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ParamId       int64                  `protobuf:"varint,1,opt,name=param_id,json=paramId,proto3" json:"param_id,omitempty"`
+	ParamId       string                 `protobuf:"bytes,1,opt,name=param_id,json=paramId,proto3" json:"param_id,omitempty"`
 	ParamCode     string                 `protobuf:"bytes,2,opt,name=param_code,json=paramCode,proto3" json:"param_code,omitempty"`
 	ParamName     string                 `protobuf:"bytes,3,opt,name=param_name,json=paramName,proto3" json:"param_name,omitempty"`
 	DataType      string                 `protobuf:"bytes,4,opt,name=data_type,json=dataType,proto3" json:"data_type,omitempty"`
@@ -3389,11 +3389,11 @@ func (*ParamValueEntry) Descriptor() ([]byte, []int) {
 	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{53}
 }
 
-func (x *ParamValueEntry) GetParamId() int64 {
+func (x *ParamValueEntry) GetParamId() string {
 	if x != nil {
 		return x.ParamId
 	}
-	return 0
+	return ""
 }
 
 func (x *ParamValueEntry) GetParamCode() string {
@@ -4036,7 +4036,7 @@ const file_finance_v1_cost_product_request_proto_rawDesc = "" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x122\n" +
 	"\x04data\x18\x02 \x01(\v2\x1e.finance.v1.CostProductRequestR\x04data\"\xc3\x02\n" +
 	"\x0fParamValueEntry\x12\x19\n" +
-	"\bparam_id\x18\x01 \x01(\x03R\aparamId\x12\x1d\n" +
+	"\bparam_id\x18\x01 \x01(\tR\aparamId\x12\x1d\n" +
 	"\n" +
 	"param_code\x18\x02 \x01(\tR\tparamCode\x12\x1d\n" +
 	"\n" +

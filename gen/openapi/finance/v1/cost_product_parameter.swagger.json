@@ -148,6 +148,45 @@
         ]
       }
     },
+    "/api/v1/finance/cost-product-parameters/edit-log": {
+      "get": {
+        "summary": "OverrideParamValues allows authorized users to override param values on an unlocked\nroute. Records an audit log entry, resets fill-task approval when the level has an\napprover configured, and emits a single notification summarizing all changed params.\nListParamEditLog returns the override audit history for one fill level of a CPR.\nEntries are ordered newest-first. Requires finance.costing.paramvalue.update.",
+        "operationId": "CostProductParameterService_ListParamEditLog",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListParamEditLogResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "routeLevel",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "CostProductParameterService"
+        ]
+      }
+    },
     "/api/v1/finance/cost-product-parameters/products/{productSysId}": {
       "get": {
         "summary": "ListProductRequiredParams returns the parameter form contents for a\nproduct — every active mst_parameter row (optionally filtered to\nis_required_for_costing) joined with the existing CPP value when present.",
@@ -319,7 +358,6 @@
     },
     "/api/v1/finance/cost-product-requests/{requestId}/params/override": {
       "post": {
-        "summary": "OverrideParamValues allows authorized users to override param values on an unlocked\nroute. Records an audit log entry, resets fill-task approval when the level has an\napprover configured, and emits a single notification summarizing all changed params.",
         "operationId": "CostProductParameterService_OverrideParamValues",
         "responses": {
           "200": {
@@ -623,6 +661,22 @@
         }
       }
     },
+    "v1ListParamEditLogResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ParamEditLogEntry"
+          }
+        }
+      },
+      "description": "ListParamEditLogResponse returns entries ordered newest-first."
+    },
     "v1ListProductRequiredParamsResponse": {
       "type": "object",
       "properties": {
@@ -692,6 +746,30 @@
         }
       },
       "description": "OverrideParamValuesResponse summarizes the outcome."
+    },
+    "v1ParamEditLogEntry": {
+      "type": "object",
+      "properties": {
+        "paramCode": {
+          "type": "string"
+        },
+        "oldValue": {
+          "type": "string",
+          "description": "Human-readable old/new values; empty string means the field had no value."
+        },
+        "newValue": {
+          "type": "string"
+        },
+        "changedBy": {
+          "type": "string",
+          "description": "Display name of the user who made the change."
+        },
+        "changedAt": {
+          "type": "string",
+          "description": "RFC-3339 timestamp."
+        }
+      },
+      "description": "ParamEditLogEntry is one record of a param value change by an authorized user."
     },
     "v1RemoveApplicableParamRequest": {
       "type": "object",
