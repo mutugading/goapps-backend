@@ -5,15 +5,19 @@ DO $$
 DECLARE
     v_perm_id UUID;
 BEGIN
-    INSERT INTO mst_permission (permission_id, permission_code, permission_name, service_name, description, created_by, updated_by)
-    VALUES (
+    INSERT INTO mst_permission (
+        permission_id, permission_code, permission_name, description,
+        service_name, module_name, action_type, is_active, created_by
+    ) VALUES (
         gen_random_uuid(),
         'finance.costing.route.unlock',
         'Finance Costing Route Lock/Unlock',
-        'finance',
         'Allows locking and unlocking cost routes from the CPR detail page.',
-        'system',
-        'system'
+        'finance',
+        'costing',
+        'unlock',
+        TRUE,
+        'seed'
     )
     ON CONFLICT (permission_code) DO NOTHING;
 
@@ -21,8 +25,8 @@ BEGIN
     FROM mst_permission
     WHERE permission_code = 'finance.costing.route.unlock';
 
-    INSERT INTO role_permissions (role_id, permission_id)
-    SELECT r.role_id, v_perm_id
+    INSERT INTO role_permissions (role_id, permission_id, assigned_by)
+    SELECT r.role_id, v_perm_id, 'seed'
     FROM mst_role r
     WHERE r.role_code = 'SUPER_ADMIN'
       AND v_perm_id IS NOT NULL
