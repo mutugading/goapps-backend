@@ -59,4 +59,12 @@ type Repository interface {
 	// ListAllValues returns all CPP rows across all products.
 	// Used for full dataset export.
 	ListAllValues(ctx context.Context) ([]CPPRow, error)
+
+	// GetParamCodeByID resolves a param UUID to its mst_parameter.param_code string.
+	// Returns ErrParamNotFound when no active parameter exists with that ID.
+	GetParamCodeByID(ctx context.Context, paramID uuid.UUID) (string, error)
+
+	// GetCurrentValueAsText returns the current stored value for (productSysID, paramID)
+	// formatted as a human-readable string. Returns empty string when no value exists.
+	GetCurrentValueAsText(ctx context.Context, productSysID int64, paramID uuid.UUID) (string, error)
 }

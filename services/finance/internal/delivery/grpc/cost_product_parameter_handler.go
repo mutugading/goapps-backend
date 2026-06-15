@@ -16,12 +16,19 @@ import (
 // CostProductParameterHandler implements the CPP_ gRPC service.
 type CostProductParameterHandler struct {
 	financev1.UnimplementedCostProductParameterServiceServer
-	app *cppapp.Handlers
+	app      *cppapp.Handlers
+	override *cppapp.OverrideParamValuesHandler
 }
 
 // NewCostProductParameterHandler wires the handler.
 func NewCostProductParameterHandler(app *cppapp.Handlers) *CostProductParameterHandler {
 	return &CostProductParameterHandler{app: app}
+}
+
+// WithOverrideHandler attaches the optional param-value override handler.
+func (h *CostProductParameterHandler) WithOverrideHandler(o *cppapp.OverrideParamValuesHandler) *CostProductParameterHandler {
+	h.override = o
+	return h
 }
 
 // ListProductRequiredParams returns form contents per product.
@@ -164,6 +171,52 @@ func (h *CostProductParameterHandler) RemoveApplicableParam(ctx context.Context,
 		return &financev1.RemoveApplicableParamResponse{Base: cppDomainError(err)}, nil
 	}
 	return &financev1.RemoveApplicableParamResponse{Base: cppSuccessResponse("Parameter removed")}, nil
+}
+
+// OverrideParamValues lets an authorized user edit param values before the route is locked.
+func (h *CostProductParameterHandler) OverrideParamValues(ctx context.Context, req *financev1.OverrideParamValuesRequest) (*financev1.OverrideParamValuesResponse, error) {
+	if h.override == nil {
+		return &financev1.OverrideParamValuesResponse{Base: InternalErrorResponse("override handler not configured")}, nil //nolint:nilerr // feature-not-configured surfaced via BaseResponse
+	}
+	items := make([]cppapp.OverrideParamItem, 0, len(req.Values))
+	for _, v := range req.Values {
+		paramID, err := uuid.Parse(v.ParamId)
+		if err != nil {
+			return &financev1.OverrideParamValuesResponse{Base: BadRequestResponse(fmt.Sprintf("invalid param_id %q", v.ParamId))}, nil //nolint:nilerr // invalid input surfaced via BaseResponse
+		}
+		item := cppapp.OverrideParamItem{
+			ProductSysID: v.ProductSysId,
+			ParamID:      paramID,
+		}
+		if v.ValueNumeric != "" {
+			s := v.ValueNumeric
+			item.ValueNumeric = &s
+		}
+		if v.ValueText != "" {
+			s := v.ValueText
+			item.ValueText = &s
+		}
+		if v.HasValueFlag {
+			b := v.ValueFlag
+			item.ValueFlag = &b
+		}
+		items = append(items, item)
+	}
+	actorID := getUserFromContext(ctx)
+	count, err := h.override.Handle(ctx, cppapp.OverrideCommand{
+		RequestID:  req.RequestId,
+		RouteLevel: int(req.RouteLevel),
+		Items:      items,
+		ActorID:    actorID,
+		ActorName:  actorID,
+	})
+	if err != nil {
+		return &financev1.OverrideParamValuesResponse{Base: cppDomainError(err)}, nil //nolint:nilerr // domain error surfaced via BaseResponse
+	}
+	return &financev1.OverrideParamValuesResponse{
+		Base:         cppSuccessResponse("Param values overridden"),
+		UpdatedCount: int32(count), //nolint:gosec // count is bounded by len(req.Values) which is validated ≤ 100 via proto
+	}, nil
 }
 
 // UpdateApplicableParam patches per-product override fields.

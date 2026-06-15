@@ -373,6 +373,9 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	// Fill-assignment repositories + handlers.
 	fillConfigRepo := postgres.NewCostFillConfigRepository(db)
 	fillTaskRepo := postgres.NewCostFillTaskRepository(db)
+	// Wire fill-task approval check into the route lock handler.
+	// Only tasks with an approver configured block locking; no-approver levels are ignored.
+	costRouteHandler.WithFillApprovalChecker(fillTaskRepo)
 
 	upsertGlobalHandler := fillapp.NewUpsertGlobalConfigHandler(fillConfigRepo)
 	upsertOverrideHandler := fillapp.NewUpsertOverrideHandler(fillConfigRepo)
@@ -383,6 +386,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	createAllTasksHandler.WithNotifier(fillIAMNotifier)
 	costProductRequestHandler.WithFillCreator(createAllTasksHandler)
 	costProductRequestHandler.WithFillChecker(fillTaskRepo)
+	costProductRequestHandler.WithRouteLockChecker(costRouteRepo)
 	costProductRequestHandler.WithParamCounter(costProductParameterRepo)
 
 	// Wire in-app notification emitter to the CPR TransitionHandler so that
@@ -401,9 +405,15 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	// the GetCostProductRequestHistory RPC is enabled.
 	costProductRequestHandler.WithHistoryRepo(requestHistoryRepo)
 
+	// Wire param edit log repo (audit trail for param value overrides).
+	paramEditLogRepo := postgres.NewCostParamEditLogRepository(db.DB)
+	overrideParamHandler := cppapp.NewOverrideParamValuesHandler(costProductParameterRepo, costRouteRepo, paramEditLogRepo)
+	overrideParamHandler.WithTaskResetter(fillTaskRepo)
+	costProductParameterHandler.WithOverrideHandler(overrideParamHandler)
+
 	// Wire param summary handler for GetParamSummary RPC.
 	paramSummaryRepo := postgres.NewParamSummaryRepository(db)
-	paramSummaryHandler := cprapp.NewGetParamSummaryHandler(paramSummaryRepo)
+	paramSummaryHandler := cprapp.NewGetParamSummaryHandler(paramSummaryRepo).WithEditLogLoader(paramEditLogRepo)
 	costProductRequestHandler.WithParamSummary(paramSummaryHandler)
 
 	// Build the completion gate: L100-L102 chain creation + CPR state machine trigger.

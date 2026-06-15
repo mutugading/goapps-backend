@@ -79,6 +79,7 @@ JOIN mst_parameter p
     ON p.id = a.capp_param_id
        AND p.deleted_at IS NULL
        AND p.is_active = TRUE
+       AND p.param_category = 'INPUT'
 LEFT JOIN mst_uom u
     ON u.uom_id = p.uom_id
        AND u.deleted_at IS NULL
@@ -86,7 +87,6 @@ LEFT JOIN cost_product_parameter cpp
     ON cpp.cpp_product_sys_id = crs.crs_product_sys_id
        AND cpp.cpp_param_id = p.id
 WHERE req.cpr_request_id = $1
-  AND req.cpr_deleted_at IS NULL
 ORDER BY crs.crs_route_level, crs.crs_product_sys_id, p.param_code`
 
 // GetParamSummary returns the full param summary nested by product → level.
@@ -197,6 +197,7 @@ func (r *ParamSummaryRepository) CountUnfilledParams(ctx context.Context, headID
 		    ON p.id = a.capp_param_id
 		    AND p.deleted_at IS NULL
 		    AND p.is_active = TRUE
+		    AND p.param_category = 'INPUT'
 		WHERE crs.crs_head_id = $1
 		  AND crs.crs_deleted_at IS NULL
 		  AND cpp.cpp_value_id IS NULL`

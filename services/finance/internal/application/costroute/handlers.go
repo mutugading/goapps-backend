@@ -11,9 +11,15 @@ import (
 	costroute "github.com/mutugading/goapps-backend/services/finance/internal/domain/costroute"
 )
 
-// ParamCompletenessChecker counts unfilled required params for a route.
+// ParamCompletenessChecker counts unfilled required INPUT params for a route head.
 type ParamCompletenessChecker interface {
 	CountUnfilledParams(ctx context.Context, headID int64) (int, error)
+}
+
+// FillApprovalChecker counts fill tasks for all requests linked to a route head
+// that have not yet reached APPROVED status.
+type FillApprovalChecker interface {
+	CountUnapprovedFillTasksForHead(ctx context.Context, headID int64) (int, error)
 }
 
 // RouteNotifier emits lock/unlock notifications for linked CPRs.
@@ -109,11 +115,13 @@ func (h *MarkCompleteHandler) Handle(ctx context.Context, headID int64, actor st
 	return head, nil
 }
 
-// LockHandler transitions COMPLETE -> LOCKED, optionally checking param completeness.
+// LockHandler transitions COMPLETE -> LOCKED, optionally checking param completeness
+// and fill-task approval status.
 type LockHandler struct {
-	repo     costroute.Repository
-	checker  ParamCompletenessChecker
-	notifier RouteNotifier
+	repo          costroute.Repository
+	checker       ParamCompletenessChecker
+	fillChecker   FillApprovalChecker
+	notifier      RouteNotifier
 }
 
 // NewLockHandler constructs a LockHandler.
@@ -127,13 +135,19 @@ func (h *LockHandler) WithParamChecker(c ParamCompletenessChecker) *LockHandler 
 	return h
 }
 
+// WithFillApprovalChecker attaches an optional fill-task approval checker.
+func (h *LockHandler) WithFillApprovalChecker(c FillApprovalChecker) *LockHandler {
+	h.fillChecker = c
+	return h
+}
+
 // WithNotifier attaches an optional route notifier.
 func (h *LockHandler) WithNotifier(n RouteNotifier) *LockHandler {
 	h.notifier = n
 	return h
 }
 
-// Handle locks the head, optionally checking param completeness first.
+// Handle locks the head, checking param completeness and fill-task approvals first.
 func (h *LockHandler) Handle(ctx context.Context, headID int64, actorID, actorName string) (*costroute.Head, error) {
 	if h.checker != nil {
 		unfilled, err := h.checker.CountUnfilledParams(ctx, headID)
@@ -141,7 +155,16 @@ func (h *LockHandler) Handle(ctx context.Context, headID int64, actorID, actorNa
 			return nil, fmt.Errorf("check params: %w", err)
 		}
 		if unfilled > 0 {
-			return nil, fmt.Errorf("%w: %d required params are empty", costroute.ErrParamIncomplete, unfilled)
+			return nil, fmt.Errorf("%w: %d required INPUT params are empty", costroute.ErrParamIncomplete, unfilled)
+		}
+	}
+	if h.fillChecker != nil {
+		unapproved, err := h.fillChecker.CountUnapprovedFillTasksForHead(ctx, headID)
+		if err != nil {
+			return nil, fmt.Errorf("check fill approvals: %w", err)
+		}
+		if unapproved > 0 {
+			return nil, fmt.Errorf("%w: %d fill task(s) are not yet approved", costroute.ErrParamIncomplete, unapproved)
 		}
 	}
 	head, err := h.repo.GetHead(ctx, headID)

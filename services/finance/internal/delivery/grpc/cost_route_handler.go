@@ -43,6 +43,11 @@ type CostRouteHandler struct {
 	createFromProduct  *app.CreateFromProductHandler
 }
 
+// FillApprovalChecker is satisfied by CostFillTaskRepository.
+type FillApprovalChecker interface {
+	CountUnapprovedFillTasksForHead(ctx context.Context, headID int64) (int, error)
+}
+
 // NewCostRouteHandler constructs a handler.
 func NewCostRouteHandler(repo costroute.Repository, cprRepo cprDomain.Repository) (*CostRouteHandler, error) {
 	return &CostRouteHandler{
@@ -58,6 +63,12 @@ func NewCostRouteHandler(repo costroute.Repository, cprRepo cprDomain.Repository
 		listLinkedRequests: app.NewListLinkedRequestsHandler(repo),
 		createFromProduct:  app.NewCreateFromProductHandler(repo, cprRepo),
 	}, nil
+}
+
+// WithFillApprovalChecker wires the fill-task approval check into the lock handler.
+func (h *CostRouteHandler) WithFillApprovalChecker(c FillApprovalChecker) *CostRouteHandler {
+	h.lock.WithFillApprovalChecker(c)
+	return h
 }
 
 // GetRouteByProduct returns the active head for a product.

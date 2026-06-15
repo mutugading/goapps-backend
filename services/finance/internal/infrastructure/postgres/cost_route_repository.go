@@ -810,7 +810,11 @@ func (r *CostRouteRepository) DuplicateRoute(ctx context.Context, in costroute.D
 	}, nil
 }
 
-// generateForkedCode finds the next unique product code with the given prefix.
+const maxProductCodeLen = 20
+
+// generateForkedCode finds the next unique product code derived from base.
+// Each candidate is at most 20 chars: the numeric suffix is allocated first
+// so a long base never produces duplicate truncated candidates.
 func (r *CostRouteRepository) generateForkedCode(ctx context.Context, tx *sql.Tx, prefix, sourceCode string) (string, error) {
 	base := prefix
 	if base == "" {
@@ -820,11 +824,18 @@ func (r *CostRouteRepository) generateForkedCode(ctx context.Context, tx *sql.Tx
 			base = "FORK"
 		}
 	}
+	// Truncate base to maxProductCodeLen so the suffix can always be appended.
+	if len(base) >= maxProductCodeLen {
+		base = base[:maxProductCodeLen-1]
+	}
 	for n := 1; n <= 9999; n++ {
-		candidate := fmt.Sprintf("%s%d", base, n)
-		if len(candidate) > 20 {
-			candidate = candidate[:20]
+		suffix := fmt.Sprintf("%d", n)
+		// Ensure base + suffix fits within limit.
+		b := base
+		if len(b)+len(suffix) > maxProductCodeLen {
+			b = base[:maxProductCodeLen-len(suffix)]
 		}
+		candidate := b + suffix
 		var taken bool
 		if err := tx.QueryRowContext(ctx,
 			`SELECT EXISTS(SELECT 1 FROM cost_product_master WHERE cpm_product_code=$1)`,

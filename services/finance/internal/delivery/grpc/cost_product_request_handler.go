@@ -104,6 +104,13 @@ func (h *CostProductRequestHandler) WithParamSummary(ps *app.GetParamSummaryHand
 	return h
 }
 
+// WithRouteLockChecker attaches a route-lock checker so that Confirm is blocked
+// until the linked route is locked.
+func (h *CostProductRequestHandler) WithRouteLockChecker(c app.RouteLockChecker) *CostProductRequestHandler {
+	h.transitionHandler = h.transitionHandler.WithRouteLockChecker(c)
+	return h
+}
+
 // MarkParameterCompleteForGate advances the CPR aggregate to PARAMETER_COMPLETE and
 // returns the requester user ID and request number needed for downstream notifications.
 // It is called by the completion gate after L102 is approved — the caller ("system")
@@ -643,7 +650,7 @@ func (h *CostProductRequestHandler) GetParamSummary(ctx context.Context, req *fi
 			Products: nil,
 		}, nil
 	}
-	products, _, _, err := h.paramSummary.Handle(ctx, app.GetParamSummaryQuery{RequestID: req.GetRequestId()})
+	products, total, filled, err := h.paramSummary.Handle(ctx, app.GetParamSummaryQuery{RequestID: req.GetRequestId()})
 	if err != nil {
 		log.Error().Err(err).Int64("request_id", req.GetRequestId()).Msg("GetParamSummary: failed")
 		return &financev1.GetParamSummaryResponse{
@@ -676,6 +683,8 @@ func (h *CostProductRequestHandler) GetParamSummary(ctx context.Context, req *fi
 				FilledParams:   l.FilledParams,
 				TotalParams:    l.TotalParams,
 				Params:         params,
+				LastEditedBy:   l.LastEditedBy,
+				LastEditedAt:   l.LastEditedAt,
 			})
 		}
 		protoProducts = append(protoProducts, &financev1.ProductParamSummary{
@@ -686,8 +695,10 @@ func (h *CostProductRequestHandler) GetParamSummary(ctx context.Context, req *fi
 		})
 	}
 	return &financev1.GetParamSummaryResponse{
-		Base:     successResponse("OK"),
-		Products: protoProducts,
+		Base:         successResponse("OK"),
+		Products:     protoProducts,
+		TotalParams:  total,
+		FilledParams: filled,
 	}, nil
 }
 
@@ -712,6 +723,8 @@ func requestErrToBase(err error) *commonv1.BaseResponse {
 		errors.Is(err, domain.ErrInvalidTransition),
 		errors.Is(err, domain.ErrExistingProductRequired):
 		return ErrorResponse("400", err.Error())
+	case errors.Is(err, app.ErrRouteNotLocked):
+		return ErrorResponse("422", err.Error())
 	default:
 		return InternalErrorResponse(err.Error())
 	}

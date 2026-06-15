@@ -15,6 +15,9 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/iamclient"
 )
 
+// ErrRouteNotLocked is returned by Confirm when the linked route has not been locked yet.
+var ErrRouteNotLocked = errors.New("route must be locked before confirming the request")
+
 // CreateCommand is the create-time input.
 type CreateCommand struct {
 	RequestTypeID         int32
@@ -280,6 +283,12 @@ type FillCompletionChecker interface {
 	CountNonApprovedBelow(ctx context.Context, requestID int64, maxLevel int32) (int, error)
 }
 
+// RouteLockChecker verifies that the route linked to a CPR is locked before Confirm.
+// Implemented by postgres.CostRouteRepository.
+type RouteLockChecker interface {
+	IsLinkedRouteLocked(ctx context.Context, requestID int64) (bool, error)
+}
+
 // ApplicableParamCounter counts applicable params for a set of product sys IDs.
 // Used when creating fill tasks to populate cft_total_params per route level.
 // Implemented by the costproductparameter.Repository postgres adapter.
@@ -298,6 +307,7 @@ type TransitionHandler struct {
 	routeRepo    routeDomain.Repository    // optional; used by MarkParameterPending
 	fillCreator  FillTaskCreator           // optional; if nil, fill task creation is skipped
 	fillChecker  FillCompletionChecker     // optional; if nil, fill guard is skipped
+	lockChecker  RouteLockChecker          // optional; if nil, lock guard is skipped
 	paramCounter ApplicableParamCounter    // optional; used to set cft_total_params on task creation
 	wflClient    iamclient.WorkflowClient  // optional; if nil, IAM workflow wiring is skipped
 	historyRepo  requesthistory.Repository // optional; if nil, approval trace recording is skipped
@@ -345,6 +355,13 @@ func (h *TransitionHandler) WithFillCreator(c FillTaskCreator) *TransitionHandle
 // to guard against premature completion when regular fill levels are not yet approved.
 func (h *TransitionHandler) WithFillChecker(c FillCompletionChecker) *TransitionHandler {
 	h.fillChecker = c
+	return h
+}
+
+// WithRouteLockChecker attaches a route-lock checker. When attached, Confirm will
+// return ErrRouteNotLocked if the linked route is not yet locked.
+func (h *TransitionHandler) WithRouteLockChecker(c RouteLockChecker) *TransitionHandler {
+	h.lockChecker = c
 	return h
 }
 
@@ -830,6 +847,15 @@ func (h *TransitionHandler) MarkParameterComplete(ctx context.Context, requestID
 
 // Confirm advances PARAMETER_COMPLETE → CONFIRMED.
 func (h *TransitionHandler) Confirm(ctx context.Context, requestID int64, actor, actorName string) (*domain.Request, error) {
+	if h.lockChecker != nil {
+		locked, lockErr := h.lockChecker.IsLinkedRouteLocked(ctx, requestID)
+		if lockErr != nil {
+			return nil, fmt.Errorf("check route lock before confirm: %w", lockErr)
+		}
+		if !locked {
+			return nil, ErrRouteNotLocked
+		}
+	}
 	req, err := h.apply(ctx, requestID, func(r *domain.Request) error { return r.Confirm() }, applyOpts{operation: auditOpStatusChange, actorID: actor, actorName: actorName})
 	if err != nil {
 		return nil, err
