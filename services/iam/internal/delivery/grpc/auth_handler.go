@@ -456,9 +456,9 @@ func (h *AuthHandler) VerifyPassword(ctx context.Context, req *iamv1.VerifyPassw
 
 	userID, err := uuid.Parse(req.GetUserId())
 	if err != nil {
-		return &iamv1.VerifyPasswordResponse{
+		return &iamv1.VerifyPasswordResponse{ //nolint:nilerr // error returned in response body
 			Base: domainErrorToBaseResponse(shared.ErrInvalidCredentials),
-		}, nil //nolint:nilerr // error returned in response body
+		}, nil
 	}
 
 	if err := h.authService.CheckPassword(ctx, userID, req.GetPassword()); err != nil {

@@ -118,10 +118,10 @@ func (h *MarkCompleteHandler) Handle(ctx context.Context, headID int64, actor st
 // LockHandler transitions COMPLETE -> LOCKED, optionally checking param completeness
 // and fill-task approval status.
 type LockHandler struct {
-	repo          costroute.Repository
-	checker       ParamCompletenessChecker
-	fillChecker   FillApprovalChecker
-	notifier      RouteNotifier
+	repo        costroute.Repository
+	checker     ParamCompletenessChecker
+	fillChecker FillApprovalChecker
+	notifier    RouteNotifier
 }
 
 // NewLockHandler constructs a LockHandler.

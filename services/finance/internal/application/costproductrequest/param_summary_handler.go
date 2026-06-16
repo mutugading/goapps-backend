@@ -73,8 +73,8 @@ type ParamEditLogByLevelReader interface {
 
 // GetParamSummaryHandler fetches the param summary for a CPR.
 type GetParamSummaryHandler struct {
-	repo      ParamSummaryRepository
-	editLogs  ParamEditLogLoader
+	repo     ParamSummaryRepository
+	editLogs ParamEditLogLoader
 }
 
 // NewGetParamSummaryHandler constructs the handler.

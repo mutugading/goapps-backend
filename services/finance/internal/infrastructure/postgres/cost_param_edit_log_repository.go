@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,14 +12,14 @@ import (
 
 // ParamEditLogEntry is a single audit record for a param value override.
 type ParamEditLogEntry struct {
-	ID          int64
-	RequestID   int64
-	RouteLevel  int
-	ParamCode   string
-	OldValue    string
-	NewValue    string
-	ChangedBy   string
-	ChangedAt   time.Time
+	ID         int64
+	RequestID  int64
+	RouteLevel int
+	ParamCode  string
+	OldValue   string
+	NewValue   string
+	ChangedBy  string
+	ChangedAt  time.Time
 }
 
 // CostParamEditLogRepository writes and reads param value override audit records.
@@ -41,7 +42,7 @@ func (r *CostParamEditLogRepository) BulkInsert(ctx context.Context, entries []P
 		return fmt.Errorf("cost_param_edit_log begin tx: %w", err)
 	}
 	defer func() {
-		if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
 			_ = rbErr
 		}
 	}()
@@ -148,7 +149,11 @@ ORDER BY cpel_route_level, cpel_changed_at DESC`
 	if err != nil {
 		return nil, fmt.Errorf("get_last_edit_per_level query: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 
 	result := make(map[int]ParamEditLogEntry)
 	for rows.Next() {
@@ -169,4 +174,3 @@ ORDER BY cpel_route_level, cpel_changed_at DESC`
 	}
 	return result, nil
 }
-
