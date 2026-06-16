@@ -112,6 +112,14 @@ func (f *fakeRepo) ListAllValues(_ context.Context) ([]cpp.CPPRow, error) {
 	return nil, nil
 }
 
+func (f *fakeRepo) GetParamCodeByID(_ context.Context, _ uuid.UUID) (string, error) {
+	return "TEST_PARAM", nil
+}
+
+func (f *fakeRepo) GetCurrentValueAsText(_ context.Context, _ int64, _ uuid.UUID) (string, error) {
+	return "", nil
+}
+
 // =============================================================================
 // Upsert
 // =============================================================================

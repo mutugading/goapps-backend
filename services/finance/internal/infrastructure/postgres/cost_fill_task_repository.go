@@ -243,6 +243,27 @@ func (r *CostFillTaskRepository) CountNonApprovedBelow(ctx context.Context, requ
 	return n, nil
 }
 
+// CountUnapprovedFillTasksForHead returns the count of fill tasks for all
+// requests linked to the given route head that (a) have an approver configured
+// and (b) have not yet reached APPROVED status.
+// Levels with no approver are excluded — they can be FILLED/ACTIVE and still
+// allow the route to lock.
+func (r *CostFillTaskRepository) CountUnapprovedFillTasksForHead(ctx context.Context, headID int64) (int, error) {
+	var n int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*)
+		 FROM cost_fill_task cft
+		 JOIN cost_product_request cpr ON cpr.cpr_request_id = cft.cft_request_id
+		 WHERE cpr.cpr_linked_route_head_id = $1
+		   AND cft.cft_approver_type IS NOT NULL
+		   AND cft.cft_status <> 'APPROVED'`,
+		headID).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("count unapproved fill tasks for head %d: %w", headID, err)
+	}
+	return n, nil
+}
+
 // ActivateTask sets the status to ACTIVE and stamps activated_at to now.
 // Only transitions tasks that are currently INACTIVE (status='INACTIVE').
 func (r *CostFillTaskRepository) ActivateTask(ctx context.Context, taskID int64) error {
@@ -436,4 +457,24 @@ func nullableStr(s string) sql.NullString {
 		return sql.NullString{}
 	}
 	return sql.NullString{String: s, Valid: true}
+}
+
+// ResetFillTaskApprovalIfNeeded implements cppapp.FillTaskApprovalResetter.
+// It resets the fill task status for the given (requestID, routeLevel) from APPROVED back to
+// APPROVAL_PENDING, but ONLY when the task has an approver configured (cft_approver_type IS NOT NULL).
+// When no approver is configured, the edit is allowed without re-approval, so no change is made.
+func (r *CostFillTaskRepository) ResetFillTaskApprovalIfNeeded(ctx context.Context, requestID int64, routeLevel int) error {
+	const q = `
+UPDATE cost_fill_task
+SET    cft_status     = 'APPROVAL_PENDING',
+       cft_updated_at = NOW()
+WHERE  cft_request_id  = $1
+  AND  cft_route_level = $2
+  AND  cft_approver_type IS NOT NULL
+  AND  cft_status = 'APPROVED'`
+
+	if _, err := r.db.ExecContext(ctx, q, requestID, routeLevel); err != nil {
+		return fmt.Errorf("reset fill task approval: %w", err)
+	}
+	return nil
 }

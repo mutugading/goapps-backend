@@ -28,6 +28,8 @@ const (
 	CostProductParameterService_AddApplicableParam_FullMethodName            = "/finance.v1.CostProductParameterService/AddApplicableParam"
 	CostProductParameterService_RemoveApplicableParam_FullMethodName         = "/finance.v1.CostProductParameterService/RemoveApplicableParam"
 	CostProductParameterService_UpdateApplicableParam_FullMethodName         = "/finance.v1.CostProductParameterService/UpdateApplicableParam"
+	CostProductParameterService_ListParamEditLog_FullMethodName              = "/finance.v1.CostProductParameterService/ListParamEditLog"
+	CostProductParameterService_OverrideParamValues_FullMethodName           = "/finance.v1.CostProductParameterService/OverrideParamValues"
 )
 
 // CostProductParameterServiceClient is the client API for CostProductParameterService service.
@@ -58,6 +60,13 @@ type CostProductParameterServiceClient interface {
 	RemoveApplicableParam(ctx context.Context, in *RemoveApplicableParamRequest, opts ...grpc.CallOption) (*RemoveApplicableParamResponse, error)
 	// UpdateApplicableParam patches per-product override fields (is_required, display_order).
 	UpdateApplicableParam(ctx context.Context, in *UpdateApplicableParamRequest, opts ...grpc.CallOption) (*UpdateApplicableParamResponse, error)
+	// OverrideParamValues allows authorized users to override param values on an unlocked
+	// route. Records an audit log entry, resets fill-task approval when the level has an
+	// approver configured, and emits a single notification summarizing all changed params.
+	// ListParamEditLog returns the override audit history for one fill level of a CPR.
+	// Entries are ordered newest-first. Requires finance.costing.paramvalue.update.
+	ListParamEditLog(ctx context.Context, in *ListParamEditLogRequest, opts ...grpc.CallOption) (*ListParamEditLogResponse, error)
+	OverrideParamValues(ctx context.Context, in *OverrideParamValuesRequest, opts ...grpc.CallOption) (*OverrideParamValuesResponse, error)
 }
 
 type costProductParameterServiceClient struct {
@@ -158,6 +167,26 @@ func (c *costProductParameterServiceClient) UpdateApplicableParam(ctx context.Co
 	return out, nil
 }
 
+func (c *costProductParameterServiceClient) ListParamEditLog(ctx context.Context, in *ListParamEditLogRequest, opts ...grpc.CallOption) (*ListParamEditLogResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListParamEditLogResponse)
+	err := c.cc.Invoke(ctx, CostProductParameterService_ListParamEditLog_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *costProductParameterServiceClient) OverrideParamValues(ctx context.Context, in *OverrideParamValuesRequest, opts ...grpc.CallOption) (*OverrideParamValuesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OverrideParamValuesResponse)
+	err := c.cc.Invoke(ctx, CostProductParameterService_OverrideParamValues_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CostProductParameterServiceServer is the server API for CostProductParameterService service.
 // All implementations must embed UnimplementedCostProductParameterServiceServer
 // for forward compatibility.
@@ -186,6 +215,13 @@ type CostProductParameterServiceServer interface {
 	RemoveApplicableParam(context.Context, *RemoveApplicableParamRequest) (*RemoveApplicableParamResponse, error)
 	// UpdateApplicableParam patches per-product override fields (is_required, display_order).
 	UpdateApplicableParam(context.Context, *UpdateApplicableParamRequest) (*UpdateApplicableParamResponse, error)
+	// OverrideParamValues allows authorized users to override param values on an unlocked
+	// route. Records an audit log entry, resets fill-task approval when the level has an
+	// approver configured, and emits a single notification summarizing all changed params.
+	// ListParamEditLog returns the override audit history for one fill level of a CPR.
+	// Entries are ordered newest-first. Requires finance.costing.paramvalue.update.
+	ListParamEditLog(context.Context, *ListParamEditLogRequest) (*ListParamEditLogResponse, error)
+	OverrideParamValues(context.Context, *OverrideParamValuesRequest) (*OverrideParamValuesResponse, error)
 	mustEmbedUnimplementedCostProductParameterServiceServer()
 }
 
@@ -222,6 +258,12 @@ func (UnimplementedCostProductParameterServiceServer) RemoveApplicableParam(cont
 }
 func (UnimplementedCostProductParameterServiceServer) UpdateApplicableParam(context.Context, *UpdateApplicableParamRequest) (*UpdateApplicableParamResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateApplicableParam not implemented")
+}
+func (UnimplementedCostProductParameterServiceServer) ListParamEditLog(context.Context, *ListParamEditLogRequest) (*ListParamEditLogResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListParamEditLog not implemented")
+}
+func (UnimplementedCostProductParameterServiceServer) OverrideParamValues(context.Context, *OverrideParamValuesRequest) (*OverrideParamValuesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method OverrideParamValues not implemented")
 }
 func (UnimplementedCostProductParameterServiceServer) mustEmbedUnimplementedCostProductParameterServiceServer() {
 }
@@ -407,6 +449,42 @@ func _CostProductParameterService_UpdateApplicableParam_Handler(srv interface{},
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CostProductParameterService_ListParamEditLog_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListParamEditLogRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CostProductParameterServiceServer).ListParamEditLog(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CostProductParameterService_ListParamEditLog_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CostProductParameterServiceServer).ListParamEditLog(ctx, req.(*ListParamEditLogRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CostProductParameterService_OverrideParamValues_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OverrideParamValuesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CostProductParameterServiceServer).OverrideParamValues(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CostProductParameterService_OverrideParamValues_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CostProductParameterServiceServer).OverrideParamValues(ctx, req.(*OverrideParamValuesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CostProductParameterService_ServiceDesc is the grpc.ServiceDesc for CostProductParameterService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -449,6 +527,14 @@ var CostProductParameterService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateApplicableParam",
 			Handler:    _CostProductParameterService_UpdateApplicableParam_Handler,
+		},
+		{
+			MethodName: "ListParamEditLog",
+			Handler:    _CostProductParameterService_ListParamEditLog_Handler,
+		},
+		{
+			MethodName: "OverrideParamValues",
+			Handler:    _CostProductParameterService_OverrideParamValues_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

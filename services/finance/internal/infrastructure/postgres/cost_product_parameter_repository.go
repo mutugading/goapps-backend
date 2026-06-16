@@ -652,3 +652,48 @@ ORDER BY m.cpm_product_code, p.param_code
 	}
 	return out, rows.Err()
 }
+
+// GetParamCodeByID resolves a param UUID to its param_code string.
+func (r *CostProductParameterRepository) GetParamCodeByID(ctx context.Context, paramID uuid.UUID) (string, error) {
+	const q = `SELECT param_code FROM mst_parameter WHERE id = $1 AND deleted_at IS NULL`
+	var code string
+	if err := r.db.QueryRowContext(ctx, q, paramID).Scan(&code); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", cpp.ErrParamNotFound
+		}
+		return "", fmt.Errorf("get param code by id: %w", err)
+	}
+	return code, nil
+}
+
+// GetCurrentValueAsText returns the current stored CPP value as a human-readable string.
+// Returns empty string when no value exists for the given (productSysID, paramID) pair.
+func (r *CostProductParameterRepository) GetCurrentValueAsText(ctx context.Context, productSysID int64, paramID uuid.UUID) (string, error) {
+	const q = `
+SELECT cpp_value_numeric::text, cpp_value_text, cpp_value_flag
+FROM cost_product_parameter
+WHERE cpp_product_sys_id = $1 AND cpp_param_id = $2`
+
+	var vn, vt sql.NullString
+	var vf sql.NullBool
+	err := r.db.QueryRowContext(ctx, q, productSysID, paramID).Scan(&vn, &vt, &vf)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("get current cpp value: %w", err)
+	}
+	switch {
+	case vn.Valid:
+		return vn.String, nil
+	case vt.Valid:
+		return vt.String, nil
+	case vf.Valid:
+		if vf.Bool {
+			return "true", nil
+		}
+		return "false", nil
+	default:
+		return "", nil
+	}
+}
