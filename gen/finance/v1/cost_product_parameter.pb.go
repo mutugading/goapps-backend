@@ -1577,6 +1577,402 @@ func (x *UpdateApplicableParamResponse) GetBase() *v1.BaseResponse {
 	return nil
 }
 
+// ParamWithValue carries param code, name, and current display value for the remove-preview dialog.
+type ParamWithValue struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ParamCode     string                 `protobuf:"bytes,1,opt,name=param_code,json=paramCode,proto3" json:"param_code,omitempty"`
+	ParamName     string                 `protobuf:"bytes,2,opt,name=param_name,json=paramName,proto3" json:"param_name,omitempty"`
+	CurrentValue  string                 `protobuf:"bytes,3,opt,name=current_value,json=currentValue,proto3" json:"current_value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ParamWithValue) Reset() {
+	*x = ParamWithValue{}
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ParamWithValue) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ParamWithValue) ProtoMessage() {}
+
+func (x *ParamWithValue) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ParamWithValue.ProtoReflect.Descriptor instead.
+func (*ParamWithValue) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_parameter_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *ParamWithValue) GetParamCode() string {
+	if x != nil {
+		return x.ParamCode
+	}
+	return ""
+}
+
+func (x *ParamWithValue) GetParamName() string {
+	if x != nil {
+		return x.ParamName
+	}
+	return ""
+}
+
+func (x *ParamWithValue) GetCurrentValue() string {
+	if x != nil {
+		return x.CurrentValue
+	}
+	return ""
+}
+
+// AddApplicableParamWithChildrenRequest adds a MASTER_LOOKUP param and all its child params atomically.
+type AddApplicableParamWithChildrenRequest struct {
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	ProductSysId int64                  `protobuf:"varint,1,opt,name=product_sys_id,json=productSysId,proto3" json:"product_sys_id,omitempty"`
+	ParamId      string                 `protobuf:"bytes,2,opt,name=param_id,json=paramId,proto3" json:"param_id,omitempty"`
+	IsRequired   bool                   `protobuf:"varint,3,opt,name=is_required,json=isRequired,proto3" json:"is_required,omitempty"`
+	// 0 means inherit mst_parameter.display_order.
+	DisplayOrder  int32 `protobuf:"varint,4,opt,name=display_order,json=displayOrder,proto3" json:"display_order,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AddApplicableParamWithChildrenRequest) Reset() {
+	*x = AddApplicableParamWithChildrenRequest{}
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddApplicableParamWithChildrenRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddApplicableParamWithChildrenRequest) ProtoMessage() {}
+
+func (x *AddApplicableParamWithChildrenRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddApplicableParamWithChildrenRequest.ProtoReflect.Descriptor instead.
+func (*AddApplicableParamWithChildrenRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_parameter_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *AddApplicableParamWithChildrenRequest) GetProductSysId() int64 {
+	if x != nil {
+		return x.ProductSysId
+	}
+	return 0
+}
+
+func (x *AddApplicableParamWithChildrenRequest) GetParamId() string {
+	if x != nil {
+		return x.ParamId
+	}
+	return ""
+}
+
+func (x *AddApplicableParamWithChildrenRequest) GetIsRequired() bool {
+	if x != nil {
+		return x.IsRequired
+	}
+	return false
+}
+
+func (x *AddApplicableParamWithChildrenRequest) GetDisplayOrder() int32 {
+	if x != nil {
+		return x.DisplayOrder
+	}
+	return 0
+}
+
+// AddApplicableParamWithChildrenResponse is the response for adding a MASTER_LOOKUP param with children.
+type AddApplicableParamWithChildrenResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Base          *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AddApplicableParamWithChildrenResponse) Reset() {
+	*x = AddApplicableParamWithChildrenResponse{}
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddApplicableParamWithChildrenResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddApplicableParamWithChildrenResponse) ProtoMessage() {}
+
+func (x *AddApplicableParamWithChildrenResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddApplicableParamWithChildrenResponse.ProtoReflect.Descriptor instead.
+func (*AddApplicableParamWithChildrenResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_parameter_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *AddApplicableParamWithChildrenResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+// GetRemoveApplicablePreviewRequest is the request for previewing the params to be removed.
+type GetRemoveApplicablePreviewRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProductSysId  int64                  `protobuf:"varint,1,opt,name=product_sys_id,json=productSysId,proto3" json:"product_sys_id,omitempty"`
+	ParamId       string                 `protobuf:"bytes,2,opt,name=param_id,json=paramId,proto3" json:"param_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRemoveApplicablePreviewRequest) Reset() {
+	*x = GetRemoveApplicablePreviewRequest{}
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRemoveApplicablePreviewRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRemoveApplicablePreviewRequest) ProtoMessage() {}
+
+func (x *GetRemoveApplicablePreviewRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRemoveApplicablePreviewRequest.ProtoReflect.Descriptor instead.
+func (*GetRemoveApplicablePreviewRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_parameter_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *GetRemoveApplicablePreviewRequest) GetProductSysId() int64 {
+	if x != nil {
+		return x.ProductSysId
+	}
+	return 0
+}
+
+func (x *GetRemoveApplicablePreviewRequest) GetParamId() string {
+	if x != nil {
+		return x.ParamId
+	}
+	return ""
+}
+
+// GetRemoveApplicablePreviewResponse lists trigger + children for the confirm-delete dialog.
+type GetRemoveApplicablePreviewResponse struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Base             *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	TriggerParamCode string                 `protobuf:"bytes,2,opt,name=trigger_param_code,json=triggerParamCode,proto3" json:"trigger_param_code,omitempty"`
+	TriggerParamName string                 `protobuf:"bytes,3,opt,name=trigger_param_name,json=triggerParamName,proto3" json:"trigger_param_name,omitempty"`
+	Children         []*ParamWithValue      `protobuf:"bytes,4,rep,name=children,proto3" json:"children,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *GetRemoveApplicablePreviewResponse) Reset() {
+	*x = GetRemoveApplicablePreviewResponse{}
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRemoveApplicablePreviewResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRemoveApplicablePreviewResponse) ProtoMessage() {}
+
+func (x *GetRemoveApplicablePreviewResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRemoveApplicablePreviewResponse.ProtoReflect.Descriptor instead.
+func (*GetRemoveApplicablePreviewResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_parameter_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *GetRemoveApplicablePreviewResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *GetRemoveApplicablePreviewResponse) GetTriggerParamCode() string {
+	if x != nil {
+		return x.TriggerParamCode
+	}
+	return ""
+}
+
+func (x *GetRemoveApplicablePreviewResponse) GetTriggerParamName() string {
+	if x != nil {
+		return x.TriggerParamName
+	}
+	return ""
+}
+
+func (x *GetRemoveApplicablePreviewResponse) GetChildren() []*ParamWithValue {
+	if x != nil {
+		return x.Children
+	}
+	return nil
+}
+
+// RemoveApplicableParamWithChildrenRequest removes a MASTER_LOOKUP param and all its children.
+type RemoveApplicableParamWithChildrenRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProductSysId  int64                  `protobuf:"varint,1,opt,name=product_sys_id,json=productSysId,proto3" json:"product_sys_id,omitempty"`
+	ParamId       string                 `protobuf:"bytes,2,opt,name=param_id,json=paramId,proto3" json:"param_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveApplicableParamWithChildrenRequest) Reset() {
+	*x = RemoveApplicableParamWithChildrenRequest{}
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveApplicableParamWithChildrenRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveApplicableParamWithChildrenRequest) ProtoMessage() {}
+
+func (x *RemoveApplicableParamWithChildrenRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveApplicableParamWithChildrenRequest.ProtoReflect.Descriptor instead.
+func (*RemoveApplicableParamWithChildrenRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_parameter_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *RemoveApplicableParamWithChildrenRequest) GetProductSysId() int64 {
+	if x != nil {
+		return x.ProductSysId
+	}
+	return 0
+}
+
+func (x *RemoveApplicableParamWithChildrenRequest) GetParamId() string {
+	if x != nil {
+		return x.ParamId
+	}
+	return ""
+}
+
+// RemoveApplicableParamWithChildrenResponse is the response for removing a MASTER_LOOKUP param with children.
+type RemoveApplicableParamWithChildrenResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Base          *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveApplicableParamWithChildrenResponse) Reset() {
+	*x = RemoveApplicableParamWithChildrenResponse{}
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveApplicableParamWithChildrenResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveApplicableParamWithChildrenResponse) ProtoMessage() {}
+
+func (x *RemoveApplicableParamWithChildrenResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveApplicableParamWithChildrenResponse.ProtoReflect.Descriptor instead.
+func (*RemoveApplicableParamWithChildrenResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_parameter_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *RemoveApplicableParamWithChildrenResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
 // OverrideParamValueItem holds the new value for a single product+param pair.
 type OverrideParamValueItem struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1592,7 +1988,7 @@ type OverrideParamValueItem struct {
 
 func (x *OverrideParamValueItem) Reset() {
 	*x = OverrideParamValueItem{}
-	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[22]
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1604,7 +2000,7 @@ func (x *OverrideParamValueItem) String() string {
 func (*OverrideParamValueItem) ProtoMessage() {}
 
 func (x *OverrideParamValueItem) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[22]
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1617,7 +2013,7 @@ func (x *OverrideParamValueItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OverrideParamValueItem.ProtoReflect.Descriptor instead.
 func (*OverrideParamValueItem) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_parameter_proto_rawDescGZIP(), []int{22}
+	return file_finance_v1_cost_product_parameter_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *OverrideParamValueItem) GetProductSysId() int64 {
@@ -1675,7 +2071,7 @@ type OverrideParamValuesRequest struct {
 
 func (x *OverrideParamValuesRequest) Reset() {
 	*x = OverrideParamValuesRequest{}
-	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[23]
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1687,7 +2083,7 @@ func (x *OverrideParamValuesRequest) String() string {
 func (*OverrideParamValuesRequest) ProtoMessage() {}
 
 func (x *OverrideParamValuesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[23]
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1700,7 +2096,7 @@ func (x *OverrideParamValuesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OverrideParamValuesRequest.ProtoReflect.Descriptor instead.
 func (*OverrideParamValuesRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_parameter_proto_rawDescGZIP(), []int{23}
+	return file_finance_v1_cost_product_parameter_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *OverrideParamValuesRequest) GetRequestId() int64 {
@@ -1735,7 +2131,7 @@ type OverrideParamValuesResponse struct {
 
 func (x *OverrideParamValuesResponse) Reset() {
 	*x = OverrideParamValuesResponse{}
-	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[24]
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1747,7 +2143,7 @@ func (x *OverrideParamValuesResponse) String() string {
 func (*OverrideParamValuesResponse) ProtoMessage() {}
 
 func (x *OverrideParamValuesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[24]
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1760,7 +2156,7 @@ func (x *OverrideParamValuesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OverrideParamValuesResponse.ProtoReflect.Descriptor instead.
 func (*OverrideParamValuesResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_parameter_proto_rawDescGZIP(), []int{24}
+	return file_finance_v1_cost_product_parameter_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *OverrideParamValuesResponse) GetBase() *v1.BaseResponse {
@@ -1794,7 +2190,7 @@ type ParamEditLogEntry struct {
 
 func (x *ParamEditLogEntry) Reset() {
 	*x = ParamEditLogEntry{}
-	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[25]
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1806,7 +2202,7 @@ func (x *ParamEditLogEntry) String() string {
 func (*ParamEditLogEntry) ProtoMessage() {}
 
 func (x *ParamEditLogEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[25]
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1819,7 +2215,7 @@ func (x *ParamEditLogEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ParamEditLogEntry.ProtoReflect.Descriptor instead.
 func (*ParamEditLogEntry) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_parameter_proto_rawDescGZIP(), []int{25}
+	return file_finance_v1_cost_product_parameter_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *ParamEditLogEntry) GetParamCode() string {
@@ -1868,7 +2264,7 @@ type ListParamEditLogRequest struct {
 
 func (x *ListParamEditLogRequest) Reset() {
 	*x = ListParamEditLogRequest{}
-	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[26]
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1880,7 +2276,7 @@ func (x *ListParamEditLogRequest) String() string {
 func (*ListParamEditLogRequest) ProtoMessage() {}
 
 func (x *ListParamEditLogRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[26]
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1893,7 +2289,7 @@ func (x *ListParamEditLogRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListParamEditLogRequest.ProtoReflect.Descriptor instead.
 func (*ListParamEditLogRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_parameter_proto_rawDescGZIP(), []int{26}
+	return file_finance_v1_cost_product_parameter_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *ListParamEditLogRequest) GetRequestId() int64 {
@@ -1921,7 +2317,7 @@ type ListParamEditLogResponse struct {
 
 func (x *ListParamEditLogResponse) Reset() {
 	*x = ListParamEditLogResponse{}
-	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[27]
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1933,7 +2329,7 @@ func (x *ListParamEditLogResponse) String() string {
 func (*ListParamEditLogResponse) ProtoMessage() {}
 
 func (x *ListParamEditLogResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[27]
+	mi := &file_finance_v1_cost_product_parameter_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1946,7 +2342,7 @@ func (x *ListParamEditLogResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListParamEditLogResponse.ProtoReflect.Descriptor instead.
 func (*ListParamEditLogResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_parameter_proto_rawDescGZIP(), []int{27}
+	return file_finance_v1_cost_product_parameter_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ListParamEditLogResponse) GetBase() *v1.BaseResponse {
@@ -2104,6 +2500,33 @@ const file_finance_v1_cost_product_parameter_proto_rawDesc = "" +
 	"\f_is_requiredB\x10\n" +
 	"\x0e_display_order\"L\n" +
 	"\x1dUpdateApplicableParamResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\"s\n" +
+	"\x0eParamWithValue\x12\x1d\n" +
+	"\n" +
+	"param_code\x18\x01 \x01(\tR\tparamCode\x12\x1d\n" +
+	"\n" +
+	"param_name\x18\x02 \x01(\tR\tparamName\x12#\n" +
+	"\rcurrent_value\x18\x03 \x01(\tR\fcurrentValue\"\xca\x01\n" +
+	"%AddApplicableParamWithChildrenRequest\x12-\n" +
+	"\x0eproduct_sys_id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\fproductSysId\x12#\n" +
+	"\bparam_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aparamId\x12\x1f\n" +
+	"\vis_required\x18\x03 \x01(\bR\n" +
+	"isRequired\x12,\n" +
+	"\rdisplay_order\x18\x04 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\fdisplayOrder\"U\n" +
+	"&AddApplicableParamWithChildrenResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\"w\n" +
+	"!GetRemoveApplicablePreviewRequest\x12-\n" +
+	"\x0eproduct_sys_id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\fproductSysId\x12#\n" +
+	"\bparam_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aparamId\"\xe5\x01\n" +
+	"\"GetRemoveApplicablePreviewResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12,\n" +
+	"\x12trigger_param_code\x18\x02 \x01(\tR\x10triggerParamCode\x12,\n" +
+	"\x12trigger_param_name\x18\x03 \x01(\tR\x10triggerParamName\x126\n" +
+	"\bchildren\x18\x04 \x03(\v2\x1a.finance.v1.ParamWithValueR\bchildren\"~\n" +
+	"(RemoveApplicableParamWithChildrenRequest\x12-\n" +
+	"\x0eproduct_sys_id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\fproductSysId\x12#\n" +
+	"\bparam_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aparamId\"X\n" +
+	")RemoveApplicableParamWithChildrenResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\"\xf5\x01\n" +
 	"\x16OverrideParamValueItem\x12-\n" +
 	"\x0eproduct_sys_id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\fproductSysId\x12#\n" +
@@ -2139,7 +2562,7 @@ const file_finance_v1_cost_product_parameter_proto_rawDesc = "" +
 	"routeLevel\"\x80\x01\n" +
 	"\x18ListParamEditLogResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x127\n" +
-	"\aentries\x18\x02 \x03(\v2\x1d.finance.v1.ParamEditLogEntryR\aentries2\xff\x0f\n" +
+	"\aentries\x18\x02 \x03(\v2\x1d.finance.v1.ParamEditLogEntryR\aentries2\x8d\x15\n" +
 	"\x1bCostProductParameterService\x12\xc3\x01\n" +
 	"\x19ListProductRequiredParams\x12,.finance.v1.ListProductRequiredParamsRequest\x1a-.finance.v1.ListProductRequiredParamsResponse\"I\x82\xd3\xe4\x93\x02C\x12A/api/v1/finance/cost-product-parameters/products/{product_sys_id}\x12\xad\x01\n" +
 	"\x17UpsertProductParamValue\x12*.finance.v1.UpsertProductParamValueRequest\x1a+.finance.v1.UpsertProductParamValueResponse\"9\x82\xd3\xe4\x93\x023:\x01*\"./api/v1/finance/cost-product-parameters/upsert\x12\xc5\x01\n" +
@@ -2148,7 +2571,10 @@ const file_finance_v1_cost_product_parameter_proto_rawDesc = "" +
 	"\x1aCheckMissingRequiredParams\x12-.finance.v1.CheckMissingRequiredParamsRequest\x1a..finance.v1.CheckMissingRequiredParamsResponse\"Q\x82\xd3\xe4\x93\x02K\x12I/api/v1/finance/cost-product-parameters/products/{product_sys_id}/missing\x12\xbb\x01\n" +
 	"\x13ListAvailableParams\x12&.finance.v1.ListAvailableParamsRequest\x1a'.finance.v1.ListAvailableParamsResponse\"S\x82\xd3\xe4\x93\x02M\x12K/api/v1/finance/cost-product-parameters/products/{product_sys_id}/available\x12\xa6\x01\n" +
 	"\x12AddApplicableParam\x12%.finance.v1.AddApplicableParamRequest\x1a&.finance.v1.AddApplicableParamResponse\"A\x82\xd3\xe4\x93\x02;:\x01*\"6/api/v1/finance/cost-product-parameters/applicable/add\x12\xb2\x01\n" +
-	"\x15RemoveApplicableParam\x12(.finance.v1.RemoveApplicableParamRequest\x1a).finance.v1.RemoveApplicableParamResponse\"D\x82\xd3\xe4\x93\x02>:\x01*\"9/api/v1/finance/cost-product-parameters/applicable/remove\x12\xb2\x01\n" +
+	"\x15RemoveApplicableParam\x12(.finance.v1.RemoveApplicableParamRequest\x1a).finance.v1.RemoveApplicableParamResponse\"D\x82\xd3\xe4\x93\x02>:\x01*\"9/api/v1/finance/cost-product-parameters/applicable/remove\x12\xd8\x01\n" +
+	"\x1eAddApplicableParamWithChildren\x121.finance.v1.AddApplicableParamWithChildrenRequest\x1a2.finance.v1.AddApplicableParamWithChildrenResponse\"O\x82\xd3\xe4\x93\x02I:\x01*\"D/api/v1/finance/cost-product-parameters/applicable/add-with-children\x12\xc9\x01\n" +
+	"\x1aGetRemoveApplicablePreview\x12-.finance.v1.GetRemoveApplicablePreviewRequest\x1a..finance.v1.GetRemoveApplicablePreviewResponse\"L\x82\xd3\xe4\x93\x02F:\x01*\"A/api/v1/finance/cost-product-parameters/applicable/remove-preview\x12\xe4\x01\n" +
+	"!RemoveApplicableParamWithChildren\x124.finance.v1.RemoveApplicableParamWithChildrenRequest\x1a5.finance.v1.RemoveApplicableParamWithChildrenResponse\"R\x82\xd3\xe4\x93\x02L:\x01*\"G/api/v1/finance/cost-product-parameters/applicable/remove-with-children\x12\xb2\x01\n" +
 	"\x15UpdateApplicableParam\x12(.finance.v1.UpdateApplicableParamRequest\x1a).finance.v1.UpdateApplicableParamResponse\"D\x82\xd3\xe4\x93\x02>:\x01*\"9/api/v1/finance/cost-product-parameters/applicable/update\x12\x97\x01\n" +
 	"\x10ListParamEditLog\x12#.finance.v1.ListParamEditLogRequest\x1a$.finance.v1.ListParamEditLogResponse\"8\x82\xd3\xe4\x93\x022\x120/api/v1/finance/cost-product-parameters/edit-log\x12\xb5\x01\n" +
 	"\x13OverrideParamValues\x12&.finance.v1.OverrideParamValuesRequest\x1a'.finance.v1.OverrideParamValuesResponse\"M\x82\xd3\xe4\x93\x02G:\x01*\"B/api/v1/finance/cost-product-requests/{request_id}/params/overrideB\xb3\x01\n" +
@@ -2168,84 +2594,101 @@ func file_finance_v1_cost_product_parameter_proto_rawDescGZIP() []byte {
 	return file_finance_v1_cost_product_parameter_proto_rawDescData
 }
 
-var file_finance_v1_cost_product_parameter_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
+var file_finance_v1_cost_product_parameter_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
 var file_finance_v1_cost_product_parameter_proto_goTypes = []any{
-	(*CostProductParameterValue)(nil),             // 0: finance.v1.CostProductParameterValue
-	(*RequiredParamEntry)(nil),                    // 1: finance.v1.RequiredParamEntry
-	(*ListProductRequiredParamsRequest)(nil),      // 2: finance.v1.ListProductRequiredParamsRequest
-	(*ListProductRequiredParamsResponse)(nil),     // 3: finance.v1.ListProductRequiredParamsResponse
-	(*UpsertProductParamValueRequest)(nil),        // 4: finance.v1.UpsertProductParamValueRequest
-	(*UpsertProductParamValueResponse)(nil),       // 5: finance.v1.UpsertProductParamValueResponse
-	(*UpsertProductParamValuesBatchRequest)(nil),  // 6: finance.v1.UpsertProductParamValuesBatchRequest
-	(*UpsertProductParamValuesBatchResponse)(nil), // 7: finance.v1.UpsertProductParamValuesBatchResponse
-	(*DeleteProductParamValueRequest)(nil),        // 8: finance.v1.DeleteProductParamValueRequest
-	(*DeleteProductParamValueResponse)(nil),       // 9: finance.v1.DeleteProductParamValueResponse
-	(*CheckMissingRequiredParamsRequest)(nil),     // 10: finance.v1.CheckMissingRequiredParamsRequest
-	(*MissingParam)(nil),                          // 11: finance.v1.MissingParam
-	(*CheckMissingRequiredParamsResponse)(nil),    // 12: finance.v1.CheckMissingRequiredParamsResponse
-	(*AvailableParamEntry)(nil),                   // 13: finance.v1.AvailableParamEntry
-	(*ListAvailableParamsRequest)(nil),            // 14: finance.v1.ListAvailableParamsRequest
-	(*ListAvailableParamsResponse)(nil),           // 15: finance.v1.ListAvailableParamsResponse
-	(*AddApplicableParamRequest)(nil),             // 16: finance.v1.AddApplicableParamRequest
-	(*AddApplicableParamResponse)(nil),            // 17: finance.v1.AddApplicableParamResponse
-	(*RemoveApplicableParamRequest)(nil),          // 18: finance.v1.RemoveApplicableParamRequest
-	(*RemoveApplicableParamResponse)(nil),         // 19: finance.v1.RemoveApplicableParamResponse
-	(*UpdateApplicableParamRequest)(nil),          // 20: finance.v1.UpdateApplicableParamRequest
-	(*UpdateApplicableParamResponse)(nil),         // 21: finance.v1.UpdateApplicableParamResponse
-	(*OverrideParamValueItem)(nil),                // 22: finance.v1.OverrideParamValueItem
-	(*OverrideParamValuesRequest)(nil),            // 23: finance.v1.OverrideParamValuesRequest
-	(*OverrideParamValuesResponse)(nil),           // 24: finance.v1.OverrideParamValuesResponse
-	(*ParamEditLogEntry)(nil),                     // 25: finance.v1.ParamEditLogEntry
-	(*ListParamEditLogRequest)(nil),               // 26: finance.v1.ListParamEditLogRequest
-	(*ListParamEditLogResponse)(nil),              // 27: finance.v1.ListParamEditLogResponse
-	(*v1.BaseResponse)(nil),                       // 28: common.v1.BaseResponse
+	(*CostProductParameterValue)(nil),                 // 0: finance.v1.CostProductParameterValue
+	(*RequiredParamEntry)(nil),                        // 1: finance.v1.RequiredParamEntry
+	(*ListProductRequiredParamsRequest)(nil),          // 2: finance.v1.ListProductRequiredParamsRequest
+	(*ListProductRequiredParamsResponse)(nil),         // 3: finance.v1.ListProductRequiredParamsResponse
+	(*UpsertProductParamValueRequest)(nil),            // 4: finance.v1.UpsertProductParamValueRequest
+	(*UpsertProductParamValueResponse)(nil),           // 5: finance.v1.UpsertProductParamValueResponse
+	(*UpsertProductParamValuesBatchRequest)(nil),      // 6: finance.v1.UpsertProductParamValuesBatchRequest
+	(*UpsertProductParamValuesBatchResponse)(nil),     // 7: finance.v1.UpsertProductParamValuesBatchResponse
+	(*DeleteProductParamValueRequest)(nil),            // 8: finance.v1.DeleteProductParamValueRequest
+	(*DeleteProductParamValueResponse)(nil),           // 9: finance.v1.DeleteProductParamValueResponse
+	(*CheckMissingRequiredParamsRequest)(nil),         // 10: finance.v1.CheckMissingRequiredParamsRequest
+	(*MissingParam)(nil),                              // 11: finance.v1.MissingParam
+	(*CheckMissingRequiredParamsResponse)(nil),        // 12: finance.v1.CheckMissingRequiredParamsResponse
+	(*AvailableParamEntry)(nil),                       // 13: finance.v1.AvailableParamEntry
+	(*ListAvailableParamsRequest)(nil),                // 14: finance.v1.ListAvailableParamsRequest
+	(*ListAvailableParamsResponse)(nil),               // 15: finance.v1.ListAvailableParamsResponse
+	(*AddApplicableParamRequest)(nil),                 // 16: finance.v1.AddApplicableParamRequest
+	(*AddApplicableParamResponse)(nil),                // 17: finance.v1.AddApplicableParamResponse
+	(*RemoveApplicableParamRequest)(nil),              // 18: finance.v1.RemoveApplicableParamRequest
+	(*RemoveApplicableParamResponse)(nil),             // 19: finance.v1.RemoveApplicableParamResponse
+	(*UpdateApplicableParamRequest)(nil),              // 20: finance.v1.UpdateApplicableParamRequest
+	(*UpdateApplicableParamResponse)(nil),             // 21: finance.v1.UpdateApplicableParamResponse
+	(*ParamWithValue)(nil),                            // 22: finance.v1.ParamWithValue
+	(*AddApplicableParamWithChildrenRequest)(nil),     // 23: finance.v1.AddApplicableParamWithChildrenRequest
+	(*AddApplicableParamWithChildrenResponse)(nil),    // 24: finance.v1.AddApplicableParamWithChildrenResponse
+	(*GetRemoveApplicablePreviewRequest)(nil),         // 25: finance.v1.GetRemoveApplicablePreviewRequest
+	(*GetRemoveApplicablePreviewResponse)(nil),        // 26: finance.v1.GetRemoveApplicablePreviewResponse
+	(*RemoveApplicableParamWithChildrenRequest)(nil),  // 27: finance.v1.RemoveApplicableParamWithChildrenRequest
+	(*RemoveApplicableParamWithChildrenResponse)(nil), // 28: finance.v1.RemoveApplicableParamWithChildrenResponse
+	(*OverrideParamValueItem)(nil),                    // 29: finance.v1.OverrideParamValueItem
+	(*OverrideParamValuesRequest)(nil),                // 30: finance.v1.OverrideParamValuesRequest
+	(*OverrideParamValuesResponse)(nil),               // 31: finance.v1.OverrideParamValuesResponse
+	(*ParamEditLogEntry)(nil),                         // 32: finance.v1.ParamEditLogEntry
+	(*ListParamEditLogRequest)(nil),                   // 33: finance.v1.ListParamEditLogRequest
+	(*ListParamEditLogResponse)(nil),                  // 34: finance.v1.ListParamEditLogResponse
+	(*v1.BaseResponse)(nil),                           // 35: common.v1.BaseResponse
 }
 var file_finance_v1_cost_product_parameter_proto_depIdxs = []int32{
-	28, // 0: finance.v1.ListProductRequiredParamsResponse.base:type_name -> common.v1.BaseResponse
+	35, // 0: finance.v1.ListProductRequiredParamsResponse.base:type_name -> common.v1.BaseResponse
 	1,  // 1: finance.v1.ListProductRequiredParamsResponse.data:type_name -> finance.v1.RequiredParamEntry
-	28, // 2: finance.v1.UpsertProductParamValueResponse.base:type_name -> common.v1.BaseResponse
+	35, // 2: finance.v1.UpsertProductParamValueResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 3: finance.v1.UpsertProductParamValueResponse.data:type_name -> finance.v1.CostProductParameterValue
 	4,  // 4: finance.v1.UpsertProductParamValuesBatchRequest.values:type_name -> finance.v1.UpsertProductParamValueRequest
-	28, // 5: finance.v1.UpsertProductParamValuesBatchResponse.base:type_name -> common.v1.BaseResponse
-	28, // 6: finance.v1.DeleteProductParamValueResponse.base:type_name -> common.v1.BaseResponse
-	28, // 7: finance.v1.CheckMissingRequiredParamsResponse.base:type_name -> common.v1.BaseResponse
+	35, // 5: finance.v1.UpsertProductParamValuesBatchResponse.base:type_name -> common.v1.BaseResponse
+	35, // 6: finance.v1.DeleteProductParamValueResponse.base:type_name -> common.v1.BaseResponse
+	35, // 7: finance.v1.CheckMissingRequiredParamsResponse.base:type_name -> common.v1.BaseResponse
 	11, // 8: finance.v1.CheckMissingRequiredParamsResponse.data:type_name -> finance.v1.MissingParam
-	28, // 9: finance.v1.ListAvailableParamsResponse.base:type_name -> common.v1.BaseResponse
+	35, // 9: finance.v1.ListAvailableParamsResponse.base:type_name -> common.v1.BaseResponse
 	13, // 10: finance.v1.ListAvailableParamsResponse.data:type_name -> finance.v1.AvailableParamEntry
-	28, // 11: finance.v1.AddApplicableParamResponse.base:type_name -> common.v1.BaseResponse
-	28, // 12: finance.v1.RemoveApplicableParamResponse.base:type_name -> common.v1.BaseResponse
-	28, // 13: finance.v1.UpdateApplicableParamResponse.base:type_name -> common.v1.BaseResponse
-	22, // 14: finance.v1.OverrideParamValuesRequest.values:type_name -> finance.v1.OverrideParamValueItem
-	28, // 15: finance.v1.OverrideParamValuesResponse.base:type_name -> common.v1.BaseResponse
-	28, // 16: finance.v1.ListParamEditLogResponse.base:type_name -> common.v1.BaseResponse
-	25, // 17: finance.v1.ListParamEditLogResponse.entries:type_name -> finance.v1.ParamEditLogEntry
-	2,  // 18: finance.v1.CostProductParameterService.ListProductRequiredParams:input_type -> finance.v1.ListProductRequiredParamsRequest
-	4,  // 19: finance.v1.CostProductParameterService.UpsertProductParamValue:input_type -> finance.v1.UpsertProductParamValueRequest
-	6,  // 20: finance.v1.CostProductParameterService.UpsertProductParamValuesBatch:input_type -> finance.v1.UpsertProductParamValuesBatchRequest
-	8,  // 21: finance.v1.CostProductParameterService.DeleteProductParamValue:input_type -> finance.v1.DeleteProductParamValueRequest
-	10, // 22: finance.v1.CostProductParameterService.CheckMissingRequiredParams:input_type -> finance.v1.CheckMissingRequiredParamsRequest
-	14, // 23: finance.v1.CostProductParameterService.ListAvailableParams:input_type -> finance.v1.ListAvailableParamsRequest
-	16, // 24: finance.v1.CostProductParameterService.AddApplicableParam:input_type -> finance.v1.AddApplicableParamRequest
-	18, // 25: finance.v1.CostProductParameterService.RemoveApplicableParam:input_type -> finance.v1.RemoveApplicableParamRequest
-	20, // 26: finance.v1.CostProductParameterService.UpdateApplicableParam:input_type -> finance.v1.UpdateApplicableParamRequest
-	26, // 27: finance.v1.CostProductParameterService.ListParamEditLog:input_type -> finance.v1.ListParamEditLogRequest
-	23, // 28: finance.v1.CostProductParameterService.OverrideParamValues:input_type -> finance.v1.OverrideParamValuesRequest
-	3,  // 29: finance.v1.CostProductParameterService.ListProductRequiredParams:output_type -> finance.v1.ListProductRequiredParamsResponse
-	5,  // 30: finance.v1.CostProductParameterService.UpsertProductParamValue:output_type -> finance.v1.UpsertProductParamValueResponse
-	7,  // 31: finance.v1.CostProductParameterService.UpsertProductParamValuesBatch:output_type -> finance.v1.UpsertProductParamValuesBatchResponse
-	9,  // 32: finance.v1.CostProductParameterService.DeleteProductParamValue:output_type -> finance.v1.DeleteProductParamValueResponse
-	12, // 33: finance.v1.CostProductParameterService.CheckMissingRequiredParams:output_type -> finance.v1.CheckMissingRequiredParamsResponse
-	15, // 34: finance.v1.CostProductParameterService.ListAvailableParams:output_type -> finance.v1.ListAvailableParamsResponse
-	17, // 35: finance.v1.CostProductParameterService.AddApplicableParam:output_type -> finance.v1.AddApplicableParamResponse
-	19, // 36: finance.v1.CostProductParameterService.RemoveApplicableParam:output_type -> finance.v1.RemoveApplicableParamResponse
-	21, // 37: finance.v1.CostProductParameterService.UpdateApplicableParam:output_type -> finance.v1.UpdateApplicableParamResponse
-	27, // 38: finance.v1.CostProductParameterService.ListParamEditLog:output_type -> finance.v1.ListParamEditLogResponse
-	24, // 39: finance.v1.CostProductParameterService.OverrideParamValues:output_type -> finance.v1.OverrideParamValuesResponse
-	29, // [29:40] is the sub-list for method output_type
-	18, // [18:29] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	35, // 11: finance.v1.AddApplicableParamResponse.base:type_name -> common.v1.BaseResponse
+	35, // 12: finance.v1.RemoveApplicableParamResponse.base:type_name -> common.v1.BaseResponse
+	35, // 13: finance.v1.UpdateApplicableParamResponse.base:type_name -> common.v1.BaseResponse
+	35, // 14: finance.v1.AddApplicableParamWithChildrenResponse.base:type_name -> common.v1.BaseResponse
+	35, // 15: finance.v1.GetRemoveApplicablePreviewResponse.base:type_name -> common.v1.BaseResponse
+	22, // 16: finance.v1.GetRemoveApplicablePreviewResponse.children:type_name -> finance.v1.ParamWithValue
+	35, // 17: finance.v1.RemoveApplicableParamWithChildrenResponse.base:type_name -> common.v1.BaseResponse
+	29, // 18: finance.v1.OverrideParamValuesRequest.values:type_name -> finance.v1.OverrideParamValueItem
+	35, // 19: finance.v1.OverrideParamValuesResponse.base:type_name -> common.v1.BaseResponse
+	35, // 20: finance.v1.ListParamEditLogResponse.base:type_name -> common.v1.BaseResponse
+	32, // 21: finance.v1.ListParamEditLogResponse.entries:type_name -> finance.v1.ParamEditLogEntry
+	2,  // 22: finance.v1.CostProductParameterService.ListProductRequiredParams:input_type -> finance.v1.ListProductRequiredParamsRequest
+	4,  // 23: finance.v1.CostProductParameterService.UpsertProductParamValue:input_type -> finance.v1.UpsertProductParamValueRequest
+	6,  // 24: finance.v1.CostProductParameterService.UpsertProductParamValuesBatch:input_type -> finance.v1.UpsertProductParamValuesBatchRequest
+	8,  // 25: finance.v1.CostProductParameterService.DeleteProductParamValue:input_type -> finance.v1.DeleteProductParamValueRequest
+	10, // 26: finance.v1.CostProductParameterService.CheckMissingRequiredParams:input_type -> finance.v1.CheckMissingRequiredParamsRequest
+	14, // 27: finance.v1.CostProductParameterService.ListAvailableParams:input_type -> finance.v1.ListAvailableParamsRequest
+	16, // 28: finance.v1.CostProductParameterService.AddApplicableParam:input_type -> finance.v1.AddApplicableParamRequest
+	18, // 29: finance.v1.CostProductParameterService.RemoveApplicableParam:input_type -> finance.v1.RemoveApplicableParamRequest
+	23, // 30: finance.v1.CostProductParameterService.AddApplicableParamWithChildren:input_type -> finance.v1.AddApplicableParamWithChildrenRequest
+	25, // 31: finance.v1.CostProductParameterService.GetRemoveApplicablePreview:input_type -> finance.v1.GetRemoveApplicablePreviewRequest
+	27, // 32: finance.v1.CostProductParameterService.RemoveApplicableParamWithChildren:input_type -> finance.v1.RemoveApplicableParamWithChildrenRequest
+	20, // 33: finance.v1.CostProductParameterService.UpdateApplicableParam:input_type -> finance.v1.UpdateApplicableParamRequest
+	33, // 34: finance.v1.CostProductParameterService.ListParamEditLog:input_type -> finance.v1.ListParamEditLogRequest
+	30, // 35: finance.v1.CostProductParameterService.OverrideParamValues:input_type -> finance.v1.OverrideParamValuesRequest
+	3,  // 36: finance.v1.CostProductParameterService.ListProductRequiredParams:output_type -> finance.v1.ListProductRequiredParamsResponse
+	5,  // 37: finance.v1.CostProductParameterService.UpsertProductParamValue:output_type -> finance.v1.UpsertProductParamValueResponse
+	7,  // 38: finance.v1.CostProductParameterService.UpsertProductParamValuesBatch:output_type -> finance.v1.UpsertProductParamValuesBatchResponse
+	9,  // 39: finance.v1.CostProductParameterService.DeleteProductParamValue:output_type -> finance.v1.DeleteProductParamValueResponse
+	12, // 40: finance.v1.CostProductParameterService.CheckMissingRequiredParams:output_type -> finance.v1.CheckMissingRequiredParamsResponse
+	15, // 41: finance.v1.CostProductParameterService.ListAvailableParams:output_type -> finance.v1.ListAvailableParamsResponse
+	17, // 42: finance.v1.CostProductParameterService.AddApplicableParam:output_type -> finance.v1.AddApplicableParamResponse
+	19, // 43: finance.v1.CostProductParameterService.RemoveApplicableParam:output_type -> finance.v1.RemoveApplicableParamResponse
+	24, // 44: finance.v1.CostProductParameterService.AddApplicableParamWithChildren:output_type -> finance.v1.AddApplicableParamWithChildrenResponse
+	26, // 45: finance.v1.CostProductParameterService.GetRemoveApplicablePreview:output_type -> finance.v1.GetRemoveApplicablePreviewResponse
+	28, // 46: finance.v1.CostProductParameterService.RemoveApplicableParamWithChildren:output_type -> finance.v1.RemoveApplicableParamWithChildrenResponse
+	21, // 47: finance.v1.CostProductParameterService.UpdateApplicableParam:output_type -> finance.v1.UpdateApplicableParamResponse
+	34, // 48: finance.v1.CostProductParameterService.ListParamEditLog:output_type -> finance.v1.ListParamEditLogResponse
+	31, // 49: finance.v1.CostProductParameterService.OverrideParamValues:output_type -> finance.v1.OverrideParamValuesResponse
+	36, // [36:50] is the sub-list for method output_type
+	22, // [22:36] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_finance_v1_cost_product_parameter_proto_init() }
@@ -2260,7 +2703,7 @@ func file_finance_v1_cost_product_parameter_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_finance_v1_cost_product_parameter_proto_rawDesc), len(file_finance_v1_cost_product_parameter_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   28,
+			NumMessages:   35,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

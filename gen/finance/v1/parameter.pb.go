@@ -93,6 +93,8 @@ const (
 	ParamCategory_PARAM_CATEGORY_RATE ParamCategory = 2
 	// Calculated parameter - computed from other parameters.
 	ParamCategory_PARAM_CATEGORY_CALCULATED ParamCategory = 3
+	// PARAM_CATEGORY_MASTER_LOOKUP: selector from a master table; triggers auto-fill of child params.
+	ParamCategory_PARAM_CATEGORY_MASTER_LOOKUP ParamCategory = 4
 )
 
 // Enum value maps for ParamCategory.
@@ -102,12 +104,14 @@ var (
 		1: "PARAM_CATEGORY_INPUT",
 		2: "PARAM_CATEGORY_RATE",
 		3: "PARAM_CATEGORY_CALCULATED",
+		4: "PARAM_CATEGORY_MASTER_LOOKUP",
 	}
 	ParamCategory_value = map[string]int32{
-		"PARAM_CATEGORY_UNSPECIFIED": 0,
-		"PARAM_CATEGORY_INPUT":       1,
-		"PARAM_CATEGORY_RATE":        2,
-		"PARAM_CATEGORY_CALCULATED":  3,
+		"PARAM_CATEGORY_UNSPECIFIED":   0,
+		"PARAM_CATEGORY_INPUT":         1,
+		"PARAM_CATEGORY_RATE":          2,
+		"PARAM_CATEGORY_CALCULATED":    3,
+		"PARAM_CATEGORY_MASTER_LOOKUP": 4,
 	}
 )
 
@@ -182,9 +186,13 @@ type Parameter struct {
 	// Form section: Spec / Machine / Grade / Packing / Cost / etc.
 	DisplayGroup string `protobuf:"bytes,29,opt,name=display_group,json=displayGroup,proto3" json:"display_group,omitempty"`
 	// Descriptive notes or formula hint for this parameter (read-only, populated from seed/migration).
-	Notes         string `protobuf:"bytes,30,opt,name=notes,proto3" json:"notes,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Notes string `protobuf:"bytes,30,opt,name=notes,proto3" json:"notes,omitempty"`
+	// param_code of the MASTER_LOOKUP trigger param this child belongs to (empty = not a child param).
+	LookupFillGroupCode string `protobuf:"bytes,31,opt,name=lookup_fill_group_code,json=lookupFillGroupCode,proto3" json:"lookup_fill_group_code,omitempty"`
+	// Column name in the master entity to read value from (e.g., "mc_speed").
+	LookupSourceColumn string `protobuf:"bytes,32,opt,name=lookup_source_column,json=lookupSourceColumn,proto3" json:"lookup_source_column,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *Parameter) Reset() {
@@ -364,6 +372,20 @@ func (x *Parameter) GetNotes() string {
 	return ""
 }
 
+func (x *Parameter) GetLookupFillGroupCode() string {
+	if x != nil {
+		return x.LookupFillGroupCode
+	}
+	return ""
+}
+
+func (x *Parameter) GetLookupSourceColumn() string {
+	if x != nil {
+		return x.LookupSourceColumn
+	}
+	return ""
+}
+
 // CreateParameterRequest is the request for creating a new parameter.
 type CreateParameterRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -399,9 +421,13 @@ type CreateParameterRequest struct {
 	// Display group (optional, max 50 chars). E.g. 'Spec', 'Machine'.
 	DisplayGroup string `protobuf:"bytes,15,opt,name=display_group,json=displayGroup,proto3" json:"display_group,omitempty"`
 	// Descriptive notes or formula hint (optional, max 500 chars).
-	Notes         string `protobuf:"bytes,16,opt,name=notes,proto3" json:"notes,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Notes string `protobuf:"bytes,16,opt,name=notes,proto3" json:"notes,omitempty"`
+	// Fill group: param_code of the parent MASTER_LOOKUP param (optional, max 20 chars).
+	LookupFillGroupCode string `protobuf:"bytes,17,opt,name=lookup_fill_group_code,json=lookupFillGroupCode,proto3" json:"lookup_fill_group_code,omitempty"`
+	// Source column in the master table (optional, max 50 chars).
+	LookupSourceColumn string `protobuf:"bytes,18,opt,name=lookup_source_column,json=lookupSourceColumn,proto3" json:"lookup_source_column,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *CreateParameterRequest) Reset() {
@@ -542,6 +568,20 @@ func (x *CreateParameterRequest) GetDisplayGroup() string {
 func (x *CreateParameterRequest) GetNotes() string {
 	if x != nil {
 		return x.Notes
+	}
+	return ""
+}
+
+func (x *CreateParameterRequest) GetLookupFillGroupCode() string {
+	if x != nil {
+		return x.LookupFillGroupCode
+	}
+	return ""
+}
+
+func (x *CreateParameterRequest) GetLookupSourceColumn() string {
+	if x != nil {
+		return x.LookupSourceColumn
 	}
 	return ""
 }
@@ -739,9 +779,13 @@ type UpdateParameterRequest struct {
 	// New display group (optional). Set to empty string to clear.
 	DisplayGroup *string `protobuf:"bytes,16,opt,name=display_group,json=displayGroup,proto3,oneof" json:"display_group,omitempty"`
 	// New notes (optional). Set to empty string to clear.
-	Notes         *string `protobuf:"bytes,17,opt,name=notes,proto3,oneof" json:"notes,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Notes *string `protobuf:"bytes,17,opt,name=notes,proto3,oneof" json:"notes,omitempty"`
+	// New fill group code (optional). Set to empty string to clear.
+	LookupFillGroupCode *string `protobuf:"bytes,18,opt,name=lookup_fill_group_code,json=lookupFillGroupCode,proto3,oneof" json:"lookup_fill_group_code,omitempty"`
+	// New source column (optional). Set to empty string to clear.
+	LookupSourceColumn *string `protobuf:"bytes,19,opt,name=lookup_source_column,json=lookupSourceColumn,proto3,oneof" json:"lookup_source_column,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *UpdateParameterRequest) Reset() {
@@ -889,6 +933,20 @@ func (x *UpdateParameterRequest) GetDisplayGroup() string {
 func (x *UpdateParameterRequest) GetNotes() string {
 	if x != nil && x.Notes != nil {
 		return *x.Notes
+	}
+	return ""
+}
+
+func (x *UpdateParameterRequest) GetLookupFillGroupCode() string {
+	if x != nil && x.LookupFillGroupCode != nil {
+		return *x.LookupFillGroupCode
+	}
+	return ""
+}
+
+func (x *UpdateParameterRequest) GetLookupSourceColumn() string {
+	if x != nil && x.LookupSourceColumn != nil {
+		return *x.LookupSourceColumn
 	}
 	return ""
 }
@@ -1062,9 +1120,11 @@ type ListParametersRequest struct {
 	// Sort field: "code", "name", "category", "data_type", "created_at" (default: "code").
 	SortBy string `protobuf:"bytes,7,opt,name=sort_by,json=sortBy,proto3" json:"sort_by,omitempty"`
 	// Sort order: "asc", "desc" (default: "asc").
-	SortOrder     string `protobuf:"bytes,8,opt,name=sort_order,json=sortOrder,proto3" json:"sort_order,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	SortOrder string `protobuf:"bytes,8,opt,name=sort_order,json=sortOrder,proto3" json:"sort_order,omitempty"`
+	// Filter by lookup_fill_group_code. Empty string = no filter.
+	LookupFillGroupCodeFilter string `protobuf:"bytes,9,opt,name=lookup_fill_group_code_filter,json=lookupFillGroupCodeFilter,proto3" json:"lookup_fill_group_code_filter,omitempty"`
+	unknownFields             protoimpl.UnknownFields
+	sizeCache                 protoimpl.SizeCache
 }
 
 func (x *ListParametersRequest) Reset() {
@@ -1149,6 +1209,13 @@ func (x *ListParametersRequest) GetSortBy() string {
 func (x *ListParametersRequest) GetSortOrder() string {
 	if x != nil {
 		return x.SortOrder
+	}
+	return ""
+}
+
+func (x *ListParametersRequest) GetLookupFillGroupCodeFilter() string {
+	if x != nil {
+		return x.LookupFillGroupCodeFilter
 	}
 	return ""
 }
@@ -1606,7 +1673,7 @@ var File_finance_v1_parameter_proto protoreflect.FileDescriptor
 const file_finance_v1_parameter_proto_rawDesc = "" +
 	"\n" +
 	"\x1afinance/v1/parameter.proto\x12\n" +
-	"finance.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16common/v1/common.proto\x1a\x14finance/v1/uom.proto\x1a\x1cgoogle/api/annotations.proto\"\x98\x06\n" +
+	"finance.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16common/v1/common.proto\x1a\x14finance/v1/uom.proto\x1a\x1cgoogle/api/annotations.proto\"\xff\x06\n" +
 	"\tParameter\x12\x19\n" +
 	"\bparam_id\x18\x01 \x01(\tR\aparamId\x12\x1d\n" +
 	"\n" +
@@ -1631,7 +1698,9 @@ const file_finance_v1_parameter_proto_rawDesc = "" +
 	"\x12lookup_master_code\x18\x1b \x01(\tR\x10lookupMasterCode\x12#\n" +
 	"\rdisplay_order\x18\x1c \x01(\x05R\fdisplayOrder\x12#\n" +
 	"\rdisplay_group\x18\x1d \x01(\tR\fdisplayGroup\x12\x14\n" +
-	"\x05notes\x18\x1e \x01(\tR\x05notes\"\xa8\x06\n" +
+	"\x05notes\x18\x1e \x01(\tR\x05notes\x123\n" +
+	"\x16lookup_fill_group_code\x18\x1f \x01(\tR\x13lookupFillGroupCode\x120\n" +
+	"\x14lookup_source_column\x18  \x01(\tR\x12lookupSourceColumn\"\xa1\a\n" +
 	"\x16CreateParameterRequest\x12;\n" +
 	"\n" +
 	"param_code\x18\x01 \x01(\tB\x1c\xbaH\x19r\x17\x10\x01\x18\x142\x11^[A-Z][A-Z0-9_]*$R\tparamCode\x12)\n" +
@@ -1652,7 +1721,9 @@ const file_finance_v1_parameter_proto_rawDesc = "" +
 	"\x12lookup_master_code\x18\r \x01(\tB\a\xbaH\x04r\x02\x18\x1eR\x10lookupMasterCode\x12,\n" +
 	"\rdisplay_order\x18\x0e \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\fdisplayOrder\x12,\n" +
 	"\rdisplay_group\x18\x0f \x01(\tB\a\xbaH\x04r\x02\x182R\fdisplayGroup\x12\x1e\n" +
-	"\x05notes\x18\x10 \x01(\tB\b\xbaH\x05r\x03\x18\xf4\x03R\x05notes\"q\n" +
+	"\x05notes\x18\x10 \x01(\tB\b\xbaH\x05r\x03\x18\xf4\x03R\x05notes\x12<\n" +
+	"\x16lookup_fill_group_code\x18\x11 \x01(\tB\a\xbaH\x04r\x02\x18\x14R\x13lookupFillGroupCode\x129\n" +
+	"\x14lookup_source_column\x18\x12 \x01(\tB\a\xbaH\x04r\x02\x182R\x12lookupSourceColumn\"q\n" +
 	"\x17CreateParameterResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12)\n" +
 	"\x04data\x18\x02 \x01(\v2\x15.finance.v1.ParameterR\x04data\":\n" +
@@ -1660,7 +1731,8 @@ const file_finance_v1_parameter_proto_rawDesc = "" +
 	"\bparam_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aparamId\"n\n" +
 	"\x14GetParameterResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12)\n" +
-	"\x04data\x18\x02 \x01(\v2\x15.finance.v1.ParameterR\x04data\"\xed\b\n" +
+	"\x04data\x18\x02 \x01(\v2\x15.finance.v1.ParameterR\x04data\"\xa4\n" +
+	"\n" +
 	"\x16UpdateParameterRequest\x12#\n" +
 	"\bparam_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aparamId\x12,\n" +
 	"\n" +
@@ -1681,7 +1753,9 @@ const file_finance_v1_parameter_proto_rawDesc = "" +
 	"\x12lookup_master_code\x18\x0e \x01(\tB\a\xbaH\x04r\x02\x18\x1eH\fR\x10lookupMasterCode\x88\x01\x01\x121\n" +
 	"\rdisplay_order\x18\x0f \x01(\x05B\a\xbaH\x04\x1a\x02(\x00H\rR\fdisplayOrder\x88\x01\x01\x121\n" +
 	"\rdisplay_group\x18\x10 \x01(\tB\a\xbaH\x04r\x02\x182H\x0eR\fdisplayGroup\x88\x01\x01\x12#\n" +
-	"\x05notes\x18\x11 \x01(\tB\b\xbaH\x05r\x03\x18\xf4\x03H\x0fR\x05notes\x88\x01\x01B\r\n" +
+	"\x05notes\x18\x11 \x01(\tB\b\xbaH\x05r\x03\x18\xf4\x03H\x0fR\x05notes\x88\x01\x01\x12A\n" +
+	"\x16lookup_fill_group_code\x18\x12 \x01(\tB\a\xbaH\x04r\x02\x18\x14H\x10R\x13lookupFillGroupCode\x88\x01\x01\x12>\n" +
+	"\x14lookup_source_column\x18\x13 \x01(\tB\a\xbaH\x04r\x02\x182H\x11R\x12lookupSourceColumn\x88\x01\x01B\r\n" +
 	"\v_param_nameB\x13\n" +
 	"\x11_param_short_nameB\f\n" +
 	"\n" +
@@ -1701,14 +1775,16 @@ const file_finance_v1_parameter_proto_rawDesc = "" +
 	"\x13_lookup_master_codeB\x10\n" +
 	"\x0e_display_orderB\x10\n" +
 	"\x0e_display_groupB\b\n" +
-	"\x06_notes\"q\n" +
+	"\x06_notesB\x19\n" +
+	"\x17_lookup_fill_group_codeB\x17\n" +
+	"\x15_lookup_source_column\"q\n" +
 	"\x17UpdateParameterResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12)\n" +
 	"\x04data\x18\x02 \x01(\v2\x15.finance.v1.ParameterR\x04data\"=\n" +
 	"\x16DeleteParameterRequest\x12#\n" +
 	"\bparam_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aparamId\"F\n" +
 	"\x17DeleteParameterResponse\x12+\n" +
-	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\"\xb3\x03\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\"\xfe\x03\n" +
 	"\x15ListParametersRequest\x12\x1b\n" +
 	"\x04page\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x01R\x04page\x12&\n" +
 	"\tpage_size\x18\x02 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x01R\bpageSize\x12\x1f\n" +
@@ -1719,7 +1795,8 @@ const file_finance_v1_parameter_proto_rawDesc = "" +
 	"\asort_by\x18\a \x01(\tB4\xbaH1r/R\x00R\x04codeR\x04nameR\bcategoryR\tdata_typeR\n" +
 	"created_atR\x06sortBy\x121\n" +
 	"\n" +
-	"sort_order\x18\b \x01(\tB\x12\xbaH\x0fr\rR\x00R\x03ascR\x04descR\tsortOrder\"\xaf\x01\n" +
+	"sort_order\x18\b \x01(\tB\x12\xbaH\x0fr\rR\x00R\x03ascR\x04descR\tsortOrder\x12I\n" +
+	"\x1dlookup_fill_group_code_filter\x18\t \x01(\tB\a\xbaH\x04r\x02\x18\x14R\x19lookupFillGroupCodeFilter\"\xaf\x01\n" +
 	"\x16ListParametersResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12)\n" +
 	"\x04data\x18\x02 \x03(\v2\x15.finance.v1.ParameterR\x04data\x12=\n" +
@@ -1754,12 +1831,13 @@ const file_finance_v1_parameter_proto_rawDesc = "" +
 	"\x15DATA_TYPE_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10DATA_TYPE_NUMBER\x10\x01\x12\x12\n" +
 	"\x0eDATA_TYPE_TEXT\x10\x02\x12\x15\n" +
-	"\x11DATA_TYPE_BOOLEAN\x10\x03*\x81\x01\n" +
+	"\x11DATA_TYPE_BOOLEAN\x10\x03*\xa3\x01\n" +
 	"\rParamCategory\x12\x1e\n" +
 	"\x1aPARAM_CATEGORY_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14PARAM_CATEGORY_INPUT\x10\x01\x12\x17\n" +
 	"\x13PARAM_CATEGORY_RATE\x10\x02\x12\x1d\n" +
-	"\x19PARAM_CATEGORY_CALCULATED\x10\x032\xf2\b\n" +
+	"\x19PARAM_CATEGORY_CALCULATED\x10\x03\x12 \n" +
+	"\x1cPARAM_CATEGORY_MASTER_LOOKUP\x10\x042\xf2\b\n" +
 	"\x10ParameterService\x12\x81\x01\n" +
 	"\x0fCreateParameter\x12\".finance.v1.CreateParameterRequest\x1a#.finance.v1.CreateParameterResponse\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/api/v1/finance/parameters\x12\x80\x01\n" +
 	"\fGetParameter\x12\x1f.finance.v1.GetParameterRequest\x1a .finance.v1.GetParameterResponse\"-\x82\xd3\xe4\x93\x02'\x12%/api/v1/finance/parameters/{param_id}\x12\x8c\x01\n" +

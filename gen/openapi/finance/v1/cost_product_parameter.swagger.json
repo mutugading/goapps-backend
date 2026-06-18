@@ -49,6 +49,40 @@
         ]
       }
     },
+    "/api/v1/finance/cost-product-parameters/applicable/add-with-children": {
+      "post": {
+        "summary": "AddApplicableParamWithChildren adds a MASTER_LOOKUP param + all its child params atomically.",
+        "operationId": "CostProductParameterService_AddApplicableParamWithChildren",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1AddApplicableParamWithChildrenResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "AddApplicableParamWithChildrenRequest adds a MASTER_LOOKUP param and all its child params atomically.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1AddApplicableParamWithChildrenRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CostProductParameterService"
+        ]
+      }
+    },
     "/api/v1/finance/cost-product-parameters/applicable/remove": {
       "post": {
         "summary": "RemoveApplicableParam removes a parameter from a product (deletes value too).",
@@ -74,6 +108,74 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/v1RemoveApplicableParamRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CostProductParameterService"
+        ]
+      }
+    },
+    "/api/v1/finance/cost-product-parameters/applicable/remove-preview": {
+      "post": {
+        "summary": "GetRemoveApplicablePreview returns trigger + children for the confirm-delete dialog.",
+        "operationId": "CostProductParameterService_GetRemoveApplicablePreview",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetRemoveApplicablePreviewResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "GetRemoveApplicablePreviewRequest is the request for previewing the params to be removed.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1GetRemoveApplicablePreviewRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CostProductParameterService"
+        ]
+      }
+    },
+    "/api/v1/finance/cost-product-parameters/applicable/remove-with-children": {
+      "post": {
+        "summary": "RemoveApplicableParamWithChildren removes a MASTER_LOOKUP param + all children + CPP values atomically.",
+        "operationId": "CostProductParameterService_RemoveApplicableParamWithChildren",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RemoveApplicableParamWithChildrenResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "RemoveApplicableParamWithChildrenRequest removes a MASTER_LOOKUP param and all its children.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1RemoveApplicableParamWithChildrenRequest"
             }
           }
         ],
@@ -470,6 +572,36 @@
         }
       }
     },
+    "v1AddApplicableParamWithChildrenRequest": {
+      "type": "object",
+      "properties": {
+        "productSysId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "paramId": {
+          "type": "string"
+        },
+        "isRequired": {
+          "type": "boolean"
+        },
+        "displayOrder": {
+          "type": "integer",
+          "format": "int32",
+          "description": "0 means inherit mst_parameter.display_order."
+        }
+      },
+      "description": "AddApplicableParamWithChildrenRequest adds a MASTER_LOOKUP param and all its child params atomically."
+    },
+    "v1AddApplicableParamWithChildrenResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      },
+      "description": "AddApplicableParamWithChildrenResponse is the response for adding a MASTER_LOOKUP param with children."
+    },
     "v1AvailableParamEntry": {
       "type": "object",
       "properties": {
@@ -646,6 +778,41 @@
         }
       }
     },
+    "v1GetRemoveApplicablePreviewRequest": {
+      "type": "object",
+      "properties": {
+        "productSysId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "paramId": {
+          "type": "string"
+        }
+      },
+      "description": "GetRemoveApplicablePreviewRequest is the request for previewing the params to be removed."
+    },
+    "v1GetRemoveApplicablePreviewResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "triggerParamCode": {
+          "type": "string"
+        },
+        "triggerParamName": {
+          "type": "string"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ParamWithValue"
+          }
+        }
+      },
+      "description": "GetRemoveApplicablePreviewResponse lists trigger + children for the confirm-delete dialog."
+    },
     "v1ListAvailableParamsResponse": {
       "type": "object",
       "properties": {
@@ -771,6 +938,21 @@
       },
       "description": "ParamEditLogEntry is one record of a param value change by an authorized user."
     },
+    "v1ParamWithValue": {
+      "type": "object",
+      "properties": {
+        "paramCode": {
+          "type": "string"
+        },
+        "paramName": {
+          "type": "string"
+        },
+        "currentValue": {
+          "type": "string"
+        }
+      },
+      "description": "ParamWithValue carries param code, name, and current display value for the remove-preview dialog."
+    },
     "v1RemoveApplicableParamRequest": {
       "type": "object",
       "properties": {
@@ -790,6 +972,28 @@
           "$ref": "#/definitions/v1BaseResponse"
         }
       }
+    },
+    "v1RemoveApplicableParamWithChildrenRequest": {
+      "type": "object",
+      "properties": {
+        "productSysId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "paramId": {
+          "type": "string"
+        }
+      },
+      "description": "RemoveApplicableParamWithChildrenRequest removes a MASTER_LOOKUP param and all its children."
+    },
+    "v1RemoveApplicableParamWithChildrenResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      },
+      "description": "RemoveApplicableParamWithChildrenResponse is the response for removing a MASTER_LOOKUP param with children."
     },
     "v1RequiredParamEntry": {
       "type": "object",

@@ -24,6 +24,9 @@
       "name": "MBSpinService"
     },
     {
+      "name": "LookupMasterService"
+    },
+    {
       "name": "YarnLookupFillService"
     }
   ],
@@ -767,6 +770,68 @@
         ],
         "tags": [
           "YarnLookupFillService"
+        ]
+      }
+    },
+    "/api/v1/finance/lookup-master-columns": {
+      "get": {
+        "summary": "ListLookupMasterColumns returns the selectable columns for one lookup master.",
+        "operationId": "LookupMasterService_ListLookupMasterColumns",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListLookupMasterColumnsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "masterCode",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "LookupMasterService"
+        ]
+      }
+    },
+    "/api/v1/finance/lookup-masters": {
+      "get": {
+        "summary": "ListLookupMasters returns all registered lookup masters.",
+        "operationId": "LookupMasterService_ListLookupMasters",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListLookupMastersResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "activeOnly",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "tags": [
+          "LookupMasterService"
         ]
       }
     },
@@ -3571,6 +3636,38 @@
       },
       "description": "ListInterminglingsResponse is the response for listing intermingling records."
     },
+    "v1ListLookupMasterColumnsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1LookupMasterColumn"
+          }
+        }
+      },
+      "description": "ListLookupMasterColumnsResponse is the response for listing lookup master columns."
+    },
+    "v1ListLookupMastersResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1LookupMaster"
+          }
+        }
+      },
+      "description": "ListLookupMastersResponse is the response for listing lookup masters."
+    },
     "v1ListMBHeadsResponse": {
       "type": "object",
       "properties": {
@@ -3658,6 +3755,52 @@
         }
       },
       "description": "ListProductGradesResponse is the response for listing Product Grades."
+    },
+    "v1LookupMaster": {
+      "type": "object",
+      "properties": {
+        "lmCode": {
+          "type": "string"
+        },
+        "lmDisplayName": {
+          "type": "string"
+        },
+        "lmApiPath": {
+          "type": "string"
+        },
+        "lmCodeField": {
+          "type": "string"
+        },
+        "lmLabelField": {
+          "type": "string"
+        },
+        "lmIsActive": {
+          "type": "boolean"
+        }
+      },
+      "description": "LookupMaster describes a named master table available for MASTER_LOOKUP param dropdowns."
+    },
+    "v1LookupMasterColumn": {
+      "type": "object",
+      "properties": {
+        "lmcMasterCode": {
+          "type": "string"
+        },
+        "lmcColumnName": {
+          "type": "string"
+        },
+        "lmcDisplayName": {
+          "type": "string"
+        },
+        "lmcDataType": {
+          "type": "string"
+        },
+        "lmcSortOrder": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "description": "LookupMasterColumn describes one selectable column from a lookup master table."
     },
     "v1MBHead": {
       "type": "object",
