@@ -228,6 +228,13 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		return err
 	}
 
+	yarnLookupFillHandler, err := grpcdelivery.NewYarnLookupFillHandler(
+		machineRepo, interminglingRepo, productGradeRepo, mbHeadRepo, boxBobbinCostRepo,
+	)
+	if err != nil {
+		return fmt.Errorf("new yarn lookup fill handler: %w", err)
+	}
+
 	oracleSyncHandler, err := grpcdelivery.NewOracleSyncHandler(
 		triggerHandler, getJobHandler, listJobsHandler,
 		cancelJobHandler, listDataHandler, listPeriodsHandler,
@@ -606,7 +613,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		uomHandler, rmCategoryHandler, parameterHandler, formulaHandler, uomCategoryHandler,
 		boxBobbinCostHandler,
 		mbHeadHandler, mbSpinHandler,
-		machineHandler, interminglingHandler, productGradeHandler,
+		machineHandler, interminglingHandler, productGradeHandler, yarnLookupFillHandler,
 		oracleSyncHandler, rmGroupHandler, rmCostHandler,
 		costProductTypeHandler, costRmTypeHandler, costErpHandler, costProductMasterHandler, costRouteHandler,
 		costRequestTypeHandler, costPaperTubeTypeHandler, costProductRequestHandler,
@@ -726,6 +733,7 @@ func startServers(ctx context.Context, cfg *config.Config,
 	machineHandler *grpcdelivery.MachineHandler,
 	interminglingHandler *grpcdelivery.InterminglingHandler,
 	productGradeHandler *grpcdelivery.ProductGradeHandler,
+	yarnLookupFillHandler *grpcdelivery.YarnLookupFillHandler,
 	oracleSyncHandler *grpcdelivery.OracleSyncHandler,
 	rmGroupHandler *grpcdelivery.RMGroupHandler,
 	rmCostHandler *grpcdelivery.RMCostHandler,
@@ -773,6 +781,7 @@ func startServers(ctx context.Context, cfg *config.Config,
 	financev1.RegisterMachineServiceServer(grpcServer.GRPCServer(), machineHandler)
 	financev1.RegisterInterminglingServiceServer(grpcServer.GRPCServer(), interminglingHandler)
 	financev1.RegisterProductGradeServiceServer(grpcServer.GRPCServer(), productGradeHandler)
+	financev1.RegisterYarnLookupFillServiceServer(grpcServer.GRPCServer(), yarnLookupFillHandler)
 	financev1.RegisterOracleSyncServiceServer(grpcServer.GRPCServer(), oracleSyncHandler)
 	financev1.RegisterRMGroupServiceServer(grpcServer.GRPCServer(), rmGroupHandler)
 	financev1.RegisterRMCostServiceServer(grpcServer.GRPCServer(), rmCostHandler)
