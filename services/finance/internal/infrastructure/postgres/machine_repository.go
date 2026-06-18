@@ -80,7 +80,7 @@ func (r *MachineRepository) GetByCode(ctx context.Context, code string) (*machin
 func (r *MachineRepository) List(ctx context.Context, filter machine.ListFilter) ([]*machine.Entity, int64, error) {
 	filter.Validate()
 
-	base := `FROM mst_machine WHERE deleted_at IS NULL`
+	base := `WHERE deleted_at IS NULL`
 	args := make([]any, 0)
 	idx := 1
 
@@ -101,7 +101,7 @@ func (r *MachineRepository) List(ctx context.Context, filter machine.ListFilter)
 	}
 
 	var total int64
-	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) "+base, args...).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM mst_machine "+base, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count machines: %w", err)
 	}
 

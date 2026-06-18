@@ -69,7 +69,7 @@ func (r *InterminglingRepository) GetByCode(ctx context.Context, code string) (*
 func (r *InterminglingRepository) List(ctx context.Context, filter intermingling.ListFilter) ([]*intermingling.Entity, int64, error) {
 	filter.Validate()
 
-	base := `FROM mst_intermingling WHERE deleted_at IS NULL`
+	base := `WHERE deleted_at IS NULL`
 	args := make([]any, 0)
 	idx := 1
 
@@ -85,7 +85,7 @@ func (r *InterminglingRepository) List(ctx context.Context, filter intermingling
 	}
 
 	var total int64
-	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) "+base, args...).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM mst_intermingling "+base, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count intermingling: %w", err)
 	}
 

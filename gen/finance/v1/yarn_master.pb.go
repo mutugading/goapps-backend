@@ -6830,7 +6830,7 @@ func (x *DeleteMBSpinResponse) GetBase() *v1.BaseResponse {
 // ListMBSpinsRequest is the request for listing MB Spin records under a head.
 type ListMBSpinsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Parent MB Head UUID.
+	// Parent MB Head UUID. Optional — omit or send empty to list all spins.
 	MbhId string `protobuf:"bytes,1,opt,name=mbh_id,json=mbhId,proto3" json:"mbh_id,omitempty"`
 	// Page number (≥ 1).
 	Page int32 `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
@@ -7950,9 +7950,9 @@ const file_finance_v1_yarn_master_proto_rawDesc = "" +
 	"\x06mbh_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x05mbhId\x12\x1f\n" +
 	"\x06mbs_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x05mbsId\"C\n" +
 	"\x14DeleteMBSpinResponse\x12+\n" +
-	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\"\xd5\x02\n" +
-	"\x12ListMBSpinsRequest\x12\x1f\n" +
-	"\x06mbh_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x05mbhId\x12\x1b\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\"\xd8\x02\n" +
+	"\x12ListMBSpinsRequest\x12\"\n" +
+	"\x06mbh_id\x18\x01 \x01(\tB\v\xbaH\b\xd8\x01\x01r\x03\xb0\x01\x01R\x05mbhId\x12\x1b\n" +
 	"\x04page\x18\x02 \x01(\x05B\a\xbaH\x04\x1a\x02(\x01R\x04page\x12&\n" +
 	"\tpage_size\x18\x03 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x01R\bpageSize\x12\x1f\n" +
 	"\x06search\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x18dR\x06search\x12=\n" +

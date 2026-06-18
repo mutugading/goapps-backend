@@ -83,7 +83,7 @@ func (r *BoxBobbinCostRepository) GetByCode(ctx context.Context, code string) (*
 func (r *BoxBobbinCostRepository) List(ctx context.Context, filter boxbobbincost.ListFilter) ([]*boxbobbincost.Entity, int64, error) {
 	filter.Validate()
 
-	base := `FROM mst_box_bobbin_cost WHERE deleted_at IS NULL`
+	base := `WHERE deleted_at IS NULL`
 	args := make([]interface{}, 0)
 	idx := 1
 
@@ -104,7 +104,7 @@ func (r *BoxBobbinCostRepository) List(ctx context.Context, filter boxbobbincost
 	}
 
 	var total int64
-	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) "+base, args...).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM mst_box_bobbin_cost "+base, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count box bobbin costs: %w", err)
 	}
 

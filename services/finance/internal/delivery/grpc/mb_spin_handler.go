@@ -175,10 +175,14 @@ func (h *MBSpinHandler) DeleteMBSpin(ctx context.Context, req *financev1.DeleteM
 
 // ListMBSpins lists MB spin records for a given head with search, filter, and pagination.
 func (h *MBSpinHandler) ListMBSpins(ctx context.Context, req *financev1.ListMBSpinsRequest) (*financev1.ListMBSpinsResponse, error) {
-	headID, err := uuid.Parse(req.MbhId)
-	if err != nil {
-		RecordMBSpinOperation("list", false)
-		return &financev1.ListMBSpinsResponse{Base: invalidIDResponse("mbh_id")}, nil //nolint:nilerr // BaseResponse pattern: error returned in response body
+	var headID uuid.UUID
+	if req.MbhId != "" {
+		var parseErr error
+		headID, parseErr = uuid.Parse(req.MbhId)
+		if parseErr != nil {
+			RecordMBSpinOperation("list", false)
+			return &financev1.ListMBSpinsResponse{Base: invalidIDResponse("mbh_id")}, nil //nolint:nilerr // BaseResponse pattern: error returned in response body
+		}
 	}
 
 	page := int(req.Page)

@@ -71,7 +71,7 @@ func (r *MBHeadRepository) GetByMBCosting(ctx context.Context, mbCosting string)
 func (r *MBHeadRepository) List(ctx context.Context, filter mbhead.ListFilter) ([]*mbhead.Entity, int64, error) {
 	filter.Validate()
 
-	base := `FROM mst_mb_head WHERE deleted_at IS NULL`
+	base := `WHERE deleted_at IS NULL`
 	args := make([]interface{}, 0)
 	idx := 1
 
@@ -87,7 +87,7 @@ func (r *MBHeadRepository) List(ctx context.Context, filter mbhead.ListFilter) (
 	}
 
 	var total int64
-	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) "+base, args...).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM mst_mb_head "+base, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count mb heads: %w", err)
 	}
 

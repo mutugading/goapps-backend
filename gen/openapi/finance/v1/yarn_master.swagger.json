@@ -1353,7 +1353,7 @@
         "parameters": [
           {
             "name": "mbhId",
-            "description": "Parent MB Head UUID.",
+            "description": "Parent MB Head UUID. Optional — omit or send empty to list all spins.",
             "in": "path",
             "required": true,
             "type": "string"
