@@ -39,6 +39,7 @@ SELECT
     COALESCE(p.lookup_master_code, '') AS lookup_master_code,
     COALESCE(a.capp_display_order, p.display_order) AS display_order,
     COALESCE(p.display_group, '') AS display_group,
+    COALESCE(p.lookup_fill_group_code, '') AS lookup_fill_group_code,
     c.cpp_value_id, c.cpp_value_numeric::text, c.cpp_value_text, c.cpp_value_flag,
     c.cpp_filled_at, c.cpp_filled_by,
     c.cpp_created_at, c.cpp_created_by, c.cpp_updated_at, c.cpp_updated_by
@@ -107,6 +108,7 @@ func scanRequiredEntry(rows *sql.Rows, productSysID int64) (cpp.RequiredEntry, e
 		&meta.UOMCode, &meta.OwnerDepartment,
 		&meta.IsRequiredForCosting, &meta.IsPeriodDependent,
 		&meta.LookupMasterCode, &meta.DisplayOrder, &meta.DisplayGroup,
+		&meta.LookupFillGroupCode,
 		&valueID, &valueNumeric, &valueText, &valueFlag,
 		&filledAt, &filledBy,
 		&createdAt, &createdBy, &updatedAt, &updatedBy,
@@ -432,7 +434,8 @@ SELECT
     p.is_period_dependent,
     COALESCE(p.lookup_master_code, ''),
     p.display_order,
-    COALESCE(p.display_group, '')
+    COALESCE(p.display_group, ''),
+    COALESCE(p.lookup_fill_group_code, '')
 FROM mst_parameter p
 LEFT JOIN mst_uom u ON u.uom_id = p.uom_id AND u.deleted_at IS NULL
 WHERE p.deleted_at IS NULL
@@ -463,6 +466,7 @@ ORDER BY COALESCE(p.display_group, ''), p.display_order, p.param_code
 			&m.UOMCode, &m.OwnerDepartment,
 			&m.IsRequiredForCosting, &m.IsPeriodDependent,
 			&m.LookupMasterCode, &m.DisplayOrder, &m.DisplayGroup,
+			&m.LookupFillGroupCode,
 		); err != nil {
 			return nil, fmt.Errorf("scan available: %w", err)
 		}
