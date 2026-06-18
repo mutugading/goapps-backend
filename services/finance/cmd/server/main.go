@@ -151,6 +151,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	machineRepo := postgres.NewMachineRepository(db)
 	interminglingRepo := postgres.NewInterminglingRepository(db)
 	productGradeRepo := postgres.NewProductGradeRepository(db)
+	lookupMasterRepo := postgres.NewLookupMasterRepository(db)
 	// NOTE: legacy productRepo / prdRequestRepo wired to dropped tables — removed.
 	// Canonical Phase B (cost_product_master, cost_product_order) wiring added in S2.8-S2.10.
 
@@ -226,6 +227,11 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	productGradeHandler, err := grpcdelivery.NewProductGradeHandler(productGradeRepo)
 	if err != nil {
 		return err
+	}
+
+	lookupMasterHandler, err := grpcdelivery.NewLookupMasterHandler(lookupMasterRepo)
+	if err != nil {
+		return fmt.Errorf("new lookup master handler: %w", err)
 	}
 
 	yarnLookupFillHandler, err := grpcdelivery.NewYarnLookupFillHandler(
@@ -613,7 +619,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		uomHandler, rmCategoryHandler, parameterHandler, formulaHandler, uomCategoryHandler,
 		boxBobbinCostHandler,
 		mbHeadHandler, mbSpinHandler,
-		machineHandler, interminglingHandler, productGradeHandler, yarnLookupFillHandler,
+		machineHandler, interminglingHandler, productGradeHandler, lookupMasterHandler, yarnLookupFillHandler,
 		oracleSyncHandler, rmGroupHandler, rmCostHandler,
 		costProductTypeHandler, costRmTypeHandler, costErpHandler, costProductMasterHandler, costRouteHandler,
 		costRequestTypeHandler, costPaperTubeTypeHandler, costProductRequestHandler,
@@ -733,6 +739,7 @@ func startServers(ctx context.Context, cfg *config.Config,
 	machineHandler *grpcdelivery.MachineHandler,
 	interminglingHandler *grpcdelivery.InterminglingHandler,
 	productGradeHandler *grpcdelivery.ProductGradeHandler,
+	lookupMasterHandler *grpcdelivery.LookupMasterHandler,
 	yarnLookupFillHandler *grpcdelivery.YarnLookupFillHandler,
 	oracleSyncHandler *grpcdelivery.OracleSyncHandler,
 	rmGroupHandler *grpcdelivery.RMGroupHandler,
@@ -781,6 +788,7 @@ func startServers(ctx context.Context, cfg *config.Config,
 	financev1.RegisterMachineServiceServer(grpcServer.GRPCServer(), machineHandler)
 	financev1.RegisterInterminglingServiceServer(grpcServer.GRPCServer(), interminglingHandler)
 	financev1.RegisterProductGradeServiceServer(grpcServer.GRPCServer(), productGradeHandler)
+	financev1.RegisterLookupMasterServiceServer(grpcServer.GRPCServer(), lookupMasterHandler)
 	financev1.RegisterYarnLookupFillServiceServer(grpcServer.GRPCServer(), yarnLookupFillHandler)
 	financev1.RegisterOracleSyncServiceServer(grpcServer.GRPCServer(), oracleSyncHandler)
 	financev1.RegisterRMGroupServiceServer(grpcServer.GRPCServer(), rmGroupHandler)
