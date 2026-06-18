@@ -67,7 +67,7 @@ func (r *MBSpinRepository) GetByID(ctx context.Context, id uuid.UUID) (*mbspin.E
 func (r *MBSpinRepository) List(ctx context.Context, filter mbspin.ListFilter) ([]*mbspin.Entity, int64, error) {
 	filter.Validate()
 
-	base := `WHERE deleted_at IS NULL`
+	base := whereNotDeleted
 	args := make([]interface{}, 0)
 	idx := 1
 

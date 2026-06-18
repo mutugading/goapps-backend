@@ -72,7 +72,7 @@ func (r *ProductGradeRepository) GetByCode(ctx context.Context, code string) (*p
 func (r *ProductGradeRepository) List(ctx context.Context, filter productgrade.ListFilter) ([]*productgrade.Entity, int64, error) {
 	filter.Validate()
 
-	base := `WHERE deleted_at IS NULL`
+	base := whereNotDeleted
 	args := make([]interface{}, 0)
 	idx := 1
 

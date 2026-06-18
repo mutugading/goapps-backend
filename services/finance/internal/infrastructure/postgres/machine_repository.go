@@ -80,7 +80,7 @@ func (r *MachineRepository) GetByCode(ctx context.Context, code string) (*machin
 func (r *MachineRepository) List(ctx context.Context, filter machine.ListFilter) ([]*machine.Entity, int64, error) {
 	filter.Validate()
 
-	base := `WHERE deleted_at IS NULL`
+	base := whereNotDeleted
 	args := make([]any, 0)
 	idx := 1
 

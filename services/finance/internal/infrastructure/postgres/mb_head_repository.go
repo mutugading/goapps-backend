@@ -71,7 +71,7 @@ func (r *MBHeadRepository) GetByMBCosting(ctx context.Context, mbCosting string)
 func (r *MBHeadRepository) List(ctx context.Context, filter mbhead.ListFilter) ([]*mbhead.Entity, int64, error) {
 	filter.Validate()
 
-	base := `WHERE deleted_at IS NULL`
+	base := whereNotDeleted
 	args := make([]interface{}, 0)
 	idx := 1
 

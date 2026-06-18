@@ -83,7 +83,7 @@ func (r *BoxBobbinCostRepository) GetByCode(ctx context.Context, code string) (*
 func (r *BoxBobbinCostRepository) List(ctx context.Context, filter boxbobbincost.ListFilter) ([]*boxbobbincost.Entity, int64, error) {
 	filter.Validate()
 
-	base := `WHERE deleted_at IS NULL`
+	base := whereNotDeleted
 	args := make([]interface{}, 0)
 	idx := 1
 

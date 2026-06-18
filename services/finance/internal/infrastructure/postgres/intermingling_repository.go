@@ -69,7 +69,7 @@ func (r *InterminglingRepository) GetByCode(ctx context.Context, code string) (*
 func (r *InterminglingRepository) List(ctx context.Context, filter intermingling.ListFilter) ([]*intermingling.Entity, int64, error) {
 	filter.Validate()
 
-	base := `WHERE deleted_at IS NULL`
+	base := whereNotDeleted
 	args := make([]any, 0)
 	idx := 1
 
