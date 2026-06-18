@@ -67,4 +67,14 @@ type Repository interface {
 	// GetCurrentValueAsText returns the current stored value for (productSysID, paramID)
 	// formatted as a human-readable string. Returns empty string when no value exists.
 	GetCurrentValueAsText(ctx context.Context, productSysID int64, paramID uuid.UUID) (string, error)
+
+	// AddApplicableWithChildren adds a MASTER_LOOKUP param and all its fill-group children atomically.
+	// fillGroupChildren contains the IDs of child params (may be empty for non-MASTER_LOOKUP params).
+	AddApplicableWithChildren(ctx context.Context, productSysID int64, triggerParamID uuid.UUID, createdBy string, fillGroupChildren []uuid.UUID) error
+
+	// GetRemovePreview returns trigger + child param info for the confirm dialog.
+	GetRemovePreview(ctx context.Context, productSysID int64, paramID uuid.UUID) (RemovePreview, error)
+
+	// RemoveApplicableWithChildren removes a MASTER_LOOKUP param + all children + their CPP values atomically.
+	RemoveApplicableWithChildren(ctx context.Context, productSysID int64, triggerParamID uuid.UUID, deletedBy string) error
 }

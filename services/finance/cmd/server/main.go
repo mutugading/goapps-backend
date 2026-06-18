@@ -417,7 +417,8 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	fillIAMNotifier := iamnotifier.NewFillNotifier(iamNotifClient)
 
 	costProductParameterApp := cppapp.New(costProductParameterRepo)
-	costProductParameterHandler := grpcdelivery.NewCostProductParameterHandler(costProductParameterApp)
+	costProductParameterHandler := grpcdelivery.NewCostProductParameterHandler(costProductParameterApp).
+		WithParamRepo(parameterRepo)
 
 	// Fill-assignment repositories + handlers.
 	fillConfigRepo := postgres.NewCostFillConfigRepository(db)

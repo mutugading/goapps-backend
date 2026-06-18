@@ -653,6 +653,173 @@ ORDER BY m.cpm_product_code, p.param_code
 	return out, rows.Err()
 }
 
+// AddApplicableWithChildren inserts trigger + all child CAPP rows in a single transaction.
+// ON CONFLICT DO NOTHING ensures idempotency.
+func (r *CostProductParameterRepository) AddApplicableWithChildren(ctx context.Context, productSysID int64, triggerParamID uuid.UUID, createdBy string, fillGroupChildren []uuid.UUID) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				_ = rbErr
+			}
+		}
+	}()
+
+	allIDs := make([]uuid.UUID, 0, 1+len(fillGroupChildren))
+	allIDs = append(allIDs, triggerParamID)
+	allIDs = append(allIDs, fillGroupChildren...)
+
+	const q = `INSERT INTO cost_product_applicable_param
+	               (capp_product_sys_id, capp_param_id, capp_created_by)
+	           VALUES ($1, $2, $3)
+	           ON CONFLICT (capp_product_sys_id, capp_param_id) DO NOTHING`
+	for _, paramID := range allIDs {
+		if _, execErr := tx.ExecContext(ctx, q, productSysID, paramID, createdBy); execErr != nil {
+			return fmt.Errorf("insert capp %s: %w", paramID, execErr)
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	committed = true
+	return nil
+}
+
+// GetRemovePreview returns trigger + child display info for the confirm-remove dialog.
+func (r *CostProductParameterRepository) GetRemovePreview(ctx context.Context, productSysID int64, paramID uuid.UUID) (cpp.RemovePreview, error) {
+	const trigQ = `SELECT param_code, param_name
+	               FROM mst_parameter WHERE id = $1 AND deleted_at IS NULL`
+	var preview cpp.RemovePreview
+	if err := r.db.QueryRowContext(ctx, trigQ, paramID).Scan(&preview.TriggerParamCode, &preview.TriggerParamName); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return preview, cpp.ErrParamNotFound
+		}
+		return preview, fmt.Errorf("get trigger param: %w", err)
+	}
+
+	const childQ = `
+SELECT p.param_code, p.param_name,
+       COALESCE(c.cpp_value_numeric::text, c.cpp_value_text, '') AS current_val
+FROM cost_product_applicable_param capp
+JOIN mst_parameter p ON p.id = capp.capp_param_id
+LEFT JOIN cost_product_parameter c
+       ON c.cpp_product_sys_id = capp.capp_product_sys_id
+      AND c.cpp_param_id = capp.capp_param_id
+WHERE capp.capp_product_sys_id = $1
+  AND p.lookup_fill_group_code = $2
+  AND p.deleted_at IS NULL`
+	rows, err := r.db.QueryContext(ctx, childQ, productSysID, preview.TriggerParamCode)
+	if err != nil {
+		return preview, fmt.Errorf("get child params: %w", err)
+	}
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
+	for rows.Next() {
+		var c cpp.ChildPreview
+		if scanErr := rows.Scan(&c.ParamCode, &c.ParamName, &c.CurrentValue); scanErr != nil {
+			return preview, fmt.Errorf("scan child: %w", scanErr)
+		}
+		preview.Children = append(preview.Children, c)
+	}
+	return preview, rows.Err()
+}
+
+// scanParamIDRows drains a rows result set of uuid.UUID values.
+func scanParamIDRows(rows *sql.Rows) ([]uuid.UUID, error) {
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			if closeErr := rows.Close(); closeErr != nil {
+				return nil, fmt.Errorf("scan param id (close: %w): %w", closeErr, err)
+			}
+			return nil, fmt.Errorf("scan param id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if closeErr := rows.Close(); closeErr != nil {
+		return nil, fmt.Errorf("close rows: %w", closeErr)
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("iterate param ids: %w", rowsErr)
+	}
+	return ids, nil
+}
+
+// RemoveApplicableWithChildren removes trigger + all child CAPP rows + their CPP values in one tx.
+func (r *CostProductParameterRepository) RemoveApplicableWithChildren(ctx context.Context, productSysID int64, triggerParamID uuid.UUID, _ string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				_ = rbErr
+			}
+		}
+	}()
+
+	// Get trigger param_code for fill-group lookup.
+	var trigParamCode string
+	if err = tx.QueryRowContext(ctx, `SELECT param_code FROM mst_parameter WHERE id = $1 AND deleted_at IS NULL`, triggerParamID).Scan(&trigParamCode); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return cpp.ErrParamNotFound
+		}
+		return fmt.Errorf("get trigger param code: %w", err)
+	}
+
+	// Collect all param IDs to remove: trigger + fill-group children currently in CAPP.
+	const collectQ = `
+SELECT capp.capp_param_id
+FROM cost_product_applicable_param capp
+JOIN mst_parameter p ON p.id = capp.capp_param_id
+WHERE capp.capp_product_sys_id = $1
+  AND (capp.capp_param_id = $2 OR p.lookup_fill_group_code = $3)
+  AND p.deleted_at IS NULL`
+	rows, err := tx.QueryContext(ctx, collectQ, productSysID, triggerParamID, trigParamCode)
+	if err != nil {
+		return fmt.Errorf("collect param ids: %w", err)
+	}
+	paramIDs, err := scanParamIDRows(rows)
+	if err != nil {
+		return err
+	}
+	if len(paramIDs) == 0 {
+		return cpp.ErrNotFound
+	}
+
+	// Delete CPP values for all collected params.
+	if _, err = tx.ExecContext(ctx,
+		`DELETE FROM cost_product_parameter WHERE cpp_product_sys_id = $1 AND cpp_param_id = ANY($2)`,
+		productSysID, pq.Array(paramIDs),
+	); err != nil {
+		return fmt.Errorf("delete cpp values: %w", err)
+	}
+
+	// Delete CAPP rows for all collected params.
+	if _, err = tx.ExecContext(ctx,
+		`DELETE FROM cost_product_applicable_param WHERE capp_product_sys_id = $1 AND capp_param_id = ANY($2)`,
+		productSysID, pq.Array(paramIDs),
+	); err != nil {
+		return fmt.Errorf("delete capp rows: %w", err)
+	}
+
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	committed = true
+	return nil
+}
+
 // GetParamCodeByID resolves a param UUID to its param_code string.
 func (r *CostProductParameterRepository) GetParamCodeByID(ctx context.Context, paramID uuid.UUID) (string, error) {
 	const q = `SELECT param_code FROM mst_parameter WHERE id = $1 AND deleted_at IS NULL`

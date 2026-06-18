@@ -74,6 +74,22 @@ type ParamMeta struct {
 	LookupMasterCode     string
 	DisplayOrder         int32
 	DisplayGroup         string
+	LookupFillGroupCode  string // empty = not a child param
+	LookupSourceColumn   string
+}
+
+// RemovePreview lists the trigger param and all child params (with current values) for confirmation UI.
+type RemovePreview struct {
+	TriggerParamCode string
+	TriggerParamName string
+	Children         []ChildPreview
+}
+
+// ChildPreview holds one child param's display info for the confirm dialog.
+type ChildPreview struct {
+	ParamCode    string
+	ParamName    string
+	CurrentValue string // formatted string, empty if not filled
 }
 
 // RequiredEntry is ParamMeta + the existing Value (zero when unbound).
