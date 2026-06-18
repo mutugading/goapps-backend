@@ -22,6 +22,9 @@
     },
     {
       "name": "MBSpinService"
+    },
+    {
+      "name": "YarnLookupFillService"
     }
   ],
   "consumes": [
@@ -718,6 +721,52 @@
         ],
         "tags": [
           "InterminglingService"
+        ]
+      }
+    },
+    "/api/v1/finance/lookup-fill-values": {
+      "get": {
+        "summary": "GetLookupFillValues returns numeric and text fills to auto-populate CAPP params.",
+        "operationId": "YarnLookupFillService_GetLookupFillValues",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetLookupFillValuesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "lookupMasterCode",
+            "description": "lookup_master_code from mst_parameter.lookup_master_code.\nValid values: \"MACHINE\" | \"INTERMINGLING\" | \"PRODUCT_GRADE\" | \"MB_HEAD\" | \"BOX_BOBBIN_COST\"",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "selectedKey",
+            "description": "Key of the selected master record (e.g., mc_code, intm_code, pg_code, mbh_mb_costing, bbc_code).",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sourceParamCode",
+            "description": "Source param code that triggered the lookup — used to resolve CAP vs DEL variant for BOX_BOBBIN_COST.\nOptional; required only for BOX_BOBBIN_COST.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "YarnLookupFillService"
         ]
       }
     },
@@ -3046,6 +3095,34 @@
         }
       },
       "description": "GetInterminglingResponse is the response for retrieving an intermingling record."
+    },
+    "v1GetLookupFillValuesResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "numericFills": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "format": "double"
+          },
+          "description": "param_code → numeric value to fill (e.g., {\"MC_SPEED\": 800.0, \"MC_EFFICIENCY\": 92.0})."
+        },
+        "textFills": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "param_code → text value to fill (e.g., {\"MB_DYE_NAME\": \"CIBA RED\"})."
+        },
+        "displayLabel": {
+          "type": "string",
+          "description": "Human-readable label for UI toast (e.g., \"Barmag DTY Line D — 504 pos, 800 m/min\")."
+        }
+      },
+      "description": "GetLookupFillValuesResponse returns numeric and text fills to auto-populate CAPP params."
     },
     "v1GetMBHeadResponse": {
       "type": "object",

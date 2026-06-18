@@ -439,6 +439,10 @@
         "displayGroup": {
           "type": "string",
           "description": "New display group (optional). Set to empty string to clear."
+        },
+        "notes": {
+          "type": "string",
+          "description": "New notes (optional). Set to empty string to clear."
         }
       },
       "description": "UpdateParameterRequest is the request for updating a parameter.\nNote: param_code is immutable and cannot be changed after creation."
@@ -592,6 +596,10 @@
         "displayGroup": {
           "type": "string",
           "description": "Display group (optional, max 50 chars). E.g. 'Spec', 'Machine'."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Descriptive notes or formula hint (optional, max 500 chars)."
         }
       },
       "description": "CreateParameterRequest is the request for creating a new parameter."
@@ -901,6 +909,10 @@
         "displayGroup": {
           "type": "string",
           "description": "Form section: Spec / Machine / Grade / Packing / Cost / etc."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Descriptive notes or formula hint for this parameter (read-only, populated from seed/migration)."
         }
       },
       "description": "Parameter represents a master parameter entity for costing calculations."

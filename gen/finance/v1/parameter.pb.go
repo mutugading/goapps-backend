@@ -180,7 +180,9 @@ type Parameter struct {
 	// Render order within display_group.
 	DisplayOrder int32 `protobuf:"varint,28,opt,name=display_order,json=displayOrder,proto3" json:"display_order,omitempty"`
 	// Form section: Spec / Machine / Grade / Packing / Cost / etc.
-	DisplayGroup  string `protobuf:"bytes,29,opt,name=display_group,json=displayGroup,proto3" json:"display_group,omitempty"`
+	DisplayGroup string `protobuf:"bytes,29,opt,name=display_group,json=displayGroup,proto3" json:"display_group,omitempty"`
+	// Descriptive notes or formula hint for this parameter (read-only, populated from seed/migration).
+	Notes         string `protobuf:"bytes,30,opt,name=notes,proto3" json:"notes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -355,6 +357,13 @@ func (x *Parameter) GetDisplayGroup() string {
 	return ""
 }
 
+func (x *Parameter) GetNotes() string {
+	if x != nil {
+		return x.Notes
+	}
+	return ""
+}
+
 // CreateParameterRequest is the request for creating a new parameter.
 type CreateParameterRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -388,7 +397,9 @@ type CreateParameterRequest struct {
 	// Display order within display group (default 0).
 	DisplayOrder int32 `protobuf:"varint,14,opt,name=display_order,json=displayOrder,proto3" json:"display_order,omitempty"`
 	// Display group (optional, max 50 chars). E.g. 'Spec', 'Machine'.
-	DisplayGroup  string `protobuf:"bytes,15,opt,name=display_group,json=displayGroup,proto3" json:"display_group,omitempty"`
+	DisplayGroup string `protobuf:"bytes,15,opt,name=display_group,json=displayGroup,proto3" json:"display_group,omitempty"`
+	// Descriptive notes or formula hint (optional, max 500 chars).
+	Notes         string `protobuf:"bytes,16,opt,name=notes,proto3" json:"notes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -524,6 +535,13 @@ func (x *CreateParameterRequest) GetDisplayOrder() int32 {
 func (x *CreateParameterRequest) GetDisplayGroup() string {
 	if x != nil {
 		return x.DisplayGroup
+	}
+	return ""
+}
+
+func (x *CreateParameterRequest) GetNotes() string {
+	if x != nil {
+		return x.Notes
 	}
 	return ""
 }
@@ -719,7 +737,9 @@ type UpdateParameterRequest struct {
 	// New display order (optional).
 	DisplayOrder *int32 `protobuf:"varint,15,opt,name=display_order,json=displayOrder,proto3,oneof" json:"display_order,omitempty"`
 	// New display group (optional). Set to empty string to clear.
-	DisplayGroup  *string `protobuf:"bytes,16,opt,name=display_group,json=displayGroup,proto3,oneof" json:"display_group,omitempty"`
+	DisplayGroup *string `protobuf:"bytes,16,opt,name=display_group,json=displayGroup,proto3,oneof" json:"display_group,omitempty"`
+	// New notes (optional). Set to empty string to clear.
+	Notes         *string `protobuf:"bytes,17,opt,name=notes,proto3,oneof" json:"notes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -862,6 +882,13 @@ func (x *UpdateParameterRequest) GetDisplayOrder() int32 {
 func (x *UpdateParameterRequest) GetDisplayGroup() string {
 	if x != nil && x.DisplayGroup != nil {
 		return *x.DisplayGroup
+	}
+	return ""
+}
+
+func (x *UpdateParameterRequest) GetNotes() string {
+	if x != nil && x.Notes != nil {
+		return *x.Notes
 	}
 	return ""
 }
@@ -1579,7 +1606,7 @@ var File_finance_v1_parameter_proto protoreflect.FileDescriptor
 const file_finance_v1_parameter_proto_rawDesc = "" +
 	"\n" +
 	"\x1afinance/v1/parameter.proto\x12\n" +
-	"finance.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16common/v1/common.proto\x1a\x14finance/v1/uom.proto\x1a\x1cgoogle/api/annotations.proto\"\x82\x06\n" +
+	"finance.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16common/v1/common.proto\x1a\x14finance/v1/uom.proto\x1a\x1cgoogle/api/annotations.proto\"\x98\x06\n" +
 	"\tParameter\x12\x19\n" +
 	"\bparam_id\x18\x01 \x01(\tR\aparamId\x12\x1d\n" +
 	"\n" +
@@ -1603,7 +1630,8 @@ const file_finance_v1_parameter_proto_rawDesc = "" +
 	"\x13is_period_dependent\x18\x1a \x01(\bR\x11isPeriodDependent\x12,\n" +
 	"\x12lookup_master_code\x18\x1b \x01(\tR\x10lookupMasterCode\x12#\n" +
 	"\rdisplay_order\x18\x1c \x01(\x05R\fdisplayOrder\x12#\n" +
-	"\rdisplay_group\x18\x1d \x01(\tR\fdisplayGroup\"\x88\x06\n" +
+	"\rdisplay_group\x18\x1d \x01(\tR\fdisplayGroup\x12\x14\n" +
+	"\x05notes\x18\x1e \x01(\tR\x05notes\"\xa8\x06\n" +
 	"\x16CreateParameterRequest\x12;\n" +
 	"\n" +
 	"param_code\x18\x01 \x01(\tB\x1c\xbaH\x19r\x17\x10\x01\x18\x142\x11^[A-Z][A-Z0-9_]*$R\tparamCode\x12)\n" +
@@ -1623,7 +1651,8 @@ const file_finance_v1_parameter_proto_rawDesc = "" +
 	"\x13is_period_dependent\x18\f \x01(\bR\x11isPeriodDependent\x125\n" +
 	"\x12lookup_master_code\x18\r \x01(\tB\a\xbaH\x04r\x02\x18\x1eR\x10lookupMasterCode\x12,\n" +
 	"\rdisplay_order\x18\x0e \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\fdisplayOrder\x12,\n" +
-	"\rdisplay_group\x18\x0f \x01(\tB\a\xbaH\x04r\x02\x182R\fdisplayGroup\"q\n" +
+	"\rdisplay_group\x18\x0f \x01(\tB\a\xbaH\x04r\x02\x182R\fdisplayGroup\x12\x1e\n" +
+	"\x05notes\x18\x10 \x01(\tB\b\xbaH\x05r\x03\x18\xf4\x03R\x05notes\"q\n" +
 	"\x17CreateParameterResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12)\n" +
 	"\x04data\x18\x02 \x01(\v2\x15.finance.v1.ParameterR\x04data\":\n" +
@@ -1631,7 +1660,7 @@ const file_finance_v1_parameter_proto_rawDesc = "" +
 	"\bparam_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aparamId\"n\n" +
 	"\x14GetParameterResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12)\n" +
-	"\x04data\x18\x02 \x01(\v2\x15.finance.v1.ParameterR\x04data\"\xbe\b\n" +
+	"\x04data\x18\x02 \x01(\v2\x15.finance.v1.ParameterR\x04data\"\xed\b\n" +
 	"\x16UpdateParameterRequest\x12#\n" +
 	"\bparam_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aparamId\x12,\n" +
 	"\n" +
@@ -1651,7 +1680,8 @@ const file_finance_v1_parameter_proto_rawDesc = "" +
 	"\x13is_period_dependent\x18\r \x01(\bH\vR\x11isPeriodDependent\x88\x01\x01\x12:\n" +
 	"\x12lookup_master_code\x18\x0e \x01(\tB\a\xbaH\x04r\x02\x18\x1eH\fR\x10lookupMasterCode\x88\x01\x01\x121\n" +
 	"\rdisplay_order\x18\x0f \x01(\x05B\a\xbaH\x04\x1a\x02(\x00H\rR\fdisplayOrder\x88\x01\x01\x121\n" +
-	"\rdisplay_group\x18\x10 \x01(\tB\a\xbaH\x04r\x02\x182H\x0eR\fdisplayGroup\x88\x01\x01B\r\n" +
+	"\rdisplay_group\x18\x10 \x01(\tB\a\xbaH\x04r\x02\x182H\x0eR\fdisplayGroup\x88\x01\x01\x12#\n" +
+	"\x05notes\x18\x11 \x01(\tB\b\xbaH\x05r\x03\x18\xf4\x03H\x0fR\x05notes\x88\x01\x01B\r\n" +
 	"\v_param_nameB\x13\n" +
 	"\x11_param_short_nameB\f\n" +
 	"\n" +
@@ -1670,7 +1700,8 @@ const file_finance_v1_parameter_proto_rawDesc = "" +
 	"\x14_is_period_dependentB\x15\n" +
 	"\x13_lookup_master_codeB\x10\n" +
 	"\x0e_display_orderB\x10\n" +
-	"\x0e_display_group\"q\n" +
+	"\x0e_display_groupB\b\n" +
+	"\x06_notes\"q\n" +
 	"\x17UpdateParameterResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12)\n" +
 	"\x04data\x18\x02 \x01(\v2\x15.finance.v1.ParameterR\x04data\"=\n" +

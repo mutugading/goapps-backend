@@ -2425,3 +2425,115 @@ var MBSpinService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "finance/v1/yarn_master.proto",
 }
+
+const (
+	YarnLookupFillService_GetLookupFillValues_FullMethodName = "/finance.v1.YarnLookupFillService/GetLookupFillValues"
+)
+
+// YarnLookupFillServiceClient is the client API for YarnLookupFillService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// YarnLookupFillService provides a unified "fill from master" API used by the CAPP form.
+// Called when the user selects a lookup param value (e.g., a machine code).
+// Returns numeric and text fills to auto-populate related CAPP params.
+type YarnLookupFillServiceClient interface {
+	// GetLookupFillValues returns numeric and text fills to auto-populate CAPP params.
+	GetLookupFillValues(ctx context.Context, in *GetLookupFillValuesRequest, opts ...grpc.CallOption) (*GetLookupFillValuesResponse, error)
+}
+
+type yarnLookupFillServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewYarnLookupFillServiceClient(cc grpc.ClientConnInterface) YarnLookupFillServiceClient {
+	return &yarnLookupFillServiceClient{cc}
+}
+
+func (c *yarnLookupFillServiceClient) GetLookupFillValues(ctx context.Context, in *GetLookupFillValuesRequest, opts ...grpc.CallOption) (*GetLookupFillValuesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetLookupFillValuesResponse)
+	err := c.cc.Invoke(ctx, YarnLookupFillService_GetLookupFillValues_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// YarnLookupFillServiceServer is the server API for YarnLookupFillService service.
+// All implementations must embed UnimplementedYarnLookupFillServiceServer
+// for forward compatibility.
+//
+// YarnLookupFillService provides a unified "fill from master" API used by the CAPP form.
+// Called when the user selects a lookup param value (e.g., a machine code).
+// Returns numeric and text fills to auto-populate related CAPP params.
+type YarnLookupFillServiceServer interface {
+	// GetLookupFillValues returns numeric and text fills to auto-populate CAPP params.
+	GetLookupFillValues(context.Context, *GetLookupFillValuesRequest) (*GetLookupFillValuesResponse, error)
+	mustEmbedUnimplementedYarnLookupFillServiceServer()
+}
+
+// UnimplementedYarnLookupFillServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedYarnLookupFillServiceServer struct{}
+
+func (UnimplementedYarnLookupFillServiceServer) GetLookupFillValues(context.Context, *GetLookupFillValuesRequest) (*GetLookupFillValuesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetLookupFillValues not implemented")
+}
+func (UnimplementedYarnLookupFillServiceServer) mustEmbedUnimplementedYarnLookupFillServiceServer() {}
+func (UnimplementedYarnLookupFillServiceServer) testEmbeddedByValue()                               {}
+
+// UnsafeYarnLookupFillServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to YarnLookupFillServiceServer will
+// result in compilation errors.
+type UnsafeYarnLookupFillServiceServer interface {
+	mustEmbedUnimplementedYarnLookupFillServiceServer()
+}
+
+func RegisterYarnLookupFillServiceServer(s grpc.ServiceRegistrar, srv YarnLookupFillServiceServer) {
+	// If the following call panics, it indicates UnimplementedYarnLookupFillServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&YarnLookupFillService_ServiceDesc, srv)
+}
+
+func _YarnLookupFillService_GetLookupFillValues_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetLookupFillValuesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(YarnLookupFillServiceServer).GetLookupFillValues(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: YarnLookupFillService_GetLookupFillValues_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(YarnLookupFillServiceServer).GetLookupFillValues(ctx, req.(*GetLookupFillValuesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// YarnLookupFillService_ServiceDesc is the grpc.ServiceDesc for YarnLookupFillService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var YarnLookupFillService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "finance.v1.YarnLookupFillService",
+	HandlerType: (*YarnLookupFillServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetLookupFillValues",
+			Handler:    _YarnLookupFillService_GetLookupFillValues_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "finance/v1/yarn_master.proto",
+}
