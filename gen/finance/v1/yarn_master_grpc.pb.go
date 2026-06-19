@@ -2433,6 +2433,11 @@ const (
 	LookupMasterService_DeleteLookupMaster_FullMethodName       = "/finance.v1.LookupMasterService/DeleteLookupMaster"
 	LookupMasterService_CreateLookupMasterColumn_FullMethodName = "/finance.v1.LookupMasterService/CreateLookupMasterColumn"
 	LookupMasterService_DeleteLookupMasterColumn_FullMethodName = "/finance.v1.LookupMasterService/DeleteLookupMasterColumn"
+	LookupMasterService_UpdateLookupMaster_FullMethodName       = "/finance.v1.LookupMasterService/UpdateLookupMaster"
+	LookupMasterService_ListTableColumns_FullMethodName         = "/finance.v1.LookupMasterService/ListTableColumns"
+	LookupMasterService_ListMasterOptions_FullMethodName        = "/finance.v1.LookupMasterService/ListMasterOptions"
+	LookupMasterService_ExportLookupMasters_FullMethodName      = "/finance.v1.LookupMasterService/ExportLookupMasters"
+	LookupMasterService_ImportLookupMasters_FullMethodName      = "/finance.v1.LookupMasterService/ImportLookupMasters"
 )
 
 // LookupMasterServiceClient is the client API for LookupMasterService service.
@@ -2453,6 +2458,16 @@ type LookupMasterServiceClient interface {
 	CreateLookupMasterColumn(ctx context.Context, in *CreateLookupMasterColumnRequest, opts ...grpc.CallOption) (*CreateLookupMasterColumnResponse, error)
 	// DeleteLookupMasterColumn removes a column from a master.
 	DeleteLookupMasterColumn(ctx context.Context, in *DeleteLookupMasterColumnRequest, opts ...grpc.CallOption) (*DeleteLookupMasterColumnResponse, error)
+	// UpdateLookupMaster updates display_name, table_name, and/or is_active of an existing master.
+	UpdateLookupMaster(ctx context.Context, in *UpdateLookupMasterRequest, opts ...grpc.CallOption) (*UpdateLookupMasterResponse, error)
+	// ListTableColumns introspects a registered PostgreSQL table's columns via information_schema.
+	ListTableColumns(ctx context.Context, in *ListTableColumnsRequest, opts ...grpc.CallOption) (*ListTableColumnsResponse, error)
+	// ListMasterOptions returns combobox options (value+label) by querying the registered table.
+	ListMasterOptions(ctx context.Context, in *ListMasterOptionsRequest, opts ...grpc.CallOption) (*ListMasterOptionsResponse, error)
+	// ExportLookupMasters exports all masters and columns to an Excel workbook.
+	ExportLookupMasters(ctx context.Context, in *ExportLookupMastersRequest, opts ...grpc.CallOption) (*ExportLookupMastersResponse, error)
+	// ImportLookupMasters imports masters and columns from an Excel workbook.
+	ImportLookupMasters(ctx context.Context, in *ImportLookupMastersRequest, opts ...grpc.CallOption) (*ImportLookupMastersResponse, error)
 }
 
 type lookupMasterServiceClient struct {
@@ -2523,6 +2538,56 @@ func (c *lookupMasterServiceClient) DeleteLookupMasterColumn(ctx context.Context
 	return out, nil
 }
 
+func (c *lookupMasterServiceClient) UpdateLookupMaster(ctx context.Context, in *UpdateLookupMasterRequest, opts ...grpc.CallOption) (*UpdateLookupMasterResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateLookupMasterResponse)
+	err := c.cc.Invoke(ctx, LookupMasterService_UpdateLookupMaster_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *lookupMasterServiceClient) ListTableColumns(ctx context.Context, in *ListTableColumnsRequest, opts ...grpc.CallOption) (*ListTableColumnsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListTableColumnsResponse)
+	err := c.cc.Invoke(ctx, LookupMasterService_ListTableColumns_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *lookupMasterServiceClient) ListMasterOptions(ctx context.Context, in *ListMasterOptionsRequest, opts ...grpc.CallOption) (*ListMasterOptionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListMasterOptionsResponse)
+	err := c.cc.Invoke(ctx, LookupMasterService_ListMasterOptions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *lookupMasterServiceClient) ExportLookupMasters(ctx context.Context, in *ExportLookupMastersRequest, opts ...grpc.CallOption) (*ExportLookupMastersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExportLookupMastersResponse)
+	err := c.cc.Invoke(ctx, LookupMasterService_ExportLookupMasters_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *lookupMasterServiceClient) ImportLookupMasters(ctx context.Context, in *ImportLookupMastersRequest, opts ...grpc.CallOption) (*ImportLookupMastersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ImportLookupMastersResponse)
+	err := c.cc.Invoke(ctx, LookupMasterService_ImportLookupMasters_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // LookupMasterServiceServer is the server API for LookupMasterService service.
 // All implementations must embed UnimplementedLookupMasterServiceServer
 // for forward compatibility.
@@ -2541,6 +2606,16 @@ type LookupMasterServiceServer interface {
 	CreateLookupMasterColumn(context.Context, *CreateLookupMasterColumnRequest) (*CreateLookupMasterColumnResponse, error)
 	// DeleteLookupMasterColumn removes a column from a master.
 	DeleteLookupMasterColumn(context.Context, *DeleteLookupMasterColumnRequest) (*DeleteLookupMasterColumnResponse, error)
+	// UpdateLookupMaster updates display_name, table_name, and/or is_active of an existing master.
+	UpdateLookupMaster(context.Context, *UpdateLookupMasterRequest) (*UpdateLookupMasterResponse, error)
+	// ListTableColumns introspects a registered PostgreSQL table's columns via information_schema.
+	ListTableColumns(context.Context, *ListTableColumnsRequest) (*ListTableColumnsResponse, error)
+	// ListMasterOptions returns combobox options (value+label) by querying the registered table.
+	ListMasterOptions(context.Context, *ListMasterOptionsRequest) (*ListMasterOptionsResponse, error)
+	// ExportLookupMasters exports all masters and columns to an Excel workbook.
+	ExportLookupMasters(context.Context, *ExportLookupMastersRequest) (*ExportLookupMastersResponse, error)
+	// ImportLookupMasters imports masters and columns from an Excel workbook.
+	ImportLookupMasters(context.Context, *ImportLookupMastersRequest) (*ImportLookupMastersResponse, error)
 	mustEmbedUnimplementedLookupMasterServiceServer()
 }
 
@@ -2568,6 +2643,21 @@ func (UnimplementedLookupMasterServiceServer) CreateLookupMasterColumn(context.C
 }
 func (UnimplementedLookupMasterServiceServer) DeleteLookupMasterColumn(context.Context, *DeleteLookupMasterColumnRequest) (*DeleteLookupMasterColumnResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteLookupMasterColumn not implemented")
+}
+func (UnimplementedLookupMasterServiceServer) UpdateLookupMaster(context.Context, *UpdateLookupMasterRequest) (*UpdateLookupMasterResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateLookupMaster not implemented")
+}
+func (UnimplementedLookupMasterServiceServer) ListTableColumns(context.Context, *ListTableColumnsRequest) (*ListTableColumnsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListTableColumns not implemented")
+}
+func (UnimplementedLookupMasterServiceServer) ListMasterOptions(context.Context, *ListMasterOptionsRequest) (*ListMasterOptionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListMasterOptions not implemented")
+}
+func (UnimplementedLookupMasterServiceServer) ExportLookupMasters(context.Context, *ExportLookupMastersRequest) (*ExportLookupMastersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ExportLookupMasters not implemented")
+}
+func (UnimplementedLookupMasterServiceServer) ImportLookupMasters(context.Context, *ImportLookupMastersRequest) (*ImportLookupMastersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ImportLookupMasters not implemented")
 }
 func (UnimplementedLookupMasterServiceServer) mustEmbedUnimplementedLookupMasterServiceServer() {}
 func (UnimplementedLookupMasterServiceServer) testEmbeddedByValue()                             {}
@@ -2698,6 +2788,96 @@ func _LookupMasterService_DeleteLookupMasterColumn_Handler(srv interface{}, ctx 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _LookupMasterService_UpdateLookupMaster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateLookupMasterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LookupMasterServiceServer).UpdateLookupMaster(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LookupMasterService_UpdateLookupMaster_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LookupMasterServiceServer).UpdateLookupMaster(ctx, req.(*UpdateLookupMasterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _LookupMasterService_ListTableColumns_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListTableColumnsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LookupMasterServiceServer).ListTableColumns(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LookupMasterService_ListTableColumns_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LookupMasterServiceServer).ListTableColumns(ctx, req.(*ListTableColumnsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _LookupMasterService_ListMasterOptions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMasterOptionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LookupMasterServiceServer).ListMasterOptions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LookupMasterService_ListMasterOptions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LookupMasterServiceServer).ListMasterOptions(ctx, req.(*ListMasterOptionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _LookupMasterService_ExportLookupMasters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExportLookupMastersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LookupMasterServiceServer).ExportLookupMasters(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LookupMasterService_ExportLookupMasters_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LookupMasterServiceServer).ExportLookupMasters(ctx, req.(*ExportLookupMastersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _LookupMasterService_ImportLookupMasters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ImportLookupMastersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LookupMasterServiceServer).ImportLookupMasters(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LookupMasterService_ImportLookupMasters_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LookupMasterServiceServer).ImportLookupMasters(ctx, req.(*ImportLookupMastersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // LookupMasterService_ServiceDesc is the grpc.ServiceDesc for LookupMasterService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2728,6 +2908,26 @@ var LookupMasterService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteLookupMasterColumn",
 			Handler:    _LookupMasterService_DeleteLookupMasterColumn_Handler,
+		},
+		{
+			MethodName: "UpdateLookupMaster",
+			Handler:    _LookupMasterService_UpdateLookupMaster_Handler,
+		},
+		{
+			MethodName: "ListTableColumns",
+			Handler:    _LookupMasterService_ListTableColumns_Handler,
+		},
+		{
+			MethodName: "ListMasterOptions",
+			Handler:    _LookupMasterService_ListMasterOptions_Handler,
+		},
+		{
+			MethodName: "ExportLookupMasters",
+			Handler:    _LookupMasterService_ExportLookupMasters_Handler,
+		},
+		{
+			MethodName: "ImportLookupMasters",
+			Handler:    _LookupMasterService_ImportLookupMasters_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

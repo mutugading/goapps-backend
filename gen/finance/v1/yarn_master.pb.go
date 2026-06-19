@@ -7513,6 +7513,8 @@ type LookupMaster struct {
 	LmCodeField   string                 `protobuf:"bytes,4,opt,name=lm_code_field,json=lmCodeField,proto3" json:"lm_code_field,omitempty"`
 	LmLabelField  string                 `protobuf:"bytes,5,opt,name=lm_label_field,json=lmLabelField,proto3" json:"lm_label_field,omitempty"`
 	LmIsActive    bool                   `protobuf:"varint,6,opt,name=lm_is_active,json=lmIsActive,proto3" json:"lm_is_active,omitempty"`
+	// PostgreSQL table name for DB introspection (e.g., "mst_machine").
+	LmTableName   string `protobuf:"bytes,7,opt,name=lm_table_name,json=lmTableName,proto3" json:"lm_table_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7587,6 +7589,13 @@ func (x *LookupMaster) GetLmIsActive() bool {
 		return x.LmIsActive
 	}
 	return false
+}
+
+func (x *LookupMaster) GetLmTableName() string {
+	if x != nil {
+		return x.LmTableName
+	}
+	return ""
 }
 
 // ListLookupMastersRequest is the request for listing lookup masters.
@@ -7879,6 +7888,8 @@ type CreateLookupMasterRequest struct {
 	LmApiPath     string                 `protobuf:"bytes,3,opt,name=lm_api_path,json=lmApiPath,proto3" json:"lm_api_path,omitempty"`
 	LmCodeField   string                 `protobuf:"bytes,4,opt,name=lm_code_field,json=lmCodeField,proto3" json:"lm_code_field,omitempty"`
 	LmLabelField  string                 `protobuf:"bytes,5,opt,name=lm_label_field,json=lmLabelField,proto3" json:"lm_label_field,omitempty"`
+	// PostgreSQL table name for DB introspection (optional, max 63 chars).
+	LmTableName   *string `protobuf:"bytes,6,opt,name=lm_table_name,json=lmTableName,proto3,oneof" json:"lm_table_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7944,6 +7955,13 @@ func (x *CreateLookupMasterRequest) GetLmCodeField() string {
 func (x *CreateLookupMasterRequest) GetLmLabelField() string {
 	if x != nil {
 		return x.LmLabelField
+	}
+	return ""
+}
+
+func (x *CreateLookupMasterRequest) GetLmTableName() string {
+	if x != nil && x.LmTableName != nil {
+		return *x.LmTableName
 	}
 	return ""
 }
@@ -8307,6 +8325,682 @@ func (*DeleteLookupMasterColumnResponse) Descriptor() ([]byte, []int) {
 func (x *DeleteLookupMasterColumnResponse) GetBase() *v1.BaseResponse {
 	if x != nil {
 		return x.Base
+	}
+	return nil
+}
+
+// UpdateLookupMasterRequest updates mutable fields of an existing lookup master.
+type UpdateLookupMasterRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	LmCode        string                 `protobuf:"bytes,1,opt,name=lm_code,json=lmCode,proto3" json:"lm_code,omitempty"`
+	LmDisplayName *string                `protobuf:"bytes,2,opt,name=lm_display_name,json=lmDisplayName,proto3,oneof" json:"lm_display_name,omitempty"`
+	LmTableName   *string                `protobuf:"bytes,3,opt,name=lm_table_name,json=lmTableName,proto3,oneof" json:"lm_table_name,omitempty"`
+	LmIsActive    *bool                  `protobuf:"varint,4,opt,name=lm_is_active,json=lmIsActive,proto3,oneof" json:"lm_is_active,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateLookupMasterRequest) Reset() {
+	*x = UpdateLookupMasterRequest{}
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[123]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateLookupMasterRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateLookupMasterRequest) ProtoMessage() {}
+
+func (x *UpdateLookupMasterRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[123]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateLookupMasterRequest.ProtoReflect.Descriptor instead.
+func (*UpdateLookupMasterRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_yarn_master_proto_rawDescGZIP(), []int{123}
+}
+
+func (x *UpdateLookupMasterRequest) GetLmCode() string {
+	if x != nil {
+		return x.LmCode
+	}
+	return ""
+}
+
+func (x *UpdateLookupMasterRequest) GetLmDisplayName() string {
+	if x != nil && x.LmDisplayName != nil {
+		return *x.LmDisplayName
+	}
+	return ""
+}
+
+func (x *UpdateLookupMasterRequest) GetLmTableName() string {
+	if x != nil && x.LmTableName != nil {
+		return *x.LmTableName
+	}
+	return ""
+}
+
+func (x *UpdateLookupMasterRequest) GetLmIsActive() bool {
+	if x != nil && x.LmIsActive != nil {
+		return *x.LmIsActive
+	}
+	return false
+}
+
+// UpdateLookupMasterResponse is the response for UpdateLookupMaster.
+type UpdateLookupMasterResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Base          *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	Data          *LookupMaster          `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateLookupMasterResponse) Reset() {
+	*x = UpdateLookupMasterResponse{}
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[124]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateLookupMasterResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateLookupMasterResponse) ProtoMessage() {}
+
+func (x *UpdateLookupMasterResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[124]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateLookupMasterResponse.ProtoReflect.Descriptor instead.
+func (*UpdateLookupMasterResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_yarn_master_proto_rawDescGZIP(), []int{124}
+}
+
+func (x *UpdateLookupMasterResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *UpdateLookupMasterResponse) GetData() *LookupMaster {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+// TableColumn is one column from information_schema introspection.
+type TableColumn struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// PostgreSQL column name (e.g., "mc_speed").
+	ColumnName string `protobuf:"bytes,1,opt,name=column_name,json=columnName,proto3" json:"column_name,omitempty"`
+	// Mapped type: "NUMBER" or "TEXT".
+	DataType string `protobuf:"bytes,2,opt,name=data_type,json=dataType,proto3" json:"data_type,omitempty"`
+	// Original PostgreSQL type (e.g., "numeric", "character varying").
+	RawType string `protobuf:"bytes,3,opt,name=raw_type,json=rawType,proto3" json:"raw_type,omitempty"`
+	// Position in the table (from information_schema).
+	OrdinalPosition int32 `protobuf:"varint,4,opt,name=ordinal_position,json=ordinalPosition,proto3" json:"ordinal_position,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *TableColumn) Reset() {
+	*x = TableColumn{}
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[125]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TableColumn) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TableColumn) ProtoMessage() {}
+
+func (x *TableColumn) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[125]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TableColumn.ProtoReflect.Descriptor instead.
+func (*TableColumn) Descriptor() ([]byte, []int) {
+	return file_finance_v1_yarn_master_proto_rawDescGZIP(), []int{125}
+}
+
+func (x *TableColumn) GetColumnName() string {
+	if x != nil {
+		return x.ColumnName
+	}
+	return ""
+}
+
+func (x *TableColumn) GetDataType() string {
+	if x != nil {
+		return x.DataType
+	}
+	return ""
+}
+
+func (x *TableColumn) GetRawType() string {
+	if x != nil {
+		return x.RawType
+	}
+	return ""
+}
+
+func (x *TableColumn) GetOrdinalPosition() int32 {
+	if x != nil {
+		return x.OrdinalPosition
+	}
+	return 0
+}
+
+// ListTableColumnsRequest introspects a registered PostgreSQL table's columns.
+type ListTableColumnsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Table name — must match an lm_table_name value in mst_lookup_master for safety.
+	TableName     string `protobuf:"bytes,1,opt,name=table_name,json=tableName,proto3" json:"table_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListTableColumnsRequest) Reset() {
+	*x = ListTableColumnsRequest{}
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[126]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListTableColumnsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListTableColumnsRequest) ProtoMessage() {}
+
+func (x *ListTableColumnsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[126]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListTableColumnsRequest.ProtoReflect.Descriptor instead.
+func (*ListTableColumnsRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_yarn_master_proto_rawDescGZIP(), []int{126}
+}
+
+func (x *ListTableColumnsRequest) GetTableName() string {
+	if x != nil {
+		return x.TableName
+	}
+	return ""
+}
+
+// ListTableColumnsResponse is the response for ListTableColumns.
+type ListTableColumnsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Base          *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	Data          []*TableColumn         `protobuf:"bytes,2,rep,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListTableColumnsResponse) Reset() {
+	*x = ListTableColumnsResponse{}
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[127]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListTableColumnsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListTableColumnsResponse) ProtoMessage() {}
+
+func (x *ListTableColumnsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[127]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListTableColumnsResponse.ProtoReflect.Descriptor instead.
+func (*ListTableColumnsResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_yarn_master_proto_rawDescGZIP(), []int{127}
+}
+
+func (x *ListTableColumnsResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *ListTableColumnsResponse) GetData() []*TableColumn {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+// MasterOption is one combobox entry (code + label) for the MasterLookupField dropdown.
+type MasterOption struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The "code" field value stored as the param's text value.
+	Value string `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
+	// The "label" field value displayed to the user.
+	Label         string `protobuf:"bytes,2,opt,name=label,proto3" json:"label,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MasterOption) Reset() {
+	*x = MasterOption{}
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[128]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MasterOption) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MasterOption) ProtoMessage() {}
+
+func (x *MasterOption) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[128]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MasterOption.ProtoReflect.Descriptor instead.
+func (*MasterOption) Descriptor() ([]byte, []int) {
+	return file_finance_v1_yarn_master_proto_rawDescGZIP(), []int{128}
+}
+
+func (x *MasterOption) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *MasterOption) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
+// ListMasterOptionsRequest queries the registered table to populate a combobox.
+type ListMasterOptionsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// lookup_master_code (e.g., "MACHINE") — used to resolve table_name + code/label fields.
+	MasterCode    string `protobuf:"bytes,1,opt,name=master_code,json=masterCode,proto3" json:"master_code,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListMasterOptionsRequest) Reset() {
+	*x = ListMasterOptionsRequest{}
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[129]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListMasterOptionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListMasterOptionsRequest) ProtoMessage() {}
+
+func (x *ListMasterOptionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[129]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListMasterOptionsRequest.ProtoReflect.Descriptor instead.
+func (*ListMasterOptionsRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_yarn_master_proto_rawDescGZIP(), []int{129}
+}
+
+func (x *ListMasterOptionsRequest) GetMasterCode() string {
+	if x != nil {
+		return x.MasterCode
+	}
+	return ""
+}
+
+// ListMasterOptionsResponse is the response for ListMasterOptions.
+type ListMasterOptionsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Base          *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	Data          []*MasterOption        `protobuf:"bytes,2,rep,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListMasterOptionsResponse) Reset() {
+	*x = ListMasterOptionsResponse{}
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[130]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListMasterOptionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListMasterOptionsResponse) ProtoMessage() {}
+
+func (x *ListMasterOptionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[130]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListMasterOptionsResponse.ProtoReflect.Descriptor instead.
+func (*ListMasterOptionsResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_yarn_master_proto_rawDescGZIP(), []int{130}
+}
+
+func (x *ListMasterOptionsResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *ListMasterOptionsResponse) GetData() []*MasterOption {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+// ExportLookupMastersRequest is the request for exporting registry to Excel.
+type ExportLookupMastersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExportLookupMastersRequest) Reset() {
+	*x = ExportLookupMastersRequest{}
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[131]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExportLookupMastersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExportLookupMastersRequest) ProtoMessage() {}
+
+func (x *ExportLookupMastersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[131]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExportLookupMastersRequest.ProtoReflect.Descriptor instead.
+func (*ExportLookupMastersRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_yarn_master_proto_rawDescGZIP(), []int{131}
+}
+
+// ExportLookupMastersResponse carries the Excel workbook bytes.
+type ExportLookupMastersResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Base          *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	FileContent   []byte                 `protobuf:"bytes,2,opt,name=file_content,json=fileContent,proto3" json:"file_content,omitempty"`
+	FileName      string                 `protobuf:"bytes,3,opt,name=file_name,json=fileName,proto3" json:"file_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExportLookupMastersResponse) Reset() {
+	*x = ExportLookupMastersResponse{}
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[132]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExportLookupMastersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExportLookupMastersResponse) ProtoMessage() {}
+
+func (x *ExportLookupMastersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[132]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExportLookupMastersResponse.ProtoReflect.Descriptor instead.
+func (*ExportLookupMastersResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_yarn_master_proto_rawDescGZIP(), []int{132}
+}
+
+func (x *ExportLookupMastersResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *ExportLookupMastersResponse) GetFileContent() []byte {
+	if x != nil {
+		return x.FileContent
+	}
+	return nil
+}
+
+func (x *ExportLookupMastersResponse) GetFileName() string {
+	if x != nil {
+		return x.FileName
+	}
+	return ""
+}
+
+// ImportLookupMastersRequest carries an Excel workbook to import registry entries.
+type ImportLookupMastersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	FileContent   []byte                 `protobuf:"bytes,1,opt,name=file_content,json=fileContent,proto3" json:"file_content,omitempty"`
+	FileName      string                 `protobuf:"bytes,2,opt,name=file_name,json=fileName,proto3" json:"file_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ImportLookupMastersRequest) Reset() {
+	*x = ImportLookupMastersRequest{}
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[133]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ImportLookupMastersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ImportLookupMastersRequest) ProtoMessage() {}
+
+func (x *ImportLookupMastersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[133]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ImportLookupMastersRequest.ProtoReflect.Descriptor instead.
+func (*ImportLookupMastersRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_yarn_master_proto_rawDescGZIP(), []int{133}
+}
+
+func (x *ImportLookupMastersRequest) GetFileContent() []byte {
+	if x != nil {
+		return x.FileContent
+	}
+	return nil
+}
+
+func (x *ImportLookupMastersRequest) GetFileName() string {
+	if x != nil {
+		return x.FileName
+	}
+	return ""
+}
+
+// ImportLookupMastersResponse summarizes the import result.
+type ImportLookupMastersResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Base          *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	SuccessCount  int32                  `protobuf:"varint,2,opt,name=success_count,json=successCount,proto3" json:"success_count,omitempty"`
+	SkippedCount  int32                  `protobuf:"varint,3,opt,name=skipped_count,json=skippedCount,proto3" json:"skipped_count,omitempty"`
+	FailedCount   int32                  `protobuf:"varint,4,opt,name=failed_count,json=failedCount,proto3" json:"failed_count,omitempty"`
+	Errors        []string               `protobuf:"bytes,5,rep,name=errors,proto3" json:"errors,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ImportLookupMastersResponse) Reset() {
+	*x = ImportLookupMastersResponse{}
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[134]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ImportLookupMastersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ImportLookupMastersResponse) ProtoMessage() {}
+
+func (x *ImportLookupMastersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_yarn_master_proto_msgTypes[134]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ImportLookupMastersResponse.ProtoReflect.Descriptor instead.
+func (*ImportLookupMastersResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_yarn_master_proto_rawDescGZIP(), []int{134}
+}
+
+func (x *ImportLookupMastersResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *ImportLookupMastersResponse) GetSuccessCount() int32 {
+	if x != nil {
+		return x.SuccessCount
+	}
+	return 0
+}
+
+func (x *ImportLookupMastersResponse) GetSkippedCount() int32 {
+	if x != nil {
+		return x.SkippedCount
+	}
+	return 0
+}
+
+func (x *ImportLookupMastersResponse) GetFailedCount() int32 {
+	if x != nil {
+		return x.FailedCount
+	}
+	return 0
+}
+
+func (x *ImportLookupMastersResponse) GetErrors() []string {
+	if x != nil {
+		return x.Errors
 	}
 	return nil
 }
@@ -8952,7 +9646,7 @@ const file_finance_v1_yarn_master_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\x01R\x05value:\x028\x01\x1a<\n" +
 	"\x0eTextFillsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xdb\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xff\x01\n" +
 	"\fLookupMaster\x12\x17\n" +
 	"\alm_code\x18\x01 \x01(\tR\x06lmCode\x12&\n" +
 	"\x0flm_display_name\x18\x02 \x01(\tR\rlmDisplayName\x12\x1e\n" +
@@ -8960,7 +9654,8 @@ const file_finance_v1_yarn_master_proto_rawDesc = "" +
 	"\rlm_code_field\x18\x04 \x01(\tR\vlmCodeField\x12$\n" +
 	"\x0elm_label_field\x18\x05 \x01(\tR\flmLabelField\x12 \n" +
 	"\flm_is_active\x18\x06 \x01(\bR\n" +
-	"lmIsActive\";\n" +
+	"lmIsActive\x12\"\n" +
+	"\rlm_table_name\x18\a \x01(\tR\vlmTableName\";\n" +
 	"\x18ListLookupMastersRequest\x12\x1f\n" +
 	"\vactive_only\x18\x01 \x01(\bR\n" +
 	"activeOnly\"v\n" +
@@ -8979,14 +9674,16 @@ const file_finance_v1_yarn_master_proto_rawDesc = "" +
 	"masterCode\"\x82\x01\n" +
 	"\x1fListLookupMasterColumnsResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x122\n" +
-	"\x04data\x18\x02 \x03(\v2\x1e.finance.v1.LookupMasterColumnR\x04data\"\x91\x02\n" +
+	"\x04data\x18\x02 \x03(\v2\x1e.finance.v1.LookupMasterColumnR\x04data\"\xd5\x02\n" +
 	"\x19CreateLookupMasterRequest\x125\n" +
 	"\alm_code\x18\x01 \x01(\tB\x1c\xbaH\x19r\x17\x10\x01\x18\x1e2\x11^[A-Z][A-Z0-9_]*$R\x06lmCode\x121\n" +
 	"\x0flm_display_name\x18\x02 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18dR\rlmDisplayName\x12*\n" +
 	"\vlm_api_path\x18\x03 \x01(\tB\n" +
 	"\xbaH\ar\x05\x10\x01\x18\xc8\x01R\tlmApiPath\x12-\n" +
 	"\rlm_code_field\x18\x04 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x182R\vlmCodeField\x12/\n" +
-	"\x0elm_label_field\x18\x05 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x182R\flmLabelField\"w\n" +
+	"\x0elm_label_field\x18\x05 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x182R\flmLabelField\x120\n" +
+	"\rlm_table_name\x18\x06 \x01(\tB\a\xbaH\x04r\x02\x18?H\x00R\vlmTableName\x88\x01\x01B\x10\n" +
+	"\x0e_lm_table_name\"w\n" +
 	"\x1aCreateLookupMasterResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12,\n" +
 	"\x04data\x18\x02 \x01(\v2\x18.finance.v1.LookupMasterR\x04data\"=\n" +
@@ -9006,7 +9703,54 @@ const file_finance_v1_yarn_master_proto_rawDesc = "" +
 	"\x1fDeleteLookupMasterColumnRequest\x12\x1f\n" +
 	"\x06lmc_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x05lmcId\"O\n" +
 	" DeleteLookupMasterColumnResponse\x12+\n" +
-	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base*\xbe\x01\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\"\x83\x02\n" +
+	"\x19UpdateLookupMasterRequest\x12 \n" +
+	"\alm_code\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06lmCode\x124\n" +
+	"\x0flm_display_name\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x18dH\x00R\rlmDisplayName\x88\x01\x01\x120\n" +
+	"\rlm_table_name\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x18?H\x01R\vlmTableName\x88\x01\x01\x12%\n" +
+	"\flm_is_active\x18\x04 \x01(\bH\x02R\n" +
+	"lmIsActive\x88\x01\x01B\x12\n" +
+	"\x10_lm_display_nameB\x10\n" +
+	"\x0e_lm_table_nameB\x0f\n" +
+	"\r_lm_is_active\"w\n" +
+	"\x1aUpdateLookupMasterResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12,\n" +
+	"\x04data\x18\x02 \x01(\v2\x18.finance.v1.LookupMasterR\x04data\"\x91\x01\n" +
+	"\vTableColumn\x12\x1f\n" +
+	"\vcolumn_name\x18\x01 \x01(\tR\n" +
+	"columnName\x12\x1b\n" +
+	"\tdata_type\x18\x02 \x01(\tR\bdataType\x12\x19\n" +
+	"\braw_type\x18\x03 \x01(\tR\arawType\x12)\n" +
+	"\x10ordinal_position\x18\x04 \x01(\x05R\x0fordinalPosition\"A\n" +
+	"\x17ListTableColumnsRequest\x12&\n" +
+	"\n" +
+	"table_name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\ttableName\"t\n" +
+	"\x18ListTableColumnsResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12+\n" +
+	"\x04data\x18\x02 \x03(\v2\x17.finance.v1.TableColumnR\x04data\":\n" +
+	"\fMasterOption\x12\x14\n" +
+	"\x05value\x18\x01 \x01(\tR\x05value\x12\x14\n" +
+	"\x05label\x18\x02 \x01(\tR\x05label\"D\n" +
+	"\x18ListMasterOptionsRequest\x12(\n" +
+	"\vmaster_code\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\n" +
+	"masterCode\"v\n" +
+	"\x19ListMasterOptionsResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12,\n" +
+	"\x04data\x18\x02 \x03(\v2\x18.finance.v1.MasterOptionR\x04data\"\x1c\n" +
+	"\x1aExportLookupMastersRequest\"\x8a\x01\n" +
+	"\x1bExportLookupMastersResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12!\n" +
+	"\ffile_content\x18\x02 \x01(\fR\vfileContent\x12\x1b\n" +
+	"\tfile_name\x18\x03 \x01(\tR\bfileName\"j\n" +
+	"\x1aImportLookupMastersRequest\x12/\n" +
+	"\ffile_content\x18\x01 \x01(\fB\f\xbaH\tz\a\x10\x01\x18\x80\x80\x80\x05R\vfileContent\x12\x1b\n" +
+	"\tfile_name\x18\x02 \x01(\tR\bfileName\"\xcf\x01\n" +
+	"\x1bImportLookupMastersResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12#\n" +
+	"\rsuccess_count\x18\x02 \x01(\x05R\fsuccessCount\x12#\n" +
+	"\rskipped_count\x18\x03 \x01(\x05R\fskippedCount\x12!\n" +
+	"\ffailed_count\x18\x04 \x01(\x05R\vfailedCount\x12\x16\n" +
+	"\x06errors\x18\x05 \x03(\tR\x06errors*\xbe\x01\n" +
 	"\fMCTypeFilter\x12\x1e\n" +
 	"\x1aMC_TYPE_FILTER_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12MC_TYPE_FILTER_DTY\x10\x01\x12\x16\n" +
@@ -9071,14 +9815,19 @@ const file_finance_v1_yarn_master_proto_rawDesc = "" +
 	"\fDeleteMBSpin\x12\x1f.finance.v1.DeleteMBSpinRequest\x1a .finance.v1.DeleteMBSpinResponse\"8\x82\xd3\xe4\x93\x022*0/api/v1/finance/mb-heads/{mbh_id}/spins/{mbs_id}\x12\x8c\x01\n" +
 	"\rExportMBSpins\x12 .finance.v1.ExportMBSpinsRequest\x1a!.finance.v1.ExportMBSpinsResponse\"6\x82\xd3\xe4\x93\x020\x12./api/v1/finance/mb-heads/{mbh_id}/spins/export\x12\x8f\x01\n" +
 	"\rImportMBSpins\x12 .finance.v1.ImportMBSpinsRequest\x1a!.finance.v1.ImportMBSpinsResponse\"9\x82\xd3\xe4\x93\x023:\x01*\"./api/v1/finance/mb-heads/{mbh_id}/spins/import\x12\xa9\x01\n" +
-	"\x16DownloadMBSpinTemplate\x12).finance.v1.DownloadMBSpinTemplateRequest\x1a*.finance.v1.DownloadMBSpinTemplateResponse\"8\x82\xd3\xe4\x93\x022\x120/api/v1/finance/mb-heads/{mbh_id}/spins/template2\xc7\a\n" +
+	"\x16DownloadMBSpinTemplate\x12).finance.v1.DownloadMBSpinTemplateRequest\x1a*.finance.v1.DownloadMBSpinTemplateResponse\"8\x82\xd3\xe4\x93\x022\x120/api/v1/finance/mb-heads/{mbh_id}/spins/template2\xbc\r\n" +
 	"\x13LookupMasterService\x12\x88\x01\n" +
 	"\x11ListLookupMasters\x12$.finance.v1.ListLookupMastersRequest\x1a%.finance.v1.ListLookupMastersResponse\"&\x82\xd3\xe4\x93\x02 \x12\x1e/api/v1/finance/lookup-masters\x12\xa1\x01\n" +
 	"\x17ListLookupMasterColumns\x12*.finance.v1.ListLookupMasterColumnsRequest\x1a+.finance.v1.ListLookupMasterColumnsResponse\"-\x82\xd3\xe4\x93\x02'\x12%/api/v1/finance/lookup-master-columns\x12\x8e\x01\n" +
 	"\x12CreateLookupMaster\x12%.finance.v1.CreateLookupMasterRequest\x1a&.finance.v1.CreateLookupMasterResponse\")\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/api/v1/finance/lookup-masters\x12\x95\x01\n" +
 	"\x12DeleteLookupMaster\x12%.finance.v1.DeleteLookupMasterRequest\x1a&.finance.v1.DeleteLookupMasterResponse\"0\x82\xd3\xe4\x93\x02**(/api/v1/finance/lookup-masters/{lm_code}\x12\xa7\x01\n" +
 	"\x18CreateLookupMasterColumn\x12+.finance.v1.CreateLookupMasterColumnRequest\x1a,.finance.v1.CreateLookupMasterColumnResponse\"0\x82\xd3\xe4\x93\x02*:\x01*\"%/api/v1/finance/lookup-master-columns\x12\xad\x01\n" +
-	"\x18DeleteLookupMasterColumn\x12+.finance.v1.DeleteLookupMasterColumnRequest\x1a,.finance.v1.DeleteLookupMasterColumnResponse\"6\x82\xd3\xe4\x93\x020*./api/v1/finance/lookup-master-columns/{lmc_id}2\xac\x01\n" +
+	"\x18DeleteLookupMasterColumn\x12+.finance.v1.DeleteLookupMasterColumnRequest\x1a,.finance.v1.DeleteLookupMasterColumnResponse\"6\x82\xd3\xe4\x93\x020*./api/v1/finance/lookup-master-columns/{lmc_id}\x12\x98\x01\n" +
+	"\x12UpdateLookupMaster\x12%.finance.v1.UpdateLookupMasterRequest\x1a&.finance.v1.UpdateLookupMasterResponse\"3\x82\xd3\xe4\x93\x02-:\x01*\x1a(/api/v1/finance/lookup-masters/{lm_code}\x12\x92\x01\n" +
+	"\x10ListTableColumns\x12#.finance.v1.ListTableColumnsRequest\x1a$.finance.v1.ListTableColumnsResponse\"3\x82\xd3\xe4\x93\x02-\x12+/api/v1/finance/lookup-master-table-columns\x12\x8f\x01\n" +
+	"\x11ListMasterOptions\x12$.finance.v1.ListMasterOptionsRequest\x1a%.finance.v1.ListMasterOptionsResponse\"-\x82\xd3\xe4\x93\x02'\x12%/api/v1/finance/lookup-master-options\x12\x95\x01\n" +
+	"\x13ExportLookupMasters\x12&.finance.v1.ExportLookupMastersRequest\x1a'.finance.v1.ExportLookupMastersResponse\"-\x82\xd3\xe4\x93\x02'\x12%/api/v1/finance/lookup-masters/export\x12\x98\x01\n" +
+	"\x13ImportLookupMasters\x12&.finance.v1.ImportLookupMastersRequest\x1a'.finance.v1.ImportLookupMastersResponse\"0\x82\xd3\xe4\x93\x02*:\x01*\"%/api/v1/finance/lookup-masters/import2\xac\x01\n" +
 	"\x15YarnLookupFillService\x12\x92\x01\n" +
 	"\x13GetLookupFillValues\x12&.finance.v1.GetLookupFillValuesRequest\x1a'.finance.v1.GetLookupFillValuesResponse\"*\x82\xd3\xe4\x93\x02$\x12\"/api/v1/finance/lookup-fill-valuesB\xa9\x01\n" +
 	"\x0ecom.finance.v1B\x0fYarnMasterProtoP\x01Z=github.com/mutugading/goapps-backend/gen/finance/v1;financev1\xa2\x02\x03FXX\xaa\x02\n" +
@@ -9098,7 +9847,7 @@ func file_finance_v1_yarn_master_proto_rawDescGZIP() []byte {
 }
 
 var file_finance_v1_yarn_master_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_finance_v1_yarn_master_proto_msgTypes = make([]protoimpl.MessageInfo, 125)
+var file_finance_v1_yarn_master_proto_msgTypes = make([]protoimpl.MessageInfo, 137)
 var file_finance_v1_yarn_master_proto_goTypes = []any{
 	(MCTypeFilter)(0),                             // 0: finance.v1.MCTypeFilter
 	(*Machine)(nil),                               // 1: finance.v1.Machine
@@ -9224,253 +9973,283 @@ var file_finance_v1_yarn_master_proto_goTypes = []any{
 	(*CreateLookupMasterColumnResponse)(nil),      // 121: finance.v1.CreateLookupMasterColumnResponse
 	(*DeleteLookupMasterColumnRequest)(nil),       // 122: finance.v1.DeleteLookupMasterColumnRequest
 	(*DeleteLookupMasterColumnResponse)(nil),      // 123: finance.v1.DeleteLookupMasterColumnResponse
-	nil,                                           // 124: finance.v1.GetLookupFillValuesResponse.NumericFillsEntry
-	nil,                                           // 125: finance.v1.GetLookupFillValuesResponse.TextFillsEntry
-	(*v1.AuditInfo)(nil),                          // 126: common.v1.AuditInfo
-	(*v1.BaseResponse)(nil),                       // 127: common.v1.BaseResponse
-	(ActiveFilter)(0),                             // 128: finance.v1.ActiveFilter
-	(*v1.PaginationResponse)(nil),                 // 129: common.v1.PaginationResponse
-	(*ImportError)(nil),                           // 130: finance.v1.ImportError
+	(*UpdateLookupMasterRequest)(nil),             // 124: finance.v1.UpdateLookupMasterRequest
+	(*UpdateLookupMasterResponse)(nil),            // 125: finance.v1.UpdateLookupMasterResponse
+	(*TableColumn)(nil),                           // 126: finance.v1.TableColumn
+	(*ListTableColumnsRequest)(nil),               // 127: finance.v1.ListTableColumnsRequest
+	(*ListTableColumnsResponse)(nil),              // 128: finance.v1.ListTableColumnsResponse
+	(*MasterOption)(nil),                          // 129: finance.v1.MasterOption
+	(*ListMasterOptionsRequest)(nil),              // 130: finance.v1.ListMasterOptionsRequest
+	(*ListMasterOptionsResponse)(nil),             // 131: finance.v1.ListMasterOptionsResponse
+	(*ExportLookupMastersRequest)(nil),            // 132: finance.v1.ExportLookupMastersRequest
+	(*ExportLookupMastersResponse)(nil),           // 133: finance.v1.ExportLookupMastersResponse
+	(*ImportLookupMastersRequest)(nil),            // 134: finance.v1.ImportLookupMastersRequest
+	(*ImportLookupMastersResponse)(nil),           // 135: finance.v1.ImportLookupMastersResponse
+	nil,                                           // 136: finance.v1.GetLookupFillValuesResponse.NumericFillsEntry
+	nil,                                           // 137: finance.v1.GetLookupFillValuesResponse.TextFillsEntry
+	(*v1.AuditInfo)(nil),                          // 138: common.v1.AuditInfo
+	(*v1.BaseResponse)(nil),                       // 139: common.v1.BaseResponse
+	(ActiveFilter)(0),                             // 140: finance.v1.ActiveFilter
+	(*v1.PaginationResponse)(nil),                 // 141: common.v1.PaginationResponse
+	(*ImportError)(nil),                           // 142: finance.v1.ImportError
 }
 var file_finance_v1_yarn_master_proto_depIdxs = []int32{
-	126, // 0: finance.v1.Machine.audit:type_name -> common.v1.AuditInfo
-	127, // 1: finance.v1.CreateMachineResponse.base:type_name -> common.v1.BaseResponse
+	138, // 0: finance.v1.Machine.audit:type_name -> common.v1.AuditInfo
+	139, // 1: finance.v1.CreateMachineResponse.base:type_name -> common.v1.BaseResponse
 	1,   // 2: finance.v1.CreateMachineResponse.data:type_name -> finance.v1.Machine
-	127, // 3: finance.v1.GetMachineResponse.base:type_name -> common.v1.BaseResponse
+	139, // 3: finance.v1.GetMachineResponse.base:type_name -> common.v1.BaseResponse
 	1,   // 4: finance.v1.GetMachineResponse.data:type_name -> finance.v1.Machine
-	127, // 5: finance.v1.UpdateMachineResponse.base:type_name -> common.v1.BaseResponse
+	139, // 5: finance.v1.UpdateMachineResponse.base:type_name -> common.v1.BaseResponse
 	1,   // 6: finance.v1.UpdateMachineResponse.data:type_name -> finance.v1.Machine
-	127, // 7: finance.v1.DeleteMachineResponse.base:type_name -> common.v1.BaseResponse
-	128, // 8: finance.v1.ListMachinesRequest.active_filter:type_name -> finance.v1.ActiveFilter
-	127, // 9: finance.v1.ListMachinesResponse.base:type_name -> common.v1.BaseResponse
+	139, // 7: finance.v1.DeleteMachineResponse.base:type_name -> common.v1.BaseResponse
+	140, // 8: finance.v1.ListMachinesRequest.active_filter:type_name -> finance.v1.ActiveFilter
+	139, // 9: finance.v1.ListMachinesResponse.base:type_name -> common.v1.BaseResponse
 	1,   // 10: finance.v1.ListMachinesResponse.data:type_name -> finance.v1.Machine
-	129, // 11: finance.v1.ListMachinesResponse.pagination:type_name -> common.v1.PaginationResponse
-	128, // 12: finance.v1.ExportMachinesRequest.active_filter:type_name -> finance.v1.ActiveFilter
-	127, // 13: finance.v1.ExportMachinesResponse.base:type_name -> common.v1.BaseResponse
-	127, // 14: finance.v1.ImportMachinesResponse.base:type_name -> common.v1.BaseResponse
-	130, // 15: finance.v1.ImportMachinesResponse.errors:type_name -> finance.v1.ImportError
-	127, // 16: finance.v1.DownloadMachineTemplateResponse.base:type_name -> common.v1.BaseResponse
-	126, // 17: finance.v1.BoxBobbinCostRate.audit:type_name -> common.v1.AuditInfo
+	141, // 11: finance.v1.ListMachinesResponse.pagination:type_name -> common.v1.PaginationResponse
+	140, // 12: finance.v1.ExportMachinesRequest.active_filter:type_name -> finance.v1.ActiveFilter
+	139, // 13: finance.v1.ExportMachinesResponse.base:type_name -> common.v1.BaseResponse
+	139, // 14: finance.v1.ImportMachinesResponse.base:type_name -> common.v1.BaseResponse
+	142, // 15: finance.v1.ImportMachinesResponse.errors:type_name -> finance.v1.ImportError
+	139, // 16: finance.v1.DownloadMachineTemplateResponse.base:type_name -> common.v1.BaseResponse
+	138, // 17: finance.v1.BoxBobbinCostRate.audit:type_name -> common.v1.AuditInfo
 	18,  // 18: finance.v1.BoxBobbinCost.rates:type_name -> finance.v1.BoxBobbinCostRate
-	126, // 19: finance.v1.BoxBobbinCost.audit:type_name -> common.v1.AuditInfo
-	127, // 20: finance.v1.CreateBoxBobbinCostResponse.base:type_name -> common.v1.BaseResponse
+	138, // 19: finance.v1.BoxBobbinCost.audit:type_name -> common.v1.AuditInfo
+	139, // 20: finance.v1.CreateBoxBobbinCostResponse.base:type_name -> common.v1.BaseResponse
 	19,  // 21: finance.v1.CreateBoxBobbinCostResponse.data:type_name -> finance.v1.BoxBobbinCost
-	127, // 22: finance.v1.GetBoxBobbinCostResponse.base:type_name -> common.v1.BaseResponse
+	139, // 22: finance.v1.GetBoxBobbinCostResponse.base:type_name -> common.v1.BaseResponse
 	19,  // 23: finance.v1.GetBoxBobbinCostResponse.data:type_name -> finance.v1.BoxBobbinCost
-	127, // 24: finance.v1.UpdateBoxBobbinCostResponse.base:type_name -> common.v1.BaseResponse
+	139, // 24: finance.v1.UpdateBoxBobbinCostResponse.base:type_name -> common.v1.BaseResponse
 	19,  // 25: finance.v1.UpdateBoxBobbinCostResponse.data:type_name -> finance.v1.BoxBobbinCost
-	127, // 26: finance.v1.DeleteBoxBobbinCostResponse.base:type_name -> common.v1.BaseResponse
-	128, // 27: finance.v1.ListBoxBobbinCostsRequest.active_filter:type_name -> finance.v1.ActiveFilter
-	127, // 28: finance.v1.ListBoxBobbinCostsResponse.base:type_name -> common.v1.BaseResponse
+	139, // 26: finance.v1.DeleteBoxBobbinCostResponse.base:type_name -> common.v1.BaseResponse
+	140, // 27: finance.v1.ListBoxBobbinCostsRequest.active_filter:type_name -> finance.v1.ActiveFilter
+	139, // 28: finance.v1.ListBoxBobbinCostsResponse.base:type_name -> common.v1.BaseResponse
 	19,  // 29: finance.v1.ListBoxBobbinCostsResponse.data:type_name -> finance.v1.BoxBobbinCost
-	129, // 30: finance.v1.ListBoxBobbinCostsResponse.pagination:type_name -> common.v1.PaginationResponse
-	127, // 31: finance.v1.CreateBoxBobbinCostRateResponse.base:type_name -> common.v1.BaseResponse
+	141, // 30: finance.v1.ListBoxBobbinCostsResponse.pagination:type_name -> common.v1.PaginationResponse
+	139, // 31: finance.v1.CreateBoxBobbinCostRateResponse.base:type_name -> common.v1.BaseResponse
 	18,  // 32: finance.v1.CreateBoxBobbinCostRateResponse.data:type_name -> finance.v1.BoxBobbinCostRate
-	127, // 33: finance.v1.DeleteBoxBobbinCostRateResponse.base:type_name -> common.v1.BaseResponse
-	128, // 34: finance.v1.ExportBoxBobbinCostsRequest.active_filter:type_name -> finance.v1.ActiveFilter
-	127, // 35: finance.v1.ExportBoxBobbinCostsResponse.base:type_name -> common.v1.BaseResponse
-	127, // 36: finance.v1.ImportBoxBobbinCostsResponse.base:type_name -> common.v1.BaseResponse
-	130, // 37: finance.v1.ImportBoxBobbinCostsResponse.errors:type_name -> finance.v1.ImportError
-	127, // 38: finance.v1.DownloadBoxBobbinCostTemplateResponse.base:type_name -> common.v1.BaseResponse
-	126, // 39: finance.v1.Intermingling.audit:type_name -> common.v1.AuditInfo
-	127, // 40: finance.v1.CreateInterminglingResponse.base:type_name -> common.v1.BaseResponse
+	139, // 33: finance.v1.DeleteBoxBobbinCostRateResponse.base:type_name -> common.v1.BaseResponse
+	140, // 34: finance.v1.ExportBoxBobbinCostsRequest.active_filter:type_name -> finance.v1.ActiveFilter
+	139, // 35: finance.v1.ExportBoxBobbinCostsResponse.base:type_name -> common.v1.BaseResponse
+	139, // 36: finance.v1.ImportBoxBobbinCostsResponse.base:type_name -> common.v1.BaseResponse
+	142, // 37: finance.v1.ImportBoxBobbinCostsResponse.errors:type_name -> finance.v1.ImportError
+	139, // 38: finance.v1.DownloadBoxBobbinCostTemplateResponse.base:type_name -> common.v1.BaseResponse
+	138, // 39: finance.v1.Intermingling.audit:type_name -> common.v1.AuditInfo
+	139, // 40: finance.v1.CreateInterminglingResponse.base:type_name -> common.v1.BaseResponse
 	40,  // 41: finance.v1.CreateInterminglingResponse.data:type_name -> finance.v1.Intermingling
-	127, // 42: finance.v1.GetInterminglingResponse.base:type_name -> common.v1.BaseResponse
+	139, // 42: finance.v1.GetInterminglingResponse.base:type_name -> common.v1.BaseResponse
 	40,  // 43: finance.v1.GetInterminglingResponse.data:type_name -> finance.v1.Intermingling
-	127, // 44: finance.v1.UpdateInterminglingResponse.base:type_name -> common.v1.BaseResponse
+	139, // 44: finance.v1.UpdateInterminglingResponse.base:type_name -> common.v1.BaseResponse
 	40,  // 45: finance.v1.UpdateInterminglingResponse.data:type_name -> finance.v1.Intermingling
-	127, // 46: finance.v1.DeleteInterminglingResponse.base:type_name -> common.v1.BaseResponse
-	128, // 47: finance.v1.ListInterminglingsRequest.active_filter:type_name -> finance.v1.ActiveFilter
-	127, // 48: finance.v1.ListInterminglingsResponse.base:type_name -> common.v1.BaseResponse
+	139, // 46: finance.v1.DeleteInterminglingResponse.base:type_name -> common.v1.BaseResponse
+	140, // 47: finance.v1.ListInterminglingsRequest.active_filter:type_name -> finance.v1.ActiveFilter
+	139, // 48: finance.v1.ListInterminglingsResponse.base:type_name -> common.v1.BaseResponse
 	40,  // 49: finance.v1.ListInterminglingsResponse.data:type_name -> finance.v1.Intermingling
-	129, // 50: finance.v1.ListInterminglingsResponse.pagination:type_name -> common.v1.PaginationResponse
-	128, // 51: finance.v1.ExportInterminglingsRequest.active_filter:type_name -> finance.v1.ActiveFilter
-	127, // 52: finance.v1.ExportInterminglingsResponse.base:type_name -> common.v1.BaseResponse
-	127, // 53: finance.v1.ImportInterminglingsResponse.base:type_name -> common.v1.BaseResponse
-	130, // 54: finance.v1.ImportInterminglingsResponse.errors:type_name -> finance.v1.ImportError
-	127, // 55: finance.v1.DownloadInterminglingTemplateResponse.base:type_name -> common.v1.BaseResponse
-	126, // 56: finance.v1.ProductGrade.audit:type_name -> common.v1.AuditInfo
-	127, // 57: finance.v1.CreateProductGradeResponse.base:type_name -> common.v1.BaseResponse
+	141, // 50: finance.v1.ListInterminglingsResponse.pagination:type_name -> common.v1.PaginationResponse
+	140, // 51: finance.v1.ExportInterminglingsRequest.active_filter:type_name -> finance.v1.ActiveFilter
+	139, // 52: finance.v1.ExportInterminglingsResponse.base:type_name -> common.v1.BaseResponse
+	139, // 53: finance.v1.ImportInterminglingsResponse.base:type_name -> common.v1.BaseResponse
+	142, // 54: finance.v1.ImportInterminglingsResponse.errors:type_name -> finance.v1.ImportError
+	139, // 55: finance.v1.DownloadInterminglingTemplateResponse.base:type_name -> common.v1.BaseResponse
+	138, // 56: finance.v1.ProductGrade.audit:type_name -> common.v1.AuditInfo
+	139, // 57: finance.v1.CreateProductGradeResponse.base:type_name -> common.v1.BaseResponse
 	57,  // 58: finance.v1.CreateProductGradeResponse.data:type_name -> finance.v1.ProductGrade
-	127, // 59: finance.v1.GetProductGradeResponse.base:type_name -> common.v1.BaseResponse
+	139, // 59: finance.v1.GetProductGradeResponse.base:type_name -> common.v1.BaseResponse
 	57,  // 60: finance.v1.GetProductGradeResponse.data:type_name -> finance.v1.ProductGrade
-	127, // 61: finance.v1.UpdateProductGradeResponse.base:type_name -> common.v1.BaseResponse
+	139, // 61: finance.v1.UpdateProductGradeResponse.base:type_name -> common.v1.BaseResponse
 	57,  // 62: finance.v1.UpdateProductGradeResponse.data:type_name -> finance.v1.ProductGrade
-	127, // 63: finance.v1.DeleteProductGradeResponse.base:type_name -> common.v1.BaseResponse
-	128, // 64: finance.v1.ListProductGradesRequest.active_filter:type_name -> finance.v1.ActiveFilter
-	127, // 65: finance.v1.ListProductGradesResponse.base:type_name -> common.v1.BaseResponse
+	139, // 63: finance.v1.DeleteProductGradeResponse.base:type_name -> common.v1.BaseResponse
+	140, // 64: finance.v1.ListProductGradesRequest.active_filter:type_name -> finance.v1.ActiveFilter
+	139, // 65: finance.v1.ListProductGradesResponse.base:type_name -> common.v1.BaseResponse
 	57,  // 66: finance.v1.ListProductGradesResponse.data:type_name -> finance.v1.ProductGrade
-	129, // 67: finance.v1.ListProductGradesResponse.pagination:type_name -> common.v1.PaginationResponse
-	128, // 68: finance.v1.ExportProductGradesRequest.active_filter:type_name -> finance.v1.ActiveFilter
-	127, // 69: finance.v1.ExportProductGradesResponse.base:type_name -> common.v1.BaseResponse
-	127, // 70: finance.v1.ImportProductGradesResponse.base:type_name -> common.v1.BaseResponse
-	130, // 71: finance.v1.ImportProductGradesResponse.errors:type_name -> finance.v1.ImportError
-	127, // 72: finance.v1.DownloadProductGradeTemplateResponse.base:type_name -> common.v1.BaseResponse
-	126, // 73: finance.v1.MBHead.audit:type_name -> common.v1.AuditInfo
-	127, // 74: finance.v1.CreateMBHeadResponse.base:type_name -> common.v1.BaseResponse
+	141, // 67: finance.v1.ListProductGradesResponse.pagination:type_name -> common.v1.PaginationResponse
+	140, // 68: finance.v1.ExportProductGradesRequest.active_filter:type_name -> finance.v1.ActiveFilter
+	139, // 69: finance.v1.ExportProductGradesResponse.base:type_name -> common.v1.BaseResponse
+	139, // 70: finance.v1.ImportProductGradesResponse.base:type_name -> common.v1.BaseResponse
+	142, // 71: finance.v1.ImportProductGradesResponse.errors:type_name -> finance.v1.ImportError
+	139, // 72: finance.v1.DownloadProductGradeTemplateResponse.base:type_name -> common.v1.BaseResponse
+	138, // 73: finance.v1.MBHead.audit:type_name -> common.v1.AuditInfo
+	139, // 74: finance.v1.CreateMBHeadResponse.base:type_name -> common.v1.BaseResponse
 	74,  // 75: finance.v1.CreateMBHeadResponse.data:type_name -> finance.v1.MBHead
-	127, // 76: finance.v1.GetMBHeadResponse.base:type_name -> common.v1.BaseResponse
+	139, // 76: finance.v1.GetMBHeadResponse.base:type_name -> common.v1.BaseResponse
 	74,  // 77: finance.v1.GetMBHeadResponse.data:type_name -> finance.v1.MBHead
-	127, // 78: finance.v1.UpdateMBHeadResponse.base:type_name -> common.v1.BaseResponse
+	139, // 78: finance.v1.UpdateMBHeadResponse.base:type_name -> common.v1.BaseResponse
 	74,  // 79: finance.v1.UpdateMBHeadResponse.data:type_name -> finance.v1.MBHead
-	127, // 80: finance.v1.DeleteMBHeadResponse.base:type_name -> common.v1.BaseResponse
-	128, // 81: finance.v1.ListMBHeadsRequest.active_filter:type_name -> finance.v1.ActiveFilter
-	127, // 82: finance.v1.ListMBHeadsResponse.base:type_name -> common.v1.BaseResponse
+	139, // 80: finance.v1.DeleteMBHeadResponse.base:type_name -> common.v1.BaseResponse
+	140, // 81: finance.v1.ListMBHeadsRequest.active_filter:type_name -> finance.v1.ActiveFilter
+	139, // 82: finance.v1.ListMBHeadsResponse.base:type_name -> common.v1.BaseResponse
 	74,  // 83: finance.v1.ListMBHeadsResponse.data:type_name -> finance.v1.MBHead
-	129, // 84: finance.v1.ListMBHeadsResponse.pagination:type_name -> common.v1.PaginationResponse
-	128, // 85: finance.v1.ExportMBHeadsRequest.active_filter:type_name -> finance.v1.ActiveFilter
-	127, // 86: finance.v1.ExportMBHeadsResponse.base:type_name -> common.v1.BaseResponse
-	127, // 87: finance.v1.ImportMBHeadsResponse.base:type_name -> common.v1.BaseResponse
-	130, // 88: finance.v1.ImportMBHeadsResponse.errors:type_name -> finance.v1.ImportError
-	127, // 89: finance.v1.DownloadMBHeadTemplateResponse.base:type_name -> common.v1.BaseResponse
-	126, // 90: finance.v1.MBSpin.audit:type_name -> common.v1.AuditInfo
-	127, // 91: finance.v1.CreateMBSpinResponse.base:type_name -> common.v1.BaseResponse
+	141, // 84: finance.v1.ListMBHeadsResponse.pagination:type_name -> common.v1.PaginationResponse
+	140, // 85: finance.v1.ExportMBHeadsRequest.active_filter:type_name -> finance.v1.ActiveFilter
+	139, // 86: finance.v1.ExportMBHeadsResponse.base:type_name -> common.v1.BaseResponse
+	139, // 87: finance.v1.ImportMBHeadsResponse.base:type_name -> common.v1.BaseResponse
+	142, // 88: finance.v1.ImportMBHeadsResponse.errors:type_name -> finance.v1.ImportError
+	139, // 89: finance.v1.DownloadMBHeadTemplateResponse.base:type_name -> common.v1.BaseResponse
+	138, // 90: finance.v1.MBSpin.audit:type_name -> common.v1.AuditInfo
+	139, // 91: finance.v1.CreateMBSpinResponse.base:type_name -> common.v1.BaseResponse
 	91,  // 92: finance.v1.CreateMBSpinResponse.data:type_name -> finance.v1.MBSpin
-	127, // 93: finance.v1.GetMBSpinResponse.base:type_name -> common.v1.BaseResponse
+	139, // 93: finance.v1.GetMBSpinResponse.base:type_name -> common.v1.BaseResponse
 	91,  // 94: finance.v1.GetMBSpinResponse.data:type_name -> finance.v1.MBSpin
-	127, // 95: finance.v1.UpdateMBSpinResponse.base:type_name -> common.v1.BaseResponse
+	139, // 95: finance.v1.UpdateMBSpinResponse.base:type_name -> common.v1.BaseResponse
 	91,  // 96: finance.v1.UpdateMBSpinResponse.data:type_name -> finance.v1.MBSpin
-	127, // 97: finance.v1.DeleteMBSpinResponse.base:type_name -> common.v1.BaseResponse
-	128, // 98: finance.v1.ListMBSpinsRequest.active_filter:type_name -> finance.v1.ActiveFilter
-	127, // 99: finance.v1.ListMBSpinsResponse.base:type_name -> common.v1.BaseResponse
+	139, // 97: finance.v1.DeleteMBSpinResponse.base:type_name -> common.v1.BaseResponse
+	140, // 98: finance.v1.ListMBSpinsRequest.active_filter:type_name -> finance.v1.ActiveFilter
+	139, // 99: finance.v1.ListMBSpinsResponse.base:type_name -> common.v1.BaseResponse
 	91,  // 100: finance.v1.ListMBSpinsResponse.data:type_name -> finance.v1.MBSpin
-	129, // 101: finance.v1.ListMBSpinsResponse.pagination:type_name -> common.v1.PaginationResponse
-	127, // 102: finance.v1.ExportMBSpinsResponse.base:type_name -> common.v1.BaseResponse
-	127, // 103: finance.v1.ImportMBSpinsResponse.base:type_name -> common.v1.BaseResponse
-	130, // 104: finance.v1.ImportMBSpinsResponse.errors:type_name -> finance.v1.ImportError
-	127, // 105: finance.v1.DownloadMBSpinTemplateResponse.base:type_name -> common.v1.BaseResponse
-	127, // 106: finance.v1.GetLookupFillValuesResponse.base:type_name -> common.v1.BaseResponse
-	124, // 107: finance.v1.GetLookupFillValuesResponse.numeric_fills:type_name -> finance.v1.GetLookupFillValuesResponse.NumericFillsEntry
-	125, // 108: finance.v1.GetLookupFillValuesResponse.text_fills:type_name -> finance.v1.GetLookupFillValuesResponse.TextFillsEntry
-	127, // 109: finance.v1.ListLookupMastersResponse.base:type_name -> common.v1.BaseResponse
+	141, // 101: finance.v1.ListMBSpinsResponse.pagination:type_name -> common.v1.PaginationResponse
+	139, // 102: finance.v1.ExportMBSpinsResponse.base:type_name -> common.v1.BaseResponse
+	139, // 103: finance.v1.ImportMBSpinsResponse.base:type_name -> common.v1.BaseResponse
+	142, // 104: finance.v1.ImportMBSpinsResponse.errors:type_name -> finance.v1.ImportError
+	139, // 105: finance.v1.DownloadMBSpinTemplateResponse.base:type_name -> common.v1.BaseResponse
+	139, // 106: finance.v1.GetLookupFillValuesResponse.base:type_name -> common.v1.BaseResponse
+	136, // 107: finance.v1.GetLookupFillValuesResponse.numeric_fills:type_name -> finance.v1.GetLookupFillValuesResponse.NumericFillsEntry
+	137, // 108: finance.v1.GetLookupFillValuesResponse.text_fills:type_name -> finance.v1.GetLookupFillValuesResponse.TextFillsEntry
+	139, // 109: finance.v1.ListLookupMastersResponse.base:type_name -> common.v1.BaseResponse
 	110, // 110: finance.v1.ListLookupMastersResponse.data:type_name -> finance.v1.LookupMaster
-	127, // 111: finance.v1.ListLookupMasterColumnsResponse.base:type_name -> common.v1.BaseResponse
+	139, // 111: finance.v1.ListLookupMasterColumnsResponse.base:type_name -> common.v1.BaseResponse
 	113, // 112: finance.v1.ListLookupMasterColumnsResponse.data:type_name -> finance.v1.LookupMasterColumn
-	127, // 113: finance.v1.CreateLookupMasterResponse.base:type_name -> common.v1.BaseResponse
+	139, // 113: finance.v1.CreateLookupMasterResponse.base:type_name -> common.v1.BaseResponse
 	110, // 114: finance.v1.CreateLookupMasterResponse.data:type_name -> finance.v1.LookupMaster
-	127, // 115: finance.v1.DeleteLookupMasterResponse.base:type_name -> common.v1.BaseResponse
-	127, // 116: finance.v1.CreateLookupMasterColumnResponse.base:type_name -> common.v1.BaseResponse
+	139, // 115: finance.v1.DeleteLookupMasterResponse.base:type_name -> common.v1.BaseResponse
+	139, // 116: finance.v1.CreateLookupMasterColumnResponse.base:type_name -> common.v1.BaseResponse
 	113, // 117: finance.v1.CreateLookupMasterColumnResponse.data:type_name -> finance.v1.LookupMasterColumn
-	127, // 118: finance.v1.DeleteLookupMasterColumnResponse.base:type_name -> common.v1.BaseResponse
-	2,   // 119: finance.v1.MachineService.CreateMachine:input_type -> finance.v1.CreateMachineRequest
-	4,   // 120: finance.v1.MachineService.GetMachine:input_type -> finance.v1.GetMachineRequest
-	10,  // 121: finance.v1.MachineService.ListMachines:input_type -> finance.v1.ListMachinesRequest
-	6,   // 122: finance.v1.MachineService.UpdateMachine:input_type -> finance.v1.UpdateMachineRequest
-	8,   // 123: finance.v1.MachineService.DeleteMachine:input_type -> finance.v1.DeleteMachineRequest
-	12,  // 124: finance.v1.MachineService.ExportMachines:input_type -> finance.v1.ExportMachinesRequest
-	14,  // 125: finance.v1.MachineService.ImportMachines:input_type -> finance.v1.ImportMachinesRequest
-	16,  // 126: finance.v1.MachineService.DownloadMachineTemplate:input_type -> finance.v1.DownloadMachineTemplateRequest
-	20,  // 127: finance.v1.BoxBobbinCostService.CreateBoxBobbinCost:input_type -> finance.v1.CreateBoxBobbinCostRequest
-	22,  // 128: finance.v1.BoxBobbinCostService.GetBoxBobbinCost:input_type -> finance.v1.GetBoxBobbinCostRequest
-	28,  // 129: finance.v1.BoxBobbinCostService.ListBoxBobbinCosts:input_type -> finance.v1.ListBoxBobbinCostsRequest
-	24,  // 130: finance.v1.BoxBobbinCostService.UpdateBoxBobbinCost:input_type -> finance.v1.UpdateBoxBobbinCostRequest
-	26,  // 131: finance.v1.BoxBobbinCostService.DeleteBoxBobbinCost:input_type -> finance.v1.DeleteBoxBobbinCostRequest
-	30,  // 132: finance.v1.BoxBobbinCostService.CreateBoxBobbinCostRate:input_type -> finance.v1.CreateBoxBobbinCostRateRequest
-	32,  // 133: finance.v1.BoxBobbinCostService.DeleteBoxBobbinCostRate:input_type -> finance.v1.DeleteBoxBobbinCostRateRequest
-	34,  // 134: finance.v1.BoxBobbinCostService.ExportBoxBobbinCosts:input_type -> finance.v1.ExportBoxBobbinCostsRequest
-	36,  // 135: finance.v1.BoxBobbinCostService.ImportBoxBobbinCosts:input_type -> finance.v1.ImportBoxBobbinCostsRequest
-	38,  // 136: finance.v1.BoxBobbinCostService.DownloadBoxBobbinCostTemplate:input_type -> finance.v1.DownloadBoxBobbinCostTemplateRequest
-	41,  // 137: finance.v1.InterminglingService.CreateIntermingling:input_type -> finance.v1.CreateInterminglingRequest
-	43,  // 138: finance.v1.InterminglingService.GetIntermingling:input_type -> finance.v1.GetInterminglingRequest
-	49,  // 139: finance.v1.InterminglingService.ListInterminglings:input_type -> finance.v1.ListInterminglingsRequest
-	45,  // 140: finance.v1.InterminglingService.UpdateIntermingling:input_type -> finance.v1.UpdateInterminglingRequest
-	47,  // 141: finance.v1.InterminglingService.DeleteIntermingling:input_type -> finance.v1.DeleteInterminglingRequest
-	51,  // 142: finance.v1.InterminglingService.ExportInterminglings:input_type -> finance.v1.ExportInterminglingsRequest
-	53,  // 143: finance.v1.InterminglingService.ImportInterminglings:input_type -> finance.v1.ImportInterminglingsRequest
-	55,  // 144: finance.v1.InterminglingService.DownloadInterminglingTemplate:input_type -> finance.v1.DownloadInterminglingTemplateRequest
-	58,  // 145: finance.v1.ProductGradeService.CreateProductGrade:input_type -> finance.v1.CreateProductGradeRequest
-	60,  // 146: finance.v1.ProductGradeService.GetProductGrade:input_type -> finance.v1.GetProductGradeRequest
-	66,  // 147: finance.v1.ProductGradeService.ListProductGrades:input_type -> finance.v1.ListProductGradesRequest
-	62,  // 148: finance.v1.ProductGradeService.UpdateProductGrade:input_type -> finance.v1.UpdateProductGradeRequest
-	64,  // 149: finance.v1.ProductGradeService.DeleteProductGrade:input_type -> finance.v1.DeleteProductGradeRequest
-	68,  // 150: finance.v1.ProductGradeService.ExportProductGrades:input_type -> finance.v1.ExportProductGradesRequest
-	70,  // 151: finance.v1.ProductGradeService.ImportProductGrades:input_type -> finance.v1.ImportProductGradesRequest
-	72,  // 152: finance.v1.ProductGradeService.DownloadProductGradeTemplate:input_type -> finance.v1.DownloadProductGradeTemplateRequest
-	75,  // 153: finance.v1.MBHeadService.CreateMBHead:input_type -> finance.v1.CreateMBHeadRequest
-	77,  // 154: finance.v1.MBHeadService.GetMBHead:input_type -> finance.v1.GetMBHeadRequest
-	83,  // 155: finance.v1.MBHeadService.ListMBHeads:input_type -> finance.v1.ListMBHeadsRequest
-	79,  // 156: finance.v1.MBHeadService.UpdateMBHead:input_type -> finance.v1.UpdateMBHeadRequest
-	81,  // 157: finance.v1.MBHeadService.DeleteMBHead:input_type -> finance.v1.DeleteMBHeadRequest
-	85,  // 158: finance.v1.MBHeadService.ExportMBHeads:input_type -> finance.v1.ExportMBHeadsRequest
-	87,  // 159: finance.v1.MBHeadService.ImportMBHeads:input_type -> finance.v1.ImportMBHeadsRequest
-	89,  // 160: finance.v1.MBHeadService.DownloadMBHeadTemplate:input_type -> finance.v1.DownloadMBHeadTemplateRequest
-	92,  // 161: finance.v1.MBSpinService.CreateMBSpin:input_type -> finance.v1.CreateMBSpinRequest
-	94,  // 162: finance.v1.MBSpinService.GetMBSpin:input_type -> finance.v1.GetMBSpinRequest
-	100, // 163: finance.v1.MBSpinService.ListMBSpins:input_type -> finance.v1.ListMBSpinsRequest
-	96,  // 164: finance.v1.MBSpinService.UpdateMBSpin:input_type -> finance.v1.UpdateMBSpinRequest
-	98,  // 165: finance.v1.MBSpinService.DeleteMBSpin:input_type -> finance.v1.DeleteMBSpinRequest
-	102, // 166: finance.v1.MBSpinService.ExportMBSpins:input_type -> finance.v1.ExportMBSpinsRequest
-	104, // 167: finance.v1.MBSpinService.ImportMBSpins:input_type -> finance.v1.ImportMBSpinsRequest
-	106, // 168: finance.v1.MBSpinService.DownloadMBSpinTemplate:input_type -> finance.v1.DownloadMBSpinTemplateRequest
-	111, // 169: finance.v1.LookupMasterService.ListLookupMasters:input_type -> finance.v1.ListLookupMastersRequest
-	114, // 170: finance.v1.LookupMasterService.ListLookupMasterColumns:input_type -> finance.v1.ListLookupMasterColumnsRequest
-	116, // 171: finance.v1.LookupMasterService.CreateLookupMaster:input_type -> finance.v1.CreateLookupMasterRequest
-	118, // 172: finance.v1.LookupMasterService.DeleteLookupMaster:input_type -> finance.v1.DeleteLookupMasterRequest
-	120, // 173: finance.v1.LookupMasterService.CreateLookupMasterColumn:input_type -> finance.v1.CreateLookupMasterColumnRequest
-	122, // 174: finance.v1.LookupMasterService.DeleteLookupMasterColumn:input_type -> finance.v1.DeleteLookupMasterColumnRequest
-	108, // 175: finance.v1.YarnLookupFillService.GetLookupFillValues:input_type -> finance.v1.GetLookupFillValuesRequest
-	3,   // 176: finance.v1.MachineService.CreateMachine:output_type -> finance.v1.CreateMachineResponse
-	5,   // 177: finance.v1.MachineService.GetMachine:output_type -> finance.v1.GetMachineResponse
-	11,  // 178: finance.v1.MachineService.ListMachines:output_type -> finance.v1.ListMachinesResponse
-	7,   // 179: finance.v1.MachineService.UpdateMachine:output_type -> finance.v1.UpdateMachineResponse
-	9,   // 180: finance.v1.MachineService.DeleteMachine:output_type -> finance.v1.DeleteMachineResponse
-	13,  // 181: finance.v1.MachineService.ExportMachines:output_type -> finance.v1.ExportMachinesResponse
-	15,  // 182: finance.v1.MachineService.ImportMachines:output_type -> finance.v1.ImportMachinesResponse
-	17,  // 183: finance.v1.MachineService.DownloadMachineTemplate:output_type -> finance.v1.DownloadMachineTemplateResponse
-	21,  // 184: finance.v1.BoxBobbinCostService.CreateBoxBobbinCost:output_type -> finance.v1.CreateBoxBobbinCostResponse
-	23,  // 185: finance.v1.BoxBobbinCostService.GetBoxBobbinCost:output_type -> finance.v1.GetBoxBobbinCostResponse
-	29,  // 186: finance.v1.BoxBobbinCostService.ListBoxBobbinCosts:output_type -> finance.v1.ListBoxBobbinCostsResponse
-	25,  // 187: finance.v1.BoxBobbinCostService.UpdateBoxBobbinCost:output_type -> finance.v1.UpdateBoxBobbinCostResponse
-	27,  // 188: finance.v1.BoxBobbinCostService.DeleteBoxBobbinCost:output_type -> finance.v1.DeleteBoxBobbinCostResponse
-	31,  // 189: finance.v1.BoxBobbinCostService.CreateBoxBobbinCostRate:output_type -> finance.v1.CreateBoxBobbinCostRateResponse
-	33,  // 190: finance.v1.BoxBobbinCostService.DeleteBoxBobbinCostRate:output_type -> finance.v1.DeleteBoxBobbinCostRateResponse
-	35,  // 191: finance.v1.BoxBobbinCostService.ExportBoxBobbinCosts:output_type -> finance.v1.ExportBoxBobbinCostsResponse
-	37,  // 192: finance.v1.BoxBobbinCostService.ImportBoxBobbinCosts:output_type -> finance.v1.ImportBoxBobbinCostsResponse
-	39,  // 193: finance.v1.BoxBobbinCostService.DownloadBoxBobbinCostTemplate:output_type -> finance.v1.DownloadBoxBobbinCostTemplateResponse
-	42,  // 194: finance.v1.InterminglingService.CreateIntermingling:output_type -> finance.v1.CreateInterminglingResponse
-	44,  // 195: finance.v1.InterminglingService.GetIntermingling:output_type -> finance.v1.GetInterminglingResponse
-	50,  // 196: finance.v1.InterminglingService.ListInterminglings:output_type -> finance.v1.ListInterminglingsResponse
-	46,  // 197: finance.v1.InterminglingService.UpdateIntermingling:output_type -> finance.v1.UpdateInterminglingResponse
-	48,  // 198: finance.v1.InterminglingService.DeleteIntermingling:output_type -> finance.v1.DeleteInterminglingResponse
-	52,  // 199: finance.v1.InterminglingService.ExportInterminglings:output_type -> finance.v1.ExportInterminglingsResponse
-	54,  // 200: finance.v1.InterminglingService.ImportInterminglings:output_type -> finance.v1.ImportInterminglingsResponse
-	56,  // 201: finance.v1.InterminglingService.DownloadInterminglingTemplate:output_type -> finance.v1.DownloadInterminglingTemplateResponse
-	59,  // 202: finance.v1.ProductGradeService.CreateProductGrade:output_type -> finance.v1.CreateProductGradeResponse
-	61,  // 203: finance.v1.ProductGradeService.GetProductGrade:output_type -> finance.v1.GetProductGradeResponse
-	67,  // 204: finance.v1.ProductGradeService.ListProductGrades:output_type -> finance.v1.ListProductGradesResponse
-	63,  // 205: finance.v1.ProductGradeService.UpdateProductGrade:output_type -> finance.v1.UpdateProductGradeResponse
-	65,  // 206: finance.v1.ProductGradeService.DeleteProductGrade:output_type -> finance.v1.DeleteProductGradeResponse
-	69,  // 207: finance.v1.ProductGradeService.ExportProductGrades:output_type -> finance.v1.ExportProductGradesResponse
-	71,  // 208: finance.v1.ProductGradeService.ImportProductGrades:output_type -> finance.v1.ImportProductGradesResponse
-	73,  // 209: finance.v1.ProductGradeService.DownloadProductGradeTemplate:output_type -> finance.v1.DownloadProductGradeTemplateResponse
-	76,  // 210: finance.v1.MBHeadService.CreateMBHead:output_type -> finance.v1.CreateMBHeadResponse
-	78,  // 211: finance.v1.MBHeadService.GetMBHead:output_type -> finance.v1.GetMBHeadResponse
-	84,  // 212: finance.v1.MBHeadService.ListMBHeads:output_type -> finance.v1.ListMBHeadsResponse
-	80,  // 213: finance.v1.MBHeadService.UpdateMBHead:output_type -> finance.v1.UpdateMBHeadResponse
-	82,  // 214: finance.v1.MBHeadService.DeleteMBHead:output_type -> finance.v1.DeleteMBHeadResponse
-	86,  // 215: finance.v1.MBHeadService.ExportMBHeads:output_type -> finance.v1.ExportMBHeadsResponse
-	88,  // 216: finance.v1.MBHeadService.ImportMBHeads:output_type -> finance.v1.ImportMBHeadsResponse
-	90,  // 217: finance.v1.MBHeadService.DownloadMBHeadTemplate:output_type -> finance.v1.DownloadMBHeadTemplateResponse
-	93,  // 218: finance.v1.MBSpinService.CreateMBSpin:output_type -> finance.v1.CreateMBSpinResponse
-	95,  // 219: finance.v1.MBSpinService.GetMBSpin:output_type -> finance.v1.GetMBSpinResponse
-	101, // 220: finance.v1.MBSpinService.ListMBSpins:output_type -> finance.v1.ListMBSpinsResponse
-	97,  // 221: finance.v1.MBSpinService.UpdateMBSpin:output_type -> finance.v1.UpdateMBSpinResponse
-	99,  // 222: finance.v1.MBSpinService.DeleteMBSpin:output_type -> finance.v1.DeleteMBSpinResponse
-	103, // 223: finance.v1.MBSpinService.ExportMBSpins:output_type -> finance.v1.ExportMBSpinsResponse
-	105, // 224: finance.v1.MBSpinService.ImportMBSpins:output_type -> finance.v1.ImportMBSpinsResponse
-	107, // 225: finance.v1.MBSpinService.DownloadMBSpinTemplate:output_type -> finance.v1.DownloadMBSpinTemplateResponse
-	112, // 226: finance.v1.LookupMasterService.ListLookupMasters:output_type -> finance.v1.ListLookupMastersResponse
-	115, // 227: finance.v1.LookupMasterService.ListLookupMasterColumns:output_type -> finance.v1.ListLookupMasterColumnsResponse
-	117, // 228: finance.v1.LookupMasterService.CreateLookupMaster:output_type -> finance.v1.CreateLookupMasterResponse
-	119, // 229: finance.v1.LookupMasterService.DeleteLookupMaster:output_type -> finance.v1.DeleteLookupMasterResponse
-	121, // 230: finance.v1.LookupMasterService.CreateLookupMasterColumn:output_type -> finance.v1.CreateLookupMasterColumnResponse
-	123, // 231: finance.v1.LookupMasterService.DeleteLookupMasterColumn:output_type -> finance.v1.DeleteLookupMasterColumnResponse
-	109, // 232: finance.v1.YarnLookupFillService.GetLookupFillValues:output_type -> finance.v1.GetLookupFillValuesResponse
-	176, // [176:233] is the sub-list for method output_type
-	119, // [119:176] is the sub-list for method input_type
-	119, // [119:119] is the sub-list for extension type_name
-	119, // [119:119] is the sub-list for extension extendee
-	0,   // [0:119] is the sub-list for field type_name
+	139, // 118: finance.v1.DeleteLookupMasterColumnResponse.base:type_name -> common.v1.BaseResponse
+	139, // 119: finance.v1.UpdateLookupMasterResponse.base:type_name -> common.v1.BaseResponse
+	110, // 120: finance.v1.UpdateLookupMasterResponse.data:type_name -> finance.v1.LookupMaster
+	139, // 121: finance.v1.ListTableColumnsResponse.base:type_name -> common.v1.BaseResponse
+	126, // 122: finance.v1.ListTableColumnsResponse.data:type_name -> finance.v1.TableColumn
+	139, // 123: finance.v1.ListMasterOptionsResponse.base:type_name -> common.v1.BaseResponse
+	129, // 124: finance.v1.ListMasterOptionsResponse.data:type_name -> finance.v1.MasterOption
+	139, // 125: finance.v1.ExportLookupMastersResponse.base:type_name -> common.v1.BaseResponse
+	139, // 126: finance.v1.ImportLookupMastersResponse.base:type_name -> common.v1.BaseResponse
+	2,   // 127: finance.v1.MachineService.CreateMachine:input_type -> finance.v1.CreateMachineRequest
+	4,   // 128: finance.v1.MachineService.GetMachine:input_type -> finance.v1.GetMachineRequest
+	10,  // 129: finance.v1.MachineService.ListMachines:input_type -> finance.v1.ListMachinesRequest
+	6,   // 130: finance.v1.MachineService.UpdateMachine:input_type -> finance.v1.UpdateMachineRequest
+	8,   // 131: finance.v1.MachineService.DeleteMachine:input_type -> finance.v1.DeleteMachineRequest
+	12,  // 132: finance.v1.MachineService.ExportMachines:input_type -> finance.v1.ExportMachinesRequest
+	14,  // 133: finance.v1.MachineService.ImportMachines:input_type -> finance.v1.ImportMachinesRequest
+	16,  // 134: finance.v1.MachineService.DownloadMachineTemplate:input_type -> finance.v1.DownloadMachineTemplateRequest
+	20,  // 135: finance.v1.BoxBobbinCostService.CreateBoxBobbinCost:input_type -> finance.v1.CreateBoxBobbinCostRequest
+	22,  // 136: finance.v1.BoxBobbinCostService.GetBoxBobbinCost:input_type -> finance.v1.GetBoxBobbinCostRequest
+	28,  // 137: finance.v1.BoxBobbinCostService.ListBoxBobbinCosts:input_type -> finance.v1.ListBoxBobbinCostsRequest
+	24,  // 138: finance.v1.BoxBobbinCostService.UpdateBoxBobbinCost:input_type -> finance.v1.UpdateBoxBobbinCostRequest
+	26,  // 139: finance.v1.BoxBobbinCostService.DeleteBoxBobbinCost:input_type -> finance.v1.DeleteBoxBobbinCostRequest
+	30,  // 140: finance.v1.BoxBobbinCostService.CreateBoxBobbinCostRate:input_type -> finance.v1.CreateBoxBobbinCostRateRequest
+	32,  // 141: finance.v1.BoxBobbinCostService.DeleteBoxBobbinCostRate:input_type -> finance.v1.DeleteBoxBobbinCostRateRequest
+	34,  // 142: finance.v1.BoxBobbinCostService.ExportBoxBobbinCosts:input_type -> finance.v1.ExportBoxBobbinCostsRequest
+	36,  // 143: finance.v1.BoxBobbinCostService.ImportBoxBobbinCosts:input_type -> finance.v1.ImportBoxBobbinCostsRequest
+	38,  // 144: finance.v1.BoxBobbinCostService.DownloadBoxBobbinCostTemplate:input_type -> finance.v1.DownloadBoxBobbinCostTemplateRequest
+	41,  // 145: finance.v1.InterminglingService.CreateIntermingling:input_type -> finance.v1.CreateInterminglingRequest
+	43,  // 146: finance.v1.InterminglingService.GetIntermingling:input_type -> finance.v1.GetInterminglingRequest
+	49,  // 147: finance.v1.InterminglingService.ListInterminglings:input_type -> finance.v1.ListInterminglingsRequest
+	45,  // 148: finance.v1.InterminglingService.UpdateIntermingling:input_type -> finance.v1.UpdateInterminglingRequest
+	47,  // 149: finance.v1.InterminglingService.DeleteIntermingling:input_type -> finance.v1.DeleteInterminglingRequest
+	51,  // 150: finance.v1.InterminglingService.ExportInterminglings:input_type -> finance.v1.ExportInterminglingsRequest
+	53,  // 151: finance.v1.InterminglingService.ImportInterminglings:input_type -> finance.v1.ImportInterminglingsRequest
+	55,  // 152: finance.v1.InterminglingService.DownloadInterminglingTemplate:input_type -> finance.v1.DownloadInterminglingTemplateRequest
+	58,  // 153: finance.v1.ProductGradeService.CreateProductGrade:input_type -> finance.v1.CreateProductGradeRequest
+	60,  // 154: finance.v1.ProductGradeService.GetProductGrade:input_type -> finance.v1.GetProductGradeRequest
+	66,  // 155: finance.v1.ProductGradeService.ListProductGrades:input_type -> finance.v1.ListProductGradesRequest
+	62,  // 156: finance.v1.ProductGradeService.UpdateProductGrade:input_type -> finance.v1.UpdateProductGradeRequest
+	64,  // 157: finance.v1.ProductGradeService.DeleteProductGrade:input_type -> finance.v1.DeleteProductGradeRequest
+	68,  // 158: finance.v1.ProductGradeService.ExportProductGrades:input_type -> finance.v1.ExportProductGradesRequest
+	70,  // 159: finance.v1.ProductGradeService.ImportProductGrades:input_type -> finance.v1.ImportProductGradesRequest
+	72,  // 160: finance.v1.ProductGradeService.DownloadProductGradeTemplate:input_type -> finance.v1.DownloadProductGradeTemplateRequest
+	75,  // 161: finance.v1.MBHeadService.CreateMBHead:input_type -> finance.v1.CreateMBHeadRequest
+	77,  // 162: finance.v1.MBHeadService.GetMBHead:input_type -> finance.v1.GetMBHeadRequest
+	83,  // 163: finance.v1.MBHeadService.ListMBHeads:input_type -> finance.v1.ListMBHeadsRequest
+	79,  // 164: finance.v1.MBHeadService.UpdateMBHead:input_type -> finance.v1.UpdateMBHeadRequest
+	81,  // 165: finance.v1.MBHeadService.DeleteMBHead:input_type -> finance.v1.DeleteMBHeadRequest
+	85,  // 166: finance.v1.MBHeadService.ExportMBHeads:input_type -> finance.v1.ExportMBHeadsRequest
+	87,  // 167: finance.v1.MBHeadService.ImportMBHeads:input_type -> finance.v1.ImportMBHeadsRequest
+	89,  // 168: finance.v1.MBHeadService.DownloadMBHeadTemplate:input_type -> finance.v1.DownloadMBHeadTemplateRequest
+	92,  // 169: finance.v1.MBSpinService.CreateMBSpin:input_type -> finance.v1.CreateMBSpinRequest
+	94,  // 170: finance.v1.MBSpinService.GetMBSpin:input_type -> finance.v1.GetMBSpinRequest
+	100, // 171: finance.v1.MBSpinService.ListMBSpins:input_type -> finance.v1.ListMBSpinsRequest
+	96,  // 172: finance.v1.MBSpinService.UpdateMBSpin:input_type -> finance.v1.UpdateMBSpinRequest
+	98,  // 173: finance.v1.MBSpinService.DeleteMBSpin:input_type -> finance.v1.DeleteMBSpinRequest
+	102, // 174: finance.v1.MBSpinService.ExportMBSpins:input_type -> finance.v1.ExportMBSpinsRequest
+	104, // 175: finance.v1.MBSpinService.ImportMBSpins:input_type -> finance.v1.ImportMBSpinsRequest
+	106, // 176: finance.v1.MBSpinService.DownloadMBSpinTemplate:input_type -> finance.v1.DownloadMBSpinTemplateRequest
+	111, // 177: finance.v1.LookupMasterService.ListLookupMasters:input_type -> finance.v1.ListLookupMastersRequest
+	114, // 178: finance.v1.LookupMasterService.ListLookupMasterColumns:input_type -> finance.v1.ListLookupMasterColumnsRequest
+	116, // 179: finance.v1.LookupMasterService.CreateLookupMaster:input_type -> finance.v1.CreateLookupMasterRequest
+	118, // 180: finance.v1.LookupMasterService.DeleteLookupMaster:input_type -> finance.v1.DeleteLookupMasterRequest
+	120, // 181: finance.v1.LookupMasterService.CreateLookupMasterColumn:input_type -> finance.v1.CreateLookupMasterColumnRequest
+	122, // 182: finance.v1.LookupMasterService.DeleteLookupMasterColumn:input_type -> finance.v1.DeleteLookupMasterColumnRequest
+	124, // 183: finance.v1.LookupMasterService.UpdateLookupMaster:input_type -> finance.v1.UpdateLookupMasterRequest
+	127, // 184: finance.v1.LookupMasterService.ListTableColumns:input_type -> finance.v1.ListTableColumnsRequest
+	130, // 185: finance.v1.LookupMasterService.ListMasterOptions:input_type -> finance.v1.ListMasterOptionsRequest
+	132, // 186: finance.v1.LookupMasterService.ExportLookupMasters:input_type -> finance.v1.ExportLookupMastersRequest
+	134, // 187: finance.v1.LookupMasterService.ImportLookupMasters:input_type -> finance.v1.ImportLookupMastersRequest
+	108, // 188: finance.v1.YarnLookupFillService.GetLookupFillValues:input_type -> finance.v1.GetLookupFillValuesRequest
+	3,   // 189: finance.v1.MachineService.CreateMachine:output_type -> finance.v1.CreateMachineResponse
+	5,   // 190: finance.v1.MachineService.GetMachine:output_type -> finance.v1.GetMachineResponse
+	11,  // 191: finance.v1.MachineService.ListMachines:output_type -> finance.v1.ListMachinesResponse
+	7,   // 192: finance.v1.MachineService.UpdateMachine:output_type -> finance.v1.UpdateMachineResponse
+	9,   // 193: finance.v1.MachineService.DeleteMachine:output_type -> finance.v1.DeleteMachineResponse
+	13,  // 194: finance.v1.MachineService.ExportMachines:output_type -> finance.v1.ExportMachinesResponse
+	15,  // 195: finance.v1.MachineService.ImportMachines:output_type -> finance.v1.ImportMachinesResponse
+	17,  // 196: finance.v1.MachineService.DownloadMachineTemplate:output_type -> finance.v1.DownloadMachineTemplateResponse
+	21,  // 197: finance.v1.BoxBobbinCostService.CreateBoxBobbinCost:output_type -> finance.v1.CreateBoxBobbinCostResponse
+	23,  // 198: finance.v1.BoxBobbinCostService.GetBoxBobbinCost:output_type -> finance.v1.GetBoxBobbinCostResponse
+	29,  // 199: finance.v1.BoxBobbinCostService.ListBoxBobbinCosts:output_type -> finance.v1.ListBoxBobbinCostsResponse
+	25,  // 200: finance.v1.BoxBobbinCostService.UpdateBoxBobbinCost:output_type -> finance.v1.UpdateBoxBobbinCostResponse
+	27,  // 201: finance.v1.BoxBobbinCostService.DeleteBoxBobbinCost:output_type -> finance.v1.DeleteBoxBobbinCostResponse
+	31,  // 202: finance.v1.BoxBobbinCostService.CreateBoxBobbinCostRate:output_type -> finance.v1.CreateBoxBobbinCostRateResponse
+	33,  // 203: finance.v1.BoxBobbinCostService.DeleteBoxBobbinCostRate:output_type -> finance.v1.DeleteBoxBobbinCostRateResponse
+	35,  // 204: finance.v1.BoxBobbinCostService.ExportBoxBobbinCosts:output_type -> finance.v1.ExportBoxBobbinCostsResponse
+	37,  // 205: finance.v1.BoxBobbinCostService.ImportBoxBobbinCosts:output_type -> finance.v1.ImportBoxBobbinCostsResponse
+	39,  // 206: finance.v1.BoxBobbinCostService.DownloadBoxBobbinCostTemplate:output_type -> finance.v1.DownloadBoxBobbinCostTemplateResponse
+	42,  // 207: finance.v1.InterminglingService.CreateIntermingling:output_type -> finance.v1.CreateInterminglingResponse
+	44,  // 208: finance.v1.InterminglingService.GetIntermingling:output_type -> finance.v1.GetInterminglingResponse
+	50,  // 209: finance.v1.InterminglingService.ListInterminglings:output_type -> finance.v1.ListInterminglingsResponse
+	46,  // 210: finance.v1.InterminglingService.UpdateIntermingling:output_type -> finance.v1.UpdateInterminglingResponse
+	48,  // 211: finance.v1.InterminglingService.DeleteIntermingling:output_type -> finance.v1.DeleteInterminglingResponse
+	52,  // 212: finance.v1.InterminglingService.ExportInterminglings:output_type -> finance.v1.ExportInterminglingsResponse
+	54,  // 213: finance.v1.InterminglingService.ImportInterminglings:output_type -> finance.v1.ImportInterminglingsResponse
+	56,  // 214: finance.v1.InterminglingService.DownloadInterminglingTemplate:output_type -> finance.v1.DownloadInterminglingTemplateResponse
+	59,  // 215: finance.v1.ProductGradeService.CreateProductGrade:output_type -> finance.v1.CreateProductGradeResponse
+	61,  // 216: finance.v1.ProductGradeService.GetProductGrade:output_type -> finance.v1.GetProductGradeResponse
+	67,  // 217: finance.v1.ProductGradeService.ListProductGrades:output_type -> finance.v1.ListProductGradesResponse
+	63,  // 218: finance.v1.ProductGradeService.UpdateProductGrade:output_type -> finance.v1.UpdateProductGradeResponse
+	65,  // 219: finance.v1.ProductGradeService.DeleteProductGrade:output_type -> finance.v1.DeleteProductGradeResponse
+	69,  // 220: finance.v1.ProductGradeService.ExportProductGrades:output_type -> finance.v1.ExportProductGradesResponse
+	71,  // 221: finance.v1.ProductGradeService.ImportProductGrades:output_type -> finance.v1.ImportProductGradesResponse
+	73,  // 222: finance.v1.ProductGradeService.DownloadProductGradeTemplate:output_type -> finance.v1.DownloadProductGradeTemplateResponse
+	76,  // 223: finance.v1.MBHeadService.CreateMBHead:output_type -> finance.v1.CreateMBHeadResponse
+	78,  // 224: finance.v1.MBHeadService.GetMBHead:output_type -> finance.v1.GetMBHeadResponse
+	84,  // 225: finance.v1.MBHeadService.ListMBHeads:output_type -> finance.v1.ListMBHeadsResponse
+	80,  // 226: finance.v1.MBHeadService.UpdateMBHead:output_type -> finance.v1.UpdateMBHeadResponse
+	82,  // 227: finance.v1.MBHeadService.DeleteMBHead:output_type -> finance.v1.DeleteMBHeadResponse
+	86,  // 228: finance.v1.MBHeadService.ExportMBHeads:output_type -> finance.v1.ExportMBHeadsResponse
+	88,  // 229: finance.v1.MBHeadService.ImportMBHeads:output_type -> finance.v1.ImportMBHeadsResponse
+	90,  // 230: finance.v1.MBHeadService.DownloadMBHeadTemplate:output_type -> finance.v1.DownloadMBHeadTemplateResponse
+	93,  // 231: finance.v1.MBSpinService.CreateMBSpin:output_type -> finance.v1.CreateMBSpinResponse
+	95,  // 232: finance.v1.MBSpinService.GetMBSpin:output_type -> finance.v1.GetMBSpinResponse
+	101, // 233: finance.v1.MBSpinService.ListMBSpins:output_type -> finance.v1.ListMBSpinsResponse
+	97,  // 234: finance.v1.MBSpinService.UpdateMBSpin:output_type -> finance.v1.UpdateMBSpinResponse
+	99,  // 235: finance.v1.MBSpinService.DeleteMBSpin:output_type -> finance.v1.DeleteMBSpinResponse
+	103, // 236: finance.v1.MBSpinService.ExportMBSpins:output_type -> finance.v1.ExportMBSpinsResponse
+	105, // 237: finance.v1.MBSpinService.ImportMBSpins:output_type -> finance.v1.ImportMBSpinsResponse
+	107, // 238: finance.v1.MBSpinService.DownloadMBSpinTemplate:output_type -> finance.v1.DownloadMBSpinTemplateResponse
+	112, // 239: finance.v1.LookupMasterService.ListLookupMasters:output_type -> finance.v1.ListLookupMastersResponse
+	115, // 240: finance.v1.LookupMasterService.ListLookupMasterColumns:output_type -> finance.v1.ListLookupMasterColumnsResponse
+	117, // 241: finance.v1.LookupMasterService.CreateLookupMaster:output_type -> finance.v1.CreateLookupMasterResponse
+	119, // 242: finance.v1.LookupMasterService.DeleteLookupMaster:output_type -> finance.v1.DeleteLookupMasterResponse
+	121, // 243: finance.v1.LookupMasterService.CreateLookupMasterColumn:output_type -> finance.v1.CreateLookupMasterColumnResponse
+	123, // 244: finance.v1.LookupMasterService.DeleteLookupMasterColumn:output_type -> finance.v1.DeleteLookupMasterColumnResponse
+	125, // 245: finance.v1.LookupMasterService.UpdateLookupMaster:output_type -> finance.v1.UpdateLookupMasterResponse
+	128, // 246: finance.v1.LookupMasterService.ListTableColumns:output_type -> finance.v1.ListTableColumnsResponse
+	131, // 247: finance.v1.LookupMasterService.ListMasterOptions:output_type -> finance.v1.ListMasterOptionsResponse
+	133, // 248: finance.v1.LookupMasterService.ExportLookupMasters:output_type -> finance.v1.ExportLookupMastersResponse
+	135, // 249: finance.v1.LookupMasterService.ImportLookupMasters:output_type -> finance.v1.ImportLookupMastersResponse
+	109, // 250: finance.v1.YarnLookupFillService.GetLookupFillValues:output_type -> finance.v1.GetLookupFillValuesResponse
+	189, // [189:251] is the sub-list for method output_type
+	127, // [127:189] is the sub-list for method input_type
+	127, // [127:127] is the sub-list for extension type_name
+	127, // [127:127] is the sub-list for extension extendee
+	0,   // [0:127] is the sub-list for field type_name
 }
 
 func init() { file_finance_v1_yarn_master_proto_init() }
@@ -9493,13 +10272,15 @@ func file_finance_v1_yarn_master_proto_init() {
 	file_finance_v1_yarn_master_proto_msgTypes[90].OneofWrappers = []any{}
 	file_finance_v1_yarn_master_proto_msgTypes[91].OneofWrappers = []any{}
 	file_finance_v1_yarn_master_proto_msgTypes[95].OneofWrappers = []any{}
+	file_finance_v1_yarn_master_proto_msgTypes[115].OneofWrappers = []any{}
+	file_finance_v1_yarn_master_proto_msgTypes[123].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_finance_v1_yarn_master_proto_rawDesc), len(file_finance_v1_yarn_master_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   125,
+			NumMessages:   137,
 			NumExtensions: 0,
 			NumServices:   8,
 		},

@@ -867,6 +867,70 @@
         ]
       }
     },
+    "/api/v1/finance/lookup-master-options": {
+      "get": {
+        "summary": "ListMasterOptions returns combobox options (value+label) by querying the registered table.",
+        "operationId": "LookupMasterService_ListMasterOptions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListMasterOptionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "masterCode",
+            "description": "lookup_master_code (e.g., \"MACHINE\") — used to resolve table_name + code/label fields.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "LookupMasterService"
+        ]
+      }
+    },
+    "/api/v1/finance/lookup-master-table-columns": {
+      "get": {
+        "summary": "ListTableColumns introspects a registered PostgreSQL table's columns via information_schema.",
+        "operationId": "LookupMasterService_ListTableColumns",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListTableColumnsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "tableName",
+            "description": "Table name — must match an lm_table_name value in mst_lookup_master for safety.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "LookupMasterService"
+        ]
+      }
+    },
     "/api/v1/finance/lookup-masters": {
       "get": {
         "summary": "ListLookupMasters returns all registered lookup masters.",
@@ -930,6 +994,63 @@
         ]
       }
     },
+    "/api/v1/finance/lookup-masters/export": {
+      "get": {
+        "summary": "ExportLookupMasters exports all masters and columns to an Excel workbook.",
+        "operationId": "LookupMasterService_ExportLookupMasters",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ExportLookupMastersResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "LookupMasterService"
+        ]
+      }
+    },
+    "/api/v1/finance/lookup-masters/import": {
+      "post": {
+        "summary": "ImportLookupMasters imports masters and columns from an Excel workbook.",
+        "operationId": "LookupMasterService_ImportLookupMasters",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ImportLookupMastersResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "ImportLookupMastersRequest carries an Excel workbook to import registry entries.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ImportLookupMastersRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LookupMasterService"
+        ]
+      }
+    },
     "/api/v1/finance/lookup-masters/{lmCode}": {
       "delete": {
         "summary": "DeleteLookupMaster removes a master from the registry.",
@@ -954,6 +1075,43 @@
             "in": "path",
             "required": true,
             "type": "string"
+          }
+        ],
+        "tags": [
+          "LookupMasterService"
+        ]
+      },
+      "put": {
+        "summary": "UpdateLookupMaster updates display_name, table_name, and/or is_active of an existing master.",
+        "operationId": "LookupMasterService_UpdateLookupMaster",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateLookupMasterResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "lmCode",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/LookupMasterServiceUpdateLookupMasterBody"
+            }
           }
         ],
         "tags": [
@@ -2301,6 +2459,21 @@
       },
       "description": "UpdateInterminglingRequest is the request for updating an intermingling record."
     },
+    "LookupMasterServiceUpdateLookupMasterBody": {
+      "type": "object",
+      "properties": {
+        "lmDisplayName": {
+          "type": "string"
+        },
+        "lmTableName": {
+          "type": "string"
+        },
+        "lmIsActive": {
+          "type": "boolean"
+        }
+      },
+      "description": "UpdateLookupMasterRequest updates mutable fields of an existing lookup master."
+    },
     "MBHeadServiceUpdateMBHeadBody": {
       "type": "object",
       "properties": {
@@ -2830,6 +3003,10 @@
         },
         "lmLabelField": {
           "type": "string"
+        },
+        "lmTableName": {
+          "type": "string",
+          "description": "PostgreSQL table name for DB introspection (optional, max 63 chars)."
         }
       },
       "description": "CreateLookupMasterRequest is the request for adding a new master to the registry."
@@ -3268,6 +3445,22 @@
       },
       "description": "ExportInterminglingsResponse is the response for exporting intermingling records."
     },
+    "v1ExportLookupMastersResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte"
+        },
+        "fileName": {
+          "type": "string"
+        }
+      },
+      "description": "ExportLookupMastersResponse carries the Excel workbook bytes."
+    },
     "v1ExportMBHeadsResponse": {
       "type": "object",
       "properties": {
@@ -3578,6 +3771,46 @@
         }
       },
       "description": "ImportInterminglingsResponse is the response for importing intermingling records."
+    },
+    "v1ImportLookupMastersRequest": {
+      "type": "object",
+      "properties": {
+        "fileContent": {
+          "type": "string",
+          "format": "byte"
+        },
+        "fileName": {
+          "type": "string"
+        }
+      },
+      "description": "ImportLookupMastersRequest carries an Excel workbook to import registry entries."
+    },
+    "v1ImportLookupMastersResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "successCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "skippedCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "failedCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "ImportLookupMastersResponse summarizes the import result."
     },
     "v1ImportMBHeadsRequest": {
       "type": "object",
@@ -3945,6 +4178,22 @@
       },
       "description": "ListMachinesResponse is the response for listing machines."
     },
+    "v1ListMasterOptionsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MasterOption"
+          }
+        }
+      },
+      "description": "ListMasterOptionsResponse is the response for ListMasterOptions."
+    },
     "v1ListProductGradesResponse": {
       "type": "object",
       "properties": {
@@ -3967,6 +4216,22 @@
       },
       "description": "ListProductGradesResponse is the response for listing Product Grades."
     },
+    "v1ListTableColumnsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1TableColumn"
+          }
+        }
+      },
+      "description": "ListTableColumnsResponse is the response for ListTableColumns."
+    },
     "v1LookupMaster": {
       "type": "object",
       "properties": {
@@ -3987,6 +4252,10 @@
         },
         "lmIsActive": {
           "type": "boolean"
+        },
+        "lmTableName": {
+          "type": "string",
+          "description": "PostgreSQL table name for DB introspection (e.g., \"mst_machine\")."
         }
       },
       "description": "LookupMaster describes a named master table available for MASTER_LOOKUP param dropdowns."
@@ -4179,6 +4448,20 @@
       },
       "description": "Machine represents a yarn machine master record."
     },
+    "v1MasterOption": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string",
+          "description": "The \"code\" field value stored as the param's text value."
+        },
+        "label": {
+          "type": "string",
+          "description": "The \"label\" field value displayed to the user."
+        }
+      },
+      "description": "MasterOption is one combobox entry (code + label) for the MasterLookupField dropdown."
+    },
     "v1PaginationResponse": {
       "type": "object",
       "properties": {
@@ -4254,6 +4537,29 @@
       },
       "description": "ProductGrade represents a quality-loss configuration preset."
     },
+    "v1TableColumn": {
+      "type": "object",
+      "properties": {
+        "columnName": {
+          "type": "string",
+          "description": "PostgreSQL column name (e.g., \"mc_speed\")."
+        },
+        "dataType": {
+          "type": "string",
+          "description": "Mapped type: \"NUMBER\" or \"TEXT\"."
+        },
+        "rawType": {
+          "type": "string",
+          "description": "Original PostgreSQL type (e.g., \"numeric\", \"character varying\")."
+        },
+        "ordinalPosition": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Position in the table (from information_schema)."
+        }
+      },
+      "description": "TableColumn is one column from information_schema introspection."
+    },
     "v1UpdateBoxBobbinCostResponse": {
       "type": "object",
       "properties": {
@@ -4281,6 +4587,18 @@
         }
       },
       "description": "UpdateInterminglingResponse is the response for updating an intermingling record."
+    },
+    "v1UpdateLookupMasterResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1LookupMaster"
+        }
+      },
+      "description": "UpdateLookupMasterResponse is the response for UpdateLookupMaster."
     },
     "v1UpdateMBHeadResponse": {
       "type": "object",
