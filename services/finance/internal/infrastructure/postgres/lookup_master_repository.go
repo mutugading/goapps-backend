@@ -302,13 +302,13 @@ func (r *LookupMasterRepository) writeMastersSheet(f *excelize.File, masters []*
 	if err := f.SetSheetName("Sheet1", sheet); err != nil {
 		return fmt.Errorf("rename sheet: %w", err)
 	}
-	for i, h := range []string{"Code", "Display Name", "Table Name", "Is Active"} {
+	for i, h := range []string{"Code", "Display Name", "Table Name", "Code Field", "Label Field", "Is Active"} {
 		if err := excelSetCell(f, sheet, i+1, 1, h); err != nil {
 			return err
 		}
 	}
 	for row, m := range masters {
-		for col, v := range []interface{}{m.Code, m.DisplayName, m.TableName, m.IsActive} {
+		for col, v := range []interface{}{m.Code, m.DisplayName, m.TableName, m.CodeField, m.LabelField, m.IsActive} {
 			if err := excelSetCell(f, sheet, col+1, row+2, v); err != nil {
 				return err
 			}
@@ -364,26 +364,52 @@ func (r *LookupMasterRepository) ImportMasters(ctx context.Context, content []by
 	if err != nil {
 		return 0, 0, 0, nil, fmt.Errorf("open excel: %w", err)
 	}
+	defer func() { _ = f.Close() }()
 	rows, err := f.GetRows("Lookup Masters")
 	if err != nil {
 		return 0, 0, 0, nil, fmt.Errorf("read Lookup Masters sheet: %w", err)
 	}
 	for i, row := range rows[1:] { // skip header
 		if len(row) < 3 {
+			if len(row) == 0 || row[0] == "" {
+				skipped++
+				continue
+			}
 			errs = append(errs, fmt.Sprintf("row %d: insufficient columns", i+2))
 			failed++
 			continue
 		}
-		code, displayName, tableName := row[0], row[1], row[2]
+		code := ""
+		displayName := ""
+		tableName := ""
+		codeField := ""
+		labelField := ""
+		if len(row) > 0 {
+			code = row[0]
+		}
+		if len(row) > 1 {
+			displayName = row[1]
+		}
+		if len(row) > 2 {
+			tableName = row[2]
+		}
+		if len(row) > 3 {
+			codeField = row[3]
+		}
+		if len(row) > 4 {
+			labelField = row[4]
+		}
 		if code == "" {
 			skipped++
 			continue
 		}
 		if insertErr := r.CreateMaster(ctx, &lookupmaster.LookupMaster{
-			Code:        code,
+			Code:       code,
 			DisplayName: displayName,
-			TableName:   tableName,
-			IsActive:    true,
+			TableName:  tableName,
+			CodeField:  codeField,
+			LabelField: labelField,
+			IsActive:   true,
 		}, "import"); insertErr != nil {
 			errs = append(errs, fmt.Sprintf("row %d (%s): %v", i+2, code, insertErr))
 			failed++
