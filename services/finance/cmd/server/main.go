@@ -337,6 +337,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 
 	// Wire async import support (storage + job repo + publisher) into CPM handler.
 	costProductMasterHandler.WithImportSupport(costImportJobRepo, storageSvc, rmqAdapter)
+	costProductMasterHandler.WithAuditSupport(costAuditLogRepo)
 
 	// Build CostDataImportHandler (CAPP/CPP async import + export/template for CAPP/CPP/CPM).
 	cappExportH := cappapp.NewExportHandler(costProductParameterRepo)
@@ -418,7 +419,8 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 
 	costProductParameterApp := cppapp.New(costProductParameterRepo)
 	costProductParameterHandler := grpcdelivery.NewCostProductParameterHandler(costProductParameterApp).
-		WithParamRepo(parameterRepo)
+		WithParamRepo(parameterRepo).
+		WithAuditSupport(costAuditLogRepo)
 
 	// Fill-assignment repositories + handlers.
 	fillConfigRepo := postgres.NewCostFillConfigRepository(db)
