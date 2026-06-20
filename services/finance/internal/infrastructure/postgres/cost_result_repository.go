@@ -173,10 +173,14 @@ func (r *CostResultRepository) GetByID(ctx context.Context, id int64) (*costcalc
 	return res, nil
 }
 
-// ListHistory returns paginated history for a product/calcType.
+// ListHistory returns paginated history for a product, optionally filtered by calcType.
 func (r *CostResultRepository) ListHistory(ctx context.Context, productSysID int64, calcType costcalc.CalculationType, page, pageSize int) ([]*costcalc.Result, int, error) {
-	where := []string{"cpc_product_sys_id = $1", "cpc_calculation_type = $2"}
-	args := []any{productSysID, string(calcType)}
+	where := []string{"cpc_product_sys_id = $1"}
+	args := []any{productSysID}
+	if calcType != "" {
+		args = append(args, string(calcType))
+		where = append(where, fmt.Sprintf("cpc_calculation_type = $%d", len(args)))
+	}
 	whereSQL := " WHERE " + strings.Join(where, " AND ")
 
 	var total int
@@ -227,18 +231,21 @@ func (r *CostResultRepository) ListResults(
 	ctx context.Context, f costcalc.ResultListFilter,
 ) ([]*costcalc.ResultSummary, int, string, error) {
 	period := f.Period
+	// yearFilter is set when no exact period is given — we show all periods in the current year.
+	yearFilter := ""
 	if period == "" {
-		if err := r.db.QueryRowContext(ctx,
-			`SELECT COALESCE(MAX(cpc_period), '') FROM cst_product_cost`).Scan(&period); err != nil {
-			return nil, 0, "", fmt.Errorf("resolve latest period: %w", err)
-		}
-	}
-	if period == "" {
-		return []*costcalc.ResultSummary{}, 0, "", nil
+		yearFilter = fmt.Sprintf("%d", currentYear())
 	}
 
-	where := []string{"cpc.cpc_period = $1"}
-	args := []any{period}
+	where := []string{}
+	args := []any{}
+	if period != "" {
+		where = append(where, fmt.Sprintf("cpc.cpc_period = $%d", len(args)+1))
+		args = append(args, period)
+	} else {
+		where = append(where, fmt.Sprintf("LEFT(cpc.cpc_period, 4) = $%d", len(args)+1))
+		args = append(args, yearFilter)
+	}
 	if f.Status != "" {
 		args = append(args, f.Status)
 		where = append(where, fmt.Sprintf("cpc.cpc_status = $%d", len(args)))
@@ -311,7 +318,16 @@ func (r *CostResultRepository) ListResults(
 	if err := rows.Err(); err != nil {
 		return nil, 0, "", fmt.Errorf("iterate cost results: %w", err)
 	}
-	return out, total, period, nil
+	resolvedPeriod := period
+	if resolvedPeriod == "" {
+		resolvedPeriod = yearFilter
+	}
+	return out, total, resolvedPeriod, nil
+}
+
+// currentYear returns the 4-digit current calendar year.
+func currentYear() int {
+	return time.Now().UTC().Year()
 }
 
 // MarkVerified transitions a CALCULATED row to VERIFIED.
