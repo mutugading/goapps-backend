@@ -74,7 +74,7 @@
           },
           {
             "name": "paramCategory",
-            "description": "Filter by category.\nPARAM_CATEGORY_UNSPECIFIED (0) means \"show all categories\" (no filter).\n\n - PARAM_CATEGORY_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - PARAM_CATEGORY_INPUT: Input parameter - manually entered values.\n - PARAM_CATEGORY_RATE: Rate parameter - rate/ratio values.\n - PARAM_CATEGORY_CALCULATED: Calculated parameter - computed from other parameters.",
+            "description": "Filter by category.\nPARAM_CATEGORY_UNSPECIFIED (0) means \"show all categories\" (no filter).\n\n - PARAM_CATEGORY_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - PARAM_CATEGORY_INPUT: Input parameter - manually entered values.\n - PARAM_CATEGORY_RATE: Rate parameter - rate/ratio values.\n - PARAM_CATEGORY_CALCULATED: Calculated parameter - computed from other parameters.\n - PARAM_CATEGORY_MASTER_LOOKUP: PARAM_CATEGORY_MASTER_LOOKUP: selector from a master table; triggers auto-fill of child params.",
             "in": "query",
             "required": false,
             "type": "string",
@@ -82,7 +82,8 @@
               "PARAM_CATEGORY_UNSPECIFIED",
               "PARAM_CATEGORY_INPUT",
               "PARAM_CATEGORY_RATE",
-              "PARAM_CATEGORY_CALCULATED"
+              "PARAM_CATEGORY_CALCULATED",
+              "PARAM_CATEGORY_MASTER_LOOKUP"
             ],
             "default": "PARAM_CATEGORY_UNSPECIFIED"
           },
@@ -109,6 +110,13 @@
           {
             "name": "sortOrder",
             "description": "Sort order: \"asc\", \"desc\" (default: \"asc\").",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "lookupFillGroupCodeFilter",
+            "description": "Filter by lookup_fill_group_code. Empty string = no filter.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -186,7 +194,7 @@
           },
           {
             "name": "paramCategory",
-            "description": "Filter by category.\n\n - PARAM_CATEGORY_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - PARAM_CATEGORY_INPUT: Input parameter - manually entered values.\n - PARAM_CATEGORY_RATE: Rate parameter - rate/ratio values.\n - PARAM_CATEGORY_CALCULATED: Calculated parameter - computed from other parameters.",
+            "description": "Filter by category.\n\n - PARAM_CATEGORY_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - PARAM_CATEGORY_INPUT: Input parameter - manually entered values.\n - PARAM_CATEGORY_RATE: Rate parameter - rate/ratio values.\n - PARAM_CATEGORY_CALCULATED: Calculated parameter - computed from other parameters.\n - PARAM_CATEGORY_MASTER_LOOKUP: PARAM_CATEGORY_MASTER_LOOKUP: selector from a master table; triggers auto-fill of child params.",
             "in": "query",
             "required": false,
             "type": "string",
@@ -194,7 +202,8 @@
               "PARAM_CATEGORY_UNSPECIFIED",
               "PARAM_CATEGORY_INPUT",
               "PARAM_CATEGORY_RATE",
-              "PARAM_CATEGORY_CALCULATED"
+              "PARAM_CATEGORY_CALCULATED",
+              "PARAM_CATEGORY_MASTER_LOOKUP"
             ],
             "default": "PARAM_CATEGORY_UNSPECIFIED"
           },
@@ -439,6 +448,18 @@
         "displayGroup": {
           "type": "string",
           "description": "New display group (optional). Set to empty string to clear."
+        },
+        "notes": {
+          "type": "string",
+          "description": "New notes (optional). Set to empty string to clear."
+        },
+        "lookupFillGroupCode": {
+          "type": "string",
+          "description": "New fill group code (optional). Set to empty string to clear."
+        },
+        "lookupSourceColumn": {
+          "type": "string",
+          "description": "New source column (optional). Set to empty string to clear."
         }
       },
       "description": "UpdateParameterRequest is the request for updating a parameter.\nNote: param_code is immutable and cannot be changed after creation."
@@ -592,6 +613,18 @@
         "displayGroup": {
           "type": "string",
           "description": "Display group (optional, max 50 chars). E.g. 'Spec', 'Machine'."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Descriptive notes or formula hint (optional, max 500 chars)."
+        },
+        "lookupFillGroupCode": {
+          "type": "string",
+          "description": "Fill group: param_code of the parent MASTER_LOOKUP param (optional, max 20 chars)."
+        },
+        "lookupSourceColumn": {
+          "type": "string",
+          "description": "Source column in the master table (optional, max 50 chars)."
         }
       },
       "description": "CreateParameterRequest is the request for creating a new parameter."
@@ -813,10 +846,11 @@
         "PARAM_CATEGORY_UNSPECIFIED",
         "PARAM_CATEGORY_INPUT",
         "PARAM_CATEGORY_RATE",
-        "PARAM_CATEGORY_CALCULATED"
+        "PARAM_CATEGORY_CALCULATED",
+        "PARAM_CATEGORY_MASTER_LOOKUP"
       ],
       "default": "PARAM_CATEGORY_UNSPECIFIED",
-      "description": "ParamCategory represents the category/purpose of a parameter.\n\n - PARAM_CATEGORY_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - PARAM_CATEGORY_INPUT: Input parameter - manually entered values.\n - PARAM_CATEGORY_RATE: Rate parameter - rate/ratio values.\n - PARAM_CATEGORY_CALCULATED: Calculated parameter - computed from other parameters."
+      "description": "ParamCategory represents the category/purpose of a parameter.\n\n - PARAM_CATEGORY_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - PARAM_CATEGORY_INPUT: Input parameter - manually entered values.\n - PARAM_CATEGORY_RATE: Rate parameter - rate/ratio values.\n - PARAM_CATEGORY_CALCULATED: Calculated parameter - computed from other parameters.\n - PARAM_CATEGORY_MASTER_LOOKUP: PARAM_CATEGORY_MASTER_LOOKUP: selector from a master table; triggers auto-fill of child params."
     },
     "v1Parameter": {
       "type": "object",
@@ -901,6 +935,18 @@
         "displayGroup": {
           "type": "string",
           "description": "Form section: Spec / Machine / Grade / Packing / Cost / etc."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Descriptive notes or formula hint for this parameter (read-only, populated from seed/migration)."
+        },
+        "lookupFillGroupCode": {
+          "type": "string",
+          "description": "param_code of the MASTER_LOOKUP trigger param this child belongs to (empty = not a child param)."
+        },
+        "lookupSourceColumn": {
+          "type": "string",
+          "description": "Column name in the master entity to read value from (e.g., \"mc_speed\")."
         }
       },
       "description": "Parameter represents a master parameter entity for costing calculations."

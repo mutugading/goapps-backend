@@ -78,6 +78,14 @@ func (m *MockRepository) ResolveUOMCode(ctx context.Context, uomCode string) (*u
 	return args.Get(0).(*uuid.UUID), args.Error(1)
 }
 
+func (m *MockRepository) GetByFillGroup(ctx context.Context, fillGroupCode string) ([]*parameter.Parameter, error) {
+	args := m.Called(ctx, fillGroupCode)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*parameter.Parameter), args.Error(1)
+}
+
 // =============================================================================
 // CreateHandler Tests
 // =============================================================================

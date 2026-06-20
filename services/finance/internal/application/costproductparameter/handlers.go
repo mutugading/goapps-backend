@@ -178,3 +178,27 @@ func (h *Handlers) CheckMissing(ctx context.Context, productSysID int64) ([]cpp.
 	}
 	return h.repo.MissingRequired(ctx, productSysID)
 }
+
+// AddApplicableWithChildren adds a MASTER_LOOKUP param and all its fill-group children atomically.
+// fillGroupChildren should be the result of parameter.Repository.GetByFillGroup for MASTER_LOOKUP params;
+// pass nil or empty slice for non-MASTER_LOOKUP params.
+func (h *Handlers) AddApplicableWithChildren(ctx context.Context, productSysID int64, triggerParamID uuid.UUID, createdBy string, fillGroupChildren []uuid.UUID) error {
+	exists, err := h.repo.ProductExists(ctx, productSysID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return cpp.ErrProductNotFound
+	}
+	return h.repo.AddApplicableWithChildren(ctx, productSysID, triggerParamID, createdBy, fillGroupChildren)
+}
+
+// GetRemovePreview returns trigger + child param info for the confirm dialog.
+func (h *Handlers) GetRemovePreview(ctx context.Context, productSysID int64, paramID uuid.UUID) (cpp.RemovePreview, error) {
+	return h.repo.GetRemovePreview(ctx, productSysID, paramID)
+}
+
+// RemoveApplicableWithChildren removes a MASTER_LOOKUP param + all children + their CPP values atomically.
+func (h *Handlers) RemoveApplicableWithChildren(ctx context.Context, productSysID int64, triggerParamID uuid.UUID, deletedBy string) error {
+	return h.repo.RemoveApplicableWithChildren(ctx, productSysID, triggerParamID, deletedBy)
+}

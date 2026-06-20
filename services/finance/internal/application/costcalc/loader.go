@@ -418,105 +418,145 @@ func (l *productLoader) LoadCAPP(ctx context.Context, productSysIDs []int64) (ma
 // LoadFormulas
 // =============================================================================
 
-// LoadFormulas returns the set of active formulas (mst_formula + formula_param)
-// in topologically-sorted order, keyed per product.
-//
-// NOTE: Per-product formula applicability filtering is not yet implemented.
-// All active formulas apply to every product in productSysIDs. A future
-// sub-phase will narrow this based on CAPP / parameter ownership. — S8b.5.
+// LoadFormulas returns active formulas in topologically-sorted order, keyed per
+// product. Only formulas whose result_param is assigned to the product via
+// cost_product_applicable_param are included — unrelated global formulas that
+// reference params the product does not own are excluded, preventing nil-input
+// evaluation errors.
 func (l *productLoader) LoadFormulas(ctx context.Context, productSysIDs []int64) (map[int64][]Formula, error) {
 	defer observeLoad(loaderKindFormulas, time.Now())
 	out := map[int64][]Formula{}
 	if len(productSysIDs) == 0 {
 		return out, nil
 	}
-	formulas, err := l.loadActiveFormulas(ctx)
+
+	byProduct, err := l.loadPerProductFormulas(ctx, productSysIDs)
 	if err != nil {
 		return nil, err
 	}
-	sorted, err := topoSortFormulas(formulas)
-	if err != nil {
-		return nil, err
-	}
-	for _, id := range productSysIDs {
-		// Each product references the same slice for now; computeProduct is
-		// read-only against it. Future per-product filtering will swap in a
-		// product-specific subset.
+
+	for id, formulas := range byProduct {
+		sorted, sortErr := topoSortFormulas(formulas)
+		if sortErr != nil {
+			return nil, fmt.Errorf("topo sort formulas for product %d: %w", id, sortErr)
+		}
 		out[id] = sorted
 	}
 	return out, nil
 }
 
-func (l *productLoader) loadActiveFormulas(ctx context.Context) ([]Formula, error) {
-	const q = `
-		SELECT f.id, f.formula_code, f.formula_name, f.expression,
-		       rp.param_code AS result_param_code
-		FROM mst_formula f
-		JOIN mst_parameter rp ON rp.id = f.result_param_id
-		WHERE f.deleted_at IS NULL
-		  AND f.is_active = TRUE
-		  AND rp.deleted_at IS NULL`
-	rows, err := l.db.QueryContext(ctx, q)
+// loadPerProductFormulas fetches, per product, only formulas whose result param
+// is present in cost_product_applicable_param for that product. Two queries:
+// one for the formula heads (joined to CAPP), one for formula inputs filtered
+// to the relevant formula IDs.
+func (l *productLoader) loadPerProductFormulas(ctx context.Context, productSysIDs []int64) (map[int64][]Formula, error) { //nolint:gocognit // single-pass two-query assembly, cohesive
+	const headQ = `
+		SELECT
+		    capp.capp_product_sys_id,
+		    f.id            AS formula_id,
+		    f.formula_code,
+		    f.formula_name,
+		    f.expression,
+		    rp.param_code   AS result_param_code
+		FROM cost_product_applicable_param capp
+		JOIN mst_parameter rp ON rp.id = capp.capp_param_id
+		                      AND rp.deleted_at IS NULL
+		JOIN mst_formula f    ON f.result_param_id = capp.capp_param_id
+		WHERE capp.capp_product_sys_id = ANY($1)
+		  AND f.deleted_at IS NULL
+		  AND f.is_active = TRUE`
+
+	rows, err := l.db.QueryContext(ctx, headQ, pq.Array(productSysIDs))
 	if err != nil {
-		return nil, fmt.Errorf("load formulas: %w", err)
+		return nil, fmt.Errorf("load per-product formula heads: %w", err)
 	}
 	defer func() {
 		if cerr := rows.Close(); cerr != nil {
 			_ = cerr
 		}
 	}()
-	type row struct {
-		id          string
+
+	type formulaHead struct {
 		code        string
 		name        string
 		expr        string
 		resultParam string
 	}
-	heads := []row{}
+
+	// productOrder: preserves insertion order so topo-sort has a stable input.
+	productOrder := map[int64][]string{}         // productSysID → []formulaID (ordered, deduped)
+	seenInProduct := map[int64]map[string]bool{} // dedup within a product
+	headByID := map[string]formulaHead{}
+
 	for rows.Next() {
-		var r row
-		if err := rows.Scan(&r.id, &r.code, &r.name, &r.expr, &r.resultParam); err != nil {
-			return nil, fmt.Errorf("scan formula: %w", err)
+		var (
+			productSysID int64
+			formulaID    string
+			head         formulaHead
+		)
+		if err := rows.Scan(&productSysID, &formulaID, &head.code, &head.name, &head.expr, &head.resultParam); err != nil {
+			return nil, fmt.Errorf("scan per-product formula head: %w", err)
 		}
-		heads = append(heads, r)
+		headByID[formulaID] = head
+		if seenInProduct[productSysID] == nil {
+			seenInProduct[productSysID] = map[string]bool{}
+		}
+		if !seenInProduct[productSysID][formulaID] {
+			seenInProduct[productSysID][formulaID] = true
+			productOrder[productSysID] = append(productOrder[productSysID], formulaID)
+		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate formulas: %w", err)
+		return nil, fmt.Errorf("iterate per-product formula heads: %w", err)
 	}
-	if len(heads) == 0 {
-		return nil, nil
+	if len(headByID) == 0 {
+		return map[int64][]Formula{}, nil
 	}
 
-	inputsByFormulaID, err := l.loadFormulaInputs(ctx)
+	// Load inputs only for the formula IDs we actually need.
+	allIDs := make([]string, 0, len(headByID))
+	for id := range headByID {
+		allIDs = append(allIDs, id)
+	}
+	inputsByID, err := l.loadFormulaInputsByIDs(ctx, allIDs)
 	if err != nil {
 		return nil, err
 	}
 
-	out := make([]Formula, 0, len(heads))
-	for i, r := range heads {
-		out = append(out, Formula{
-			FormulaCode:     r.code,
-			FormulaName:     r.name,
-			Expression:      r.expr,
-			ResultParamCode: r.resultParam,
-			InputParamCodes: inputsByFormulaID[r.id],
-			SortOrder:       i,
-		})
+	// Assemble per-product Formula slices.
+	out := map[int64][]Formula{}
+	for productSysID, formulaIDs := range productOrder {
+		formulas := make([]Formula, 0, len(formulaIDs))
+		for i, fid := range formulaIDs {
+			head := headByID[fid]
+			formulas = append(formulas, Formula{
+				FormulaCode:     head.code,
+				FormulaName:     head.name,
+				Expression:      head.expr,
+				ResultParamCode: head.resultParam,
+				InputParamCodes: inputsByID[fid],
+				SortOrder:       i,
+			})
+		}
+		out[productSysID] = formulas
 	}
 	return out, nil
 }
 
-// loadFormulaInputs returns map[formulaID][]paramCode using a single query.
-func (l *productLoader) loadFormulaInputs(ctx context.Context) (map[string][]string, error) {
+// loadFormulaInputsByIDs returns map[formulaID][]paramCode for a specific set
+// of formula IDs. Used by loadPerProductFormulas to avoid loading inputs for
+// global formulas that do not apply to the current chunk's products.
+func (l *productLoader) loadFormulaInputsByIDs(ctx context.Context, formulaIDs []string) (map[string][]string, error) {
 	const q = `
 		SELECT fp.formula_id, p.param_code, fp.sort_order
 		FROM formula_param fp
 		JOIN mst_parameter p ON p.id = fp.param_id
-		WHERE p.deleted_at IS NULL
+		WHERE fp.formula_id = ANY($1)
+		  AND p.deleted_at IS NULL
 		ORDER BY fp.formula_id, fp.sort_order`
-	rows, err := l.db.QueryContext(ctx, q)
+	rows, err := l.db.QueryContext(ctx, q, pq.Array(formulaIDs))
 	if err != nil {
-		return nil, fmt.Errorf("load formula inputs: %w", err)
+		return nil, fmt.Errorf("load formula inputs by IDs: %w", err)
 	}
 	defer func() {
 		if cerr := rows.Close(); cerr != nil {
@@ -531,12 +571,12 @@ func (l *productLoader) loadFormulaInputs(ctx context.Context) (map[string][]str
 			sortOrder int
 		)
 		if err := rows.Scan(&formulaID, &paramCode, &sortOrder); err != nil {
-			return nil, fmt.Errorf("scan formula input: %w", err)
+			return nil, fmt.Errorf("scan formula input by ID: %w", err)
 		}
 		out[formulaID] = append(out[formulaID], paramCode)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate formula inputs: %w", err)
+		return nil, fmt.Errorf("iterate formula inputs by ID: %w", err)
 	}
 	return out, nil
 }

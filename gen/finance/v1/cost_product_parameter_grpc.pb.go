@@ -19,17 +19,20 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	CostProductParameterService_ListProductRequiredParams_FullMethodName     = "/finance.v1.CostProductParameterService/ListProductRequiredParams"
-	CostProductParameterService_UpsertProductParamValue_FullMethodName       = "/finance.v1.CostProductParameterService/UpsertProductParamValue"
-	CostProductParameterService_UpsertProductParamValuesBatch_FullMethodName = "/finance.v1.CostProductParameterService/UpsertProductParamValuesBatch"
-	CostProductParameterService_DeleteProductParamValue_FullMethodName       = "/finance.v1.CostProductParameterService/DeleteProductParamValue"
-	CostProductParameterService_CheckMissingRequiredParams_FullMethodName    = "/finance.v1.CostProductParameterService/CheckMissingRequiredParams"
-	CostProductParameterService_ListAvailableParams_FullMethodName           = "/finance.v1.CostProductParameterService/ListAvailableParams"
-	CostProductParameterService_AddApplicableParam_FullMethodName            = "/finance.v1.CostProductParameterService/AddApplicableParam"
-	CostProductParameterService_RemoveApplicableParam_FullMethodName         = "/finance.v1.CostProductParameterService/RemoveApplicableParam"
-	CostProductParameterService_UpdateApplicableParam_FullMethodName         = "/finance.v1.CostProductParameterService/UpdateApplicableParam"
-	CostProductParameterService_ListParamEditLog_FullMethodName              = "/finance.v1.CostProductParameterService/ListParamEditLog"
-	CostProductParameterService_OverrideParamValues_FullMethodName           = "/finance.v1.CostProductParameterService/OverrideParamValues"
+	CostProductParameterService_ListProductRequiredParams_FullMethodName         = "/finance.v1.CostProductParameterService/ListProductRequiredParams"
+	CostProductParameterService_UpsertProductParamValue_FullMethodName           = "/finance.v1.CostProductParameterService/UpsertProductParamValue"
+	CostProductParameterService_UpsertProductParamValuesBatch_FullMethodName     = "/finance.v1.CostProductParameterService/UpsertProductParamValuesBatch"
+	CostProductParameterService_DeleteProductParamValue_FullMethodName           = "/finance.v1.CostProductParameterService/DeleteProductParamValue"
+	CostProductParameterService_CheckMissingRequiredParams_FullMethodName        = "/finance.v1.CostProductParameterService/CheckMissingRequiredParams"
+	CostProductParameterService_ListAvailableParams_FullMethodName               = "/finance.v1.CostProductParameterService/ListAvailableParams"
+	CostProductParameterService_AddApplicableParam_FullMethodName                = "/finance.v1.CostProductParameterService/AddApplicableParam"
+	CostProductParameterService_RemoveApplicableParam_FullMethodName             = "/finance.v1.CostProductParameterService/RemoveApplicableParam"
+	CostProductParameterService_AddApplicableParamWithChildren_FullMethodName    = "/finance.v1.CostProductParameterService/AddApplicableParamWithChildren"
+	CostProductParameterService_GetRemoveApplicablePreview_FullMethodName        = "/finance.v1.CostProductParameterService/GetRemoveApplicablePreview"
+	CostProductParameterService_RemoveApplicableParamWithChildren_FullMethodName = "/finance.v1.CostProductParameterService/RemoveApplicableParamWithChildren"
+	CostProductParameterService_UpdateApplicableParam_FullMethodName             = "/finance.v1.CostProductParameterService/UpdateApplicableParam"
+	CostProductParameterService_ListParamEditLog_FullMethodName                  = "/finance.v1.CostProductParameterService/ListParamEditLog"
+	CostProductParameterService_OverrideParamValues_FullMethodName               = "/finance.v1.CostProductParameterService/OverrideParamValues"
 )
 
 // CostProductParameterServiceClient is the client API for CostProductParameterService service.
@@ -58,6 +61,12 @@ type CostProductParameterServiceClient interface {
 	AddApplicableParam(ctx context.Context, in *AddApplicableParamRequest, opts ...grpc.CallOption) (*AddApplicableParamResponse, error)
 	// RemoveApplicableParam removes a parameter from a product (deletes value too).
 	RemoveApplicableParam(ctx context.Context, in *RemoveApplicableParamRequest, opts ...grpc.CallOption) (*RemoveApplicableParamResponse, error)
+	// AddApplicableParamWithChildren adds a MASTER_LOOKUP param + all its child params atomically.
+	AddApplicableParamWithChildren(ctx context.Context, in *AddApplicableParamWithChildrenRequest, opts ...grpc.CallOption) (*AddApplicableParamWithChildrenResponse, error)
+	// GetRemoveApplicablePreview returns trigger + children for the confirm-delete dialog.
+	GetRemoveApplicablePreview(ctx context.Context, in *GetRemoveApplicablePreviewRequest, opts ...grpc.CallOption) (*GetRemoveApplicablePreviewResponse, error)
+	// RemoveApplicableParamWithChildren removes a MASTER_LOOKUP param + all children + CPP values atomically.
+	RemoveApplicableParamWithChildren(ctx context.Context, in *RemoveApplicableParamWithChildrenRequest, opts ...grpc.CallOption) (*RemoveApplicableParamWithChildrenResponse, error)
 	// UpdateApplicableParam patches per-product override fields (is_required, display_order).
 	UpdateApplicableParam(ctx context.Context, in *UpdateApplicableParamRequest, opts ...grpc.CallOption) (*UpdateApplicableParamResponse, error)
 	// OverrideParamValues allows authorized users to override param values on an unlocked
@@ -157,6 +166,36 @@ func (c *costProductParameterServiceClient) RemoveApplicableParam(ctx context.Co
 	return out, nil
 }
 
+func (c *costProductParameterServiceClient) AddApplicableParamWithChildren(ctx context.Context, in *AddApplicableParamWithChildrenRequest, opts ...grpc.CallOption) (*AddApplicableParamWithChildrenResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AddApplicableParamWithChildrenResponse)
+	err := c.cc.Invoke(ctx, CostProductParameterService_AddApplicableParamWithChildren_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *costProductParameterServiceClient) GetRemoveApplicablePreview(ctx context.Context, in *GetRemoveApplicablePreviewRequest, opts ...grpc.CallOption) (*GetRemoveApplicablePreviewResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetRemoveApplicablePreviewResponse)
+	err := c.cc.Invoke(ctx, CostProductParameterService_GetRemoveApplicablePreview_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *costProductParameterServiceClient) RemoveApplicableParamWithChildren(ctx context.Context, in *RemoveApplicableParamWithChildrenRequest, opts ...grpc.CallOption) (*RemoveApplicableParamWithChildrenResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemoveApplicableParamWithChildrenResponse)
+	err := c.cc.Invoke(ctx, CostProductParameterService_RemoveApplicableParamWithChildren_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *costProductParameterServiceClient) UpdateApplicableParam(ctx context.Context, in *UpdateApplicableParamRequest, opts ...grpc.CallOption) (*UpdateApplicableParamResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdateApplicableParamResponse)
@@ -213,6 +252,12 @@ type CostProductParameterServiceServer interface {
 	AddApplicableParam(context.Context, *AddApplicableParamRequest) (*AddApplicableParamResponse, error)
 	// RemoveApplicableParam removes a parameter from a product (deletes value too).
 	RemoveApplicableParam(context.Context, *RemoveApplicableParamRequest) (*RemoveApplicableParamResponse, error)
+	// AddApplicableParamWithChildren adds a MASTER_LOOKUP param + all its child params atomically.
+	AddApplicableParamWithChildren(context.Context, *AddApplicableParamWithChildrenRequest) (*AddApplicableParamWithChildrenResponse, error)
+	// GetRemoveApplicablePreview returns trigger + children for the confirm-delete dialog.
+	GetRemoveApplicablePreview(context.Context, *GetRemoveApplicablePreviewRequest) (*GetRemoveApplicablePreviewResponse, error)
+	// RemoveApplicableParamWithChildren removes a MASTER_LOOKUP param + all children + CPP values atomically.
+	RemoveApplicableParamWithChildren(context.Context, *RemoveApplicableParamWithChildrenRequest) (*RemoveApplicableParamWithChildrenResponse, error)
 	// UpdateApplicableParam patches per-product override fields (is_required, display_order).
 	UpdateApplicableParam(context.Context, *UpdateApplicableParamRequest) (*UpdateApplicableParamResponse, error)
 	// OverrideParamValues allows authorized users to override param values on an unlocked
@@ -255,6 +300,15 @@ func (UnimplementedCostProductParameterServiceServer) AddApplicableParam(context
 }
 func (UnimplementedCostProductParameterServiceServer) RemoveApplicableParam(context.Context, *RemoveApplicableParamRequest) (*RemoveApplicableParamResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RemoveApplicableParam not implemented")
+}
+func (UnimplementedCostProductParameterServiceServer) AddApplicableParamWithChildren(context.Context, *AddApplicableParamWithChildrenRequest) (*AddApplicableParamWithChildrenResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AddApplicableParamWithChildren not implemented")
+}
+func (UnimplementedCostProductParameterServiceServer) GetRemoveApplicablePreview(context.Context, *GetRemoveApplicablePreviewRequest) (*GetRemoveApplicablePreviewResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetRemoveApplicablePreview not implemented")
+}
+func (UnimplementedCostProductParameterServiceServer) RemoveApplicableParamWithChildren(context.Context, *RemoveApplicableParamWithChildrenRequest) (*RemoveApplicableParamWithChildrenResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RemoveApplicableParamWithChildren not implemented")
 }
 func (UnimplementedCostProductParameterServiceServer) UpdateApplicableParam(context.Context, *UpdateApplicableParamRequest) (*UpdateApplicableParamResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateApplicableParam not implemented")
@@ -431,6 +485,60 @@ func _CostProductParameterService_RemoveApplicableParam_Handler(srv interface{},
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CostProductParameterService_AddApplicableParamWithChildren_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddApplicableParamWithChildrenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CostProductParameterServiceServer).AddApplicableParamWithChildren(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CostProductParameterService_AddApplicableParamWithChildren_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CostProductParameterServiceServer).AddApplicableParamWithChildren(ctx, req.(*AddApplicableParamWithChildrenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CostProductParameterService_GetRemoveApplicablePreview_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRemoveApplicablePreviewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CostProductParameterServiceServer).GetRemoveApplicablePreview(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CostProductParameterService_GetRemoveApplicablePreview_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CostProductParameterServiceServer).GetRemoveApplicablePreview(ctx, req.(*GetRemoveApplicablePreviewRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CostProductParameterService_RemoveApplicableParamWithChildren_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveApplicableParamWithChildrenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CostProductParameterServiceServer).RemoveApplicableParamWithChildren(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CostProductParameterService_RemoveApplicableParamWithChildren_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CostProductParameterServiceServer).RemoveApplicableParamWithChildren(ctx, req.(*RemoveApplicableParamWithChildrenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _CostProductParameterService_UpdateApplicableParam_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateApplicableParamRequest)
 	if err := dec(in); err != nil {
@@ -523,6 +631,18 @@ var CostProductParameterService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RemoveApplicableParam",
 			Handler:    _CostProductParameterService_RemoveApplicableParam_Handler,
+		},
+		{
+			MethodName: "AddApplicableParamWithChildren",
+			Handler:    _CostProductParameterService_AddApplicableParamWithChildren_Handler,
+		},
+		{
+			MethodName: "GetRemoveApplicablePreview",
+			Handler:    _CostProductParameterService_GetRemoveApplicablePreview_Handler,
+		},
+		{
+			MethodName: "RemoveApplicableParamWithChildren",
+			Handler:    _CostProductParameterService_RemoveApplicableParamWithChildren_Handler,
 		},
 		{
 			MethodName: "UpdateApplicableParam",

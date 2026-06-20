@@ -151,6 +151,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	machineRepo := postgres.NewMachineRepository(db)
 	interminglingRepo := postgres.NewInterminglingRepository(db)
 	productGradeRepo := postgres.NewProductGradeRepository(db)
+	lookupMasterRepo := postgres.NewLookupMasterRepository(db)
 	// NOTE: legacy productRepo / prdRequestRepo wired to dropped tables — removed.
 	// Canonical Phase B (cost_product_master, cost_product_order) wiring added in S2.8-S2.10.
 
@@ -226,6 +227,18 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	productGradeHandler, err := grpcdelivery.NewProductGradeHandler(productGradeRepo)
 	if err != nil {
 		return err
+	}
+
+	lookupMasterHandler, err := grpcdelivery.NewLookupMasterHandler(lookupMasterRepo)
+	if err != nil {
+		return fmt.Errorf("new lookup master handler: %w", err)
+	}
+
+	yarnLookupFillHandler, err := grpcdelivery.NewYarnLookupFillHandler(
+		machineRepo, interminglingRepo, productGradeRepo, mbHeadRepo, boxBobbinCostRepo, parameterRepo,
+	)
+	if err != nil {
+		return fmt.Errorf("new yarn lookup fill handler: %w", err)
 	}
 
 	oracleSyncHandler, err := grpcdelivery.NewOracleSyncHandler(
@@ -324,6 +337,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 
 	// Wire async import support (storage + job repo + publisher) into CPM handler.
 	costProductMasterHandler.WithImportSupport(costImportJobRepo, storageSvc, rmqAdapter)
+	costProductMasterHandler.WithAuditSupport(costAuditLogRepo)
 
 	// Build CostDataImportHandler (CAPP/CPP async import + export/template for CAPP/CPP/CPM).
 	cappExportH := cappapp.NewExportHandler(costProductParameterRepo)
@@ -404,7 +418,9 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	fillIAMNotifier := iamnotifier.NewFillNotifier(iamNotifClient)
 
 	costProductParameterApp := cppapp.New(costProductParameterRepo)
-	costProductParameterHandler := grpcdelivery.NewCostProductParameterHandler(costProductParameterApp)
+	costProductParameterHandler := grpcdelivery.NewCostProductParameterHandler(costProductParameterApp).
+		WithParamRepo(parameterRepo).
+		WithAuditSupport(costAuditLogRepo)
 
 	// Fill-assignment repositories + handlers.
 	fillConfigRepo := postgres.NewCostFillConfigRepository(db)
@@ -606,7 +622,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		uomHandler, rmCategoryHandler, parameterHandler, formulaHandler, uomCategoryHandler,
 		boxBobbinCostHandler,
 		mbHeadHandler, mbSpinHandler,
-		machineHandler, interminglingHandler, productGradeHandler,
+		machineHandler, interminglingHandler, productGradeHandler, lookupMasterHandler, yarnLookupFillHandler,
 		oracleSyncHandler, rmGroupHandler, rmCostHandler,
 		costProductTypeHandler, costRmTypeHandler, costErpHandler, costProductMasterHandler, costRouteHandler,
 		costRequestTypeHandler, costPaperTubeTypeHandler, costProductRequestHandler,
@@ -726,6 +742,8 @@ func startServers(ctx context.Context, cfg *config.Config,
 	machineHandler *grpcdelivery.MachineHandler,
 	interminglingHandler *grpcdelivery.InterminglingHandler,
 	productGradeHandler *grpcdelivery.ProductGradeHandler,
+	lookupMasterHandler *grpcdelivery.LookupMasterHandler,
+	yarnLookupFillHandler *grpcdelivery.YarnLookupFillHandler,
 	oracleSyncHandler *grpcdelivery.OracleSyncHandler,
 	rmGroupHandler *grpcdelivery.RMGroupHandler,
 	rmCostHandler *grpcdelivery.RMCostHandler,
@@ -773,6 +791,8 @@ func startServers(ctx context.Context, cfg *config.Config,
 	financev1.RegisterMachineServiceServer(grpcServer.GRPCServer(), machineHandler)
 	financev1.RegisterInterminglingServiceServer(grpcServer.GRPCServer(), interminglingHandler)
 	financev1.RegisterProductGradeServiceServer(grpcServer.GRPCServer(), productGradeHandler)
+	financev1.RegisterLookupMasterServiceServer(grpcServer.GRPCServer(), lookupMasterHandler)
+	financev1.RegisterYarnLookupFillServiceServer(grpcServer.GRPCServer(), yarnLookupFillHandler)
 	financev1.RegisterOracleSyncServiceServer(grpcServer.GRPCServer(), oracleSyncHandler)
 	financev1.RegisterRMGroupServiceServer(grpcServer.GRPCServer(), rmGroupHandler)
 	financev1.RegisterRMCostServiceServer(grpcServer.GRPCServer(), rmCostHandler)

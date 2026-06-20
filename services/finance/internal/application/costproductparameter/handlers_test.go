@@ -120,6 +120,18 @@ func (f *fakeRepo) GetCurrentValueAsText(_ context.Context, _ int64, _ uuid.UUID
 	return "", nil
 }
 
+func (f *fakeRepo) AddApplicableWithChildren(_ context.Context, _ int64, _ uuid.UUID, _ string, _ []uuid.UUID) error {
+	return nil
+}
+
+func (f *fakeRepo) GetRemovePreview(_ context.Context, _ int64, _ uuid.UUID) (cpp.RemovePreview, error) {
+	return cpp.RemovePreview{}, nil
+}
+
+func (f *fakeRepo) RemoveApplicableWithChildren(_ context.Context, _ int64, _ uuid.UUID, _ string) error {
+	return nil
+}
+
 // =============================================================================
 // Upsert
 // =============================================================================

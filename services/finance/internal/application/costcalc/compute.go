@@ -155,12 +155,20 @@ func ComputeProduct(ctx context.Context, in ComputeInput) (*ComputeOutput, error
 	}
 
 	// 4. Extract final cost + optional conversion.
+	//
+	// Resolution order:
+	//   a) scope["COST_STAGE_OUT"] — explicit terminal sink (yarn / multi-formula products)
+	//   b) sole terminal formula — formula whose output is not consumed by any
+	//      other formula in this product's set (simple / test products)
+	//   c) COST_RM_TOTAL — product has no formulas at all (pure RM cost)
 	finalCost, ok := scopeFloat(scope, ScopeKeyFinalCost)
 	if !ok {
-		err := fmt.Errorf("compute product %d: formula chain did not produce %s",
-			in.ProductSysID, ScopeKeyFinalCost)
-		recordProductSpanError(span, err)
-		return nil, err
+		fc, fcErr := resolveFinalCost(in, scope, totalRM)
+		if fcErr != nil {
+			recordProductSpanError(span, fcErr)
+			return nil, fcErr
+		}
+		finalCost = fc
 	}
 	conv, _ := scopeFloat(scope, ScopeKeyConversion)
 
@@ -379,6 +387,53 @@ func buildCostByLevel(byLevel map[int32]float64, totalConv float64) []LevelContr
 		out[0].Conversion = totalConv
 	}
 	return out
+}
+
+// findTerminalFormula returns the single formula whose result param is not
+// consumed as an input by any other formula in the set — i.e. the DAG sink.
+// Used when a product's formula chain does not explicitly produce COST_STAGE_OUT.
+// Returns an error if the number of sink formulas is not exactly one.
+func findTerminalFormula(formulas []Formula) (*Formula, error) {
+	allInputs := make(map[string]bool, len(formulas)*2)
+	for _, f := range formulas {
+		for _, inp := range f.InputParamCodes {
+			allInputs[inp] = true
+		}
+	}
+	var terminals []Formula
+	for _, f := range formulas {
+		if !allInputs[f.ResultParamCode] {
+			terminals = append(terminals, f)
+		}
+	}
+	switch len(terminals) {
+	case 1:
+		return &terminals[0], nil
+	case 0:
+		return nil, fmt.Errorf("formula DAG has no terminal node (cycle or empty set)")
+	default:
+		codes := make([]string, len(terminals))
+		for i, t := range terminals {
+			codes[i] = t.FormulaCode
+		}
+		return nil, fmt.Errorf(
+			"formula chain has %d terminal nodes (%v); add a formula that outputs %s to disambiguate",
+			len(terminals), codes, ScopeKeyFinalCost)
+	}
+}
+
+// resolveFinalCost determines the final cost when COST_STAGE_OUT is absent from scope.
+// Pure-RM products (no formulas) return totalRM; formula products infer the DAG sink.
+func resolveFinalCost(in ComputeInput, scope map[string]any, totalRM float64) (float64, error) {
+	if len(in.Formulas) == 0 {
+		return totalRM, nil
+	}
+	terminal, termErr := findTerminalFormula(in.Formulas)
+	if termErr != nil {
+		return 0, fmt.Errorf("%w: product %d: %w", costcalcdom.ErrFormulaEval, in.ProductSysID, termErr)
+	}
+	fc, _ := scopeFloat(scope, terminal.ResultParamCode)
+	return fc, nil
 }
 
 func inputHash(in ComputeInput, totalRM float64) string {

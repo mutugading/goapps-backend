@@ -11,7 +11,9 @@ import (
 	financev1 "github.com/mutugading/goapps-backend/gen/finance/v1"
 	cppapp "github.com/mutugading/goapps-backend/services/finance/internal/application/costproductparameter"
 	cprapp "github.com/mutugading/goapps-backend/services/finance/internal/application/costproductrequest"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costauditlog"
 	cpp "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductparameter"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/parameter"
 )
 
 // CostProductParameterHandler implements the CPP_ gRPC service.
@@ -20,6 +22,8 @@ type CostProductParameterHandler struct {
 	app         *cppapp.Handlers
 	override    *cppapp.OverrideParamValuesHandler
 	editLogRepo cprapp.ParamEditLogByLevelReader
+	paramRepo   parameter.Repository
+	auditRepo   costauditlog.Repository // optional; nil = no audit
 }
 
 // NewCostProductParameterHandler wires the handler.
@@ -37,6 +41,34 @@ func (h *CostProductParameterHandler) WithOverrideHandler(o *cppapp.OverridePara
 func (h *CostProductParameterHandler) WithEditLogRepo(r cprapp.ParamEditLogByLevelReader) *CostProductParameterHandler {
 	h.editLogRepo = r
 	return h
+}
+
+// WithParamRepo attaches the parameter repository used by the MASTER_LOOKUP child-aware RPCs.
+func (h *CostProductParameterHandler) WithParamRepo(r parameter.Repository) *CostProductParameterHandler {
+	h.paramRepo = r
+	return h
+}
+
+// WithAuditSupport wires the audit repository for emit-on-mutate.
+func (h *CostProductParameterHandler) WithAuditSupport(r costauditlog.Repository) *CostProductParameterHandler {
+	h.auditRepo = r
+	return h
+}
+
+// emitParamAudit records a param mutation against the product master entity. Errors are silently dropped.
+func (h *CostProductParameterHandler) emitParamAudit(ctx context.Context, op string, productSysID int64) {
+	if h.auditRepo == nil {
+		return
+	}
+	actor := getUserFromContext(ctx)
+	if err := h.auditRepo.Emit(ctx, costauditlog.NewInput{
+		EntityType: "cost_product_master",
+		EntityID:   productSysID,
+		Operation:  op,
+		UserID:     actor,
+	}); err != nil {
+		_ = err // best-effort: audit never blocks a mutation
+	}
 }
 
 // ListParamEditLog returns the override audit history for one fill level of a CPR.
@@ -110,6 +142,9 @@ func (h *CostProductParameterHandler) UpsertProductParamValuesBatch(ctx context.
 	if err != nil {
 		return &financev1.UpsertProductParamValuesBatchResponse{Base: cppDomainError(err)}, nil
 	}
+	if res.UpsertedCount > 0 {
+		h.emitParamAudit(ctx, costauditlog.OpUpdate, req.ProductSysId)
+	}
 	return &financev1.UpsertProductParamValuesBatchResponse{
 		Base:             cppSuccessResponse(fmt.Sprintf("%d values saved", res.UpsertedCount)),
 		UpsertedCount:    res.UpsertedCount,
@@ -172,6 +207,7 @@ func (h *CostProductParameterHandler) ListAvailableParams(ctx context.Context, r
 			LookupMasterCode:     m.LookupMasterCode,
 			DisplayOrder:         m.DisplayOrder,
 			DisplayGroup:         m.DisplayGroup,
+			LookupFillGroupCode:  m.LookupFillGroupCode,
 		})
 	}
 	return &financev1.ListAvailableParamsResponse{Base: cppSuccessResponse("Available params loaded"), Data: out}, nil
@@ -191,6 +227,7 @@ func (h *CostProductParameterHandler) AddApplicableParam(ctx context.Context, re
 	if err := h.app.AddApplicable(ctx, req.ProductSysId, paramID, req.IsRequired, displayOrder, getUserFromContext(ctx)); err != nil {
 		return &financev1.AddApplicableParamResponse{Base: cppDomainError(err)}, nil
 	}
+	h.emitParamAudit(ctx, costauditlog.OpInsert, req.ProductSysId)
 	return &financev1.AddApplicableParamResponse{Base: cppSuccessResponse("Parameter added")}, nil
 }
 
@@ -203,6 +240,7 @@ func (h *CostProductParameterHandler) RemoveApplicableParam(ctx context.Context,
 	if err := h.app.RemoveApplicable(ctx, req.ProductSysId, paramID); err != nil {
 		return &financev1.RemoveApplicableParamResponse{Base: cppDomainError(err)}, nil
 	}
+	h.emitParamAudit(ctx, costauditlog.OpDelete, req.ProductSysId)
 	return &financev1.RemoveApplicableParamResponse{Base: cppSuccessResponse("Parameter removed")}, nil
 }
 
@@ -252,6 +290,93 @@ func (h *CostProductParameterHandler) OverrideParamValues(ctx context.Context, r
 	}, nil
 }
 
+// resolveChildIDs returns the UUIDs of all fill-group children for a MASTER_LOOKUP param.
+// Returns an empty slice for non-MASTER_LOOKUP params or when paramRepo is not wired.
+func (h *CostProductParameterHandler) resolveChildIDs(ctx context.Context, paramID uuid.UUID) ([]uuid.UUID, error) {
+	if h.paramRepo == nil {
+		return nil, nil
+	}
+	entity, err := h.paramRepo.GetByID(ctx, paramID)
+	if err != nil {
+		return nil, err
+	}
+	if entity.ParamCategory() != parameter.ParamCategoryMasterLookup {
+		return nil, nil
+	}
+	children, err := h.paramRepo.GetByFillGroup(ctx, entity.Code().String())
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uuid.UUID, 0, len(children))
+	for _, c := range children {
+		ids = append(ids, c.ID())
+	}
+	return ids, nil
+}
+
+// AddApplicableParamWithChildren adds a MASTER_LOOKUP param + all its child params atomically.
+func (h *CostProductParameterHandler) AddApplicableParamWithChildren(ctx context.Context, req *financev1.AddApplicableParamWithChildrenRequest) (*financev1.AddApplicableParamWithChildrenResponse, error) {
+	paramID, err := uuid.Parse(req.GetParamId())
+	if err != nil {
+		return &financev1.AddApplicableParamWithChildrenResponse{Base: BadRequestResponse("invalid param_id")}, nil //nolint:nilerr // BaseResponse pattern
+	}
+
+	childIDs, childErr := h.resolveChildIDs(ctx, paramID)
+	if childErr != nil {
+		return &financev1.AddApplicableParamWithChildrenResponse{Base: cppDomainError(childErr)}, nil //nolint:nilerr // BaseResponse pattern
+	}
+
+	actor := getUserFromContext(ctx)
+	if err = h.app.AddApplicableWithChildren(ctx, req.GetProductSysId(), paramID, actor, childIDs); err != nil {
+		return &financev1.AddApplicableParamWithChildrenResponse{Base: cppDomainError(err)}, nil //nolint:nilerr // BaseResponse pattern
+	}
+	h.emitParamAudit(ctx, costauditlog.OpInsert, req.GetProductSysId())
+	return &financev1.AddApplicableParamWithChildrenResponse{Base: cppSuccessResponse("Parameter and children added")}, nil
+}
+
+// GetRemoveApplicablePreview returns trigger + children for the confirm-delete dialog.
+func (h *CostProductParameterHandler) GetRemoveApplicablePreview(ctx context.Context, req *financev1.GetRemoveApplicablePreviewRequest) (*financev1.GetRemoveApplicablePreviewResponse, error) {
+	paramID, err := uuid.Parse(req.GetParamId())
+	if err != nil {
+		return &financev1.GetRemoveApplicablePreviewResponse{Base: BadRequestResponse("invalid param_id")}, nil //nolint:nilerr // BaseResponse pattern
+	}
+
+	preview, err := h.app.GetRemovePreview(ctx, req.GetProductSysId(), paramID)
+	if err != nil {
+		return &financev1.GetRemoveApplicablePreviewResponse{Base: cppDomainError(err)}, nil //nolint:nilerr // BaseResponse pattern
+	}
+
+	children := make([]*financev1.ParamWithValue, 0, len(preview.Children))
+	for _, c := range preview.Children {
+		children = append(children, &financev1.ParamWithValue{
+			ParamCode:    c.ParamCode,
+			ParamName:    c.ParamName,
+			CurrentValue: c.CurrentValue,
+		})
+	}
+
+	return &financev1.GetRemoveApplicablePreviewResponse{
+		Base:             cppSuccessResponse("Remove preview loaded"),
+		TriggerParamCode: preview.TriggerParamCode,
+		TriggerParamName: preview.TriggerParamName,
+		Children:         children,
+	}, nil
+}
+
+// RemoveApplicableParamWithChildren removes a MASTER_LOOKUP param + all children + values atomically.
+func (h *CostProductParameterHandler) RemoveApplicableParamWithChildren(ctx context.Context, req *financev1.RemoveApplicableParamWithChildrenRequest) (*financev1.RemoveApplicableParamWithChildrenResponse, error) {
+	paramID, err := uuid.Parse(req.GetParamId())
+	if err != nil {
+		return &financev1.RemoveApplicableParamWithChildrenResponse{Base: BadRequestResponse("invalid param_id")}, nil //nolint:nilerr // BaseResponse pattern
+	}
+	actor := getUserFromContext(ctx)
+	if err = h.app.RemoveApplicableWithChildren(ctx, req.GetProductSysId(), paramID, actor); err != nil {
+		return &financev1.RemoveApplicableParamWithChildrenResponse{Base: cppDomainError(err)}, nil //nolint:nilerr // BaseResponse pattern
+	}
+	h.emitParamAudit(ctx, costauditlog.OpDelete, req.GetProductSysId())
+	return &financev1.RemoveApplicableParamWithChildrenResponse{Base: cppSuccessResponse("Parameter and children removed")}, nil
+}
+
 // UpdateApplicableParam patches per-product override fields.
 func (h *CostProductParameterHandler) UpdateApplicableParam(ctx context.Context, req *financev1.UpdateApplicableParamRequest) (*financev1.UpdateApplicableParamResponse, error) {
 	paramID, err := uuid.Parse(req.ParamId)
@@ -261,6 +386,7 @@ func (h *CostProductParameterHandler) UpdateApplicableParam(ctx context.Context,
 	if err := h.app.UpdateApplicable(ctx, req.ProductSysId, paramID, req.IsRequired, req.DisplayOrder, getUserFromContext(ctx)); err != nil {
 		return &financev1.UpdateApplicableParamResponse{Base: cppDomainError(err)}, nil
 	}
+	h.emitParamAudit(ctx, costauditlog.OpUpdate, req.ProductSysId)
 	return &financev1.UpdateApplicableParamResponse{Base: cppSuccessResponse("Parameter applicability updated")}, nil
 }
 
@@ -307,6 +433,7 @@ func requiredEntryToProto(e cpp.RequiredEntry) *financev1.RequiredParamEntry {
 		LookupMasterCode:     e.Meta.LookupMasterCode,
 		DisplayOrder:         e.Meta.DisplayOrder,
 		DisplayGroup:         e.Meta.DisplayGroup,
+		LookupFillGroupCode:  e.Meta.LookupFillGroupCode,
 	}
 	applyEntryValue(out, e.Value)
 	return out

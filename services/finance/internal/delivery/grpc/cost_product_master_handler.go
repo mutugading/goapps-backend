@@ -10,6 +10,7 @@ import (
 	commonv1 "github.com/mutugading/goapps-backend/gen/common/v1"
 	financev1 "github.com/mutugading/goapps-backend/gen/finance/v1"
 	app "github.com/mutugading/goapps-backend/services/finance/internal/application/costproductmaster"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costauditlog"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costimportjob"
 	domain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductmaster"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/rabbitmq"
@@ -31,6 +32,7 @@ type CostProductMasterHandler struct {
 	storageSvc        storage.Service
 	importPublisher   *rabbitmq.JobPublisherAdapter
 	validation        *ValidationHelper
+	auditRepo         costauditlog.Repository // optional; nil means no audit
 }
 
 // NewCostProductMasterHandler constructs the handler.
@@ -63,6 +65,26 @@ func (h *CostProductMasterHandler) WithImportSupport(
 	h.importPublisher = importPublisher
 }
 
+// WithAuditSupport wires the audit repository for emit-on-mutate behavior.
+func (h *CostProductMasterHandler) WithAuditSupport(r costauditlog.Repository) {
+	h.auditRepo = r
+}
+
+// emitAudit fires an audit entry and silently drops errors (audit must not fail a mutation).
+func (h *CostProductMasterHandler) emitAudit(ctx context.Context, op string, entityID int64, actor string) {
+	if h.auditRepo == nil {
+		return
+	}
+	if err := h.auditRepo.Emit(ctx, costauditlog.NewInput{
+		EntityType: "cost_product_master",
+		EntityID:   entityID,
+		Operation:  op,
+		UserID:     actor,
+	}); err != nil {
+		_ = err // best-effort: audit never blocks a mutation
+	}
+}
+
 // CreateCostProductMaster creates a new product master with auto-generated code.
 func (h *CostProductMasterHandler) CreateCostProductMaster(ctx context.Context, req *financev1.CreateCostProductMasterRequest) (*financev1.CreateCostProductMasterResponse, error) {
 	if baseResp := h.validation.ValidateRequest(req); baseResp != nil {
@@ -80,6 +102,7 @@ func (h *CostProductMasterHandler) CreateCostProductMaster(ctx context.Context, 
 	if err != nil {
 		return &financev1.CreateCostProductMasterResponse{Base: productMasterErrToBase(err)}, nil
 	}
+	h.emitAudit(ctx, costauditlog.OpInsert, p.ProductSysID(), actor)
 	return &financev1.CreateCostProductMasterResponse{
 		Base: successResponse("Cost product master created"),
 		Data: costProductMasterToProto(p),
@@ -133,6 +156,7 @@ func (h *CostProductMasterHandler) UpdateCostProductMaster(ctx context.Context, 
 	if err != nil {
 		return &financev1.UpdateCostProductMasterResponse{Base: productMasterErrToBase(err)}, nil
 	}
+	h.emitAudit(ctx, costauditlog.OpUpdate, p.ProductSysID(), actor)
 	return &financev1.UpdateCostProductMasterResponse{
 		Base: successResponse("Cost product master updated"),
 		Data: costProductMasterToProto(p),
@@ -155,6 +179,7 @@ func (h *CostProductMasterHandler) UpdateCostProductMasterErpLinkage(ctx context
 	if err != nil {
 		return &financev1.UpdateCostProductMasterErpLinkageResponse{Base: productMasterErrToBase(err)}, nil
 	}
+	h.emitAudit(ctx, costauditlog.OpAssign, p.ProductSysID(), actor)
 	return &financev1.UpdateCostProductMasterErpLinkageResponse{
 		Base: successResponse("ERP linkage updated"),
 		Data: costProductMasterToProto(p),
@@ -174,7 +199,7 @@ func (h *CostProductMasterHandler) DeactivateCostProductMaster(ctx context.Conte
 	if err != nil {
 		return &financev1.DeactivateCostProductMasterResponse{Base: productMasterErrToBase(err)}, nil
 	}
-	_ = p
+	h.emitAudit(ctx, costauditlog.OpStatusChange, p.ProductSysID(), actor)
 	return &financev1.DeactivateCostProductMasterResponse{
 		Base: successResponse("Cost product master deactivated"),
 	}, nil

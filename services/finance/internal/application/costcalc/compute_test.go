@@ -187,7 +187,10 @@ func TestComputeProduct_DivByZero_ReturnsFormulaError(t *testing.T) {
 	require.ErrorIs(t, err, costcalcdom.ErrFormulaEval)
 }
 
-func TestComputeProduct_NoFinalCostKey_Errors(t *testing.T) {
+func TestComputeProduct_NoFinalCostKey_SingleTerminal_Succeeds(t *testing.T) {
+	// A product with one formula that does not output COST_STAGE_OUT should
+	// succeed: the sole terminal formula's output becomes the final cost.
+	// RM cost = 10.0; formula: SOMETHING_ELSE = COST_RM_TOTAL = 10.
 	in := ComputeInput{
 		ProductSysID: 1,
 		Route:        buildOneStageRoute(1, costroute.RmTypeItem, "X", 1.0),
@@ -197,6 +200,34 @@ func TestComputeProduct_NoFinalCostKey_Errors(t *testing.T) {
 			ResultParamCode: "SOMETHING_ELSE",
 			InputParamCodes: []string{ScopeKeyCostRMTotal},
 		}},
+		RMCosts:   map[string]float64{"X|": 10.0},
+		EvalCache: evaluator.NewCache(),
+	}
+	out, err := ComputeProduct(context.Background(), in)
+	require.NoError(t, err)
+	assert.Equal(t, 10.0, out.CostPerUnit)
+}
+
+func TestComputeProduct_NoFinalCostKey_MultipleTerminals_Errors(t *testing.T) {
+	// Two independent formulas (neither feeds the other) → two terminal nodes →
+	// ambiguous final cost → error.
+	in := ComputeInput{
+		ProductSysID: 1,
+		Route:        buildOneStageRoute(1, costroute.RmTypeItem, "X", 1.0),
+		Formulas: []Formula{
+			{
+				FormulaCode:     "F_A",
+				Expression:      "COST_RM_TOTAL",
+				ResultParamCode: "OUT_A",
+				InputParamCodes: []string{ScopeKeyCostRMTotal},
+			},
+			{
+				FormulaCode:     "F_B",
+				Expression:      "COST_RM_TOTAL",
+				ResultParamCode: "OUT_B",
+				InputParamCodes: []string{ScopeKeyCostRMTotal},
+			},
+		},
 		RMCosts:   map[string]float64{"X|": 10.0},
 		EvalCache: evaluator.NewCache(),
 	}
