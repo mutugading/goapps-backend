@@ -163,20 +163,12 @@ func ComputeProduct(ctx context.Context, in ComputeInput) (*ComputeOutput, error
 	//   c) COST_RM_TOTAL — product has no formulas at all (pure RM cost)
 	finalCost, ok := scopeFloat(scope, ScopeKeyFinalCost)
 	if !ok {
-		if len(in.Formulas) == 0 {
-			// No formulas assigned — pure RM cost product.
-			finalCost = totalRM
-		} else {
-			// No explicit COST_STAGE_OUT: infer final cost from the sole terminal
-			// formula (the DAG sink — output not consumed by any other formula).
-			terminal, termErr := findTerminalFormula(in.Formulas)
-			if termErr != nil {
-				err := fmt.Errorf("%w: product %d: %w", costcalcdom.ErrFormulaEval, in.ProductSysID, termErr)
-				recordProductSpanError(span, err)
-				return nil, err
-			}
-			finalCost, _ = scopeFloat(scope, terminal.ResultParamCode)
+		fc, fcErr := resolveFinalCost(in, scope, totalRM)
+		if fcErr != nil {
+			recordProductSpanError(span, fcErr)
+			return nil, fcErr
 		}
+		finalCost = fc
 	}
 	conv, _ := scopeFloat(scope, ScopeKeyConversion)
 
@@ -428,6 +420,20 @@ func findTerminalFormula(formulas []Formula) (*Formula, error) {
 			"formula chain has %d terminal nodes (%v); add a formula that outputs %s to disambiguate",
 			len(terminals), codes, ScopeKeyFinalCost)
 	}
+}
+
+// resolveFinalCost determines the final cost when COST_STAGE_OUT is absent from scope.
+// Pure-RM products (no formulas) return totalRM; formula products infer the DAG sink.
+func resolveFinalCost(in ComputeInput, scope map[string]any, totalRM float64) (float64, error) {
+	if len(in.Formulas) == 0 {
+		return totalRM, nil
+	}
+	terminal, termErr := findTerminalFormula(in.Formulas)
+	if termErr != nil {
+		return 0, fmt.Errorf("%w: product %d: %w", costcalcdom.ErrFormulaEval, in.ProductSysID, termErr)
+	}
+	fc, _ := scopeFloat(scope, terminal.ResultParamCode)
+	return fc, nil
 }
 
 func inputHash(in ComputeInput, totalRM float64) string {

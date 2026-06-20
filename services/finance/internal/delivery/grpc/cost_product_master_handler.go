@@ -65,7 +65,7 @@ func (h *CostProductMasterHandler) WithImportSupport(
 	h.importPublisher = importPublisher
 }
 
-// WithAuditSupport wires the audit repository for emit-on-mutate behaviour.
+// WithAuditSupport wires the audit repository for emit-on-mutate behavior.
 func (h *CostProductMasterHandler) WithAuditSupport(r costauditlog.Repository) {
 	h.auditRepo = r
 }
@@ -75,12 +75,14 @@ func (h *CostProductMasterHandler) emitAudit(ctx context.Context, op string, ent
 	if h.auditRepo == nil {
 		return
 	}
-	_ = h.auditRepo.Emit(ctx, costauditlog.NewInput{
+	if err := h.auditRepo.Emit(ctx, costauditlog.NewInput{
 		EntityType: "cost_product_master",
 		EntityID:   entityID,
 		Operation:  op,
 		UserID:     actor,
-	})
+	}); err != nil {
+		_ = err // best-effort: audit never blocks a mutation
+	}
 }
 
 // CreateCostProductMaster creates a new product master with auto-generated code.

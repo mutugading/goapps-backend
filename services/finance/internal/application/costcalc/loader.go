@@ -484,8 +484,8 @@ func (l *productLoader) loadPerProductFormulas(ctx context.Context, productSysID
 	}
 
 	// productOrder: preserves insertion order so topo-sort has a stable input.
-	productOrder := map[int64][]string{}          // productSysID → []formulaID (ordered, deduped)
-	seenInProduct := map[int64]map[string]bool{}  // dedup within a product
+	productOrder := map[int64][]string{}         // productSysID → []formulaID (ordered, deduped)
+	seenInProduct := map[int64]map[string]bool{} // dedup within a product
 	headByID := map[string]formulaHead{}
 
 	for rows.Next() {

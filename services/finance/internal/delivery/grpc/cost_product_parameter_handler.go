@@ -61,12 +61,14 @@ func (h *CostProductParameterHandler) emitParamAudit(ctx context.Context, op str
 		return
 	}
 	actor := getUserFromContext(ctx)
-	_ = h.auditRepo.Emit(ctx, costauditlog.NewInput{
+	if err := h.auditRepo.Emit(ctx, costauditlog.NewInput{
 		EntityType: "cost_product_master",
 		EntityID:   productSysID,
 		Operation:  op,
 		UserID:     actor,
-	})
+	}); err != nil {
+		_ = err // best-effort: audit never blocks a mutation
+	}
 }
 
 // ListParamEditLog returns the override audit history for one fill level of a CPR.

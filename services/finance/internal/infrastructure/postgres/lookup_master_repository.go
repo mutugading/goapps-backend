@@ -364,58 +364,66 @@ func (r *LookupMasterRepository) ImportMasters(ctx context.Context, content []by
 	if err != nil {
 		return 0, 0, 0, nil, fmt.Errorf("open excel: %w", err)
 	}
-	defer func() { _ = f.Close() }()
+	defer func() {
+		if cerr := f.Close(); cerr != nil {
+			_ = cerr // non-critical: file already fully read
+		}
+	}()
 	rows, err := f.GetRows("Lookup Masters")
 	if err != nil {
 		return 0, 0, 0, nil, fmt.Errorf("read Lookup Masters sheet: %w", err)
 	}
 	for i, row := range rows[1:] { // skip header
-		if len(row) < 3 {
-			if len(row) == 0 || row[0] == "" {
-				skipped++
-				continue
-			}
-			errs = append(errs, fmt.Sprintf("row %d: insufficient columns", i+2))
-			failed++
-			continue
-		}
-		code := ""
-		displayName := ""
-		tableName := ""
-		codeField := ""
-		labelField := ""
-		if len(row) > 0 {
-			code = row[0]
-		}
-		if len(row) > 1 {
-			displayName = row[1]
-		}
-		if len(row) > 2 {
-			tableName = row[2]
-		}
-		if len(row) > 3 {
-			codeField = row[3]
-		}
-		if len(row) > 4 {
-			labelField = row[4]
-		}
-		if code == "" {
-			skipped++
-			continue
-		}
-		if insertErr := r.CreateMaster(ctx, &lookupmaster.LookupMaster{
-			Code:       code,
-			DisplayName: displayName,
-			TableName:  tableName,
-			CodeField:  codeField,
-			LabelField: labelField,
-			IsActive:   true,
-		}, "import"); insertErr != nil {
-			errs = append(errs, fmt.Sprintf("row %d (%s): %v", i+2, code, insertErr))
-			failed++
-			continue
-		}
-		success++
+		s, sk, fa, rowErrs := r.importMasterRow(ctx, i, row)
+		success += s
+		skipped += sk
+		failed += fa
+		errs = append(errs, rowErrs...)
 	}
 	return success, skipped, failed, errs, nil
+}
+
+// importMasterRow processes a single import row; extracted to keep ImportMasters complexity under limit.
+func (r *LookupMasterRepository) importMasterRow(ctx context.Context, i int, row []string) (success, skipped, failed int, errs []string) {
+	if len(row) < 3 {
+		if len(row) == 0 || row[0] == "" {
+			return 0, 1, 0, nil
+		}
+		return 0, 0, 1, []string{fmt.Sprintf("row %d: insufficient columns", i+2)}
+	}
+	code, displayName, tableName, codeField, labelField := extractLookupImportRow(row)
+	if code == "" {
+		return 0, 1, 0, nil
+	}
+	if insertErr := r.CreateMaster(ctx, &lookupmaster.LookupMaster{
+		Code:        code,
+		DisplayName: displayName,
+		TableName:   tableName,
+		CodeField:   codeField,
+		LabelField:  labelField,
+		IsActive:    true,
+	}, "import"); insertErr != nil {
+		return 0, 0, 1, []string{fmt.Sprintf("row %d (%s): %v", i+2, code, insertErr)}
+	}
+	return 1, 0, 0, nil
+}
+
+// extractLookupImportRow reads column values from an import row, defaulting missing columns to "".
+func extractLookupImportRow(row []string) (code, displayName, tableName, codeField, labelField string) {
+	if len(row) > 0 {
+		code = row[0]
+	}
+	if len(row) > 1 {
+		displayName = row[1]
+	}
+	if len(row) > 2 {
+		tableName = row[2]
+	}
+	if len(row) > 3 {
+		codeField = row[3]
+	}
+	if len(row) > 4 {
+		labelField = row[4]
+	}
+	return
 }
