@@ -2,6 +2,7 @@ package costbulkimport
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/xuri/excelize/v2"
@@ -32,14 +33,7 @@ func ParseSheet(f *excelize.File, sheetName string, requiredHeaders []string) ([
 	}
 
 	for _, required := range requiredHeaders {
-		found := false
-		for _, h := range headers {
-			if h == required {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if !slices.Contains(headers, required) {
 			return nil, fmt.Errorf("sheet %q missing required header %q", sheetName, required)
 		}
 	}

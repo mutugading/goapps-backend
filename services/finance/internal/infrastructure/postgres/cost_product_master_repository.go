@@ -320,10 +320,7 @@ func (r *CostProductMasterRepository) BulkUpsertByLegacyID(ctx context.Context, 
 	now := time.Now().UTC()
 
 	for start := 0; start < len(items); start += upsertByLegacyBatchSize {
-		end := start + upsertByLegacyBatchSize
-		if end > len(items) {
-			end = len(items)
-		}
+		end := min(start+upsertByLegacyBatchSize, len(items))
 		batch := items[start:end]
 		batchResults, err := r.upsertLegacyBatch(ctx, tx, q, batch, actor, now)
 		if err != nil {
