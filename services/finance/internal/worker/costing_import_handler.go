@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 
 	iamv1 "github.com/mutugading/goapps-backend/gen/iam/v1"
+	"github.com/mutugading/goapps-backend/services/finance/internal/application/costbulkimport"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/costproductapplicableparam"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/costproductmaster"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/costproductparameter"
@@ -19,7 +21,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/storage"
 )
 
-// entityLabel returns a human-readable Indonesian label for the given entity key.
+// entityLabel returns a human-readable label for the given entity key.
 func entityLabel(entity string) string {
 	switch entity {
 	case costimportjob.EntityProductMaster:
@@ -28,6 +30,10 @@ func entityLabel(entity string) string {
 		return "Cost Applicable Parameters"
 	case costimportjob.EntityCPP:
 		return "Cost Product Parameters"
+	case costimportjob.EntityBulkProductRouting:
+		return "Bulk Import (Product Master + Routing)"
+	case costimportjob.EntityBulkProductRoutingExport:
+		return "Bulk Export (Product Master + Routing)"
 	default:
 		return entity
 	}
@@ -38,34 +44,42 @@ func entityLabel(entity string) string {
 // entity-specific async import handler based on the job's entity field.
 // On completion it emits a notification to the requesting user via IAM.
 type CostingImportHandler struct {
-	jobRepo     costimportjob.Repository
-	storage     storage.Service
-	cpmHandler  *costproductmaster.AsyncImportHandler
-	cappHandler *costproductapplicableparam.AsyncImportHandler
-	cppHandler  *costproductparameter.AsyncImportHandler
-	notif       iamclient.NotificationClient
-	logger      zerolog.Logger
+	jobRepo          costimportjob.Repository
+	storage          storage.Service
+	cpmHandler       *costproductmaster.AsyncImportHandler
+	cappHandler      *costproductapplicableparam.AsyncImportHandler
+	cppHandler       *costproductparameter.AsyncImportHandler
+	bulkImportHandler *costbulkimport.BulkImportHandler
+	bulkExportHandler *costbulkimport.ExportHandler
+	notif            iamclient.NotificationClient
+	logger           zerolog.Logger
 }
 
 // NewCostingImportHandler constructs the handler.
 // notif may be nil (a NopClient) — notification emission is always best-effort.
+// bulkImportHandler and bulkExportHandler may be nil; the corresponding
+// entity cases will return an error if they arrive and the handler is absent.
 func NewCostingImportHandler(
 	jobRepo costimportjob.Repository,
 	storageSvc storage.Service,
 	cpmHandler *costproductmaster.AsyncImportHandler,
 	cappHandler *costproductapplicableparam.AsyncImportHandler,
 	cppHandler *costproductparameter.AsyncImportHandler,
+	bulkImportHandler *costbulkimport.BulkImportHandler,
+	bulkExportHandler *costbulkimport.ExportHandler,
 	notif iamclient.NotificationClient,
 	logger zerolog.Logger,
 ) *CostingImportHandler {
 	return &CostingImportHandler{
-		jobRepo:     jobRepo,
-		storage:     storageSvc,
-		cpmHandler:  cpmHandler,
-		cappHandler: cappHandler,
-		cppHandler:  cppHandler,
-		notif:       notif,
-		logger:      logger,
+		jobRepo:           jobRepo,
+		storage:           storageSvc,
+		cpmHandler:        cpmHandler,
+		cappHandler:       cappHandler,
+		cppHandler:        cppHandler,
+		bulkImportHandler: bulkImportHandler,
+		bulkExportHandler: bulkExportHandler,
+		notif:             notif,
+		logger:            logger,
 	}
 }
 
@@ -113,6 +127,20 @@ func (h *CostingImportHandler) Handle(ctx context.Context, msg rabbitmq.JobMessa
 		dispatchErr = h.cappHandler.Handle(ctx, jobID, fileContent, fileName)
 	case costimportjob.EntityCPP:
 		dispatchErr = h.cppHandler.Handle(ctx, jobID, fileContent, fileName)
+	case costimportjob.EntityBulkProductRouting:
+		if h.bulkImportHandler == nil {
+			return fmt.Errorf("costing import: bulkImportHandler not configured for job %d", jobID)
+		}
+		dispatchErr = h.bulkImportHandler.Handle(ctx, jobID, fileContent, fileName)
+	case costimportjob.EntityBulkProductRoutingExport:
+		if h.bulkExportHandler == nil {
+			return fmt.Errorf("costing import: bulkExportHandler not configured for job %d", jobID)
+		}
+		req, parseErr := unmarshalExportRequest(job.FileKey())
+		if parseErr != nil {
+			return fmt.Errorf("costing import: parse export request for job %d: %w", jobID, parseErr)
+		}
+		dispatchErr = h.bulkExportHandler.Handle(ctx, jobID, req)
 	default:
 		return fmt.Errorf("costing import: unknown entity %q for job %d", job.Entity(), jobID)
 	}
@@ -211,4 +239,14 @@ func (h *CostingImportHandler) fetchFile(ctx context.Context, fileKey string) ([
 		return nil, "", fmt.Errorf("read object: %w", err)
 	}
 	return content, filepath.Base(fileKey), nil
+}
+
+// unmarshalExportRequest decodes a JSON-encoded ExportRequest from the job's
+// file_key field. Export jobs store their parameters there instead of a MinIO path.
+func unmarshalExportRequest(fileKey string) (costbulkimport.ExportRequest, error) {
+	var req costbulkimport.ExportRequest
+	if err := json.Unmarshal([]byte(fileKey), &req); err != nil {
+		return req, fmt.Errorf("unmarshal export request: %w", err)
+	}
+	return req, nil
 }

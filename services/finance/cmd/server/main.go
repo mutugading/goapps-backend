@@ -26,6 +26,7 @@ import (
 	jobapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/job"
 	uploadapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/upload"
 	auditapp "github.com/mutugading/goapps-backend/services/finance/internal/application/costauditlog"
+	"github.com/mutugading/goapps-backend/services/finance/internal/application/costbulkimport"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/costcalc"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/costcalc/evaluator"
 	fillapp "github.com/mutugading/goapps-backend/services/finance/internal/application/costfillassignment"
@@ -346,12 +347,14 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	cppTemplateH := cppapp.NewTemplateHandler()
 	cpmExportH := cpmapp.NewExportHandler(costProductMasterRepo)
 	cpmTemplateH := cpmapp.NewTemplateHandler()
+	bulkValidateH := costbulkimport.NewValidateHandler(costProductParameterRepo, costProductTypeRepo)
 	costDataImportHandler := grpcdelivery.NewCostDataImportHandler(
 		costImportJobRepo, storageSvc,
 		cappExportH, cappTemplateH,
 		cppExportH, cppTemplateH,
 		cpmExportH, cpmTemplateH,
 		rmqAdapter,
+		bulkValidateH,
 	)
 
 	costRouteHandler, err := grpcdelivery.NewCostRouteHandler(costRouteRepo, costProductRequestRepo)
