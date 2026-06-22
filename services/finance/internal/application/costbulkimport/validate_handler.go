@@ -41,7 +41,11 @@ func (h *ValidateHandler) Validate(ctx context.Context, fileContent []byte) (*Va
 	if openErr != nil {
 		return nil, fmt.Errorf("open file: %w", openErr)
 	}
-	defer func() { _ = f.Close() }()
+	defer func() {
+		if err := f.Close(); err != nil {
+			_ = err
+		}
+	}()
 
 	maps, mapsErr := h.loadMaps(ctx)
 	if mapsErr != nil {
@@ -254,6 +258,8 @@ func validateRouteRMRow(rowNum int32, row map[string]string, errs []SheetError) 
 }
 
 // appendIfUnderLimit appends a SheetError to errs only if len(errs) < limit.
+//
+//nolint:unparam // limit parameterized for testability
 func appendIfUnderLimit(errs []SheetError, e SheetError, limit int) []SheetError {
 	if len(errs) < limit {
 		return append(errs, e)

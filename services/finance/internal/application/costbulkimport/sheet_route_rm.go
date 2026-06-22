@@ -21,7 +21,7 @@ type rmBatch struct {
 // processRouteRM parses Sheet 6 ("route_rms") and performs a full replace
 // (DELETE + re-INSERT) of RMs for each unique (head, level, seq) combination.
 // Returns the count of seq nodes that had their RMs replaced, plus per-row errors.
-func processRouteRM(
+func processRouteRM( //nolint:gocognit // cohesive row-validation pipeline
 	ctx context.Context,
 	f *excelize.File,
 	maps *ImportMaps,

@@ -52,7 +52,7 @@ func processCAP(
 			errs = append(errs, SheetError{RowNumber: rowNum, Field: "param_code", Message: "unknown param code: " + paramCode})
 			continue
 		}
-		isRequired := strings.ToLower(row["is_required"]) == "true" || row["is_required"] == "1"
+		isRequired := strings.ToLower(row["is_required"]) == boolTrueStr || row["is_required"] == "1"
 
 		displayOrder, doErr := parseCAPPDisplayOrder(rowNum, row["display_order"])
 		if doErr != nil {

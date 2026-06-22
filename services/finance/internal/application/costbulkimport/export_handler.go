@@ -136,21 +136,7 @@ func (h *ExportHandler) loadExportData(ctx context.Context, req ExportRequest) (
 	}
 
 	// Apply ProductTypeCodes filter when requested.
-	if len(req.ProductTypeCodes) > 0 {
-		allowed := make(map[int32]bool, len(req.ProductTypeCodes))
-		for _, code := range req.ProductTypeCodes {
-			if id, ok := typeCodeToID[code]; ok {
-				allowed[id] = true
-			}
-		}
-		filtered := products[:0]
-		for _, p := range products {
-			if allowed[p.ProductTypeID()] {
-				filtered = append(filtered, p)
-			}
-		}
-		products = filtered
-	}
+	products = filterProductsByTypeCode(products, req.ProductTypeCodes, typeCodeToID)
 
 	// Build sys_id set for routing queries.
 	sysIDs := make([]int64, 0, len(products))
@@ -217,10 +203,39 @@ func (h *ExportHandler) loadExportData(ctx context.Context, req ExportRequest) (
 	return data, nil
 }
 
+// filterProductsByTypeCode filters products to only those whose type code is in typeCodes.
+// Returns the original slice unchanged when typeCodes is empty.
+func filterProductsByTypeCode(
+	products []*costproductmaster.CostProductMaster,
+	typeCodes []string,
+	typeCodeToID map[string]int32,
+) []*costproductmaster.CostProductMaster {
+	if len(typeCodes) == 0 {
+		return products
+	}
+	allowed := make(map[int32]bool, len(typeCodes))
+	for _, code := range typeCodes {
+		if id, ok := typeCodeToID[code]; ok {
+			allowed[id] = true
+		}
+	}
+	filtered := products[:0]
+	for _, p := range products {
+		if allowed[p.ProductTypeID()] {
+			filtered = append(filtered, p)
+		}
+	}
+	return filtered
+}
+
 // generateExcel builds the 6-sheet export Excel in memory.
 func (h *ExportHandler) generateExcel(data *exportData) ([]byte, error) {
 	f := excelize.NewFile()
-	defer func() { _ = f.Close() }()
+	defer func() {
+		if err := f.Close(); err != nil {
+			_ = err
+		}
+	}()
 
 	if err := writeProductMasterSheet(f, data.products, data.typeIDToCode); err != nil {
 		return nil, err
@@ -242,7 +257,9 @@ func (h *ExportHandler) generateExcel(data *exportData) ([]byte, error) {
 	}
 
 	// Remove the default blank Sheet1 if it still exists.
-	_ = f.DeleteSheet("Sheet1")
+	if err := f.DeleteSheet("Sheet1"); err != nil {
+		_ = err
+	}
 
 	var buf bytes.Buffer
 	if writeErr := f.Write(&buf); writeErr != nil {
@@ -409,7 +426,9 @@ func writeSheetHeaders(f *excelize.File, sheetName string, headers []string) err
 		if cellErr != nil {
 			return fmt.Errorf("header cell name: %w", cellErr)
 		}
-		_ = f.SetCellValue(sheetName, cell, h)
+		if err := f.SetCellValue(sheetName, cell, h); err != nil {
+			return fmt.Errorf("set cell %s: %w", cell, err)
+		}
 	}
 	return nil
 }
@@ -421,7 +440,9 @@ func writeSheetRow(f *excelize.File, sheetName string, rowIdx int, vals []any) e
 		if cellErr != nil {
 			return fmt.Errorf("data cell name: %w", cellErr)
 		}
-		_ = f.SetCellValue(sheetName, cell, v)
+		if err := f.SetCellValue(sheetName, cell, v); err != nil {
+			return fmt.Errorf("set cell %s: %w", cell, err)
+		}
 	}
 	return nil
 }
@@ -440,7 +461,7 @@ func ptrBoolOrEmpty(b *bool) string {
 		return ""
 	}
 	if *b {
-		return "true"
+		return boolTrueStr
 	}
 	return "false"
 }

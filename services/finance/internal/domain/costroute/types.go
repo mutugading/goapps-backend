@@ -192,10 +192,10 @@ type SeqUpsertResult struct {
 
 // RMInput is a single RM row for BulkReplaceRMs.
 type RMInput struct {
-	RmType         string  // PRODUCT, ITEM, GROUP
-	RmProductSysID int64   // set when RmType=PRODUCT
-	RmItemCode     string  // set when RmType=ITEM
-	RmGroupCode    string  // set when RmType=GROUP
+	RmType         string // PRODUCT, ITEM, GROUP
+	RmProductSysID int64  // set when RmType=PRODUCT
+	RmItemCode     string // set when RmType=ITEM
+	RmGroupCode    string // set when RmType=GROUP
 	Ratio          float64
 	RmName         string
 	RmShadeCode    string

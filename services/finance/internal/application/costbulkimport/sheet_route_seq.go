@@ -15,7 +15,7 @@ import (
 // processRouteSeq parses Sheet 5 ("route_sequences"), upserts route sequence rows,
 // and populates maps.RouteSeqMap with composite key → crs_seq_id.
 // Returns counts of rows inserted and updated, plus per-row errors.
-func processRouteSeq(
+func processRouteSeq( //nolint:gocognit // cohesive row-validation pipeline
 	ctx context.Context,
 	f *excelize.File,
 	maps *ImportMaps,

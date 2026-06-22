@@ -112,7 +112,7 @@ func parseCPPValue(rowNum int32, row map[string]string) (costproductparameter.CP
 	}
 	if flagStr != "" {
 		lower := strings.ToLower(flagStr)
-		b := lower == "true" || lower == "1" || lower == "yes"
+		b := lower == boolTrueStr || lower == "1" || lower == "yes"
 		inp.ValueFlag = &b
 	}
 	return inp, nil

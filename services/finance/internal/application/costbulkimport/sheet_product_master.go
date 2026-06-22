@@ -13,7 +13,7 @@ import (
 // processProductMaster parses Sheet 1 ("product_master"), upserts products by
 // legacy Oracle sys_id, and populates maps.ProductMap with the resulting IDs.
 // Returns counts of rows inserted and updated, plus any per-row errors.
-func processProductMaster(
+func processProductMaster( //nolint:gocognit // cohesive row-validation pipeline
 	ctx context.Context,
 	f *excelize.File,
 	maps *ImportMaps,

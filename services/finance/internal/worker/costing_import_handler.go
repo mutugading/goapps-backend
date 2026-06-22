@@ -44,15 +44,15 @@ func entityLabel(entity string) string {
 // entity-specific async import handler based on the job's entity field.
 // On completion it emits a notification to the requesting user via IAM.
 type CostingImportHandler struct {
-	jobRepo          costimportjob.Repository
-	storage          storage.Service
-	cpmHandler       *costproductmaster.AsyncImportHandler
-	cappHandler      *costproductapplicableparam.AsyncImportHandler
-	cppHandler       *costproductparameter.AsyncImportHandler
+	jobRepo           costimportjob.Repository
+	storage           storage.Service
+	cpmHandler        *costproductmaster.AsyncImportHandler
+	cappHandler       *costproductapplicableparam.AsyncImportHandler
+	cppHandler        *costproductparameter.AsyncImportHandler
 	bulkImportHandler *costbulkimport.BulkImportHandler
 	bulkExportHandler *costbulkimport.ExportHandler
-	notif            iamclient.NotificationClient
-	logger           zerolog.Logger
+	notif             iamclient.NotificationClient
+	logger            zerolog.Logger
 }
 
 // NewCostingImportHandler constructs the handler.

@@ -21,7 +21,11 @@ type SheetResult struct {
 // Sheets: summary (per-sheet totals) + one error sheet per input sheet (with row errors).
 func GenerateErrorReport(results []SheetResult) ([]byte, error) {
 	f := excelize.NewFile()
-	defer func() { _ = f.Close() }()
+	defer func() {
+		if err := f.Close(); err != nil {
+			_ = err
+		}
+	}()
 
 	const summarySheet = "summary"
 	if setErr := f.SetSheetName("Sheet1", summarySheet); setErr != nil {
@@ -53,7 +57,9 @@ func writeSummarySheet(f *excelize.File, sheetName string, results []SheetResult
 		if cellErr != nil {
 			return fmt.Errorf("coordinates to cell name: %w", cellErr)
 		}
-		_ = f.SetCellValue(sheetName, cell, h)
+		if err := f.SetCellValue(sheetName, cell, h); err != nil {
+			return fmt.Errorf("set cell %s: %w", cell, err)
+		}
 	}
 	for row, r := range results {
 		rowIdx := row + 2
@@ -63,7 +69,9 @@ func writeSummarySheet(f *excelize.File, sheetName string, results []SheetResult
 			if cellErr != nil {
 				return fmt.Errorf("coordinates to cell name: %w", cellErr)
 			}
-			_ = f.SetCellValue(sheetName, cell, v)
+			if err := f.SetCellValue(sheetName, cell, v); err != nil {
+				return fmt.Errorf("set cell %s: %w", cell, err)
+			}
 		}
 	}
 	return nil
@@ -81,7 +89,9 @@ func writeErrorSheet(f *excelize.File, r SheetResult) error {
 		if cellErr != nil {
 			return fmt.Errorf("coordinates to cell name: %w", cellErr)
 		}
-		_ = f.SetCellValue(errSheetName, cell, h)
+		if err := f.SetCellValue(errSheetName, cell, h); err != nil {
+			return fmt.Errorf("set cell %s: %w", cell, err)
+		}
 	}
 	for rowIdx, e := range r.Errors {
 		vals := []any{e.RowNumber, e.Field, e.Message}
@@ -90,7 +100,9 @@ func writeErrorSheet(f *excelize.File, r SheetResult) error {
 			if cellErr != nil {
 				return fmt.Errorf("coordinates to cell name: %w", cellErr)
 			}
-			_ = f.SetCellValue(errSheetName, cell, v)
+			if err := f.SetCellValue(errSheetName, cell, v); err != nil {
+				return fmt.Errorf("set cell %s: %w", cell, err)
+			}
 		}
 	}
 	return nil
