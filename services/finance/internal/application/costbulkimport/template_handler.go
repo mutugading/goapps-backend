@@ -67,26 +67,8 @@ func (h *TemplateHandler) Handle(_ context.Context) ([]byte, error) {
 	}
 
 	for _, s := range sheets {
-		if _, err := f.NewSheet(s.name); err != nil {
-			return nil, fmt.Errorf("create sheet %s: %w", s.name, err)
-		}
-		for i, hdr := range s.headers {
-			cell, cellErr := excelize.CoordinatesToCellName(i+1, 1)
-			if cellErr != nil {
-				return nil, fmt.Errorf("template coord row 1 col %d: %w", i+1, cellErr)
-			}
-			if setErr := f.SetCellValue(s.name, cell, hdr); setErr != nil {
-				return nil, fmt.Errorf("template header %s: %w", cell, setErr)
-			}
-		}
-		for i, v := range s.sample {
-			cell, cellErr := excelize.CoordinatesToCellName(i+1, 2)
-			if cellErr != nil {
-				return nil, fmt.Errorf("template coord row 2 col %d: %w", i+1, cellErr)
-			}
-			if setErr := f.SetCellValue(s.name, cell, v); setErr != nil {
-				return nil, fmt.Errorf("template sample %s: %w", cell, setErr)
-			}
+		if err := populateTemplateSheet(f, s.name, s.headers, s.sample); err != nil {
+			return nil, err
 		}
 	}
 
@@ -95,4 +77,30 @@ func (h *TemplateHandler) Handle(_ context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("write template to buffer: %w", err)
 	}
 	return buf.Bytes(), nil
+}
+
+// populateTemplateSheet creates a named sheet and writes headers in row 1 and sample values in row 2.
+func populateTemplateSheet(f *excelize.File, name string, headers []string, sample []string) error {
+	if _, err := f.NewSheet(name); err != nil {
+		return fmt.Errorf("create sheet %s: %w", name, err)
+	}
+	for i, hdr := range headers {
+		cell, cellErr := excelize.CoordinatesToCellName(i+1, 1)
+		if cellErr != nil {
+			return fmt.Errorf("template coord row 1 col %d: %w", i+1, cellErr)
+		}
+		if setErr := f.SetCellValue(name, cell, hdr); setErr != nil {
+			return fmt.Errorf("template header %s: %w", cell, setErr)
+		}
+	}
+	for i, v := range sample {
+		cell, cellErr := excelize.CoordinatesToCellName(i+1, 2)
+		if cellErr != nil {
+			return fmt.Errorf("template coord row 2 col %d: %w", i+1, cellErr)
+		}
+		if setErr := f.SetCellValue(name, cell, v); setErr != nil {
+			return fmt.Errorf("template sample %s: %w", cell, setErr)
+		}
+	}
+	return nil
 }

@@ -103,13 +103,13 @@ func (h *ExportHandler) Handle(ctx context.Context, jobID int64, req ExportReque
 
 // exportData bundles all queried data needed to build the export Excel.
 type exportData struct {
-	products      []*costproductmaster.CostProductMaster
-	typeIDToCode  map[int32]string
-	cppRows       []costproductparameter.CPPRow
-	cappRows      []costproductparameter.CAPPRow
-	heads         []costroute.ExportRouteHead
-	seqs          []costroute.ExportRouteSeq
-	rms           []costroute.ExportRouteRM
+	products     []*costproductmaster.CostProductMaster
+	typeIDToCode map[int32]string
+	cppRows      []costproductparameter.CPPRow
+	cappRows     []costproductparameter.CAPPRow
+	heads        []costroute.ExportRouteHead
+	seqs         []costroute.ExportRouteSeq
+	rms          []costroute.ExportRouteRM
 }
 
 // loadExportData fetches all six datasets from the database.

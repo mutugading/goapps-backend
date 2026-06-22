@@ -98,7 +98,7 @@ func (h *ValidateHandler) validateProductMaster(f *excelize.File, maps *ImportMa
 	}
 	result := SheetResult{SheetName: sheetName, TotalRows: len(rows)}
 	for i, row := range rows {
-		rowNum := int32(i+2) //nolint:gosec // row count fits int32
+		rowNum := int32(i + 2) //nolint:gosec // row count fits int32
 		legacyID := row["legacy_oracle_sys_id"]
 		if legacyID == "" {
 			result.Errors = appendIfUnderLimit(result.Errors, SheetError{RowNumber: rowNum, Field: "legacy_oracle_sys_id", Message: "required"}, maxSampleErrors)
@@ -128,7 +128,7 @@ func (h *ValidateHandler) validateCPP(f *excelize.File, maps *ImportMaps) SheetR
 	}
 	result := SheetResult{SheetName: sheetName, TotalRows: len(rows)}
 	for i, row := range rows {
-		rowNum := int32(i+2) //nolint:gosec // row count fits int32
+		rowNum := int32(i + 2) //nolint:gosec // row count fits int32
 		if row["legacy_oracle_sys_id"] == "" {
 			result.Errors = appendIfUnderLimit(result.Errors, SheetError{RowNumber: rowNum, Field: "legacy_oracle_sys_id", Message: "required"}, maxSampleErrors)
 			continue
@@ -154,7 +154,7 @@ func (h *ValidateHandler) validateCAP(f *excelize.File, maps *ImportMaps) SheetR
 	}
 	result := SheetResult{SheetName: sheetName, TotalRows: len(rows)}
 	for i, row := range rows {
-		rowNum := int32(i+2) //nolint:gosec // row count fits int32
+		rowNum := int32(i + 2) //nolint:gosec // row count fits int32
 		if row["legacy_oracle_sys_id"] == "" {
 			result.Errors = appendIfUnderLimit(result.Errors, SheetError{RowNumber: rowNum, Field: "legacy_oracle_sys_id", Message: "required"}, maxSampleErrors)
 			continue
@@ -180,7 +180,7 @@ func (h *ValidateHandler) validateRouteHead(f *excelize.File, _ *ImportMaps) She
 	}
 	result := SheetResult{SheetName: sheetName, TotalRows: len(rows)}
 	for i, row := range rows {
-		rowNum := int32(i+2) //nolint:gosec // row count fits int32
+		rowNum := int32(i + 2) //nolint:gosec // row count fits int32
 		if row[legacyOracleSysIDField] == "" {
 			result.Errors = appendIfUnderLimit(result.Errors, SheetError{RowNumber: rowNum, Field: legacyOracleSysIDField, Message: "required"}, maxSampleErrors)
 		}
@@ -198,7 +198,7 @@ func (h *ValidateHandler) validateRouteSeq(f *excelize.File, _ *ImportMaps) Shee
 	}
 	result := SheetResult{SheetName: sheetName, TotalRows: len(rows)}
 	for i, row := range rows {
-		rowNum := int32(i+2) //nolint:gosec // row count fits int32
+		rowNum := int32(i + 2) //nolint:gosec // row count fits int32
 		result.Errors = validateRouteSeqRow(rowNum, row, result.Errors)
 	}
 	return result
@@ -231,7 +231,7 @@ func (h *ValidateHandler) validateRouteRM(f *excelize.File, _ *ImportMaps) Sheet
 	}
 	result := SheetResult{SheetName: sheetName, TotalRows: len(rows)}
 	for i, row := range rows {
-		rowNum := int32(i+2) //nolint:gosec // row count fits int32
+		rowNum := int32(i + 2) //nolint:gosec // row count fits int32
 		result.Errors = validateRouteRMRow(rowNum, row, result.Errors)
 	}
 	return result

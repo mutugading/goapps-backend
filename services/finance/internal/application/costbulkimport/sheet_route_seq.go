@@ -37,7 +37,7 @@ func processRouteSeq( //nolint:gocognit // cohesive row-validation pipeline
 	compositeKeys := make([]string, 0, len(rows))
 
 	for i, row := range rows {
-		rowNum := int32(i+2) //nolint:gosec // row count fits int32
+		rowNum := int32(i + 2) //nolint:gosec // row count fits int32
 		headLegacyID := row[routeHeadLegacyIDField]
 		if headLegacyID == "" {
 			errs = append(errs, SheetError{RowNumber: rowNum, Field: routeHeadLegacyIDField, Message: "required"})

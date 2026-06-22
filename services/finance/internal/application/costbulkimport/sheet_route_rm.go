@@ -21,7 +21,7 @@ type rmBatch struct {
 // processRouteRM parses Sheet 6 ("route_rms") and performs a full replace
 // (DELETE + re-INSERT) of RMs for each unique (head, level, seq) combination.
 // Returns the count of seq nodes that had their RMs replaced, plus per-row errors.
-func processRouteRM( //nolint:gocognit // cohesive row-validation pipeline
+func processRouteRM( //nolint:gocognit,gocyclo // cohesive row-validation pipeline
 	ctx context.Context,
 	f *excelize.File,
 	maps *ImportMaps,
@@ -43,7 +43,7 @@ func processRouteRM( //nolint:gocognit // cohesive row-validation pipeline
 	batchOrder := make([]string, 0)       // preserve insertion order
 
 	for i, row := range rows {
-		rowNum := int32(i+2) //nolint:gosec // row count fits int32
+		rowNum := int32(i + 2) //nolint:gosec // row count fits int32
 		headLegacyID := row[routeHeadLegacyIDField]
 		if headLegacyID == "" {
 			errs = append(errs, SheetError{RowNumber: rowNum, Field: routeHeadLegacyIDField, Message: "required"})

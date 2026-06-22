@@ -32,7 +32,7 @@ func processRouteHead(
 	rowNums := make([]int32, 0, len(rows))
 
 	for i, row := range rows {
-		rowNum := int32(i+2) //nolint:gosec // row count fits int32
+		rowNum := int32(i + 2) //nolint:gosec // row count fits int32
 		legacyID := row[legacyOracleSysIDField]
 		if legacyID == "" {
 			errs = append(errs, SheetError{RowNumber: rowNum, Field: legacyOracleSysIDField, Message: "required"})
