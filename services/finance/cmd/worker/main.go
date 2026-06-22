@@ -131,11 +131,9 @@ func run() error { //nolint:gocognit,gocyclo // linear setup function
 	bulkImportHandler := costbulkimport.NewBulkImportHandler(
 		costImportJobRepo, cpmRepo, cppRepo, costRouteRepo, cptRepo, storageSvc, log.Logger,
 	)
-	bulkValidateHandler := costbulkimport.NewValidateHandler(cppRepo, cptRepo)
 	bulkExportHandler := costbulkimport.NewExportHandler(
 		cpmRepo, cppRepo, cptRepo, costRouteRepo, costImportJobRepo, storageSvc, log.Logger,
 	)
-	_ = bulkValidateHandler // used by gRPC delivery layer, not the worker
 	costingImportHandler := workerinternal.NewCostingImportHandler(
 		costImportJobRepo, storageSvc,
 		cpmImportHandler, cappImportHandler, cppImportHandler,
