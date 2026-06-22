@@ -885,10 +885,7 @@ func (r *CostProductParameterRepository) BulkUpsertValues(ctx context.Context, i
 	}()
 
 	for start := 0; start < len(items); start += batchSize {
-		end := start + batchSize
-		if end > len(items) {
-			end = len(items)
-		}
+		end := min(start+batchSize, len(items))
 		ins, upd, batchErr := upsertCPPBatch(ctx, tx, items[start:end], actor, now)
 		if batchErr != nil {
 			return 0, 0, fmt.Errorf("upsert CPP batch: %w", batchErr)
@@ -956,10 +953,7 @@ func (r *CostProductParameterRepository) BulkUpsertApplicable(ctx context.Contex
 	}()
 
 	for start := 0; start < len(items); start += batchSize {
-		end := start + batchSize
-		if end > len(items) {
-			end = len(items)
-		}
+		end := min(start+batchSize, len(items))
 		ins, upd, batchErr := upsertCAPPBatch(ctx, tx, items[start:end], actor, now)
 		if batchErr != nil {
 			return 0, 0, fmt.Errorf("upsert CAPP batch: %w", batchErr)
