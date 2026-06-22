@@ -85,4 +85,8 @@ type Repository interface {
 	// BulkUpsertApplicable upserts CAPP rows by (capp_product_sys_id, capp_param_id).
 	// Returns counts of rows inserted and updated.
 	BulkUpsertApplicable(ctx context.Context, items []CAPPUpsertInput, actor string) (inserted, updated int, err error)
+
+	// ListAllParams returns all active mst_parameter rows for bulk import map preloading.
+	// Only param_id and param_code fields are used from the result.
+	ListAllParams(ctx context.Context) ([]ParamMeta, error)
 }

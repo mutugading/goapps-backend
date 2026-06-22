@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/lib/pq"
 
 	costroute "github.com/mutugading/goapps-backend/services/finance/internal/domain/costroute"
 )
@@ -1245,3 +1246,122 @@ func (r *CostRouteRepository) BulkReplaceRMs(ctx context.Context, seqID int64, r
 	return nil
 }
 
+
+// ListAllHeadsForExport returns all non-deleted route heads for export, optionally
+// filtered to the given product sys IDs. An empty productSysIDs slice returns all heads.
+func (r *CostRouteRepository) ListAllHeadsForExport(ctx context.Context, productSysIDs []int64) ([]costroute.ExportRouteHead, error) {
+	q := `SELECT crh_head_id, crh_product_sys_id, crh_routing_status, COALESCE(crh_notes,'')
+          FROM cost_route_head
+          WHERE crh_deleted_at IS NULL`
+	var args []any
+	if len(productSysIDs) > 0 {
+		q += ` AND crh_product_sys_id = ANY($1)`
+		args = append(args, pq.Array(productSysIDs))
+	}
+	q += ` ORDER BY crh_head_id`
+	rows, err := r.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list all route heads for export: %w", err)
+	}
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
+	var out []costroute.ExportRouteHead
+	for rows.Next() {
+		var h costroute.ExportRouteHead
+		if scanErr := rows.Scan(&h.HeadID, &h.ProductSysID, &h.RoutingStatus, &h.Notes); scanErr != nil {
+			return nil, fmt.Errorf("scan export route head: %w", scanErr)
+		}
+		out = append(out, h)
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("iterate export route heads: %w", rowsErr)
+	}
+	return out, nil
+}
+
+// ListAllSeqsForExport returns all non-deleted route seqs for the given head IDs.
+func (r *CostRouteRepository) ListAllSeqsForExport(ctx context.Context, headIDs []int64) ([]costroute.ExportRouteSeq, error) {
+	if len(headIDs) == 0 {
+		return nil, nil
+	}
+	const q = `
+SELECT crs_seq_id, crs_head_id, crs_product_sys_id, crs_route_level, crs_route_seq,
+       COALESCE(crs_route_name,''), COALESCE(crs_route_item_code,''),
+       COALESCE(crs_route_shade_code,''), COALESCE(crs_route_shade_name,'')
+FROM cost_route_seq
+WHERE crs_head_id = ANY($1) AND crs_deleted_at IS NULL
+ORDER BY crs_head_id, crs_route_level, crs_route_seq`
+	rows, err := r.db.QueryContext(ctx, q, pq.Array(headIDs))
+	if err != nil {
+		return nil, fmt.Errorf("list all route seqs for export: %w", err)
+	}
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
+	var out []costroute.ExportRouteSeq
+	for rows.Next() {
+		var s costroute.ExportRouteSeq
+		if scanErr := rows.Scan(
+			&s.SeqID, &s.HeadID, &s.ProductSysID, &s.RouteLevel, &s.RouteSeq,
+			&s.RouteName, &s.RouteItemCode, &s.RouteShadeCode, &s.RouteShadeName,
+		); scanErr != nil {
+			return nil, fmt.Errorf("scan export route seq: %w", scanErr)
+		}
+		out = append(out, s)
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("iterate export route seqs: %w", rowsErr)
+	}
+	return out, nil
+}
+
+// ListAllRMsForExport returns all route RMs for the given seq IDs.
+// The HeadID field is populated from the caller-supplied seq→head mapping.
+func (r *CostRouteRepository) ListAllRMsForExport(ctx context.Context, seqIDs []int64) ([]costroute.ExportRouteRM, error) {
+	if len(seqIDs) == 0 {
+		return nil, nil
+	}
+	const q = `
+SELECT crm_seq_id,
+       crm_rm_type, COALESCE(crm_rm_product_sys_id, 0),
+       COALESCE(crm_rm_item_code,''), COALESCE(crm_rm_group_code,''),
+       crm_route_rm_ratio, COALESCE(crm_route_rm_name,''),
+       COALESCE(crm_route_rm_shade_code,''), COALESCE(crm_route_rm_shade_name,''),
+       COALESCE(crm_sub_type,''), COALESCE(crm_notes,'')
+FROM cost_route_rm
+WHERE crm_seq_id = ANY($1)
+ORDER BY crm_seq_id`
+	rows, err := r.db.QueryContext(ctx, q, pq.Array(seqIDs))
+	if err != nil {
+		return nil, fmt.Errorf("list all route rms for export: %w", err)
+	}
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
+	var out []costroute.ExportRouteRM
+	for rows.Next() {
+		var rm costroute.ExportRouteRM
+		if scanErr := rows.Scan(
+			&rm.SeqID,
+			&rm.RmType, &rm.RmProductSysID,
+			&rm.RmItemCode, &rm.RmGroupCode,
+			&rm.Ratio, &rm.RmName,
+			&rm.RmShadeCode, &rm.RmShadeName,
+			&rm.SubType, &rm.Notes,
+		); scanErr != nil {
+			return nil, fmt.Errorf("scan export route rm: %w", scanErr)
+		}
+		out = append(out, rm)
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("iterate export route rms: %w", rowsErr)
+	}
+	return out, nil
+}

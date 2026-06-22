@@ -45,6 +45,15 @@ func (fakeRepoForDup) BulkUpsertSeqs(_ context.Context, _ []costroute.SeqUpsertI
 func (fakeRepoForDup) BulkReplaceRMs(_ context.Context, _ int64, _ []costroute.RMInput, _ string) error {
 	return nil
 }
+func (fakeRepoForDup) ListAllHeadsForExport(_ context.Context, _ []int64) ([]costroute.ExportRouteHead, error) {
+	return nil, nil
+}
+func (fakeRepoForDup) ListAllSeqsForExport(_ context.Context, _ []int64) ([]costroute.ExportRouteSeq, error) {
+	return nil, nil
+}
+func (fakeRepoForDup) ListAllRMsForExport(_ context.Context, _ []int64) ([]costroute.ExportRouteRM, error) {
+	return nil, nil
+}
 
 func TestDuplicate_ValuesWithoutApplicabilityRejected(t *testing.T) {
 	t.Parallel()

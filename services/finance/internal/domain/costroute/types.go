@@ -204,6 +204,43 @@ type RMInput struct {
 	Notes          string
 }
 
+// ExportRouteHead is a flat projection of cost_route_head used for bulk export.
+type ExportRouteHead struct {
+	HeadID        int64
+	ProductSysID  int64
+	RoutingStatus string
+	Notes         string
+}
+
+// ExportRouteSeq is a flat projection of cost_route_seq used for bulk export.
+type ExportRouteSeq struct {
+	SeqID          int64
+	HeadID         int64
+	ProductSysID   int64
+	RouteLevel     int32
+	RouteSeq       int32
+	RouteName      string
+	RouteItemCode  string
+	RouteShadeCode string
+	RouteShadeName string
+}
+
+// ExportRouteRM is a flat projection of cost_route_rm used for bulk export.
+type ExportRouteRM struct {
+	SeqID          int64
+	HeadID         int64
+	RmType         string
+	RmProductSysID int64
+	RmItemCode     string
+	RmGroupCode    string
+	Ratio          float64
+	RmName         string
+	RmShadeCode    string
+	RmShadeName    string
+	SubType        string
+	Notes          string
+}
+
 // Repository persists CostRoute aggregates.
 type Repository interface {
 	// PromoteFromDraft creates a new cost_route_head + a level-1 SEQ producing
@@ -244,4 +281,11 @@ type Repository interface {
 	BulkUpsertSeqs(ctx context.Context, items []SeqUpsertInput, actor string) ([]SeqUpsertResult, error)
 	// BulkReplaceRMs deletes all existing RMs for seqID and re-inserts the given rms.
 	BulkReplaceRMs(ctx context.Context, seqID int64, rms []RMInput, actor string) error
+	// ListAllHeadsForExport returns all non-deleted route heads for export, optionally
+	// filtered to the given product sys IDs. An empty productSysIDs slice returns all heads.
+	ListAllHeadsForExport(ctx context.Context, productSysIDs []int64) ([]ExportRouteHead, error)
+	// ListAllSeqsForExport returns all non-deleted route seqs for the given head IDs.
+	ListAllSeqsForExport(ctx context.Context, headIDs []int64) ([]ExportRouteSeq, error)
+	// ListAllRMsForExport returns all route RMs for the given seq IDs.
+	ListAllRMsForExport(ctx context.Context, seqIDs []int64) ([]ExportRouteRM, error)
 }

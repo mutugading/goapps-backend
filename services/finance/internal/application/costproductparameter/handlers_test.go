@@ -140,6 +140,10 @@ func (f *fakeRepo) BulkUpsertApplicable(_ context.Context, _ []cpp.CAPPUpsertInp
 	return 0, 0, nil
 }
 
+func (f *fakeRepo) ListAllParams(_ context.Context) ([]cpp.ParamMeta, error) {
+	return nil, nil
+}
+
 // =============================================================================
 // Upsert
 // =============================================================================

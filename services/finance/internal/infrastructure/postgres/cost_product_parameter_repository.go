@@ -997,3 +997,49 @@ RETURNING (xmax = 0)::int`
 	}
 	return inserted, updated, nil
 }
+
+// ListAllParams returns all non-deleted mst_parameter rows for map preloading.
+func (r *CostProductParameterRepository) ListAllParams(ctx context.Context) ([]cpp.ParamMeta, error) {
+	const q = `
+SELECT p.id, p.param_code, p.param_name, p.param_short_name,
+       p.data_type, p.param_category,
+       COALESCE(p.uom_code, '') AS uom_code,
+       COALESCE(p.owner_department, ''),
+       p.is_required_for_costing, p.is_period_dependent,
+       COALESCE(p.lookup_master_code, ''),
+       COALESCE(p.display_order, 0),
+       COALESCE(p.display_group, ''),
+       COALESCE(p.lookup_fill_group_code, ''),
+       COALESCE(p.lookup_source_column, '')
+FROM mst_parameter p
+WHERE p.deleted_at IS NULL
+ORDER BY p.param_code`
+	rows, err := r.db.QueryContext(ctx, q)
+	if err != nil {
+		return nil, fmt.Errorf("list all params: %w", err)
+	}
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
+	var out []cpp.ParamMeta
+	for rows.Next() {
+		var m cpp.ParamMeta
+		if scanErr := rows.Scan(
+			&m.ParamID, &m.ParamCode, &m.ParamName, &m.ParamShortName,
+			&m.DataType, &m.ParamCategory,
+			&m.UOMCode, &m.OwnerDepartment,
+			&m.IsRequiredForCosting, &m.IsPeriodDependent,
+			&m.LookupMasterCode, &m.DisplayOrder, &m.DisplayGroup,
+			&m.LookupFillGroupCode, &m.LookupSourceColumn,
+		); scanErr != nil {
+			return nil, fmt.Errorf("scan param meta: %w", scanErr)
+		}
+		out = append(out, m)
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("iterate params: %w", rowsErr)
+	}
+	return out, nil
+}
