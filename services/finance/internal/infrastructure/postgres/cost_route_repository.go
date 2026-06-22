@@ -573,10 +573,7 @@ func (r *CostRouteRepository) ListHeads(ctx context.Context, f costroute.Filter)
 			whereSQL += " AND " + w
 		}
 	}
-	page := f.Page
-	if page < 1 {
-		page = 1
-	}
+	page := max(f.Page, 1)
 	pageSize := f.PageSize
 	if pageSize < 1 {
 		pageSize = 20
