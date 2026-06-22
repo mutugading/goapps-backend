@@ -1003,7 +1003,7 @@ func (r *CostProductParameterRepository) ListAllParams(ctx context.Context) ([]c
 	const q = `
 SELECT p.id, p.param_code, p.param_name, p.param_short_name,
        p.data_type, p.param_category,
-       COALESCE(p.uom_code, '') AS uom_code,
+       COALESCE(u.uom_code, '') AS uom_code,
        COALESCE(p.owner_department, ''),
        p.is_required_for_costing, p.is_period_dependent,
        COALESCE(p.lookup_master_code, ''),
@@ -1012,6 +1012,7 @@ SELECT p.id, p.param_code, p.param_name, p.param_short_name,
        COALESCE(p.lookup_fill_group_code, ''),
        COALESCE(p.lookup_source_column, '')
 FROM mst_parameter p
+LEFT JOIN mst_uom u ON u.uom_id = p.uom_id AND u.deleted_at IS NULL
 WHERE p.deleted_at IS NULL
 ORDER BY p.param_code`
 	rows, err := r.db.QueryContext(ctx, q)

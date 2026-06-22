@@ -12,6 +12,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costimportjob"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductmaster"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductparameter"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costproducttype"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costroute"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/storage"
 )
@@ -21,6 +22,7 @@ import (
 type ExportHandler struct {
 	cpmRepo   costproductmaster.Repository
 	cppRepo   costproductparameter.Repository
+	typeRepo  costproducttype.Repository
 	routeRepo costroute.Repository
 	jobRepo   costimportjob.Repository
 	storage   storage.Service
@@ -31,6 +33,7 @@ type ExportHandler struct {
 func NewExportHandler(
 	cpmRepo costproductmaster.Repository,
 	cppRepo costproductparameter.Repository,
+	typeRepo costproducttype.Repository,
 	routeRepo costroute.Repository,
 	jobRepo costimportjob.Repository,
 	storageSvc storage.Service,
@@ -39,6 +42,7 @@ func NewExportHandler(
 	return &ExportHandler{
 		cpmRepo:   cpmRepo,
 		cppRepo:   cppRepo,
+		typeRepo:  typeRepo,
 		routeRepo: routeRepo,
 		jobRepo:   jobRepo,
 		storage:   storageSvc,
@@ -99,16 +103,29 @@ func (h *ExportHandler) Handle(ctx context.Context, jobID int64, req ExportReque
 
 // exportData bundles all queried data needed to build the export Excel.
 type exportData struct {
-	products   []*costproductmaster.CostProductMaster
-	cppRows    []costproductparameter.CPPRow
-	cappRows   []costproductparameter.CAPPRow
-	heads      []costroute.ExportRouteHead
-	seqs       []costroute.ExportRouteSeq
-	rms        []costroute.ExportRouteRM
+	products      []*costproductmaster.CostProductMaster
+	typeIDToCode  map[int32]string
+	cppRows       []costproductparameter.CPPRow
+	cappRows      []costproductparameter.CAPPRow
+	heads         []costroute.ExportRouteHead
+	seqs          []costroute.ExportRouteSeq
+	rms           []costroute.ExportRouteRM
 }
 
 // loadExportData fetches all six datasets from the database.
 func (h *ExportHandler) loadExportData(ctx context.Context, req ExportRequest) (*exportData, error) {
+	// Load product types to build ID↔code maps.
+	productTypes, typeErr := h.typeRepo.ListAllActive(ctx)
+	if typeErr != nil {
+		return nil, fmt.Errorf("list product types: %w", typeErr)
+	}
+	typeCodeToID := make(map[string]int32, len(productTypes))
+	typeIDToCode := make(map[int32]string, len(productTypes))
+	for _, t := range productTypes {
+		typeCodeToID[t.TypeCode()] = t.TypeID()
+		typeIDToCode[t.TypeID()] = t.TypeCode()
+	}
+
 	filter := costproductmaster.Filter{}
 	if req.ActiveOnly {
 		filter.ActiveFilter = "active"
@@ -118,7 +135,24 @@ func (h *ExportHandler) loadExportData(ctx context.Context, req ExportRequest) (
 		return nil, fmt.Errorf("list products: %w", listErr)
 	}
 
-	// Build sys_id set for optional type-code filter and routing queries.
+	// Apply ProductTypeCodes filter when requested.
+	if len(req.ProductTypeCodes) > 0 {
+		allowed := make(map[int32]bool, len(req.ProductTypeCodes))
+		for _, code := range req.ProductTypeCodes {
+			if id, ok := typeCodeToID[code]; ok {
+				allowed[id] = true
+			}
+		}
+		filtered := products[:0]
+		for _, p := range products {
+			if allowed[p.ProductTypeID()] {
+				filtered = append(filtered, p)
+			}
+		}
+		products = filtered
+	}
+
+	// Build sys_id set for routing queries.
 	sysIDs := make([]int64, 0, len(products))
 	for _, p := range products {
 		sysIDs = append(sysIDs, p.ProductSysID())
@@ -135,9 +169,10 @@ func (h *ExportHandler) loadExportData(ctx context.Context, req ExportRequest) (
 	}
 
 	data := &exportData{
-		products: products,
-		cppRows:  cppRows,
-		cappRows: cappRows,
+		products:     products,
+		typeIDToCode: typeIDToCode,
+		cppRows:      cppRows,
+		cappRows:     cappRows,
 	}
 
 	if !req.IncludeRouting {
@@ -187,7 +222,7 @@ func (h *ExportHandler) generateExcel(data *exportData) ([]byte, error) {
 	f := excelize.NewFile()
 	defer func() { _ = f.Close() }()
 
-	if err := writeProductMasterSheet(f, data.products); err != nil {
+	if err := writeProductMasterSheet(f, data.products, data.typeIDToCode); err != nil {
 		return nil, err
 	}
 	if err := writeCPPSheet(f, data.cppRows); err != nil {
@@ -224,14 +259,14 @@ func (h *ExportHandler) updateExportJob(ctx context.Context, jobID int64, job *c
 }
 
 // writeProductMasterSheet writes the product_master sheet.
-func writeProductMasterSheet(f *excelize.File, products []*costproductmaster.CostProductMaster) error {
+func writeProductMasterSheet(f *excelize.File, products []*costproductmaster.CostProductMaster, typeIDToCode map[int32]string) error {
 	const sheetName = "product_master"
 	if _, err := f.NewSheet(sheetName); err != nil {
 		return fmt.Errorf("create sheet %s: %w", sheetName, err)
 	}
 	headers := []string{
 		"legacy_oracle_sys_id", "product_code", "product_name",
-		"product_type_id", "shade_code", "shade_name",
+		"product_type_code", "shade_code", "shade_name",
 		"grade_code", "erp_item_code", "is_active",
 	}
 	if err := writeSheetHeaders(f, sheetName, headers); err != nil {
@@ -240,7 +275,7 @@ func writeProductMasterSheet(f *excelize.File, products []*costproductmaster.Cos
 	for rowIdx, p := range products {
 		vals := []any{
 			p.Flex02(), p.ProductCode(), p.ProductName(),
-			p.ProductTypeID(), p.ShadeCode(), p.ShadeName(),
+			typeIDToCode[p.ProductTypeID()], p.ShadeCode(), p.ShadeName(),
 			p.GradeCode(), p.ErpItemCode(), p.IsActive(),
 		}
 		if err := writeSheetRow(f, sheetName, rowIdx+2, vals); err != nil {

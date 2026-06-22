@@ -55,6 +55,7 @@ func NewBulkImportHandler(
 // Lifecycle: PENDING → RUNNING → DONE/PARTIAL/FAILED.
 // Progress is reported as cumulative row counts after each sheet.
 func (h *BulkImportHandler) Handle(ctx context.Context, jobID int64, fileContent []byte, fileName string) error {
+	h.logger.Info().Int64("job_id", jobID).Str("file_name", fileName).Msg("bulk import: starting")
 	job, err := h.jobRepo.GetByID(ctx, jobID)
 	if err != nil {
 		return fmt.Errorf("load bulk import job %d: %w", jobID, err)

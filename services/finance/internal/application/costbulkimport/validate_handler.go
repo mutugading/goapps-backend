@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/xuri/excelize/v2"
 
@@ -44,15 +43,13 @@ func (h *ValidateHandler) Validate(ctx context.Context, fileContent []byte) (*Va
 	}
 	defer func() { _ = f.Close() }()
 
-	now := time.Now()
-
 	maps, mapsErr := h.loadMaps(ctx)
 	if mapsErr != nil {
 		return nil, mapsErr
 	}
 
 	result := &ValidateResult{IsValid: true}
-	result.Sheets = append(result.Sheets, h.validateProductMaster(f, maps, now))
+	result.Sheets = append(result.Sheets, h.validateProductMaster(f, maps))
 	result.Sheets = append(result.Sheets, h.validateCPP(f, maps))
 	result.Sheets = append(result.Sheets, h.validateCAP(f, maps))
 	result.Sheets = append(result.Sheets, h.validateRouteHead(f, maps))
@@ -89,7 +86,7 @@ func (h *ValidateHandler) loadMaps(ctx context.Context) (*ImportMaps, error) {
 }
 
 // validateProductMaster checks required headers and required fields in product_master sheet.
-func (h *ValidateHandler) validateProductMaster(f *excelize.File, maps *ImportMaps, _ time.Time) SheetResult {
+func (h *ValidateHandler) validateProductMaster(f *excelize.File, maps *ImportMaps) SheetResult {
 	const sheetName = "product_master"
 	rows, parseErr := ParseSheet(f, sheetName, []string{"legacy_oracle_sys_id", "product_type_code", "product_name"})
 	if parseErr != nil {
