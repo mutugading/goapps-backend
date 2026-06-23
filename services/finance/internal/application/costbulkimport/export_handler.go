@@ -344,17 +344,17 @@ func (h *ExportHandler) generateExcel(data *exportData) ([]byte, error) {
 		}
 	}()
 
-	sysIDToCode, headIDToCode, allowedCodes := buildExportCodeMaps(data)
-	filteredCPP := filterCPPByProductCode(data.cppRows, allowedCodes)
-	filteredCAPP := filterCAPPByProductCode(data.cappRows, allowedCodes)
+	sysIDToCode, headIDToCode, codeToLegacyID := buildExportCodeMaps(data)
+	filteredCPP := filterCPPByProductCode(data.cppRows, codeToLegacyID)
+	filteredCAPP := filterCAPPByProductCode(data.cappRows, codeToLegacyID)
 
 	if err := writeProductMasterSheet(f, data.products, data.typeIDToCode); err != nil {
 		return nil, err
 	}
-	if err := writeCPPSheet(f, filteredCPP); err != nil {
+	if err := writeCPPSheet(f, filteredCPP, codeToLegacyID); err != nil {
 		return nil, err
 	}
-	if err := writeCAPPSheet(f, filteredCAPP); err != nil {
+	if err := writeCAPPSheet(f, filteredCAPP, codeToLegacyID); err != nil {
 		return nil, err
 	}
 	if err := writeRouteHeadSheet(f, data.heads, sysIDToCode); err != nil {
@@ -379,37 +379,49 @@ func (h *ExportHandler) generateExcel(data *exportData) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// flex02OrCode returns the Oracle legacy sys_id if set, otherwise falls back to the
+// auto-generated product code. Used as the consistent cross-sheet key in exports.
+func flex02OrCode(p *costproductmaster.CostProductMaster) string {
+	if v := p.Flex02(); v != "" {
+		return v
+	}
+	return p.ProductCode()
+}
+
 // buildExportCodeMaps constructs product-code lookup maps from the export data set.
-func buildExportCodeMaps(data *exportData) (sysIDToCode map[int64]string, headIDToCode map[int64]string, allowedCodes map[string]bool) {
+// codeToLegacyID maps each product's auto-generated ProductCode → its flex02OrCode key,
+// so parameter sheets can translate stored product codes to the correct legacy_oracle_sys_id.
+func buildExportCodeMaps(data *exportData) (sysIDToCode map[int64]string, headIDToCode map[int64]string, codeToLegacyID map[string]string) {
 	sysIDToCode = make(map[int64]string, len(data.products))
-	allowedCodes = make(map[string]bool, len(data.products))
+	codeToLegacyID = make(map[string]string, len(data.products))
 	for _, p := range data.products {
-		sysIDToCode[p.ProductSysID()] = p.ProductCode()
-		allowedCodes[p.ProductCode()] = true
+		legacyKey := flex02OrCode(p)
+		sysIDToCode[p.ProductSysID()] = legacyKey
+		codeToLegacyID[p.ProductCode()] = legacyKey
 	}
 	headIDToCode = make(map[int64]string, len(data.heads))
 	for _, hd := range data.heads {
 		headIDToCode[hd.HeadID] = sysIDToCode[hd.ProductSysID]
 	}
-	return sysIDToCode, headIDToCode, allowedCodes
+	return sysIDToCode, headIDToCode, codeToLegacyID
 }
 
-// filterCPPByProductCode returns only the CPP rows whose product code is in allowed.
-func filterCPPByProductCode(rows []costproductparameter.CPPRow, allowed map[string]bool) []costproductparameter.CPPRow {
+// filterCPPByProductCode returns only the CPP rows whose product code is in codeToLegacyID.
+func filterCPPByProductCode(rows []costproductparameter.CPPRow, codeToLegacyID map[string]string) []costproductparameter.CPPRow {
 	out := make([]costproductparameter.CPPRow, 0, len(rows))
 	for _, r := range rows {
-		if allowed[r.ProductCode] {
+		if _, ok := codeToLegacyID[r.ProductCode]; ok {
 			out = append(out, r)
 		}
 	}
 	return out
 }
 
-// filterCAPPByProductCode returns only the CAPP rows whose product code is in allowed.
-func filterCAPPByProductCode(rows []costproductparameter.CAPPRow, allowed map[string]bool) []costproductparameter.CAPPRow {
+// filterCAPPByProductCode returns only the CAPP rows whose product code is in codeToLegacyID.
+func filterCAPPByProductCode(rows []costproductparameter.CAPPRow, codeToLegacyID map[string]string) []costproductparameter.CAPPRow {
 	out := make([]costproductparameter.CAPPRow, 0, len(rows))
 	for _, r := range rows {
-		if allowed[r.ProductCode] {
+		if _, ok := codeToLegacyID[r.ProductCode]; ok {
 			out = append(out, r)
 		}
 	}
@@ -424,7 +436,7 @@ func (h *ExportHandler) updateExportJob(ctx context.Context, jobID int64, job *c
 }
 
 // writeProductMasterSheet writes the product_master sheet.
-// Uses product_code as the legacy_oracle_sys_id so all sheets share the same key.
+// Uses flex02OrCode as the legacy_oracle_sys_id so all sheets share the same key.
 func writeProductMasterSheet(f *excelize.File, products []*costproductmaster.CostProductMaster, typeIDToCode map[int32]string) error {
 	const sheetName = "product_master"
 	if _, err := f.NewSheet(sheetName); err != nil {
@@ -433,16 +445,16 @@ func writeProductMasterSheet(f *excelize.File, products []*costproductmaster.Cos
 	headers := []string{
 		"legacy_oracle_sys_id", "product_type_code", "product_name",
 		"shade_code", "shade_name", "grade_code",
-		"description", "erp_item_code", "is_active",
+		"description", "erp_item_code", "legacy_erp_compound_key", "legacy_type_label", "is_active",
 	}
 	if err := writeSheetHeaders(f, sheetName, headers); err != nil {
 		return err
 	}
 	for rowIdx, p := range products {
 		vals := []any{
-			p.ProductCode(), typeIDToCode[p.ProductTypeID()], p.ProductName(),
+			flex02OrCode(p), typeIDToCode[p.ProductTypeID()], p.ProductName(),
 			p.ShadeCode(), p.ShadeName(), p.GradeCode(),
-			p.Description(), p.ErpItemCode(), p.IsActive(),
+			p.Description(), p.ErpItemCode(), p.Flex01(), p.Flex03(), p.IsActive(),
 		}
 		if err := writeSheetRow(f, sheetName, rowIdx+2, vals); err != nil {
 			return err
@@ -453,7 +465,8 @@ func writeProductMasterSheet(f *excelize.File, products []*costproductmaster.Cos
 
 // writeCPPSheet writes the product_parameters sheet.
 // Includes a data_type column (NUMERIC/TEXT/FLAG) required by the import validator.
-func writeCPPSheet(f *excelize.File, rows []costproductparameter.CPPRow) error {
+// codeToLegacyID translates auto-generated ProductCode → legacy_oracle_sys_id.
+func writeCPPSheet(f *excelize.File, rows []costproductparameter.CPPRow, codeToLegacyID map[string]string) error {
 	const sheetName = "product_parameters"
 	if _, err := f.NewSheet(sheetName); err != nil {
 		return fmt.Errorf("create sheet %s: %w", sheetName, err)
@@ -463,8 +476,12 @@ func writeCPPSheet(f *excelize.File, rows []costproductparameter.CPPRow) error {
 		return err
 	}
 	for rowIdx, r := range rows {
+		legacyID := codeToLegacyID[r.ProductCode]
+		if legacyID == "" {
+			legacyID = r.ProductCode
+		}
 		dataType := cppDataType(r)
-		vals := []any{r.ProductCode, r.ParamCode, dataType, ptrStringOrEmpty(r.ValueNumeric), ptrStringOrEmpty(r.ValueText), ptrBoolOrEmpty(r.ValueFlag)}
+		vals := []any{legacyID, r.ParamCode, dataType, ptrStringOrEmpty(r.ValueNumeric), ptrStringOrEmpty(r.ValueText), ptrBoolOrEmpty(r.ValueFlag)}
 		if err := writeSheetRow(f, sheetName, rowIdx+2, vals); err != nil {
 			return err
 		}
@@ -487,7 +504,8 @@ func cppDataType(r costproductparameter.CPPRow) string {
 }
 
 // writeCAPPSheet writes the product_applicable_params sheet.
-func writeCAPPSheet(f *excelize.File, rows []costproductparameter.CAPPRow) error {
+// codeToLegacyID translates auto-generated ProductCode → legacy_oracle_sys_id.
+func writeCAPPSheet(f *excelize.File, rows []costproductparameter.CAPPRow, codeToLegacyID map[string]string) error {
 	const sheetName = "product_applicable_params"
 	if _, err := f.NewSheet(sheetName); err != nil {
 		return fmt.Errorf("create sheet %s: %w", sheetName, err)
@@ -497,7 +515,11 @@ func writeCAPPSheet(f *excelize.File, rows []costproductparameter.CAPPRow) error
 		return err
 	}
 	for rowIdx, r := range rows {
-		vals := []any{r.ProductCode, r.ParamCode, r.IsRequired, ptrInt32OrEmpty(r.DisplayOrder)}
+		legacyID := codeToLegacyID[r.ProductCode]
+		if legacyID == "" {
+			legacyID = r.ProductCode
+		}
+		vals := []any{legacyID, r.ParamCode, r.IsRequired, ptrInt32OrEmpty(r.DisplayOrder)}
 		if err := writeSheetRow(f, sheetName, rowIdx+2, vals); err != nil {
 			return err
 		}

@@ -31,8 +31,8 @@ func (h *TemplateHandler) Handle(_ context.Context) ([]byte, error) {
 	}{
 		{
 			name:    "product_master",
-			headers: []string{"legacy_oracle_sys_id", "product_type_code", "product_name", "shade_code", "shade_name", "grade_code", "description", "erp_item_code", "is_active"},
-			sample:  []string{"CPM_FG_EXAMPLE", "FINISH", "Sample Product Name", "SH-001", "Shade Red", "A", "Sample description", "ERP-001", boolTrueStr},
+			headers: []string{"legacy_oracle_sys_id", "product_type_code", "product_name", "shade_code", "shade_name", "grade_code", "description", "erp_item_code", "legacy_erp_compound_key", "legacy_type_label", "is_active"},
+			sample:  []string{"CPM_FG_EXAMPLE", "FINISH", "Sample Product Name", "SH-001", "Shade Red", "A", "Sample description", "ERP-001", "", "", boolTrueStr},
 		},
 		{
 			name:    "product_parameters",

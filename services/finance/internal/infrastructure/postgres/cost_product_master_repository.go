@@ -296,11 +296,12 @@ func (r *CostProductMasterRepository) BulkUpsertByLegacyID(ctx context.Context, 
 			$10, $11,
 			$12, $13, $12, $13,
 			COALESCE(
-				(SELECT cpm_product_code FROM cost_product_master WHERE cpm_flex_02 = $14 AND cpm_is_active = TRUE),
+				(SELECT cpm_product_code FROM cost_product_master WHERE cpm_flex_02 = $14 AND cpm_flex_02 <> '' AND cpm_is_active = TRUE),
+				(SELECT cpm_product_code FROM cost_product_master WHERE cpm_product_code = $14 AND cpm_is_active = TRUE),
 				generate_cost_product_code($1, $12)
 			)
 		)
-		ON CONFLICT (cpm_flex_02) WHERE cpm_flex_02 IS NOT NULL AND cpm_flex_02 <> ''
+		ON CONFLICT (cpm_product_code)
 		DO UPDATE SET
 			cpm_product_type_id = EXCLUDED.cpm_product_type_id,
 			cpm_product_name    = EXCLUDED.cpm_product_name,
@@ -309,6 +310,7 @@ func (r *CostProductMasterRepository) BulkUpsertByLegacyID(ctx context.Context, 
 			cpm_description     = EXCLUDED.cpm_description,
 			cpm_shade_name      = EXCLUDED.cpm_shade_name,
 			cpm_flex_01         = EXCLUDED.cpm_flex_01,
+			cpm_flex_02         = EXCLUDED.cpm_flex_02,
 			cpm_flex_03         = EXCLUDED.cpm_flex_03,
 			cpm_erp_item_code   = EXCLUDED.cpm_erp_item_code,
 			cpm_is_active       = EXCLUDED.cpm_is_active,

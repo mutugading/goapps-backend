@@ -10,6 +10,7 @@ import (
 	commonv1 "github.com/mutugading/goapps-backend/gen/common/v1"
 	financev1 "github.com/mutugading/goapps-backend/gen/finance/v1"
 	app "github.com/mutugading/goapps-backend/services/finance/internal/application/costproductmaster"
+	"github.com/mutugading/goapps-backend/services/finance/internal/application/costbulkimport"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costauditlog"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costimportjob"
 	domain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductmaster"
@@ -27,7 +28,7 @@ type CostProductMasterHandler struct {
 	deactivateHandler *app.DeactivateHandler
 	listHandler       *app.ListHandler
 	exportHandler     *app.ExportHandler
-	templateHandler   *app.TemplateHandler
+	templateHandler   *costbulkimport.TemplateHandler
 	jobRepo           costimportjob.Repository
 	storageSvc        storage.Service
 	importPublisher   *rabbitmq.JobPublisherAdapter
@@ -49,7 +50,7 @@ func NewCostProductMasterHandler(repo domain.Repository) (*CostProductMasterHand
 		deactivateHandler: app.NewDeactivateHandler(repo),
 		listHandler:       app.NewListHandler(repo),
 		exportHandler:     app.NewExportHandler(repo),
-		templateHandler:   app.NewTemplateHandler(),
+		templateHandler:   costbulkimport.NewTemplateHandler(),
 		validation:        v,
 	}, nil
 }
@@ -286,16 +287,16 @@ func (h *CostProductMasterHandler) ImportCostProductMasters(ctx context.Context,
 	}, nil
 }
 
-// DownloadCostProductMasterTemplate downloads the Excel import template.
-func (h *CostProductMasterHandler) DownloadCostProductMasterTemplate(_ context.Context, _ *financev1.DownloadCostProductMasterTemplateRequest) (*financev1.DownloadCostProductMasterTemplateResponse, error) {
-	result, err := h.templateHandler.Handle()
+// DownloadCostProductMasterTemplate downloads the multi-sheet bulk import template.
+func (h *CostProductMasterHandler) DownloadCostProductMasterTemplate(ctx context.Context, _ *financev1.DownloadCostProductMasterTemplateRequest) (*financev1.DownloadCostProductMasterTemplateResponse, error) {
+	data, err := h.templateHandler.Handle(ctx)
 	if err != nil {
 		return &financev1.DownloadCostProductMasterTemplateResponse{Base: InternalErrorResponse(err.Error())}, nil //nolint:nilerr // intentional BaseResponse pattern
 	}
 	return &financev1.DownloadCostProductMasterTemplateResponse{
 		Base:        successResponse("Template generated successfully"),
-		FileContent: result.FileContent,
-		FileName:    result.FileName,
+		FileContent: data,
+		FileName:    "cost_product_master_bulk_import_template.xlsx",
 	}, nil
 }
 
