@@ -1377,8 +1377,13 @@ type ExportBulkProductRoutingRequest struct {
 	ProductTypeCodes []string               `protobuf:"bytes,1,rep,name=product_type_codes,json=productTypeCodes,proto3" json:"product_type_codes,omitempty"`
 	IncludeRouting   bool                   `protobuf:"varint,2,opt,name=include_routing,json=includeRouting,proto3" json:"include_routing,omitempty"`
 	ActiveOnly       bool                   `protobuf:"varint,3,opt,name=active_only,json=activeOnly,proto3" json:"active_only,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// product_sys_ids, when non-empty, restricts the export to the transitive
+	// closure of the given products (the listed products plus every intermediate
+	// product reachable via PRODUCT-type route RMs). Mutually exclusive with
+	// product_type_codes; product_sys_ids takes precedence when both are set.
+	ProductSysIds []int64 `protobuf:"varint,4,rep,packed,name=product_sys_ids,json=productSysIds,proto3" json:"product_sys_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ExportBulkProductRoutingRequest) Reset() {
@@ -1430,6 +1435,13 @@ func (x *ExportBulkProductRoutingRequest) GetActiveOnly() bool {
 		return x.ActiveOnly
 	}
 	return false
+}
+
+func (x *ExportBulkProductRoutingRequest) GetProductSysIds() []int64 {
+	if x != nil {
+		return x.ProductSysIds
+	}
+	return nil
 }
 
 type ExportBulkProductRoutingResponse struct {
@@ -1598,12 +1610,13 @@ const file_finance_v1_cost_import_proto_rawDesc = "" +
 	"&ValidateBulkProductRoutingFileResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12\x19\n" +
 	"\bis_valid\x18\x02 \x01(\bR\aisValid\x12=\n" +
-	"\x06sheets\x18\x03 \x03(\v2%.finance.v1.BulkSheetValidationResultR\x06sheets\"\x99\x01\n" +
+	"\x06sheets\x18\x03 \x03(\v2%.finance.v1.BulkSheetValidationResultR\x06sheets\"\xc1\x01\n" +
 	"\x1fExportBulkProductRoutingRequest\x12,\n" +
 	"\x12product_type_codes\x18\x01 \x03(\tR\x10productTypeCodes\x12'\n" +
 	"\x0finclude_routing\x18\x02 \x01(\bR\x0eincludeRouting\x12\x1f\n" +
 	"\vactive_only\x18\x03 \x01(\bR\n" +
-	"activeOnly\"~\n" +
+	"activeOnly\x12&\n" +
+	"\x0fproduct_sys_ids\x18\x04 \x03(\x03R\rproductSysIds\"~\n" +
 	" ExportBulkProductRoutingResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12\x15\n" +
 	"\x06job_id\x18\x02 \x01(\x03R\x05jobId\x12\x16\n" +

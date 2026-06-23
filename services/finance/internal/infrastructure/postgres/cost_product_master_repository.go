@@ -296,7 +296,7 @@ func (r *CostProductMasterRepository) BulkUpsertByLegacyID(ctx context.Context, 
 			$10, $11,
 			$12, $13, $12, $13,
 			COALESCE(
-				(SELECT cpm_product_code FROM cost_product_master WHERE cpm_flex_02 = $8 AND cpm_is_active = TRUE),
+				(SELECT cpm_product_code FROM cost_product_master WHERE cpm_flex_02 = $8::text AND cpm_is_active = TRUE),
 				generate_cost_product_code($1, $12)
 			)
 		)

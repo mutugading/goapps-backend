@@ -254,6 +254,7 @@ func (h *CostDataImportHandler) ExportBulkProductRouting(ctx context.Context, re
 		IncludeRouting:   req.GetIncludeRouting(),
 		ActiveOnly:       req.GetActiveOnly(),
 		Actor:            actor,
+		ProductSysIDs:    req.GetProductSysIds(),
 	}
 
 	fileKey, err := marshalExportRequestKey(exportReq)

@@ -56,6 +56,10 @@ type ExportRequest struct {
 	IncludeRouting   bool     `json:"include_routing"`
 	ActiveOnly       bool     `json:"active_only"`
 	Actor            string   `json:"actor"`
+	// ProductSysIDs, when non-empty, restricts the export to the transitive closure
+	// of the given products (each listed product plus every intermediate product
+	// reachable via PRODUCT-type route RMs). Takes precedence over ProductTypeCodes.
+	ProductSysIDs []int64 `json:"product_sys_ids"`
 }
 
 // Handle executes the async export for the given job.
@@ -135,8 +139,17 @@ func (h *ExportHandler) loadExportData(ctx context.Context, req ExportRequest) (
 		return nil, fmt.Errorf("list products: %w", listErr)
 	}
 
-	// Apply ProductTypeCodes filter when requested.
-	products = filterProductsByTypeCode(products, req.ProductTypeCodes, typeCodeToID)
+	// ProductSysIDs takes precedence: resolve transitive closure then filter.
+	// Otherwise fall back to ProductTypeCodes filter.
+	if len(req.ProductSysIDs) > 0 {
+		closureIDs, closureErr := resolveProductClosure(ctx, req.ProductSysIDs, h.routeRepo)
+		if closureErr != nil {
+			return nil, fmt.Errorf("resolve product closure: %w", closureErr)
+		}
+		products = filterProductsBySysIDs(products, closureIDs)
+	} else {
+		products = filterProductsByTypeCode(products, req.ProductTypeCodes, typeCodeToID)
+	}
 
 	// Build sys_id set for routing queries.
 	sysIDs := make([]int64, 0, len(products))
@@ -165,9 +178,27 @@ func (h *ExportHandler) loadExportData(ctx context.Context, req ExportRequest) (
 		return data, nil
 	}
 
-	heads, headsErr := h.routeRepo.ListAllHeadsForExport(ctx, sysIDs)
-	if headsErr != nil {
-		return nil, fmt.Errorf("list route heads: %w", headsErr)
+	heads, seqs, rms, routeErr := h.loadRoutingData(ctx, sysIDs)
+	if routeErr != nil {
+		return nil, routeErr
+	}
+
+	data.heads = heads
+	data.seqs = seqs
+	data.rms = rms
+	return data, nil
+}
+
+// loadRoutingData fetches heads, sequences, and RMs for the given product sys IDs.
+func (h *ExportHandler) loadRoutingData(ctx context.Context, sysIDs []int64) (
+	heads []costroute.ExportRouteHead,
+	seqs []costroute.ExportRouteSeq,
+	rms []costroute.ExportRouteRM,
+	err error,
+) {
+	heads, err = h.routeRepo.ListAllHeadsForExport(ctx, sysIDs)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("list route heads: %w", err)
 	}
 
 	headIDs := make([]int64, 0, len(heads))
@@ -175,9 +206,9 @@ func (h *ExportHandler) loadExportData(ctx context.Context, req ExportRequest) (
 		headIDs = append(headIDs, hd.HeadID)
 	}
 
-	seqs, seqsErr := h.routeRepo.ListAllSeqsForExport(ctx, headIDs)
-	if seqsErr != nil {
-		return nil, fmt.Errorf("list route seqs: %w", seqsErr)
+	seqs, err = h.routeRepo.ListAllSeqsForExport(ctx, headIDs)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("list route seqs: %w", err)
 	}
 
 	seqIDs := make([]int64, 0, len(seqs))
@@ -187,20 +218,16 @@ func (h *ExportHandler) loadExportData(ctx context.Context, req ExportRequest) (
 		seqToHead[s.SeqID] = s.HeadID
 	}
 
-	rms, rmsErr := h.routeRepo.ListAllRMsForExport(ctx, seqIDs)
-	if rmsErr != nil {
-		return nil, fmt.Errorf("list route rms: %w", rmsErr)
+	rms, err = h.routeRepo.ListAllRMsForExport(ctx, seqIDs)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("list route rms: %w", err)
 	}
 
 	// Populate HeadID on each RM from the seq→head map.
 	for i := range rms {
 		rms[i].HeadID = seqToHead[rms[i].SeqID]
 	}
-
-	data.heads = heads
-	data.seqs = seqs
-	data.rms = rms
-	return data, nil
+	return heads, seqs, rms, nil
 }
 
 // filterProductsByTypeCode filters products to only those whose type code is in typeCodes.
@@ -228,7 +255,87 @@ func filterProductsByTypeCode(
 	return filtered
 }
 
+// resolveProductClosure performs a BFS from seedIDs through PRODUCT-type route RMs
+// and returns the full set of product sys IDs (seeds + all transitively reachable intermediates).
+func resolveProductClosure(ctx context.Context, seedIDs []int64, repo costroute.Repository) ([]int64, error) { //nolint:gocognit // BFS traversal with layered early-exit is inherently nested
+	seen := make(map[int64]bool, len(seedIDs))
+	for _, id := range seedIDs {
+		seen[id] = true
+	}
+	queue := append([]int64(nil), seedIDs...)
+
+	for len(queue) > 0 {
+		heads, headsErr := repo.ListAllHeadsForExport(ctx, queue)
+		if headsErr != nil {
+			return nil, fmt.Errorf("closure: list heads: %w", headsErr)
+		}
+		headIDs := make([]int64, 0, len(heads))
+		for _, hd := range heads {
+			headIDs = append(headIDs, hd.HeadID)
+		}
+
+		if len(headIDs) == 0 {
+			break
+		}
+
+		seqs, seqsErr := repo.ListAllSeqsForExport(ctx, headIDs)
+		if seqsErr != nil {
+			return nil, fmt.Errorf("closure: list seqs: %w", seqsErr)
+		}
+		seqIDs := make([]int64, 0, len(seqs))
+		for _, s := range seqs {
+			seqIDs = append(seqIDs, s.SeqID)
+		}
+
+		if len(seqIDs) == 0 {
+			break
+		}
+
+		rms, rmsErr := repo.ListAllRMsForExport(ctx, seqIDs)
+		if rmsErr != nil {
+			return nil, fmt.Errorf("closure: list rms: %w", rmsErr)
+		}
+
+		queue = queue[:0]
+		for _, rm := range rms {
+			if rm.RmType == costroute.RmTypeProduct && rm.RmProductSysID != 0 && !seen[rm.RmProductSysID] {
+				seen[rm.RmProductSysID] = true
+				queue = append(queue, rm.RmProductSysID)
+			}
+		}
+	}
+
+	result := make([]int64, 0, len(seen))
+	for id := range seen {
+		result = append(result, id)
+	}
+	return result, nil
+}
+
+// filterProductsBySysIDs filters products to only those whose sys ID is in the given set.
+func filterProductsBySysIDs(
+	products []*costproductmaster.CostProductMaster,
+	sysIDs []int64,
+) []*costproductmaster.CostProductMaster {
+	if len(sysIDs) == 0 {
+		return nil
+	}
+	allowed := make(map[int64]bool, len(sysIDs))
+	for _, id := range sysIDs {
+		allowed[id] = true
+	}
+	filtered := products[:0]
+	for _, p := range products {
+		if allowed[p.ProductSysID()] {
+			filtered = append(filtered, p)
+		}
+	}
+	return filtered
+}
+
 // generateExcel builds the 6-sheet export Excel in memory.
+// All cross-sheet references use product_code as the universal key so the file
+// can be re-imported without modification.
 func (h *ExportHandler) generateExcel(data *exportData) ([]byte, error) {
 	f := excelize.NewFile()
 	defer func() {
@@ -237,22 +344,26 @@ func (h *ExportHandler) generateExcel(data *exportData) ([]byte, error) {
 		}
 	}()
 
+	sysIDToCode, headIDToCode, allowedCodes := buildExportCodeMaps(data)
+	filteredCPP := filterCPPByProductCode(data.cppRows, allowedCodes)
+	filteredCAPP := filterCAPPByProductCode(data.cappRows, allowedCodes)
+
 	if err := writeProductMasterSheet(f, data.products, data.typeIDToCode); err != nil {
 		return nil, err
 	}
-	if err := writeCPPSheet(f, data.cppRows); err != nil {
+	if err := writeCPPSheet(f, filteredCPP); err != nil {
 		return nil, err
 	}
-	if err := writeCAPPSheet(f, data.cappRows); err != nil {
+	if err := writeCAPPSheet(f, filteredCAPP); err != nil {
 		return nil, err
 	}
-	if err := writeRouteHeadSheet(f, data.heads); err != nil {
+	if err := writeRouteHeadSheet(f, data.heads, sysIDToCode); err != nil {
 		return nil, err
 	}
-	if err := writeRouteSeqSheet(f, data.seqs); err != nil {
+	if err := writeRouteSeqSheet(f, data.seqs, headIDToCode, sysIDToCode); err != nil {
 		return nil, err
 	}
-	if err := writeRouteRMSheet(f, data.rms); err != nil {
+	if err := writeRouteRMSheet(f, data.rms, headIDToCode, sysIDToCode); err != nil {
 		return nil, err
 	}
 
@@ -268,6 +379,43 @@ func (h *ExportHandler) generateExcel(data *exportData) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// buildExportCodeMaps constructs product-code lookup maps from the export data set.
+func buildExportCodeMaps(data *exportData) (sysIDToCode map[int64]string, headIDToCode map[int64]string, allowedCodes map[string]bool) {
+	sysIDToCode = make(map[int64]string, len(data.products))
+	allowedCodes = make(map[string]bool, len(data.products))
+	for _, p := range data.products {
+		sysIDToCode[p.ProductSysID()] = p.ProductCode()
+		allowedCodes[p.ProductCode()] = true
+	}
+	headIDToCode = make(map[int64]string, len(data.heads))
+	for _, hd := range data.heads {
+		headIDToCode[hd.HeadID] = sysIDToCode[hd.ProductSysID]
+	}
+	return sysIDToCode, headIDToCode, allowedCodes
+}
+
+// filterCPPByProductCode returns only the CPP rows whose product code is in allowed.
+func filterCPPByProductCode(rows []costproductparameter.CPPRow, allowed map[string]bool) []costproductparameter.CPPRow {
+	out := make([]costproductparameter.CPPRow, 0, len(rows))
+	for _, r := range rows {
+		if allowed[r.ProductCode] {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// filterCAPPByProductCode returns only the CAPP rows whose product code is in allowed.
+func filterCAPPByProductCode(rows []costproductparameter.CAPPRow, allowed map[string]bool) []costproductparameter.CAPPRow {
+	out := make([]costproductparameter.CAPPRow, 0, len(rows))
+	for _, r := range rows {
+		if allowed[r.ProductCode] {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
 // updateExportJob persists job state and logs on failure without propagating.
 func (h *ExportHandler) updateExportJob(ctx context.Context, jobID int64, job *costimportjob.CostImportJob) {
 	if updateErr := h.jobRepo.Update(ctx, job); updateErr != nil {
@@ -276,24 +424,25 @@ func (h *ExportHandler) updateExportJob(ctx context.Context, jobID int64, job *c
 }
 
 // writeProductMasterSheet writes the product_master sheet.
+// Uses product_code as the legacy_oracle_sys_id so all sheets share the same key.
 func writeProductMasterSheet(f *excelize.File, products []*costproductmaster.CostProductMaster, typeIDToCode map[int32]string) error {
 	const sheetName = "product_master"
 	if _, err := f.NewSheet(sheetName); err != nil {
 		return fmt.Errorf("create sheet %s: %w", sheetName, err)
 	}
 	headers := []string{
-		"legacy_oracle_sys_id", "product_code", "product_name",
-		"product_type_code", "shade_code", "shade_name",
-		"grade_code", "erp_item_code", "is_active",
+		"legacy_oracle_sys_id", "product_type_code", "product_name",
+		"shade_code", "shade_name", "grade_code",
+		"description", "erp_item_code", "is_active",
 	}
 	if err := writeSheetHeaders(f, sheetName, headers); err != nil {
 		return err
 	}
 	for rowIdx, p := range products {
 		vals := []any{
-			p.Flex02(), p.ProductCode(), p.ProductName(),
-			typeIDToCode[p.ProductTypeID()], p.ShadeCode(), p.ShadeName(),
-			p.GradeCode(), p.ErpItemCode(), p.IsActive(),
+			p.ProductCode(), typeIDToCode[p.ProductTypeID()], p.ProductName(),
+			p.ShadeCode(), p.ShadeName(), p.GradeCode(),
+			p.Description(), p.ErpItemCode(), p.IsActive(),
 		}
 		if err := writeSheetRow(f, sheetName, rowIdx+2, vals); err != nil {
 			return err
@@ -303,22 +452,38 @@ func writeProductMasterSheet(f *excelize.File, products []*costproductmaster.Cos
 }
 
 // writeCPPSheet writes the product_parameters sheet.
+// Includes a data_type column (NUMERIC/TEXT/FLAG) required by the import validator.
 func writeCPPSheet(f *excelize.File, rows []costproductparameter.CPPRow) error {
 	const sheetName = "product_parameters"
 	if _, err := f.NewSheet(sheetName); err != nil {
 		return fmt.Errorf("create sheet %s: %w", sheetName, err)
 	}
-	headers := []string{"legacy_oracle_sys_id", "param_code", "value_numeric", "value_text", "value_flag"}
+	headers := []string{"legacy_oracle_sys_id", "param_code", "data_type", "value_numeric", "value_text", "value_flag"}
 	if err := writeSheetHeaders(f, sheetName, headers); err != nil {
 		return err
 	}
 	for rowIdx, r := range rows {
-		vals := []any{r.ProductCode, r.ParamCode, ptrStringOrEmpty(r.ValueNumeric), ptrStringOrEmpty(r.ValueText), ptrBoolOrEmpty(r.ValueFlag)}
+		dataType := cppDataType(r)
+		vals := []any{r.ProductCode, r.ParamCode, dataType, ptrStringOrEmpty(r.ValueNumeric), ptrStringOrEmpty(r.ValueText), ptrBoolOrEmpty(r.ValueFlag)}
 		if err := writeSheetRow(f, sheetName, rowIdx+2, vals); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// cppDataType returns the data type label for a CPP row based on which value field is set.
+func cppDataType(r costproductparameter.CPPRow) string {
+	switch {
+	case r.ValueNumeric != nil:
+		return "NUMERIC"
+	case r.ValueText != nil:
+		return "TEXT"
+	case r.ValueFlag != nil:
+		return "FLAG"
+	default:
+		return ""
+	}
 }
 
 // writeCAPPSheet writes the product_applicable_params sheet.
@@ -341,7 +506,8 @@ func writeCAPPSheet(f *excelize.File, rows []costproductparameter.CAPPRow) error
 }
 
 // writeRouteHeadSheet writes the route_head sheet.
-func writeRouteHeadSheet(f *excelize.File, heads []costroute.ExportRouteHead) error {
+// Uses product_code (from sysIDToCode) as legacy_oracle_sys_id.
+func writeRouteHeadSheet(f *excelize.File, heads []costroute.ExportRouteHead, sysIDToCode map[int64]string) error {
 	const sheetName = "route_head"
 	if _, err := f.NewSheet(sheetName); err != nil {
 		return fmt.Errorf("create sheet %s: %w", sheetName, err)
@@ -351,7 +517,11 @@ func writeRouteHeadSheet(f *excelize.File, heads []costroute.ExportRouteHead) er
 		return err
 	}
 	for rowIdx, h := range heads {
-		vals := []any{strconv.FormatInt(h.ProductSysID, 10), h.RoutingStatus, h.Notes}
+		productCode := sysIDToCode[h.ProductSysID]
+		if productCode == "" {
+			productCode = strconv.FormatInt(h.ProductSysID, 10)
+		}
+		vals := []any{productCode, h.RoutingStatus, h.Notes}
 		if err := writeSheetRow(f, sheetName, rowIdx+2, vals); err != nil {
 			return err
 		}
@@ -360,7 +530,8 @@ func writeRouteHeadSheet(f *excelize.File, heads []costroute.ExportRouteHead) er
 }
 
 // writeRouteSeqSheet writes the route_sequences sheet.
-func writeRouteSeqSheet(f *excelize.File, seqs []costroute.ExportRouteSeq) error {
+// Uses product_code for both route_head_legacy_product_id and node_product_legacy_id.
+func writeRouteSeqSheet(f *excelize.File, seqs []costroute.ExportRouteSeq, headIDToCode, sysIDToCode map[int64]string) error {
 	const sheetName = "route_sequences"
 	if _, err := f.NewSheet(sheetName); err != nil {
 		return fmt.Errorf("create sheet %s: %w", sheetName, err)
@@ -374,8 +545,16 @@ func writeRouteSeqSheet(f *excelize.File, seqs []costroute.ExportRouteSeq) error
 		return err
 	}
 	for rowIdx, s := range seqs {
+		headCode := headIDToCode[s.HeadID]
+		if headCode == "" {
+			headCode = strconv.FormatInt(s.HeadID, 10)
+		}
+		nodeCode := sysIDToCode[s.ProductSysID]
+		if nodeCode == "" {
+			nodeCode = strconv.FormatInt(s.ProductSysID, 10)
+		}
 		vals := []any{
-			strconv.FormatInt(s.HeadID, 10), strconv.FormatInt(s.ProductSysID, 10),
+			headCode, nodeCode,
 			s.RouteLevel, s.RouteSeq, s.RouteName, s.RouteItemCode,
 			s.RouteShadeCode, s.RouteShadeName,
 		}
@@ -387,7 +566,8 @@ func writeRouteSeqSheet(f *excelize.File, seqs []costroute.ExportRouteSeq) error
 }
 
 // writeRouteRMSheet writes the route_rms sheet.
-func writeRouteRMSheet(f *excelize.File, rms []costroute.ExportRouteRM) error {
+// Uses product_code for route_head_legacy_product_id and rm_product_legacy_id.
+func writeRouteRMSheet(f *excelize.File, rms []costroute.ExportRouteRM, headIDToCode, sysIDToCode map[int64]string) error {
 	const sheetName = "route_rms"
 	if _, err := f.NewSheet(sheetName); err != nil {
 		return fmt.Errorf("create sheet %s: %w", sheetName, err)
@@ -402,13 +582,20 @@ func writeRouteRMSheet(f *excelize.File, rms []costroute.ExportRouteRM) error {
 		return err
 	}
 	for rowIdx, rm := range rms {
-		rmLegacyID := ""
+		headCode := headIDToCode[rm.HeadID]
+		if headCode == "" {
+			headCode = strconv.FormatInt(rm.HeadID, 10)
+		}
+		rmProductCode := ""
 		if rm.RmProductSysID != 0 {
-			rmLegacyID = strconv.FormatInt(rm.RmProductSysID, 10)
+			rmProductCode = sysIDToCode[rm.RmProductSysID]
+			if rmProductCode == "" {
+				rmProductCode = strconv.FormatInt(rm.RmProductSysID, 10)
+			}
 		}
 		vals := []any{
-			strconv.FormatInt(rm.HeadID, 10), rm.RouteLevel, rm.RouteSeq,
-			rm.RmType, rm.Ratio, rmLegacyID,
+			headCode, rm.RouteLevel, rm.RouteSeq,
+			rm.RmType, rm.Ratio, rmProductCode,
 			rm.RmItemCode, rm.RmGroupCode, rm.RmName,
 			rm.RmShadeCode, rm.RmShadeName, rm.SubType, rm.Notes,
 		}

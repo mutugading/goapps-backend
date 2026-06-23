@@ -540,6 +540,14 @@
         },
         "activeOnly": {
           "type": "boolean"
+        },
+        "productSysIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "product_sys_ids, when non-empty, restricts the export to the transitive\nclosure of the given products (the listed products plus every intermediate\nproduct reachable via PRODUCT-type route RMs). Mutually exclusive with\nproduct_type_codes; product_sys_ids takes precedence when both are set."
         }
       }
     },
