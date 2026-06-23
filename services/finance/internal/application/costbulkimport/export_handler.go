@@ -178,9 +178,27 @@ func (h *ExportHandler) loadExportData(ctx context.Context, req ExportRequest) (
 		return data, nil
 	}
 
-	heads, headsErr := h.routeRepo.ListAllHeadsForExport(ctx, sysIDs)
-	if headsErr != nil {
-		return nil, fmt.Errorf("list route heads: %w", headsErr)
+	heads, seqs, rms, routeErr := h.loadRoutingData(ctx, sysIDs)
+	if routeErr != nil {
+		return nil, routeErr
+	}
+
+	data.heads = heads
+	data.seqs = seqs
+	data.rms = rms
+	return data, nil
+}
+
+// loadRoutingData fetches heads, sequences, and RMs for the given product sys IDs.
+func (h *ExportHandler) loadRoutingData(ctx context.Context, sysIDs []int64) (
+	heads []costroute.ExportRouteHead,
+	seqs []costroute.ExportRouteSeq,
+	rms []costroute.ExportRouteRM,
+	err error,
+) {
+	heads, err = h.routeRepo.ListAllHeadsForExport(ctx, sysIDs)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("list route heads: %w", err)
 	}
 
 	headIDs := make([]int64, 0, len(heads))
@@ -188,9 +206,9 @@ func (h *ExportHandler) loadExportData(ctx context.Context, req ExportRequest) (
 		headIDs = append(headIDs, hd.HeadID)
 	}
 
-	seqs, seqsErr := h.routeRepo.ListAllSeqsForExport(ctx, headIDs)
-	if seqsErr != nil {
-		return nil, fmt.Errorf("list route seqs: %w", seqsErr)
+	seqs, err = h.routeRepo.ListAllSeqsForExport(ctx, headIDs)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("list route seqs: %w", err)
 	}
 
 	seqIDs := make([]int64, 0, len(seqs))
@@ -200,20 +218,16 @@ func (h *ExportHandler) loadExportData(ctx context.Context, req ExportRequest) (
 		seqToHead[s.SeqID] = s.HeadID
 	}
 
-	rms, rmsErr := h.routeRepo.ListAllRMsForExport(ctx, seqIDs)
-	if rmsErr != nil {
-		return nil, fmt.Errorf("list route rms: %w", rmsErr)
+	rms, err = h.routeRepo.ListAllRMsForExport(ctx, seqIDs)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("list route rms: %w", err)
 	}
 
 	// Populate HeadID on each RM from the seq→head map.
 	for i := range rms {
 		rms[i].HeadID = seqToHead[rms[i].SeqID]
 	}
-
-	data.heads = heads
-	data.seqs = seqs
-	data.rms = rms
-	return data, nil
+	return heads, seqs, rms, nil
 }
 
 // filterProductsByTypeCode filters products to only those whose type code is in typeCodes.
@@ -243,7 +257,7 @@ func filterProductsByTypeCode(
 
 // resolveProductClosure performs a BFS from seedIDs through PRODUCT-type route RMs
 // and returns the full set of product sys IDs (seeds + all transitively reachable intermediates).
-func resolveProductClosure(ctx context.Context, seedIDs []int64, repo costroute.Repository) ([]int64, error) {
+func resolveProductClosure(ctx context.Context, seedIDs []int64, repo costroute.Repository) ([]int64, error) { //nolint:gocognit // BFS traversal with layered early-exit is inherently nested
 	seen := make(map[int64]bool, len(seedIDs))
 	for _, id := range seedIDs {
 		seen[id] = true
@@ -330,31 +344,9 @@ func (h *ExportHandler) generateExcel(data *exportData) ([]byte, error) {
 		}
 	}()
 
-	// Build lookup maps keyed by database IDs.
-	sysIDToCode := make(map[int64]string, len(data.products))
-	allowedCodes := make(map[string]bool, len(data.products))
-	for _, p := range data.products {
-		sysIDToCode[p.ProductSysID()] = p.ProductCode()
-		allowedCodes[p.ProductCode()] = true
-	}
-	headIDToCode := make(map[int64]string, len(data.heads))
-	for _, hd := range data.heads {
-		headIDToCode[hd.HeadID] = sysIDToCode[hd.ProductSysID]
-	}
-
-	// Filter cpp/capp to only include products in this export set.
-	filteredCPP := make([]costproductparameter.CPPRow, 0, len(data.cppRows))
-	for _, r := range data.cppRows {
-		if allowedCodes[r.ProductCode] {
-			filteredCPP = append(filteredCPP, r)
-		}
-	}
-	filteredCAPP := make([]costproductparameter.CAPPRow, 0, len(data.cappRows))
-	for _, r := range data.cappRows {
-		if allowedCodes[r.ProductCode] {
-			filteredCAPP = append(filteredCAPP, r)
-		}
-	}
+	sysIDToCode, headIDToCode, allowedCodes := buildExportCodeMaps(data)
+	filteredCPP := filterCPPByProductCode(data.cppRows, allowedCodes)
+	filteredCAPP := filterCAPPByProductCode(data.cappRows, allowedCodes)
 
 	if err := writeProductMasterSheet(f, data.products, data.typeIDToCode); err != nil {
 		return nil, err
@@ -385,6 +377,43 @@ func (h *ExportHandler) generateExcel(data *exportData) ([]byte, error) {
 		return nil, fmt.Errorf("write export excel: %w", writeErr)
 	}
 	return buf.Bytes(), nil
+}
+
+// buildExportCodeMaps constructs product-code lookup maps from the export data set.
+func buildExportCodeMaps(data *exportData) (sysIDToCode map[int64]string, headIDToCode map[int64]string, allowedCodes map[string]bool) {
+	sysIDToCode = make(map[int64]string, len(data.products))
+	allowedCodes = make(map[string]bool, len(data.products))
+	for _, p := range data.products {
+		sysIDToCode[p.ProductSysID()] = p.ProductCode()
+		allowedCodes[p.ProductCode()] = true
+	}
+	headIDToCode = make(map[int64]string, len(data.heads))
+	for _, hd := range data.heads {
+		headIDToCode[hd.HeadID] = sysIDToCode[hd.ProductSysID]
+	}
+	return sysIDToCode, headIDToCode, allowedCodes
+}
+
+// filterCPPByProductCode returns only the CPP rows whose product code is in allowed.
+func filterCPPByProductCode(rows []costproductparameter.CPPRow, allowed map[string]bool) []costproductparameter.CPPRow {
+	out := make([]costproductparameter.CPPRow, 0, len(rows))
+	for _, r := range rows {
+		if allowed[r.ProductCode] {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// filterCAPPByProductCode returns only the CAPP rows whose product code is in allowed.
+func filterCAPPByProductCode(rows []costproductparameter.CAPPRow, allowed map[string]bool) []costproductparameter.CAPPRow {
+	out := make([]costproductparameter.CAPPRow, 0, len(rows))
+	for _, r := range rows {
+		if allowed[r.ProductCode] {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 // updateExportJob persists job state and logs on failure without propagating.
