@@ -56,6 +56,10 @@ type ExportRequest struct {
 	IncludeRouting   bool     `json:"include_routing"`
 	ActiveOnly       bool     `json:"active_only"`
 	Actor            string   `json:"actor"`
+	// ProductSysIDs, when non-empty, restricts the export to the transitive closure
+	// of the given products (each listed product plus every intermediate product
+	// reachable via PRODUCT-type route RMs). Takes precedence over ProductTypeCodes.
+	ProductSysIDs []int64 `json:"product_sys_ids"`
 }
 
 // Handle executes the async export for the given job.
@@ -135,8 +139,17 @@ func (h *ExportHandler) loadExportData(ctx context.Context, req ExportRequest) (
 		return nil, fmt.Errorf("list products: %w", listErr)
 	}
 
-	// Apply ProductTypeCodes filter when requested.
-	products = filterProductsByTypeCode(products, req.ProductTypeCodes, typeCodeToID)
+	// ProductSysIDs takes precedence: resolve transitive closure then filter.
+	// Otherwise fall back to ProductTypeCodes filter.
+	if len(req.ProductSysIDs) > 0 {
+		closureIDs, closureErr := resolveProductClosure(ctx, req.ProductSysIDs, h.routeRepo)
+		if closureErr != nil {
+			return nil, fmt.Errorf("resolve product closure: %w", closureErr)
+		}
+		products = filterProductsBySysIDs(products, closureIDs)
+	} else {
+		products = filterProductsByTypeCode(products, req.ProductTypeCodes, typeCodeToID)
+	}
 
 	// Build sys_id set for routing queries.
 	sysIDs := make([]int64, 0, len(products))
@@ -222,6 +235,84 @@ func filterProductsByTypeCode(
 	filtered := products[:0]
 	for _, p := range products {
 		if allowed[p.ProductTypeID()] {
+			filtered = append(filtered, p)
+		}
+	}
+	return filtered
+}
+
+// resolveProductClosure performs a BFS from seedIDs through PRODUCT-type route RMs
+// and returns the full set of product sys IDs (seeds + all transitively reachable intermediates).
+func resolveProductClosure(ctx context.Context, seedIDs []int64, repo costroute.Repository) ([]int64, error) {
+	seen := make(map[int64]bool, len(seedIDs))
+	for _, id := range seedIDs {
+		seen[id] = true
+	}
+	queue := append([]int64(nil), seedIDs...)
+
+	for len(queue) > 0 {
+		heads, headsErr := repo.ListAllHeadsForExport(ctx, queue)
+		if headsErr != nil {
+			return nil, fmt.Errorf("closure: list heads: %w", headsErr)
+		}
+		headIDs := make([]int64, 0, len(heads))
+		for _, hd := range heads {
+			headIDs = append(headIDs, hd.HeadID)
+		}
+
+		if len(headIDs) == 0 {
+			break
+		}
+
+		seqs, seqsErr := repo.ListAllSeqsForExport(ctx, headIDs)
+		if seqsErr != nil {
+			return nil, fmt.Errorf("closure: list seqs: %w", seqsErr)
+		}
+		seqIDs := make([]int64, 0, len(seqs))
+		for _, s := range seqs {
+			seqIDs = append(seqIDs, s.SeqID)
+		}
+
+		if len(seqIDs) == 0 {
+			break
+		}
+
+		rms, rmsErr := repo.ListAllRMsForExport(ctx, seqIDs)
+		if rmsErr != nil {
+			return nil, fmt.Errorf("closure: list rms: %w", rmsErr)
+		}
+
+		queue = queue[:0]
+		for _, rm := range rms {
+			if rm.RmType == costroute.RmTypeProduct && rm.RmProductSysID != 0 && !seen[rm.RmProductSysID] {
+				seen[rm.RmProductSysID] = true
+				queue = append(queue, rm.RmProductSysID)
+			}
+		}
+	}
+
+	result := make([]int64, 0, len(seen))
+	for id := range seen {
+		result = append(result, id)
+	}
+	return result, nil
+}
+
+// filterProductsBySysIDs filters products to only those whose sys ID is in the given set.
+func filterProductsBySysIDs(
+	products []*costproductmaster.CostProductMaster,
+	sysIDs []int64,
+) []*costproductmaster.CostProductMaster {
+	if len(sysIDs) == 0 {
+		return nil
+	}
+	allowed := make(map[int64]bool, len(sysIDs))
+	for _, id := range sysIDs {
+		allowed[id] = true
+	}
+	filtered := products[:0]
+	for _, p := range products {
+		if allowed[p.ProductSysID()] {
 			filtered = append(filtered, p)
 		}
 	}
