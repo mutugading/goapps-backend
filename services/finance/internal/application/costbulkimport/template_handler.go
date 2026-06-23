@@ -31,33 +31,33 @@ func (h *TemplateHandler) Handle(_ context.Context) ([]byte, error) {
 	}{
 		{
 			name:    "product_master",
-			headers: []string{"legacy_oracle_sys_id", "product_type_code", "product_name", "shade_code", "shade_name", "grade_code", "description", "erp_item_code", "flex_01", "flex_03", "is_active"},
-			sample:  []string{"PROD-001", "FINISH", "Sample Product Name", "SH-001", "Shade Red", "A", "Sample description", "ERP-001", "", "", boolTrueStr},
+			headers: []string{"legacy_oracle_sys_id", "product_type_code", "product_name", "shade_code", "shade_name", "grade_code", "description", "erp_item_code", "is_active"},
+			sample:  []string{"CPM_FG_EXAMPLE", "FINISH", "Sample Product Name", "SH-001", "Shade Red", "A", "Sample description", "ERP-001", boolTrueStr},
 		},
 		{
-			name:    "cpp",
-			headers: []string{"legacy_oracle_sys_id", "param_code", "value_numeric", "value_text", "value_flag"},
-			sample:  []string{"PROD-001", "PARAM_CODE", "100.5", "", ""},
+			name:    "product_parameters",
+			headers: []string{"legacy_oracle_sys_id", "param_code", "data_type", "value_numeric", "value_text", "value_flag"},
+			sample:  []string{"CPM_FG_EXAMPLE", "PARAM_CODE", "NUMERIC", "100.5", "", ""},
 		},
 		{
-			name:    "capp",
+			name:    "product_applicable_params",
 			headers: []string{"legacy_oracle_sys_id", "param_code", "is_required", "display_order"},
-			sample:  []string{"PROD-001", "PARAM_CODE", boolTrueStr, "1"},
+			sample:  []string{"CPM_FG_EXAMPLE", "PARAM_CODE", boolTrueStr, "1"},
 		},
 		{
 			name:    "route_head",
-			headers: []string{"legacy_oracle_sys_id", "notes"},
-			sample:  []string{"PROD-001", "Main routing"},
+			headers: []string{"legacy_oracle_sys_id", "routing_status", "notes"},
+			sample:  []string{"CPM_FG_EXAMPLE", "DRAFT", "Main routing"},
 		},
 		{
-			name:    "route_seq",
-			headers: []string{"legacy_oracle_sys_id", "route_level", "route_seq", "route_name", "route_item_code", "position_x", "position_y", "cyl_type_id"},
-			sample:  []string{"PROD-001", "1", "1", "Process 1", "SEQ-001", "0", "0", ""},
+			name:    "route_sequences",
+			headers: []string{"route_head_legacy_product_id", "node_product_legacy_id", "route_level", "route_seq", "route_name", "route_item_code", "route_shade_code", "route_shade_name"},
+			sample:  []string{"CPM_FG_EXAMPLE", "CPM_INT_EXAMPLE", "1", "1", "Process 1", "", "", ""},
 		},
 		{
-			name:    "route_rm",
-			headers: []string{"legacy_oracle_sys_id", "route_level", "route_seq", "rm_type", "rm_product_legacy_id", "rm_item_code", "rm_group_code", "rm_name", "rm_item_code_ref", "ratio", "sub_type", "notes"},
-			sample:  []string{"PROD-001", "1", "1", "PRODUCT", "RM-001", "", "", "RM Name", "", "1.0", "", ""},
+			name:    "route_rms",
+			headers: []string{"route_head_legacy_product_id", "route_level", "route_seq", "rm_type", "ratio", "rm_product_legacy_id", "rm_item_code", "rm_group_code", "rm_name", "rm_shade_code", "rm_shade_name", "sub_type", "notes"},
+			sample:  []string{"CPM_FG_EXAMPLE", "1", "1", "PRODUCT", "1.0", "CPM_INT_EXAMPLE", "", "", "RM Name", "", "", "", ""},
 		},
 	}
 
