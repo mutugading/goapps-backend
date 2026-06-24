@@ -52,8 +52,22 @@ func NewBulkImportHandler(
 }
 
 // Handle processes a bulk import job. Called by finance-worker after dequeuing.
-// Lifecycle: PENDING → RUNNING → DONE/PARTIAL/FAILED.
-// Progress is reported as cumulative row counts after each sheet.
+//
+// Lifecycle: PENDING → RUNNING → DONE/FAILED.
+//
+// The handler runs in two phases:
+//
+//  1. Pre-validation — every sheet is parsed and validated without any DB
+//     writes. Cross-sheet references (param codes, product IDs, route head
+//     IDs) are checked using in-memory sets built from the file itself.
+//     If any validation error is found the import is aborted entirely — no
+//     partial rows are written.  An error report is uploaded to MinIO; the
+//     "missing_param_codes" sheet in that report lists every unknown param
+//     code with its row-skip count so the operator can resolve them all at
+//     once before re-importing.
+//
+//  2. Write — only reached when pre-validation is fully clean.  All six
+//     sheets are processed and written to the database.
 func (h *BulkImportHandler) Handle(ctx context.Context, jobID int64, fileContent []byte, fileName string) error {
 	h.logger.Info().Int64("job_id", jobID).Str("file_name", fileName).Msg("bulk import: starting")
 	job, err := h.jobRepo.GetByID(ctx, jobID)
@@ -86,6 +100,26 @@ func (h *BulkImportHandler) Handle(ctx context.Context, jobID int64, fileContent
 		return mapsErr
 	}
 
+	// === Phase 1: pre-validation (no DB writes) ===
+	preResults := preValidateAll(f, maps)
+	if countErrors(preResults) > 0 {
+		h.logger.Warn().
+			Int64("job_id", jobID).
+			Int("error_count", countErrors(preResults)).
+			Msg("bulk import: pre-validation failed — aborting, no rows written")
+		errorKey := h.maybeUploadErrorReport(ctx, jobID, preResults)
+		job.MarkFailed(fmt.Sprintf(
+			"validation failed: %d error(s) across %d sheet(s) — see error report",
+			countErrors(preResults), len(preResults),
+		))
+		if errorKey != "" {
+			job.SetErrorFile(errorKey)
+		}
+		h.updateJob(ctx, jobID, job)
+		return nil
+	}
+
+	// === Phase 2: write (all rows validated) ===
 	var allResults []SheetResult
 	totalProcessed, totalSuccess, totalFailed, totalSkipped := 0, 0, 0, 0
 
@@ -210,8 +244,7 @@ func (h *BulkImportHandler) Handle(ctx context.Context, jobID int64, fileContent
 	job.UpdateProgress(totalProcessed, totalSuccess, totalFailed, totalSkipped)
 	h.updateJob(ctx, jobID, job)
 
-	errorFileKey := h.maybeUploadErrorReport(ctx, jobID, allResults)
-	job.MarkDone(errorFileKey)
+	job.MarkDone("")
 	h.updateJob(ctx, jobID, job)
 	return nil
 }

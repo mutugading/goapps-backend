@@ -172,3 +172,9 @@ func (j *CostImportJob) MarkFailed(detail string) {
 	j.completedAt = &now
 	j.errorDetail = detail
 }
+
+// SetErrorFile attaches a downloadable error-report file key to the job.
+// Call after MarkFailed when a report has been uploaded.
+func (j *CostImportJob) SetErrorFile(key string) {
+	j.errorFile = key
+}
