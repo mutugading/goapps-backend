@@ -70,6 +70,8 @@ func (h *MBSpinHandler) CreateMBSpin(ctx context.Context, req *financev1.CreateM
 		Filament:    filament,
 		Dozing:      req.MbsDozing,
 		MBCosting:   req.MbsMbCosting,
+		CC:          req.MbsCc,
+		CostRateMkt: req.MbsCostRateMkt,
 		CreatedBy:   getUserFromContext(ctx),
 	})
 	if err != nil {
@@ -130,14 +132,16 @@ func (h *MBSpinHandler) UpdateMBSpin(ctx context.Context, req *financev1.UpdateM
 	}
 
 	entity, err := h.updateHandler.Handle(ctx, appmbspin.UpdateCommand{
-		ID:        id,
-		MgtName:   req.MbsMgtName,
-		MBCosting: req.MbsMbCosting,
-		Denier:    req.MbsDenier,
-		Filament:  filament,
-		Dozing:    req.MbsDozing,
-		IsActive:  req.MbsIsActive,
-		UpdatedBy: getUserFromContext(ctx),
+		ID:          id,
+		MgtName:     req.MbsMgtName,
+		MBCosting:   req.MbsMbCosting,
+		Denier:      req.MbsDenier,
+		Filament:    filament,
+		Dozing:      req.MbsDozing,
+		CC:          req.MbsCc,
+		CostRateMkt: req.MbsCostRateMkt,
+		IsActive:    req.MbsIsActive,
+		UpdatedBy:   getUserFromContext(ctx),
 	})
 	if err != nil {
 		RecordMBSpinOperation("update", false)
@@ -277,6 +281,8 @@ func mbSpinEntityToProto(e *mbspin.Entity) *financev1.MBSpin {
 	if e.MBCosting() != nil {
 		p.MbsMbCosting = *e.MBCosting()
 	}
+	p.MbsCc = e.CC()
+	p.MbsCostRateMkt = e.CostRateMkt()
 	if e.UpdatedAt() != nil {
 		p.Audit.UpdatedAt = e.UpdatedAt().Format(time.RFC3339)
 	}

@@ -26,6 +26,9 @@ type Repository interface {
 
 	// ExistsByID checks if an MB Spin with the given UUID exists.
 	ExistsByID(ctx context.Context, id uuid.UUID) (bool, error)
+
+	// GetByMBCosting retrieves an MB Spin by its MB costing code.
+	GetByMBCosting(ctx context.Context, code string) (*Entity, error)
 }
 
 // ListFilter contains filtering options for listing MB Spins.

@@ -34,8 +34,9 @@ func (r *MBSpinRepository) Create(ctx context.Context, entity *mbspin.Entity) er
 		INSERT INTO mst_mb_spin (
 			mbs_id, mbs_oracle_sys_id, mbs_mbh_id, mbs_mgt_name,
 			mbs_denier, mbs_filament, mbs_dozing, mbs_mb_costing,
+			mbs_cc, mbs_cost_rate_mkt,
 			mbs_is_active, created_at, created_by
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
 	`,
 		entity.ID(),
 		entity.OracleSysID(),
@@ -45,6 +46,8 @@ func (r *MBSpinRepository) Create(ctx context.Context, entity *mbspin.Entity) er
 		entity.Filament(),
 		entity.Dozing(),
 		entity.MBCosting(),
+		entity.CC(),
+		entity.CostRateMkt(),
 		entity.IsActive(),
 		entity.CreatedAt(),
 		entity.CreatedBy(),
@@ -125,14 +128,16 @@ func (r *MBSpinRepository) List(ctx context.Context, filter mbspin.ListFilter) (
 func (r *MBSpinRepository) Update(ctx context.Context, entity *mbspin.Entity) error {
 	result, err := r.db.ExecContext(ctx, `
 		UPDATE mst_mb_spin SET
-			mbs_mgt_name   = $2,
-			mbs_denier     = $3,
-			mbs_filament   = $4,
-			mbs_dozing     = $5,
-			mbs_mb_costing = $6,
-			mbs_is_active  = $7,
-			updated_at     = $8,
-			updated_by     = $9
+			mbs_mgt_name      = $2,
+			mbs_denier        = $3,
+			mbs_filament      = $4,
+			mbs_dozing        = $5,
+			mbs_mb_costing    = $6,
+			mbs_cc            = $7,
+			mbs_cost_rate_mkt = $8,
+			mbs_is_active     = $9,
+			updated_at        = $10,
+			updated_by        = $11
 		WHERE mbs_id = $1 AND deleted_at IS NULL
 	`,
 		entity.ID(),
@@ -141,6 +146,8 @@ func (r *MBSpinRepository) Update(ctx context.Context, entity *mbspin.Entity) er
 		entity.Filament(),
 		entity.Dozing(),
 		entity.MBCosting(),
+		entity.CC(),
+		entity.CostRateMkt(),
 		entity.IsActive(),
 		entity.UpdatedAt(),
 		entity.UpdatedBy(),
@@ -189,6 +196,11 @@ func (r *MBSpinRepository) ExistsByID(ctx context.Context, id uuid.UUID) (bool, 
 	return exists, nil
 }
 
+// GetByMBCosting retrieves an MB Spin by its MB costing code.
+func (r *MBSpinRepository) GetByMBCosting(ctx context.Context, code string) (*mbspin.Entity, error) {
+	return r.scanOne(r.db.QueryRowContext(ctx, r.selectCols()+` WHERE mbs_mb_costing = $1 AND deleted_at IS NULL`, code))
+}
+
 // =============================================================================
 // Helpers
 // =============================================================================
@@ -196,7 +208,8 @@ func (r *MBSpinRepository) ExistsByID(ctx context.Context, id uuid.UUID) (bool, 
 func (r *MBSpinRepository) selectCols() string {
 	return `
 		SELECT mbs_id, mbs_oracle_sys_id, mbs_mbh_id, mbs_mgt_name,
-		       mbs_denier, mbs_filament, mbs_dozing, mbs_mb_costing, mbs_is_active,
+		       mbs_denier, mbs_filament, mbs_dozing, mbs_mb_costing,
+		       mbs_cc, mbs_cost_rate_mkt, mbs_is_active,
 		       created_at, created_by, updated_at, updated_by, deleted_at, deleted_by
 		FROM mst_mb_spin
 	`
@@ -222,6 +235,8 @@ type mbSpinDTO struct {
 	Filament    sql.NullInt64
 	Dozing      sql.NullFloat64
 	MBCosting   sql.NullString
+	CC          sql.NullString
+	CostRateMkt sql.NullFloat64
 	IsActive    bool
 	CreatedAt   time.Time
 	CreatedBy   string
@@ -241,6 +256,8 @@ func (d *mbSpinDTO) toEntity() *mbspin.Entity {
 		nullableIntPtr(d.Filament),
 		nullableFloat64Ptr(d.Dozing),
 		nullableStringPtr(d.MBCosting),
+		nullableStringPtr(d.CC),
+		nullableFloat64Ptr(d.CostRateMkt),
 		d.IsActive,
 		d.CreatedAt, d.CreatedBy,
 		nullableTimePtr(d.UpdatedAt), nullableStringPtr(d.UpdatedBy),
@@ -252,7 +269,8 @@ func (r *MBSpinRepository) scanOne(row *sql.Row) (*mbspin.Entity, error) {
 	var d mbSpinDTO
 	err := row.Scan(
 		&d.ID, &d.OracleSysID, &d.HeadID, &d.MgtName,
-		&d.Denier, &d.Filament, &d.Dozing, &d.MBCosting, &d.IsActive,
+		&d.Denier, &d.Filament, &d.Dozing, &d.MBCosting,
+		&d.CC, &d.CostRateMkt, &d.IsActive,
 		&d.CreatedAt, &d.CreatedBy, &d.UpdatedAt, &d.UpdatedBy, &d.DeletedAt, &d.DeletedBy,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -268,7 +286,8 @@ func (r *MBSpinRepository) scanRow(rows *sql.Rows) (*mbspin.Entity, error) {
 	var d mbSpinDTO
 	err := rows.Scan(
 		&d.ID, &d.OracleSysID, &d.HeadID, &d.MgtName,
-		&d.Denier, &d.Filament, &d.Dozing, &d.MBCosting, &d.IsActive,
+		&d.Denier, &d.Filament, &d.Dozing, &d.MBCosting,
+		&d.CC, &d.CostRateMkt, &d.IsActive,
 		&d.CreatedAt, &d.CreatedBy, &d.UpdatedAt, &d.UpdatedBy, &d.DeletedAt, &d.DeletedBy,
 	)
 	if err != nil {

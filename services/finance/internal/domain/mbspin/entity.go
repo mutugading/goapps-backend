@@ -17,6 +17,8 @@ type Entity struct {
 	filament    *int
 	dozing      *float64
 	mbCosting   *string
+	cc          *string
+	costRateMkt *float64
 	isActive    bool
 	createdAt   time.Time
 	createdBy   string
@@ -29,7 +31,7 @@ type Entity struct {
 // New creates a new MB Spin entity with validation.
 //
 //nolint:revive // Many parameters required for construction.
-func New(headID uuid.UUID, mgtName string, oracleSysID *string, denier *float64, filament *int, dozing *float64, mbCosting *string, createdBy string) (*Entity, error) {
+func New(headID uuid.UUID, mgtName string, oracleSysID *string, denier *float64, filament *int, dozing *float64, mbCosting *string, cc *string, costRateMkt *float64, createdBy string) (*Entity, error) {
 	if headID == uuid.Nil {
 		return nil, ErrInvalidHeadID
 	}
@@ -45,6 +47,7 @@ func New(headID uuid.UUID, mgtName string, oracleSysID *string, denier *float64,
 	return &Entity{
 		id: uuid.New(), oracleSysID: oracleSysID, headID: headID, mgtName: mgtName,
 		denier: denier, filament: filament, dozing: dozing, mbCosting: mbCosting,
+		cc: cc, costRateMkt: costRateMkt,
 		isActive: true, createdAt: time.Now(), createdBy: createdBy,
 	}, nil
 }
@@ -52,10 +55,11 @@ func New(headID uuid.UUID, mgtName string, oracleSysID *string, denier *float64,
 // Reconstruct rebuilds an MB Spin from persistence data.
 //
 //nolint:revive // Many parameters required for persistence reconstitution.
-func Reconstruct(id uuid.UUID, oracleSysID *string, headID uuid.UUID, mgtName string, denier *float64, filament *int, dozing *float64, mbCosting *string, isActive bool, createdAt time.Time, createdBy string, updatedAt *time.Time, updatedBy *string, deletedAt *time.Time, deletedBy *string) *Entity {
+func Reconstruct(id uuid.UUID, oracleSysID *string, headID uuid.UUID, mgtName string, denier *float64, filament *int, dozing *float64, mbCosting *string, cc *string, costRateMkt *float64, isActive bool, createdAt time.Time, createdBy string, updatedAt *time.Time, updatedBy *string, deletedAt *time.Time, deletedBy *string) *Entity {
 	return &Entity{
 		id: id, oracleSysID: oracleSysID, headID: headID, mgtName: mgtName,
 		denier: denier, filament: filament, dozing: dozing, mbCosting: mbCosting,
+		cc: cc, costRateMkt: costRateMkt,
 		isActive: isActive, createdAt: createdAt, createdBy: createdBy,
 		updatedAt: updatedAt, updatedBy: updatedBy, deletedAt: deletedAt, deletedBy: deletedBy,
 	}
@@ -85,6 +89,12 @@ func (e *Entity) Dozing() *float64 { return e.dozing }
 // MBCosting returns the optional spin cost code.
 func (e *Entity) MBCosting() *string { return e.mbCosting }
 
+// CC returns the optional MB/SP cost code.
+func (e *Entity) CC() *string { return e.cc }
+
+// CostRateMkt returns the optional MB rate MKT USD/kg.
+func (e *Entity) CostRateMkt() *float64 { return e.costRateMkt }
+
 // IsActive returns whether the spin is active.
 func (e *Entity) IsActive() bool { return e.isActive }
 
@@ -111,12 +121,14 @@ func (e *Entity) IsDeleted() bool { return e.deletedAt != nil }
 
 // UpdateInput carries optional field mutations for Update.
 type UpdateInput struct {
-	MgtName   *string
-	Denier    *float64
-	Filament  *int
-	Dozing    *float64
-	MBCosting *string
-	IsActive  *bool
+	MgtName     *string
+	Denier      *float64
+	Filament    *int
+	Dozing      *float64
+	MBCosting   *string
+	CC          *string
+	CostRateMkt *float64
+	IsActive    *bool
 }
 
 // Update applies optional field changes to the entity.
@@ -172,6 +184,12 @@ func (e *Entity) applyOptionalFields(in UpdateInput) {
 	}
 	if in.MBCosting != nil {
 		e.mbCosting = in.MBCosting
+	}
+	if in.CC != nil {
+		e.cc = in.CC
+	}
+	if in.CostRateMkt != nil {
+		e.costRateMkt = in.CostRateMkt
 	}
 	if in.IsActive != nil {
 		e.isActive = *in.IsActive

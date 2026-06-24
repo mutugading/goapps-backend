@@ -13,6 +13,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/intermingling"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/machine"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbhead"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbspin"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/parameter"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/productgrade"
 )
@@ -124,6 +125,50 @@ var mbHeadTextReaders = map[string]func(*mbhead.Entity) (string, bool){
 	},
 }
 
+// mbSpinNumericReaders maps lookup_source_column → numeric value extractor for mst_mb_spin entity.
+var mbSpinNumericReaders = map[string]func(*mbspin.Entity) (float64, bool){
+	"mbs_denier": func(e *mbspin.Entity) (float64, bool) {
+		if v := e.Denier(); v != nil {
+			return *v, true
+		}
+		return 0, false
+	},
+	"mbs_dozing": func(e *mbspin.Entity) (float64, bool) {
+		if v := e.Dozing(); v != nil {
+			return *v, true
+		}
+		return 0, false
+	},
+	"mbs_filament": func(e *mbspin.Entity) (float64, bool) {
+		if v := e.Filament(); v != nil {
+			return float64(*v), true
+		}
+		return 0, false
+	},
+	"mbs_cost_rate_mkt": func(e *mbspin.Entity) (float64, bool) {
+		if v := e.CostRateMkt(); v != nil {
+			return *v, true
+		}
+		return 0, false
+	},
+}
+
+// mbSpinTextReaders maps lookup_source_column → text value extractor for mst_mb_spin entity.
+var mbSpinTextReaders = map[string]func(*mbspin.Entity) (string, bool){
+	"mbs_mgt_name": func(e *mbspin.Entity) (string, bool) {
+		if v := e.MgtName(); v != "" {
+			return v, true
+		}
+		return "", false
+	},
+	"mbs_cc": func(e *mbspin.Entity) (string, bool) {
+		if v := e.CC(); v != nil && *v != "" {
+			return *v, true
+		}
+		return "", false
+	},
+}
+
 // YarnLookupFillHandler implements financev1.YarnLookupFillServiceServer.
 // It routes GetLookupFillValues requests to master-specific fill logic.
 type YarnLookupFillHandler struct {
@@ -132,6 +177,7 @@ type YarnLookupFillHandler struct {
 	interminglingRepo intermingling.Repository
 	productGradeRepo  productgrade.Repository
 	mbHeadRepo        mbhead.Repository
+	mbSpinRepo        mbspin.Repository
 	boxBobbinRepo     boxbobbincost.Repository
 	paramRepo         parameter.Repository
 }
@@ -142,6 +188,7 @@ func NewYarnLookupFillHandler(
 	interminglingRepo intermingling.Repository,
 	productGradeRepo productgrade.Repository,
 	mbHeadRepo mbhead.Repository,
+	mbSpinRepo mbspin.Repository,
 	boxBobbinRepo boxbobbincost.Repository,
 	paramRepo parameter.Repository,
 ) (*YarnLookupFillHandler, error) {
@@ -150,6 +197,7 @@ func NewYarnLookupFillHandler(
 		interminglingRepo: interminglingRepo,
 		productGradeRepo:  productGradeRepo,
 		mbHeadRepo:        mbHeadRepo,
+		mbSpinRepo:        mbSpinRepo,
 		boxBobbinRepo:     boxBobbinRepo,
 		paramRepo:         paramRepo,
 	}, nil
@@ -166,6 +214,8 @@ func (h *YarnLookupFillHandler) GetLookupFillValues(ctx context.Context, req *fi
 		return h.fillFromProductGrade(ctx, req.GetSelectedKey(), req.GetSourceParamCode())
 	case "MB_HEAD":
 		return h.fillFromMBHead(ctx, req.GetSelectedKey(), req.GetSourceParamCode())
+	case "MB_SPIN":
+		return h.fillFromMBSpin(ctx, req.GetSelectedKey(), req.GetSourceParamCode())
 	case "BOX_BOBBIN_COST":
 		return h.fillFromBoxBobbinCost(ctx, req.GetSelectedKey(), req.GetSourceParamCode())
 	default:
@@ -345,6 +395,44 @@ func (h *YarnLookupFillHandler) fillFromBoxBobbinCost(ctx context.Context, bbcCo
 		Base:         successResponse("Box bobbin cost fill values retrieved"),
 		NumericFills: nums,
 		TextFills:    map[string]string{},
+		DisplayLabel: label,
+	}, nil
+}
+
+func (h *YarnLookupFillHandler) fillFromMBSpin(ctx context.Context, selectedKey, sourceParamCode string) (*financev1.GetLookupFillValuesResponse, error) { //nolint:nilerr // BaseResponse pattern
+	spin, err := h.mbSpinRepo.GetByMBCosting(ctx, selectedKey)
+	if err != nil {
+		return &financev1.GetLookupFillValuesResponse{
+			Base: ErrorResponse("404", fmt.Sprintf("MB Spin not found: %s", selectedKey)),
+		}, nil //nolint:nilerr // BaseResponse pattern
+	}
+
+	children, err := h.paramRepo.GetByFillGroup(ctx, sourceParamCode)
+	if err != nil {
+		return &financev1.GetLookupFillValuesResponse{Base: ErrorResponse("500", err.Error())}, nil //nolint:nilerr // BaseResponse pattern
+	}
+
+	nums := make(map[string]float64)
+	texts := make(map[string]string)
+	for _, p := range children {
+		col := p.LookupSourceColumn()
+		if reader, ok := mbSpinNumericReaders[col]; ok {
+			if val, has := reader(spin); has {
+				nums[p.Code().String()] = val
+			}
+		}
+		if reader, ok := mbSpinTextReaders[col]; ok {
+			if val, has := reader(spin); has {
+				texts[p.Code().String()] = val
+			}
+		}
+	}
+
+	label := fmt.Sprintf("%s — %s", selectedKey, spin.MgtName())
+	return &financev1.GetLookupFillValuesResponse{
+		Base:         successResponse("Fill values retrieved"),
+		NumericFills: nums,
+		TextFills:    texts,
 		DisplayLabel: label,
 	}, nil
 }

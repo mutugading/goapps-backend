@@ -18,6 +18,8 @@ type CreateCommand struct {
 	Filament    *int
 	Dozing      *float64
 	MBCosting   *string
+	CC          *string
+	CostRateMkt *float64
 	CreatedBy   string
 }
 
@@ -36,6 +38,7 @@ func (h *CreateHandler) Handle(ctx context.Context, cmd CreateCommand) (*mbspin.
 	entity, err := mbspin.New(
 		cmd.HeadID, cmd.MgtName, cmd.OracleSysID,
 		cmd.Denier, cmd.Filament, cmd.Dozing, cmd.MBCosting,
+		cmd.CC, cmd.CostRateMkt,
 		cmd.CreatedBy,
 	)
 	if err != nil {
