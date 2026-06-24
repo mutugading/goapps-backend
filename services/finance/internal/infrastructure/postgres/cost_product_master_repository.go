@@ -72,14 +72,15 @@ func (r *CostProductMasterRepository) GetByCode(ctx context.Context, code string
 	return r.scanRow(r.db.QueryRowContext(ctx, q, code))
 }
 
-// Update saves descriptive fields + ERP linkage + active flag.
+// Update saves descriptive fields + legacy flex fields + ERP linkage + active flag.
 func (r *CostProductMasterRepository) Update(ctx context.Context, p *costproductmaster.CostProductMaster) error {
 	const q = `
 		UPDATE cost_product_master SET
 			cpm_product_name=$2,cpm_shade_code=$3,cpm_grade_code=$4,cpm_description=$5,
-			cpm_erp_item_code=$6,cpm_erp_grade_code_1=$7,cpm_erp_grade_code_2=$8,
-			cpm_erp_linked_at=$9,cpm_erp_linked_by=$10,
-			cpm_is_active=$11,cpm_updated_at=$12,cpm_updated_by=$13
+			cpm_flex_01=$6,cpm_flex_02=$7,cpm_flex_03=$8,
+			cpm_erp_item_code=$9,cpm_erp_grade_code_1=$10,cpm_erp_grade_code_2=$11,
+			cpm_erp_linked_at=$12,cpm_erp_linked_by=$13,
+			cpm_is_active=$14,cpm_updated_at=$15,cpm_updated_by=$16
 		WHERE cpm_product_sys_id=$1`
 	var erpItem, erpGrade1, erpGrade2, erpBy sql.NullString
 	if p.ErpItemCode() != "" {
@@ -100,6 +101,7 @@ func (r *CostProductMasterRepository) Update(ctx context.Context, p *costproduct
 	}
 	res, err := r.db.ExecContext(ctx, q,
 		p.ProductSysID(), p.ProductName(), p.ShadeCode(), p.GradeCode(), p.Description(),
+		p.Flex01(), p.Flex02(), p.Flex03(),
 		erpItem, erpGrade1, erpGrade2, erpAt, erpBy,
 		p.IsActive(), p.UpdatedAt(), p.UpdatedBy(),
 	)

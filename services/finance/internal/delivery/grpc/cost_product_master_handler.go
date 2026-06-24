@@ -98,6 +98,9 @@ func (h *CostProductMasterHandler) CreateCostProductMaster(ctx context.Context, 
 		ShadeCode:     req.GetShadeCode(),
 		GradeCode:     req.GetGradeCode(),
 		Description:   req.GetDescription(),
+		Flex01:        req.GetFlex_01(),
+		Flex02:        req.GetFlex_02(),
+		Flex03:        req.GetFlex_03(),
 		ActorUserID:   actor,
 	})
 	if err != nil {
@@ -152,6 +155,9 @@ func (h *CostProductMasterHandler) UpdateCostProductMaster(ctx context.Context, 
 		ShadeCode:    req.GetShadeCode(),
 		GradeCode:    req.GetGradeCode(),
 		Description:  req.GetDescription(),
+		Flex01:       req.GetFlex_01(),
+		Flex02:       req.GetFlex_02(),
+		Flex03:       req.GetFlex_03(),
 		ActorUserID:  actor,
 	})
 	if err != nil {

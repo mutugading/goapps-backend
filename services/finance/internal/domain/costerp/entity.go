@@ -1,6 +1,6 @@
-// Package costerp contains domain types for ERP lookup tables
+// Package costerp contains read-only domain types for ERP lookup tables
 // (cost_erp_item, cost_erp_grade, cost_erp_shade — PRD Phase B §7.3).
-// Items support full CRUD; grades and shades are read-only.
+// Items are Oracle replicas synced via ETL; grades and shades are read-only.
 package costerp
 
 import (
@@ -11,9 +11,6 @@ import (
 
 // ErrNotFound is returned when an ERP lookup row is not found.
 var ErrNotFound = errors.New("erp lookup record not found")
-
-// ErrAlreadyExists is returned when an ERP item code already exists.
-var ErrAlreadyExists = errors.New("erp item code already exists")
 
 // Item is an ERP master_item row.
 type Item struct {
@@ -64,29 +61,10 @@ type LookupFilter struct {
 	PageSize     int
 }
 
-// CreateInput holds data for creating a new ERP item.
-type CreateInput struct {
-	ItemCode string
-	ItemName string
-	ItemType string
-	IsActive bool
-}
-
-// UpdateInput holds data for updating an ERP item.
-type UpdateInput struct {
-	ItemID   int64
-	ItemName *string
-	ItemType *string
-	IsActive *bool
-}
-
-// Repository exposes ERP lookups and item management.
+// Repository exposes read-only ERP lookup queries.
 type Repository interface {
 	ListItems(ctx context.Context, f ItemFilter) (items []*Item, total int64, err error)
 	GetItem(ctx context.Context, itemID int64) (*Item, error)
-	CreateItem(ctx context.Context, in CreateInput, actor string) (*Item, error)
-	UpdateItem(ctx context.Context, in UpdateInput, actor string) (*Item, error)
-	DeleteItem(ctx context.Context, itemID int64, actor string) error
 	ListGrades(ctx context.Context, f LookupFilter) (items []*Grade, total int64, err error)
 	ListShades(ctx context.Context, f LookupFilter) (items []*Shade, total int64, err error)
 }

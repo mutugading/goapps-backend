@@ -5,10 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
-
-	"github.com/lib/pq"
 
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costerp"
 )
@@ -134,71 +131,6 @@ func (r *CostErpRepository) GetItem(ctx context.Context, itemID int64) (*costerp
 		return nil, fmt.Errorf("get cost_erp_item: %w", err)
 	}
 	return it, nil
-}
-
-// CreateItem inserts a new ERP item.
-func (r *CostErpRepository) CreateItem(ctx context.Context, in costerp.CreateInput, actor string) (*costerp.Item, error) {
-	q := `INSERT INTO cost_erp_item
-		(cei_item_code, cei_item_name, cei_item_type, cei_is_active,
-		 cei_synced_at, cei_created_at, cei_updated_at, cei_created_by, cei_updated_by)
-		VALUES ($1, $2, $3, $4, NOW(), NOW(), NOW(), $5, $5)
-		RETURNING ` + itemSelectCols
-	it, err := scanItem(r.db.QueryRowContext(ctx, q, in.ItemCode, in.ItemName, in.ItemType, in.IsActive, actor))
-	if err != nil {
-		var pqErr *pq.Error
-		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
-			return nil, costerp.ErrAlreadyExists
-		}
-		return nil, fmt.Errorf("create erp item: %w", err)
-	}
-	return it, nil
-}
-
-// UpdateItem applies partial updates to an ERP item.
-func (r *CostErpRepository) UpdateItem(ctx context.Context, in costerp.UpdateInput, actor string) (*costerp.Item, error) {
-	sets := []string{"cei_updated_at = NOW()", "cei_updated_by = $2"}
-	args := []any{in.ItemID, actor}
-	idx := 3
-	if in.ItemName != nil {
-		sets = append(sets, fmt.Sprintf("cei_item_name = $%d", idx))
-		args = append(args, *in.ItemName)
-		idx++
-	}
-	if in.ItemType != nil {
-		sets = append(sets, fmt.Sprintf("cei_item_type = $%d", idx))
-		args = append(args, *in.ItemType)
-		idx++
-	}
-	if in.IsActive != nil {
-		sets = append(sets, fmt.Sprintf("cei_is_active = $%d", idx))
-		args = append(args, *in.IsActive)
-		idx++
-	}
-	q := `UPDATE cost_erp_item SET ` + strings.Join(sets, ", ") +
-		` WHERE cei_item_id = $1
-		RETURNING ` + itemSelectCols
-	it, err := scanItem(r.db.QueryRowContext(ctx, q, args...))
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, costerp.ErrNotFound
-		}
-		return nil, fmt.Errorf("update erp item: %w", err)
-	}
-	return it, nil
-}
-
-// DeleteItem hard-deletes an ERP item by ID.
-func (r *CostErpRepository) DeleteItem(ctx context.Context, itemID int64, actor string) error {
-	res, err := r.db.ExecContext(ctx, `DELETE FROM cost_erp_item WHERE cei_item_id = $1`, itemID)
-	if err != nil {
-		return fmt.Errorf("delete erp item: %w", err)
-	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
-		return costerp.ErrNotFound
-	}
-	_ = actor
-	return nil
 }
 
 // =============================================================================
