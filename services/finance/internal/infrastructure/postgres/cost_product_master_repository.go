@@ -266,8 +266,10 @@ func (r *CostProductMasterRepository) BulkCreate(ctx context.Context, items []*c
 
 const upsertByLegacyBatchSize = 200
 
-// BulkUpsertByLegacyID upserts products in batches of 200 using cpm_flex_02 as the conflict key.
-// Returns a result slice mapping each legacy sys_id to its assigned cpm_product_sys_id.
+// BulkUpsertByLegacyID upserts products in batches of 200.
+// legacy_sys_id (cpm_flex_02) is tried first as a conflict key; if absent, cpm_product_code
+// is used. The result maps each input LegacySysID (which may be an Oracle integer string or
+// a product_code when the product has no Oracle link) to its assigned cpm_product_sys_id.
 func (r *CostProductMasterRepository) BulkUpsertByLegacyID(ctx context.Context, items []costproductmaster.ProductUpsertInput, actor string) ([]costproductmaster.ProductUpsertResult, error) {
 	if len(items) == 0 {
 		return []costproductmaster.ProductUpsertResult{}, nil
@@ -318,7 +320,7 @@ func (r *CostProductMasterRepository) BulkUpsertByLegacyID(ctx context.Context, 
 			cpm_is_active       = EXCLUDED.cpm_is_active,
 			cpm_updated_at      = EXCLUDED.cpm_updated_at,
 			cpm_updated_by      = EXCLUDED.cpm_updated_by
-		RETURNING cpm_flex_02, cpm_product_sys_id, xmax::text`
+		RETURNING cpm_product_sys_id, xmax::text`
 
 	results := make([]costproductmaster.ProductUpsertResult, 0, len(items))
 	now := time.Now().UTC()
@@ -349,7 +351,6 @@ func (r *CostProductMasterRepository) upsertLegacyBatch(
 ) ([]costproductmaster.ProductUpsertResult, error) {
 	results := make([]costproductmaster.ProductUpsertResult, 0, len(batch))
 	for _, item := range batch {
-		var legacyID string
 		var sysID int64
 		var xmax string
 		if err := tx.QueryRowContext(ctx, q,
@@ -359,11 +360,15 @@ func (r *CostProductMasterRepository) upsertLegacyBatch(
 			item.ErpItemCode, item.IsActive,
 			now, actor,
 			item.LegacySysID, // $14 — separate copy avoids SQLSTATE 42P08 type-inference conflict
-		).Scan(&legacyID, &sysID, &xmax); err != nil {
+		).Scan(&sysID, &xmax); err != nil {
 			return nil, fmt.Errorf("BulkUpsertByLegacyID upsert row: %w", err)
 		}
+		// Use the input LegacySysID as the map key, not cpm_flex_02 from RETURNING.
+		// When a product has no Oracle link, flex02 is empty but the export wrote
+		// product_code as legacy_oracle_sys_id — we need that same value as the key
+		// so downstream sheets (CPP, CAPP, route_head, etc.) can look it up.
 		results = append(results, costproductmaster.ProductUpsertResult{
-			LegacySysID:  legacyID,
+			LegacySysID:  item.LegacySysID,
 			ProductSysID: sysID,
 			WasInserted:  xmax == "0",
 		})
