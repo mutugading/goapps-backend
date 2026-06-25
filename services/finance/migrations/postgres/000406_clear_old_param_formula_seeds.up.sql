@@ -5,4 +5,5 @@
 DELETE FROM formula_param;
 DELETE FROM mst_formula;
 DELETE FROM cost_product_parameter;
+DELETE FROM cost_product_applicable_param;
 DELETE FROM mst_parameter;
