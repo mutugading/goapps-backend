@@ -1,3 +1,7 @@
+-- Extend varchar columns to accommodate Oracle param codes (max 41 chars).
+ALTER TABLE mst_parameter ALTER COLUMN param_code TYPE VARCHAR(50);
+ALTER TABLE mst_parameter ALTER COLUMN lookup_fill_group_code TYPE VARCHAR(50);
+
 -- ============================================================
 -- PART 1: Insert 142 params
 -- Columns: param_code, param_name, param_short_name, data_type,
@@ -12,7 +16,7 @@ INSERT INTO mst_parameter (
 )
 SELECT
     p.code, p.name, p.short_name, p.data_type, p.category,
-    u.uom_id, p.default_val, p.min_val, p.max_val, TRUE,
+    u.uom_id, p.default_val::NUMERIC, p.min_val::NUMERIC, p.max_val::NUMERIC, TRUE,
     NOW(), 'seed_oracle_142'
 FROM (VALUES
 -- INPUT params
@@ -156,7 +160,7 @@ FROM (VALUES
   ('SPARESCOST_PER_DAY','Spares Cost / Day','Spares Cost / Day','NUMBER','MASTER_LOOKUP','USD',NULL,NULL,NULL),
   ('STD_VALUE_LOSS','Standard Value Loss','Standard Value Loss','TEXT','MASTER_LOOKUP',NULL,NULL,NULL,NULL),
   ('VALUATION','Valuation','Valuation','TEXT','MASTER_LOOKUP',NULL,NULL,NULL,NULL),
-  ('VALUE_LOSS','Value loss','Value loss','TEXT','MASTER_LOOKUP',NULL,'0','100'),
+  ('VALUE_LOSS','Value loss','Value loss','TEXT','MASTER_LOOKUP',NULL,NULL,'0','100'),
   ('VOLUME_BUCKET_1_QTY','Volume Bucket 1 - Quantity','Volume Bucket 1 - Quantity','NUMBER','MASTER_LOOKUP','USD',NULL,'0','99999'),
   ('VOLUME_BUCKET_2_QTY','Volume Bucket 2 - Quantity','Volume Bucket 2 - Quantity','NUMBER','MASTER_LOOKUP','USD',NULL,'0','99999'),
   ('VOLUME_BUCKET_3_QTY','Volume Bucket 3 - Quantity','Volume Bucket 3 - Quantity','NUMBER','MASTER_LOOKUP','USD',NULL,'0','99999'),
