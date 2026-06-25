@@ -86,6 +86,8 @@ func processRouteRM( //nolint:gocognit,gocyclo // cohesive row-validation pipeli
 			errs = append(errs, *rmErr)
 			continue
 		}
+		// crm_parent_product_sys_id = the FG product that owns this route.
+		rmInput.ParentProductSysID = maps.ProductMap[headLegacyID]
 
 		if _, exists := batchMap[compositeKey]; !exists {
 			batchMap[compositeKey] = &rmBatch{seqID: seqID}
