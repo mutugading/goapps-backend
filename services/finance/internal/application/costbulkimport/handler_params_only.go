@@ -119,8 +119,18 @@ func (h *ParamOnlyImportHandler) Handle(ctx context.Context, jobID int64, fileCo
 		return s3Err
 	}
 
+	// Count rows skipped due to missing product IDs before converting to sentinels.
+	const notFoundMsg = "product not found in ProductMap: "
+	skipped2 := countMsgPrefix(errs2, notFoundMsg)
+	skipped3 := countMsgPrefix(errs3, notFoundMsg)
+	totalSkipped := skipped2 + skipped3
+	totalSuccess := ins2 + upd2 + ins3 + upd3
+	totalProcessed := ins2 + upd2 + len(errs2) + ins3 + upd3 + len(errs3)
+	totalFailed := len(errs2) - skipped2 + len(errs3) - skipped3 // real errors, not product-not-found
+	job.UpdateProgress(totalProcessed, totalSuccess, totalFailed, totalSkipped)
+
 	// Convert row-level "product not found" errors to compact sentinels and upload
-	// an informational error report (missing_product_ids sheet) if any rows were skipped.
+	// an informational error report (missing_product_ids sheet).
 	writeResults := []SheetResult{
 		{SheetName: "product_parameters", TotalRows: ins2 + upd2 + len(errs2), Inserted: ins2, Updated: upd2, Errors: errs2},
 		{SheetName: "product_applicable_params", TotalRows: ins3 + upd3 + len(errs3), Inserted: ins3, Updated: upd3, Errors: errs3},
@@ -133,13 +143,26 @@ func (h *ParamOnlyImportHandler) Handle(ctx context.Context, jobID int64, fileCo
 		}
 		h.logger.Info().
 			Int64("job_id", jobID).
-			Int("skipped_rows", countErrors(writeResults)).
-			Msg("params-only import: some rows skipped — see missing_product_ids sheet in error report")
+			Int("skipped_products", len(collectMissingProductIDs(writeResults))).
+			Int("skipped_rows", totalSkipped).
+			Int("imported_rows", totalSuccess).
+			Msg("params-only import: completed with some skipped rows")
 	}
 
 	job.MarkDone("")
 	h.updateJob(ctx, jobID, job)
 	return nil
+}
+
+// countMsgPrefix returns the number of errors whose Message starts with prefix.
+func countMsgPrefix(errs []SheetError, prefix string) int {
+	n := 0
+	for _, e := range errs {
+		if strings.HasPrefix(e.Message, prefix) {
+			n++
+		}
+	}
+	return n
 }
 
 // convertProductNotFoundToSentinels replaces individual "product not found in ProductMap: X"
