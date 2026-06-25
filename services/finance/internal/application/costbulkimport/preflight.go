@@ -27,8 +27,8 @@ func preValidateAll(f *excelize.File, maps *ImportMaps) []SheetResult { //nolint
 	// Sheet 5 — route_sequences (cross-ref to inHeads + inProducts); build inSeqs set.
 	s5, inSeqs := preflightRouteSeq(f, inHeads, inProducts)
 
-	// Sheet 6 — route_rms (cross-ref to inSeqs).
-	s6 := preflightRouteRM(f, inSeqs, inProducts)
+	// Sheet 6 — route_rms (cross-ref to inSeqs; validates rm_group_code against RmGroupMap).
+	s6 := preflightRouteRM(f, inSeqs, inProducts, maps)
 
 	return []SheetResult{s1, s2, s3, s4, s5, s6}
 }
@@ -199,8 +199,8 @@ func preflightRouteSeq(
 	return result, inSeqs
 }
 
-// preflightRouteRM validates route_rms rows against inSeqs and inProducts.
-func preflightRouteRM(f *excelize.File, inSeqs map[string]struct{}, inProducts map[string]struct{}) SheetResult {
+// preflightRouteRM validates route_rms rows against inSeqs, inProducts, and maps.RmGroupMap.
+func preflightRouteRM(f *excelize.File, inSeqs map[string]struct{}, inProducts map[string]struct{}, maps *ImportMaps) SheetResult {
 	const sheetName = "route_rms"
 	rows, parseErr := ParseSheet(f, sheetName, []string{routeHeadLegacyIDField, "route_level", "route_seq", "rm_type", "ratio"})
 	if parseErr != nil {
@@ -210,7 +210,7 @@ func preflightRouteRM(f *excelize.File, inSeqs map[string]struct{}, inProducts m
 	result := SheetResult{SheetName: sheetName, TotalRows: len(rows)}
 	for i, row := range rows {
 		rowNum := int32(i + 2) //nolint:gosec // row count fits int32
-		if e := preflightRMRow(rowNum, row, inSeqs, inProducts); e != nil {
+		if e := preflightRMRow(rowNum, row, inSeqs, inProducts, maps); e != nil {
 			result.Errors = append(result.Errors, *e)
 		}
 	}
@@ -218,7 +218,7 @@ func preflightRouteRM(f *excelize.File, inSeqs map[string]struct{}, inProducts m
 }
 
 // preflightRMRow validates a single route_rms row. Returns the first error found.
-func preflightRMRow(rowNum int32, row map[string]string, inSeqs map[string]struct{}, inProducts map[string]struct{}) *SheetError {
+func preflightRMRow(rowNum int32, row map[string]string, inSeqs map[string]struct{}, inProducts map[string]struct{}, maps *ImportMaps) *SheetError {
 	headID := row[routeHeadLegacyIDField]
 	if headID == "" {
 		return &SheetError{rowNum, routeHeadLegacyIDField, "required"}
@@ -244,7 +244,8 @@ func preflightRMRow(rowNum int32, row map[string]string, inSeqs map[string]struc
 	if row["ratio"] == "" {
 		return &SheetError{rowNum, "ratio", "required"}
 	}
-	if rmType == "PRODUCT" {
+	switch rmType {
+	case "PRODUCT":
 		rmProductID := row["rm_product_legacy_id"]
 		if rmProductID == "" {
 			return &SheetError{rowNum, "rm_product_legacy_id", "required when rm_type=PRODUCT"}
@@ -252,6 +253,16 @@ func preflightRMRow(rowNum int32, row map[string]string, inSeqs map[string]struc
 		if inProducts != nil {
 			if _, ok := inProducts[rmProductID]; !ok {
 				return &SheetError{rowNum, "rm_product_legacy_id", "product not found in product_master sheet: " + rmProductID}
+			}
+		}
+	case "GROUP":
+		groupCode := row["rm_group_code"]
+		if groupCode == "" {
+			return &SheetError{rowNum, "rm_group_code", "required when rm_type=GROUP"}
+		}
+		if maps != nil && len(maps.RmGroupMap) > 0 {
+			if !maps.RmGroupMap[groupCode] {
+				return &SheetError{rowNum, "rm_group_code", "unknown rm group code: " + groupCode + " — create it in Finance > Master > RM Groups first"}
 			}
 		}
 	}

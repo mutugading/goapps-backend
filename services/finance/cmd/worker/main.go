@@ -129,7 +129,7 @@ func run() error { //nolint:gocognit,gocyclo // linear setup function
 	cappImportHandler := costproductapplicableparam.NewAsyncImportHandler(cappRepo, costImportJobRepo)
 	cppImportHandler := costproductparameter.NewAsyncImportHandler(cppRepo, costImportJobRepo)
 	bulkImportHandler := costbulkimport.NewBulkImportHandler(
-		costImportJobRepo, cpmRepo, cppRepo, costRouteRepo, cptRepo, storageSvc, log.Logger,
+		costImportJobRepo, cpmRepo, cppRepo, costRouteRepo, cptRepo, rmGroupRepo, storageSvc, log.Logger,
 	)
 	bulkExportHandler := costbulkimport.NewExportHandler(
 		cpmRepo, cppRepo, cptRepo, costRouteRepo, costImportJobRepo, storageSvc, log.Logger,

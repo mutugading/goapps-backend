@@ -57,4 +57,9 @@ type Repository interface {
 	// Used by the params-only import to resolve legacy_oracle_sys_id without
 	// requiring a product_master sheet in the same file.
 	ListAllLegacyIDs(ctx context.Context) (map[string]int64, error)
+	// RollbackImport deletes all data written by a failed bulk import for the given
+	// newly-inserted product IDs. Removes route_rm, route_seq, route_head rows (in FK
+	// order) then deletes the products themselves; cost_product_parameter and
+	// cost_product_applicable_param are cleaned up via ON DELETE CASCADE.
+	RollbackImport(ctx context.Context, insertedProductSysIDs []int64) error
 }

@@ -388,6 +388,46 @@ func (r *CostProductMasterRepository) ListAll(ctx context.Context, f costproduct
 // scan helpers
 // =============================================================================
 
+// RollbackImport deletes all data written by a failed bulk import for the given
+// newly-inserted product IDs. Runs in a single transaction; no-op if the slice is empty.
+// Order: cost_route_rm → cost_route_seq → cost_route_head → cost_product_master
+// (cost_product_parameter + cost_product_applicable_param are cleaned via ON DELETE CASCADE).
+func (r *CostProductMasterRepository) RollbackImport(ctx context.Context, ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("RollbackImport begin tx: %w", err)
+	}
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			_ = rbErr
+		}
+	}()
+
+	steps := []struct {
+		table  string
+		column string
+	}{
+		{"cost_route_rm", "crm_parent_product_sys_id"},
+		{"cost_route_seq", "crs_product_sys_id"},
+		{"cost_route_head", "crh_product_sys_id"},
+		{"cost_product_master", "cpm_product_sys_id"},
+	}
+	for _, s := range steps {
+		q := fmt.Sprintf(`DELETE FROM %s WHERE %s = ANY($1)`, s.table, s.column) //nolint:gosec // table/column names are hardcoded
+		if _, delErr := tx.ExecContext(ctx, q, pq.Array(ids)); delErr != nil {
+			return fmt.Errorf("RollbackImport delete %s: %w", s.table, delErr)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("RollbackImport commit: %w", err)
+	}
+	return nil
+}
+
 type cpmRow struct {
 	sysID        int64
 	code         string
