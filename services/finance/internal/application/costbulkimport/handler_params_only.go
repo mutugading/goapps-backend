@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -82,8 +83,10 @@ func (h *ParamOnlyImportHandler) Handle(ctx context.Context, jobID int64, fileCo
 		return mapsErr
 	}
 
-	// === Phase 1: pre-validation (no DB writes) ===
-	preResults := preValidateParamSheets(f, maps)
+	// === Phase 1: pre-validation — param codes only (no product ID hard-check) ===
+	// Product IDs not found in the DB are silently skipped during the write phase
+	// and surfaced in a "missing_product_ids" sheet in the error report.
+	preResults := preValidateParamSheetsNoProductCheck(f, maps)
 	if countErrors(preResults) > 0 {
 		h.logger.Warn().
 			Int64("job_id", jobID).
@@ -102,22 +105,67 @@ func (h *ParamOnlyImportHandler) Handle(ctx context.Context, jobID int64, fileCo
 	}
 
 	// === Phase 2: write ===
-	_, _, _, s2Err := processCPP(ctx, f, maps, h.cppRepo, actor, now)
+	// Rows referencing product IDs not in ProductMap are skipped by processCPP/processCAP.
+	ins2, upd2, errs2, s2Err := processCPP(ctx, f, maps, h.cppRepo, actor, now)
 	if s2Err != nil {
 		job.MarkFailed(s2Err.Error())
 		h.updateJob(ctx, jobID, job)
 		return s2Err
 	}
-	_, _, _, s3Err := processCAP(ctx, f, maps, h.cppRepo, actor, now)
+	ins3, upd3, errs3, s3Err := processCAP(ctx, f, maps, h.cppRepo, actor, now)
 	if s3Err != nil {
 		job.MarkFailed(s3Err.Error())
 		h.updateJob(ctx, jobID, job)
 		return s3Err
 	}
 
+	// Convert row-level "product not found" errors to compact sentinels and upload
+	// an informational error report (missing_product_ids sheet) if any rows were skipped.
+	writeResults := []SheetResult{
+		{SheetName: "product_parameters", TotalRows: ins2 + upd2 + len(errs2), Inserted: ins2, Updated: upd2, Errors: errs2},
+		{SheetName: "product_applicable_params", TotalRows: ins3 + upd3 + len(errs3), Inserted: ins3, Updated: upd3, Errors: errs3},
+	}
+	writeResults = convertProductNotFoundToSentinels(writeResults)
+	if countErrors(writeResults) > 0 {
+		errorKey := h.uploadErrorReport(ctx, jobID, writeResults)
+		if errorKey != "" {
+			job.SetErrorFile(errorKey)
+		}
+		h.logger.Info().
+			Int64("job_id", jobID).
+			Int("skipped_rows", countErrors(writeResults)).
+			Msg("params-only import: some rows skipped — see missing_product_ids sheet in error report")
+	}
+
 	job.MarkDone("")
 	h.updateJob(ctx, jobID, job)
 	return nil
+}
+
+// convertProductNotFoundToSentinels replaces individual "product not found in ProductMap: X"
+// row errors with one aggregated miss_product sentinel per unique product ID.
+// This keeps the error report compact (1 row per missing product, not 1 row per param row).
+func convertProductNotFoundToSentinels(results []SheetResult) []SheetResult {
+	const notFoundMsg = "product not found in ProductMap: "
+	out := make([]SheetResult, len(results))
+	for i, r := range results {
+		counts := make(map[string]int)
+		var kept []SheetError
+		for _, e := range r.Errors {
+			if id, ok := strings.CutPrefix(e.Message, notFoundMsg); ok {
+				counts[id]++
+			} else {
+				kept = append(kept, e)
+			}
+		}
+		for id, cnt := range counts {
+			kept = append(kept, SheetError{0, "legacy_oracle_sys_id",
+				missProductPrefix + id + ":" + strconv.Itoa(cnt)})
+		}
+		out[i] = r
+		out[i].Errors = kept
+	}
+	return out
 }
 
 // loadParamOnlyMaps preloads ParamMap and ProductMap from the database.
@@ -142,45 +190,13 @@ func (h *ParamOnlyImportHandler) loadParamOnlyMaps(ctx context.Context) (*Import
 	return maps, nil
 }
 
-// preValidateParamSheets validates product_parameters and product_applicable_params
-// without writing to the database.
-func preValidateParamSheets(f *excelize.File, maps *ImportMaps) []SheetResult {
+// preValidateParamSheetsNoProductCheck validates param codes only.
+// Product IDs not found in ProductMap are NOT treated as hard errors — they are
+// skipped during the write phase and reported in the "missing_product_ids" sheet.
+func preValidateParamSheetsNoProductCheck(f *excelize.File, maps *ImportMaps) []SheetResult {
 	s2 := preflightParamSheet(f, maps, nil, "product_parameters", []string{"legacy_oracle_sys_id", "param_code", "data_type"})
 	s3 := preflightParamSheet(f, maps, nil, "product_applicable_params", []string{"legacy_oracle_sys_id", "param_code", "is_required"})
-
-	// Cross-check legacy IDs against ProductMap from DB.
-	s2 = crossCheckProductMap(s2, f, maps, "product_parameters", "legacy_oracle_sys_id")
-	s3 = crossCheckProductMap(s3, f, maps, "product_applicable_params", "legacy_oracle_sys_id")
-
 	return []SheetResult{s2, s3}
-}
-
-// crossCheckProductMap records unique product IDs that are not in ProductMap.
-// Instead of adding per-row errors (which can be millions), it emits exactly
-// one synthetic error per unique missing product ID using the missProductPrefix
-// sentinel so GenerateErrorReport can surface them in a dedicated summary sheet.
-func crossCheckProductMap(existing SheetResult, f *excelize.File, maps *ImportMaps, sheetName, idField string) SheetResult {
-	rows, parseErr := ParseSheet(f, sheetName, []string{idField})
-	if parseErr != nil {
-		return existing
-	}
-	missing := make(map[string]int) // legacyID → affected row count
-	for _, row := range rows {
-		legacyID := row[idField]
-		if legacyID == "" {
-			continue
-		}
-		if _, ok := maps.ProductMap[legacyID]; !ok {
-			missing[legacyID]++
-		}
-	}
-	// Emit one synthetic error per unique missing product ID.
-	for id, cnt := range missing {
-		existing.Errors = append(existing.Errors,
-			SheetError{0, idField, missProductPrefix + id + ":" + fmt.Sprintf("%d", cnt)},
-		)
-	}
-	return existing
 }
 
 func (h *ParamOnlyImportHandler) uploadErrorReport(ctx context.Context, jobID int64, results []SheetResult) string {
