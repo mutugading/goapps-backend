@@ -133,7 +133,12 @@ func writeSummarySheet(f *excelize.File, sheetName string, results []SheetResult
 }
 
 func writeErrorSheet(f *excelize.File, r SheetResult) error {
-	errSheetName := r.SheetName + "_errors"
+	// Excel sheet name limit is 31 characters. Truncate base name if needed.
+	base := r.SheetName
+	if len(base)+len("_errors") > 31 {
+		base = base[:31-len("_errors")]
+	}
+	errSheetName := base + "_errors"
 	if _, createErr := f.NewSheet(errSheetName); createErr != nil {
 		return fmt.Errorf("create sheet %q: %w", errSheetName, createErr)
 	}
