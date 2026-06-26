@@ -14,6 +14,11 @@ import (
 // Used to de-duplicate these errors into the dedicated "missing_param_codes" sheet.
 const unknownParamPrefix = "unknown param code: "
 
+// unknownMasterValuePrefix is the message prefix written by preflightParamSheet when
+// a MASTER_LOOKUP param value is not found in the referenced master table.
+// Format: "unknown_master_value:<masterCode>:<value>"
+const unknownMasterValuePrefix = "unknown_master_value:"
+
 // missProductPrefix is the sentinel prefix used by crossCheckProductMap to encode
 // a missing product ID along with its affected-row count in the format:
 //
@@ -82,6 +87,13 @@ func GenerateErrorReport(results []SheetResult) ([]byte, error) {
 	// Dedicated sheet for product IDs not found in the database (params-only import).
 	if products := collectMissingProductIDs(results); len(products) > 0 {
 		if err := writeMissingProductIDsSheet(f, products); err != nil {
+			return nil, err
+		}
+	}
+
+	// Dedicated sheet for MASTER_LOOKUP values not found in their referenced masters.
+	if masterVals := collectUnknownMasterValues(results); len(masterVals) > 0 {
+		if err := writeMissingMasterValuesSheet(f, masterVals); err != nil {
 			return nil, err
 		}
 	}
@@ -211,9 +223,67 @@ func filterOutSummaryErrors(errs []SheetError) []SheetError {
 		if strings.HasPrefix(e.Message, missProductPrefix) {
 			continue
 		}
+		if strings.HasPrefix(e.Message, unknownMasterValuePrefix) {
+			continue
+		}
 		result = append(result, e)
 	}
 	return result
+}
+
+// collectUnknownMasterValues collects unknown_master_value: errors and returns
+// a map of "masterCode:value" → occurrence count.
+func collectUnknownMasterValues(results []SheetResult) map[string]int {
+	vals := make(map[string]int)
+	for _, r := range results {
+		for _, e := range r.Errors {
+			if payload, ok := strings.CutPrefix(e.Message, unknownMasterValuePrefix); ok {
+				vals[payload]++
+			}
+		}
+	}
+	return vals
+}
+
+// writeMissingMasterValuesSheet writes a dedicated sheet listing MASTER_LOOKUP
+// values that were not found in their referenced master tables.
+func writeMissingMasterValuesSheet(f *excelize.File, vals map[string]int) error {
+	const sheetName = "missing_master_values"
+	if _, createErr := f.NewSheet(sheetName); createErr != nil {
+		return fmt.Errorf("create sheet %q: %w", sheetName, createErr)
+	}
+	headers := []string{"master_type", "missing_value", "affected_rows", "action_required"}
+	for col, h := range headers {
+		cell, cellErr := excelize.CoordinatesToCellName(col+1, 1)
+		if cellErr != nil {
+			return fmt.Errorf("coordinates: %w", cellErr)
+		}
+		if err := f.SetCellValue(sheetName, cell, h); err != nil {
+			return fmt.Errorf("set header: %w", err)
+		}
+	}
+	sorted := make([]string, 0, len(vals))
+	for k := range vals { sorted = append(sorted, k) }
+	sort.Strings(sorted)
+	for rowIdx, key := range sorted {
+		rowNum := rowIdx + 2
+		// key = "masterCode:value" e.g. "MACHINE:A1-8-S"
+		masterCode, value, hasSep := strings.Cut(key, ":")
+		if !hasSep {
+			value = masterCode
+		}
+		action := fmt.Sprintf("Create '%s' in Finance > Master > %s, then re-import params", value, masterCode)
+		for col, v := range []any{masterCode, value, vals[key], action} {
+			cell, cellErr := excelize.CoordinatesToCellName(col+1, rowNum)
+			if cellErr != nil {
+				return fmt.Errorf("coordinates: %w", cellErr)
+			}
+			if err := f.SetCellValue(sheetName, cell, v); err != nil {
+				return fmt.Errorf("set cell: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 // collectMissingProductIDs scans all sheet errors for miss_product: sentinel errors

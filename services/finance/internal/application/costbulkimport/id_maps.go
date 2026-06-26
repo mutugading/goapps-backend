@@ -15,6 +15,12 @@ type ImportMaps struct {
 	// RmGroupMap is the set of active RM group codes from cst_rm_group_head.
 	// Pre-loaded from DB. Used to validate rm_group_code in route_rms.
 	RmGroupMap map[string]bool
+	// ParamLookupMap maps param_code → lookup_master_code for MASTER_LOOKUP params.
+	// Pre-loaded from DB. Used to look up which master table to validate against.
+	ParamLookupMap map[string]string
+	// MasterLookupValues maps lookup_master_code → set of valid code values.
+	// Pre-loaded from DB. Used to validate MASTER_LOOKUP param values during import.
+	MasterLookupValues map[string]map[string]bool
 	// ProductMap maps legacy_oracle_sys_id → cpm_product_sys_id (int64).
 	// Populated during Sheet 1 (product_master) processing.
 	ProductMap map[string]int64
@@ -32,11 +38,13 @@ type ImportMaps struct {
 // NewImportMaps returns an initialized ImportMaps with empty maps ready for use.
 func NewImportMaps() *ImportMaps {
 	return &ImportMaps{
-		ParamMap:       make(map[string]uuid.UUID),
-		ProductTypeMap: make(map[string]int32),
-		RmGroupMap:     make(map[string]bool),
-		ProductMap:     make(map[string]int64),
-		RouteHeadMap:   make(map[string]int64),
-		RouteSeqMap:    make(map[string]int64),
+		ParamMap:           make(map[string]uuid.UUID),
+		ProductTypeMap:     make(map[string]int32),
+		RmGroupMap:         make(map[string]bool),
+		ParamLookupMap:     make(map[string]string),
+		MasterLookupValues: make(map[string]map[string]bool),
+		ProductMap:         make(map[string]int64),
+		RouteHeadMap:       make(map[string]int64),
+		RouteSeqMap:        make(map[string]int64),
 	}
 }

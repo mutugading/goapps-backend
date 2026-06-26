@@ -15,6 +15,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductparameter"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costproducttype"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costroute"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/lookupmaster"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/rmgroup"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/storage"
 )
@@ -22,14 +23,15 @@ import (
 // BulkImportHandler processes async bulk import of a 6-sheet Excel file
 // containing product master and routing data from a legacy Oracle system.
 type BulkImportHandler struct {
-	jobRepo     costimportjob.Repository
-	cpmRepo     costproductmaster.Repository
-	cppRepo     costproductparameter.Repository
-	routeRepo   costroute.Repository
-	typeRepo    costproducttype.Repository
-	rmGroupRepo rmgroup.Repository
-	storage     storage.Service
-	logger      zerolog.Logger
+	jobRepo          costimportjob.Repository
+	cpmRepo          costproductmaster.Repository
+	cppRepo          costproductparameter.Repository
+	routeRepo        costroute.Repository
+	typeRepo         costproducttype.Repository
+	rmGroupRepo      rmgroup.Repository
+	lookupMasterRepo lookupmaster.Repository
+	storage          storage.Service
+	logger           zerolog.Logger
 }
 
 // NewBulkImportHandler creates a new BulkImportHandler.
@@ -40,18 +42,20 @@ func NewBulkImportHandler(
 	routeRepo costroute.Repository,
 	typeRepo costproducttype.Repository,
 	rmGroupRepo rmgroup.Repository,
+	lookupMasterRepo lookupmaster.Repository,
 	storageSvc storage.Service,
 	logger zerolog.Logger,
 ) *BulkImportHandler {
 	return &BulkImportHandler{
-		jobRepo:     jobRepo,
-		cpmRepo:     cpmRepo,
-		cppRepo:     cppRepo,
-		routeRepo:   routeRepo,
-		typeRepo:    typeRepo,
-		rmGroupRepo: rmGroupRepo,
-		storage:     storageSvc,
-		logger:      logger,
+		jobRepo:          jobRepo,
+		cpmRepo:          cpmRepo,
+		cppRepo:          cppRepo,
+		routeRepo:        routeRepo,
+		typeRepo:         typeRepo,
+		rmGroupRepo:      rmGroupRepo,
+		lookupMasterRepo: lookupMasterRepo,
+		storage:          storageSvc,
+		logger:           logger,
 	}
 }
 
@@ -266,8 +270,27 @@ func (h *BulkImportHandler) loadMaps(ctx context.Context) (*ImportMaps, error) {
 	if err != nil {
 		return nil, fmt.Errorf("load param map: %w", err)
 	}
+	// Collect unique MASTER_LOOKUP codes to load options for.
+	masterCodesToLoad := make(map[string]struct{})
 	for _, p := range params {
 		m.ParamMap[p.ParamCode] = p.ParamID
+		if p.ParamCategory == "MASTER_LOOKUP" && p.LookupMasterCode != "" {
+			m.ParamLookupMap[p.ParamCode] = p.LookupMasterCode
+			masterCodesToLoad[p.LookupMasterCode] = struct{}{}
+		}
+	}
+	// Load valid option codes for each referenced lookup master.
+	for masterCode := range masterCodesToLoad {
+		opts, optErr := h.lookupMasterRepo.ListMasterOptions(ctx, masterCode)
+		if optErr != nil {
+			h.logger.Warn().Err(optErr).Str("master_code", masterCode).Msg("loadMaps: failed to load master options — MASTER_LOOKUP values will not be validated")
+			continue
+		}
+		optSet := make(map[string]bool, len(opts))
+		for _, o := range opts {
+			optSet[o.Value] = true
+		}
+		m.MasterLookupValues[masterCode] = optSet
 	}
 
 	types, err := h.typeRepo.ListAllActive(ctx)

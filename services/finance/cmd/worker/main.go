@@ -91,6 +91,7 @@ func run() error { //nolint:gocognit,gocyclo // linear setup function
 	}
 	syncDataRepo := postgres.NewSyncDataRepository(db)
 	rmGroupRepo := postgres.NewRMGroupRepository(db)
+	lookupMasterRepo := postgres.NewLookupMasterRepository(db)
 	rmCostRepo := postgres.NewRMCostRepository(db)
 	rmCostDetailRepo := postgres.NewRMCostDetailRepository(db)
 
@@ -129,13 +130,13 @@ func run() error { //nolint:gocognit,gocyclo // linear setup function
 	cappImportHandler := costproductapplicableparam.NewAsyncImportHandler(cappRepo, costImportJobRepo)
 	cppImportHandler := costproductparameter.NewAsyncImportHandler(cppRepo, costImportJobRepo)
 	bulkImportHandler := costbulkimport.NewBulkImportHandler(
-		costImportJobRepo, cpmRepo, cppRepo, costRouteRepo, cptRepo, rmGroupRepo, storageSvc, log.Logger,
+		costImportJobRepo, cpmRepo, cppRepo, costRouteRepo, cptRepo, rmGroupRepo, lookupMasterRepo, storageSvc, log.Logger,
 	)
 	bulkExportHandler := costbulkimport.NewExportHandler(
 		cpmRepo, cppRepo, cptRepo, costRouteRepo, costImportJobRepo, storageSvc, log.Logger,
 	)
 	paramOnlyImportHandler := costbulkimport.NewParamOnlyImportHandler(
-		costImportJobRepo, cpmRepo, cppRepo, storageSvc, log.Logger,
+		costImportJobRepo, cpmRepo, cppRepo, lookupMasterRepo, storageSvc, log.Logger,
 	)
 	costingImportHandler := workerinternal.NewCostingImportHandler(
 		costImportJobRepo, storageSvc,

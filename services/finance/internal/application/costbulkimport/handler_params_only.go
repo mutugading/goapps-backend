@@ -14,6 +14,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costimportjob"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductmaster"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductparameter"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/lookupmaster"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/storage"
 )
 
@@ -26,11 +27,12 @@ import (
 //  2. Pre-validate all param rows — all-or-nothing, zero rows written on any error.
 //  3. Write all rows if validation passes.
 type ParamOnlyImportHandler struct {
-	jobRepo costimportjob.Repository
-	cpmRepo costproductmaster.Repository
-	cppRepo costproductparameter.Repository
-	storage storage.Service
-	logger  zerolog.Logger
+	jobRepo          costimportjob.Repository
+	cpmRepo          costproductmaster.Repository
+	cppRepo          costproductparameter.Repository
+	lookupMasterRepo lookupmaster.Repository
+	storage          storage.Service
+	logger           zerolog.Logger
 }
 
 // NewParamOnlyImportHandler constructs the handler.
@@ -38,15 +40,17 @@ func NewParamOnlyImportHandler(
 	jobRepo costimportjob.Repository,
 	cpmRepo costproductmaster.Repository,
 	cppRepo costproductparameter.Repository,
+	lookupMasterRepo lookupmaster.Repository,
 	storageSvc storage.Service,
 	logger zerolog.Logger,
 ) *ParamOnlyImportHandler {
 	return &ParamOnlyImportHandler{
-		jobRepo: jobRepo,
-		cpmRepo: cpmRepo,
-		cppRepo: cppRepo,
-		storage: storageSvc,
-		logger:  logger,
+		jobRepo:          jobRepo,
+		cpmRepo:          cpmRepo,
+		cppRepo:          cppRepo,
+		lookupMasterRepo: lookupMasterRepo,
+		storage:          storageSvc,
+		logger:           logger,
 	}
 }
 
@@ -202,6 +206,25 @@ func (h *ParamOnlyImportHandler) loadParamOnlyMaps(ctx context.Context) (*Import
 	}
 	for _, p := range params {
 		maps.ParamMap[p.ParamCode] = p.ParamID
+	}
+
+	// Load ParamLookupMap and MasterLookupValues for MASTER_LOOKUP validation.
+	masterCodesToLoad := make(map[string]struct{})
+	for _, p := range params {
+		if p.ParamCategory == "MASTER_LOOKUP" && p.LookupMasterCode != "" {
+			maps.ParamLookupMap[p.ParamCode] = p.LookupMasterCode
+			masterCodesToLoad[p.LookupMasterCode] = struct{}{}
+		}
+	}
+	for masterCode := range masterCodesToLoad {
+		opts, optErr := h.lookupMasterRepo.ListMasterOptions(ctx, masterCode)
+		if optErr != nil {
+			h.logger.Warn().Err(optErr).Str("master_code", masterCode).Msg("loadParamOnlyMaps: cannot load master options")
+			continue
+		}
+		optSet := make(map[string]bool, len(opts))
+		for _, o := range opts { optSet[o.Value] = true }
+		maps.MasterLookupValues[masterCode] = optSet
 	}
 
 	productLegacyIDs, err := h.cpmRepo.ListAllLegacyIDs(ctx)

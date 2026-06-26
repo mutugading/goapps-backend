@@ -109,6 +109,20 @@ func preflightParamSheet(
 		}
 		if _, ok := maps.ParamMap[paramCode]; !ok {
 			result.Errors = append(result.Errors, SheetError{rowNum, "param_code", unknownParamPrefix + paramCode})
+			continue
+		}
+		// Validate MASTER_LOOKUP values against the referenced master table.
+		if masterCode, isMasterLookup := maps.ParamLookupMap[paramCode]; isMasterLookup {
+			if optSet, loaded := maps.MasterLookupValues[masterCode]; loaded && len(optSet) > 0 {
+				value := row["value_text"]
+				if value == "" {
+					value = row["value_numeric"]
+				}
+				if value != "" && !optSet[value] {
+					result.Errors = append(result.Errors, SheetError{rowNum, "value_text",
+						unknownMasterValuePrefix + masterCode + ":" + value})
+				}
+			}
 		}
 	}
 	return result
