@@ -140,14 +140,17 @@ func (h *ParamOnlyImportHandler) Handle(ctx context.Context, jobID int64, fileCo
 		{SheetName: "product_applicable_params", TotalRows: ins3 + upd3 + len(errs3), Inserted: ins3, Updated: upd3, Errors: errs3},
 	}
 	writeResults = convertProductNotFoundToSentinels(writeResults)
-	if countErrors(writeResults) > 0 {
+	missingProducts := collectMissingProductIDs(writeResults)
+	// Always generate report when there are real errors OR missing products,
+	// so the caller can see which product IDs need to be imported first.
+	if countErrors(writeResults) > 0 || len(missingProducts) > 0 {
 		errorKey := h.uploadErrorReport(ctx, jobID, writeResults)
 		if errorKey != "" {
 			job.SetErrorFile(errorKey)
 		}
 		h.logger.Info().
 			Int64("job_id", jobID).
-			Int("skipped_products", len(collectMissingProductIDs(writeResults))).
+			Int("skipped_products", len(missingProducts)).
 			Int("skipped_rows", totalSkipped).
 			Int("imported_rows", totalSuccess).
 			Msg("params-only import: completed with some skipped rows")
