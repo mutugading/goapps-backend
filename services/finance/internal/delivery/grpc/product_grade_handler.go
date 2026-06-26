@@ -60,6 +60,8 @@ func (h *ProductGradeHandler) CreateProductGrade(ctx context.Context, req *finan
 		PgGradeLabel:    req.PgGradeLabel,
 		StdSellingPrice: req.StdSellingPrice,
 		SpValue:         req.SpValue,
+		LossPct:         req.LossPct,
+		SeqNo:           req.SeqNo,
 		Notes:           req.Notes,
 		CreatedBy:       getUserFromContext(ctx),
 	})
@@ -125,6 +127,8 @@ func (h *ProductGradeHandler) UpdateProductGrade(ctx context.Context, req *finan
 		PgGradeLabel:    req.PgGradeLabel,
 		StdSellingPrice: req.StdSellingPrice,
 		SpValue:         req.SpValue,
+		LossPct:         req.LossPct,
+		SeqNo:           req.SeqNo,
 		Notes:           req.Notes,
 		IsActive:        req.IsActive,
 		UpdatedBy:       getUserFromContext(ctx),
@@ -246,6 +250,8 @@ func productGradeEntityToProto(e *productgrade.Entity) *financev1.ProductGrade {
 		PgGradeLabel:    e.PgGradeLabel(),
 		StdSellingPrice: e.StdSellingPrice(),
 		SpValue:         e.SpValue(),
+		LossPct:         e.LossPct(),
+		SeqNo:           e.SeqNo(),
 		IsActive:        e.IsActive(),
 		Notes:           e.Notes(),
 		Audit: &commonv1.AuditInfo{
