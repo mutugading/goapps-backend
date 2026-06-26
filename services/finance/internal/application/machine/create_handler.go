@@ -9,27 +9,33 @@ import (
 
 // CreateCommand holds the input for creating a new machine.
 type CreateCommand struct {
-	Code          string
-	Name          string
-	MCType        string
-	Location      string
-	NoOfPosition  int
-	NoOfEnd       int
-	MCSpeed       float64
-	MachineRPM    *float64
-	MCEfficiency  float64
-	PowerPerDay   *float64
-	MpPerDay      *float64
-	OhsPerDay     *float64
-	SparesPerDay  *float64
-	KgsLostChange *float64
-	Vb1Qty        *float64
-	Vb2Qty        *float64
-	Vb3Qty        *float64
-	Vb4Qty        *float64
-	Vb5Qty        *float64
-	Notes         string
-	CreatedBy     string
+	Code               string
+	Name               string
+	MCType             string
+	Location           string
+	NoOfPosition       int
+	NoOfEnd            int
+	MCSpeed            float64
+	MachineRPM         *float64
+	MCEfficiency       float64
+	PowerPerDay        *float64
+	MpPerDay           *float64
+	OhsPerDay          *float64
+	SparesPerDay       *float64
+	KgsLostChange      *float64
+	Vb1Qty             *float64
+	Vb2Qty             *float64
+	Vb3Qty             *float64
+	Vb4Qty             *float64
+	Vb5Qty             *float64
+	McPoyBobbinWeight  *float64
+	McTotFxdCst        *float64
+	McBobbinPerTrolly  *float64
+	McBoxCost          *float64
+	McCaptivePerBobbin *float64
+	McWeightage        *float64
+	Notes              string
+	CreatedBy          string
 }
 
 // CreateHandler handles the CreateMachine command.
@@ -58,6 +64,8 @@ func (h *CreateHandler) Handle(ctx context.Context, cmd CreateCommand) (*machine
 		cmd.MCEfficiency, cmd.PowerPerDay,
 		cmd.MpPerDay, cmd.OhsPerDay, cmd.SparesPerDay, cmd.KgsLostChange,
 		cmd.Vb1Qty, cmd.Vb2Qty, cmd.Vb3Qty, cmd.Vb4Qty, cmd.Vb5Qty,
+		cmd.McPoyBobbinWeight, cmd.McTotFxdCst, cmd.McBobbinPerTrolly,
+		cmd.McBoxCost, cmd.McCaptivePerBobbin, cmd.McWeightage,
 		cmd.Notes, cmd.CreatedBy,
 	)
 	if err != nil {

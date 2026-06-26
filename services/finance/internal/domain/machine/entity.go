@@ -24,12 +24,18 @@ type Entity struct {
 	ohsPerDay     *float64
 	sparesPerDay  *float64
 	kgsLostChange *float64
-	vb1Qty        *float64
-	vb2Qty        *float64
-	vb3Qty        *float64
-	vb4Qty        *float64
-	vb5Qty        *float64
-	isActive      bool
+	vb1Qty              *float64
+	vb2Qty              *float64
+	vb3Qty              *float64
+	vb4Qty              *float64
+	vb5Qty              *float64
+	mcPoyBobbinWeight   *float64
+	mcTotFxdCst         *float64
+	mcBobbinPerTrolly   *float64
+	mcBoxCost           *float64
+	mcCaptivePerBobbin  *float64
+	mcWeightage         *float64
+	isActive            bool
 	notes         string
 	createdAt     time.Time
 	createdBy     string
@@ -48,6 +54,7 @@ func New(
 	mcSpeed float64, machineRPM *float64, mcEfficiency float64, powerPerDay *float64,
 	mpPerDay, ohsPerDay, sparesPerDay, kgsLostChange *float64,
 	vb1Qty, vb2Qty, vb3Qty, vb4Qty, vb5Qty *float64,
+	mcPoyBobbinWeight, mcTotFxdCst, mcBobbinPerTrolly, mcBoxCost, mcCaptivePerBobbin, mcWeightage *float64,
 	notes, createdBy string,
 ) (*Entity, error) {
 	if err := validateCode(code); err != nil {
@@ -65,6 +72,8 @@ func New(
 		mcEfficiency: mcEfficiency, powerPerDay: powerPerDay,
 		mpPerDay: mpPerDay, ohsPerDay: ohsPerDay, sparesPerDay: sparesPerDay, kgsLostChange: kgsLostChange,
 		vb1Qty: vb1Qty, vb2Qty: vb2Qty, vb3Qty: vb3Qty, vb4Qty: vb4Qty, vb5Qty: vb5Qty,
+		mcPoyBobbinWeight: mcPoyBobbinWeight, mcTotFxdCst: mcTotFxdCst, mcBobbinPerTrolly: mcBobbinPerTrolly,
+		mcBoxCost: mcBoxCost, mcCaptivePerBobbin: mcCaptivePerBobbin, mcWeightage: mcWeightage,
 		isActive: true, notes: notes,
 		createdAt: time.Now(), createdBy: createdBy,
 	}, nil
@@ -80,6 +89,7 @@ func Reconstruct(
 	mcSpeed float64, machineRPM *float64, mcEfficiency float64, powerPerDay *float64,
 	mpPerDay, ohsPerDay, sparesPerDay, kgsLostChange *float64,
 	vb1Qty, vb2Qty, vb3Qty, vb4Qty, vb5Qty *float64,
+	mcPoyBobbinWeight, mcTotFxdCst, mcBobbinPerTrolly, mcBoxCost, mcCaptivePerBobbin, mcWeightage *float64,
 	isActive bool, notes string,
 	createdAt time.Time, createdBy string,
 	updatedAt *time.Time, updatedBy *string, deletedAt *time.Time, deletedBy *string,
@@ -90,6 +100,8 @@ func Reconstruct(
 		mcEfficiency: mcEfficiency, powerPerDay: powerPerDay,
 		mpPerDay: mpPerDay, ohsPerDay: ohsPerDay, sparesPerDay: sparesPerDay, kgsLostChange: kgsLostChange,
 		vb1Qty: vb1Qty, vb2Qty: vb2Qty, vb3Qty: vb3Qty, vb4Qty: vb4Qty, vb5Qty: vb5Qty,
+		mcPoyBobbinWeight: mcPoyBobbinWeight, mcTotFxdCst: mcTotFxdCst, mcBobbinPerTrolly: mcBobbinPerTrolly,
+		mcBoxCost: mcBoxCost, mcCaptivePerBobbin: mcCaptivePerBobbin, mcWeightage: mcWeightage,
 		isActive: isActive, notes: notes,
 		createdAt: createdAt, createdBy: createdBy, updatedAt: updatedAt, updatedBy: updatedBy,
 		deletedAt: deletedAt, deletedBy: deletedBy,
@@ -156,6 +168,24 @@ func (e *Entity) Vb4Qty() *float64 { return e.vb4Qty }
 // Vb5Qty returns optional volume bucket 5 quantity threshold.
 func (e *Entity) Vb5Qty() *float64 { return e.vb5Qty }
 
+// McPoyBobbinWeight returns optional Oracle CMM_POY_BOBBIN_WEIGHT value.
+func (e *Entity) McPoyBobbinWeight() *float64 { return e.mcPoyBobbinWeight }
+
+// McTotFxdCst returns optional Oracle CMM_TOT_FXD_CST value.
+func (e *Entity) McTotFxdCst() *float64 { return e.mcTotFxdCst }
+
+// McBobbinPerTrolly returns optional Oracle CMM_BOBBIN_PER_TROLLY value.
+func (e *Entity) McBobbinPerTrolly() *float64 { return e.mcBobbinPerTrolly }
+
+// McBoxCost returns optional Oracle CMM_BOX_COST value.
+func (e *Entity) McBoxCost() *float64 { return e.mcBoxCost }
+
+// McCaptivePerBobbin returns optional Oracle CMM_CAPTIVE_PER_BOBBIN value.
+func (e *Entity) McCaptivePerBobbin() *float64 { return e.mcCaptivePerBobbin }
+
+// McWeightage returns optional Oracle CMM_WEIGHTAGE value.
+func (e *Entity) McWeightage() *float64 { return e.mcWeightage }
+
 // IsActive returns whether the machine is active.
 func (e *Entity) IsActive() bool { return e.isActive }
 
@@ -198,13 +228,19 @@ type UpdateInput struct {
 	OhsPerDay     *float64
 	SparesPerDay  *float64
 	KgsLostChange *float64
-	Vb1Qty        *float64
-	Vb2Qty        *float64
-	Vb3Qty        *float64
-	Vb4Qty        *float64
-	Vb5Qty        *float64
-	IsActive      *bool
-	Notes         *string
+	Vb1Qty             *float64
+	Vb2Qty             *float64
+	Vb3Qty             *float64
+	Vb4Qty             *float64
+	Vb5Qty             *float64
+	McPoyBobbinWeight  *float64
+	McTotFxdCst        *float64
+	McBobbinPerTrolly  *float64
+	McBoxCost          *float64
+	McCaptivePerBobbin *float64
+	McWeightage        *float64
+	IsActive           *bool
+	Notes              *string
 }
 
 // Update applies optional field changes to the machine entity.
@@ -249,6 +285,7 @@ func (e *Entity) applyOptionalFields(in UpdateInput) {
 	e.applyMachineParams(in)
 	e.applyCostFields(in)
 	e.applyVolumeFields(in)
+	e.applyOracleFields(in)
 	if in.IsActive != nil {
 		e.isActive = *in.IsActive
 	}
@@ -314,6 +351,27 @@ func (e *Entity) applyVolumeFields(in UpdateInput) {
 	}
 	if in.Vb5Qty != nil {
 		e.vb5Qty = in.Vb5Qty
+	}
+}
+
+func (e *Entity) applyOracleFields(in UpdateInput) {
+	if in.McPoyBobbinWeight != nil {
+		e.mcPoyBobbinWeight = in.McPoyBobbinWeight
+	}
+	if in.McTotFxdCst != nil {
+		e.mcTotFxdCst = in.McTotFxdCst
+	}
+	if in.McBobbinPerTrolly != nil {
+		e.mcBobbinPerTrolly = in.McBobbinPerTrolly
+	}
+	if in.McBoxCost != nil {
+		e.mcBoxCost = in.McBoxCost
+	}
+	if in.McCaptivePerBobbin != nil {
+		e.mcCaptivePerBobbin = in.McCaptivePerBobbin
+	}
+	if in.McWeightage != nil {
+		e.mcWeightage = in.McWeightage
 	}
 }
 

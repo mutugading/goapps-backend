@@ -71,6 +71,7 @@ func newTestMachine(t *testing.T) *machinedomain.Entity {
 		"MC001", "Machine One", "DTY", "Hall A",
 		96, 2, 600.0, nil, 0.95, nil,
 		nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil,
 		"test notes", "admin",
 	)
 	require.NoError(t, err)
@@ -317,7 +318,7 @@ func TestListHandler_Handle(t *testing.T) {
 		ctx := context.Background()
 
 		m1 := newTestMachine(t)
-		m2, err := machinedomain.New("MC002", "Machine Two", "POY", "Hall B", 48, 1, 400.0, nil, 0.90, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, "", "admin")
+		m2, err := machinedomain.New("MC002", "Machine Two", "POY", "Hall B", 48, 1, 400.0, nil, 0.90, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, "", "admin")
 		require.NoError(t, err)
 
 		mockRepo.On("List", ctx, mock.AnythingOfType("machine.ListFilter")).Return(
