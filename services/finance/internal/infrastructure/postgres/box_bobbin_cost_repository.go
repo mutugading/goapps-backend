@@ -35,8 +35,9 @@ func (r *BoxBobbinCostRepository) Create(ctx context.Context, entity *boxbobbinc
 			bbc_id, bbc_code, bbc_name, bbc_type, no_of_bob,
 			is_active, notes,
 			bbn_reuse, box_reuse, box_cost, bobin_cost, box_cost_val, bobin_cost_val,
+			bbn_reuse_val, box_reuse_val,
 			created_at, created_by
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
 	`,
 		entity.ID(),
 		entity.Code(),
@@ -51,6 +52,8 @@ func (r *BoxBobbinCostRepository) Create(ctx context.Context, entity *boxbobbinc
 		entity.BobinCost(),
 		entity.BoxCostVal(),
 		entity.BobinCostVal(),
+		entity.BbnReuseVal(),
+		entity.BoxReuseVal(),
 		entity.CreatedAt(),
 		entity.CreatedBy(),
 	)
@@ -77,6 +80,7 @@ func (r *BoxBobbinCostRepository) GetByID(ctx context.Context, id uuid.UUID) (*b
 		entity.ID(), entity.Code(), entity.Name(), entity.BBCType(), entity.NoOfBob(),
 		entity.IsActive(), rates, entity.Notes(),
 		entity.BbnReuse(), entity.BoxReuse(), entity.BoxCost(), entity.BobinCost(), entity.BoxCostVal(), entity.BobinCostVal(),
+		entity.BbnReuseVal(), entity.BoxReuseVal(),
 		entity.CreatedAt(), entity.CreatedBy(),
 		entity.UpdatedAt(), entity.UpdatedBy(),
 		entity.DeletedAt(), entity.DeletedBy(),
@@ -161,8 +165,10 @@ func (r *BoxBobbinCostRepository) Update(ctx context.Context, entity *boxbobbinc
 			bobin_cost    = $10,
 			box_cost_val  = $11,
 			bobin_cost_val= $12,
-			updated_at    = $13,
-			updated_by    = $14
+			bbn_reuse_val = $13,
+			box_reuse_val = $14,
+			updated_at    = $15,
+			updated_by    = $16
 		WHERE bbc_id = $1 AND deleted_at IS NULL
 	`,
 		entity.ID(),
@@ -177,6 +183,8 @@ func (r *BoxBobbinCostRepository) Update(ctx context.Context, entity *boxbobbinc
 		entity.BobinCost(),
 		entity.BoxCostVal(),
 		entity.BobinCostVal(),
+		entity.BbnReuseVal(),
+		entity.BoxReuseVal(),
 		entity.UpdatedAt(),
 		entity.UpdatedBy(),
 	)
@@ -309,6 +317,7 @@ func (r *BoxBobbinCostRepository) selectCols() string {
 		SELECT bbc_id, bbc_code, bbc_name, bbc_type, no_of_bob,
 		       is_active, notes,
 		       bbn_reuse, box_reuse, box_cost, bobin_cost, box_cost_val, bobin_cost_val,
+		       bbn_reuse_val, box_reuse_val,
 		       created_at, created_by,
 		       updated_at, updated_by, deleted_at, deleted_by
 		FROM mst_box_bobbin_cost
@@ -340,6 +349,8 @@ type boxBobbinCostDTO struct {
 	BobinCost    sql.NullFloat64
 	BoxCostVal   sql.NullFloat64
 	BobinCostVal sql.NullFloat64
+	BbnReuseVal  sql.NullFloat64
+	BoxReuseVal  sql.NullFloat64
 	CreatedAt    time.Time
 	CreatedBy    string
 	UpdatedAt    sql.NullTime
@@ -354,6 +365,7 @@ func (d *boxBobbinCostDTO) toEntity() *boxbobbincost.Entity {
 		nullableFloat64Ptr(d.BbnReuse), nullableFloat64Ptr(d.BoxReuse),
 		nullableFloat64Ptr(d.BoxCost), nullableFloat64Ptr(d.BobinCost),
 		nullableFloat64Ptr(d.BoxCostVal), nullableFloat64Ptr(d.BobinCostVal),
+		nullableFloat64Ptr(d.BbnReuseVal), nullableFloat64Ptr(d.BoxReuseVal),
 		d.CreatedAt, d.CreatedBy,
 		nullableTimePtr(d.UpdatedAt), nullableStringPtr(d.UpdatedBy),
 		nullableTimePtr(d.DeletedAt), nullableStringPtr(d.DeletedBy),
@@ -366,6 +378,7 @@ func (r *BoxBobbinCostRepository) scanOne(row *sql.Row) (*boxbobbincost.Entity, 
 		&d.ID, &d.Code, &d.Name, &d.BBCType, &d.NoOfBob,
 		&d.IsActive, &d.Notes,
 		&d.BbnReuse, &d.BoxReuse, &d.BoxCost, &d.BobinCost, &d.BoxCostVal, &d.BobinCostVal,
+		&d.BbnReuseVal, &d.BoxReuseVal,
 		&d.CreatedAt, &d.CreatedBy,
 		&d.UpdatedAt, &d.UpdatedBy, &d.DeletedAt, &d.DeletedBy,
 	)
@@ -384,6 +397,7 @@ func (r *BoxBobbinCostRepository) scanRow(rows *sql.Rows) (*boxbobbincost.Entity
 		&d.ID, &d.Code, &d.Name, &d.BBCType, &d.NoOfBob,
 		&d.IsActive, &d.Notes,
 		&d.BbnReuse, &d.BoxReuse, &d.BoxCost, &d.BobinCost, &d.BoxCostVal, &d.BobinCostVal,
+		&d.BbnReuseVal, &d.BoxReuseVal,
 		&d.CreatedAt, &d.CreatedBy,
 		&d.UpdatedAt, &d.UpdatedBy, &d.DeletedAt, &d.DeletedBy,
 	)

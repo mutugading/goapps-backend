@@ -24,6 +24,8 @@ type UpdateCommand struct {
 	BobinCost    *float64
 	BoxCostVal   *float64
 	BobinCostVal *float64
+	BbnReuseVal  *float64
+	BoxReuseVal  *float64
 	UpdatedBy    string
 }
 
@@ -56,6 +58,8 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*boxbobb
 		BobinCost:    cmd.BobinCost,
 		BoxCostVal:   cmd.BoxCostVal,
 		BobinCostVal: cmd.BobinCostVal,
+		BbnReuseVal:  cmd.BbnReuseVal,
+		BoxReuseVal:  cmd.BoxReuseVal,
 	}, cmd.UpdatedBy); err != nil {
 		return nil, err
 	}

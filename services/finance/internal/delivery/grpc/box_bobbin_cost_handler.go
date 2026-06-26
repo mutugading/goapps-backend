@@ -66,6 +66,8 @@ func (h *BoxBobbinCostHandler) CreateBoxBobbinCost(ctx context.Context, req *fin
 		BobinCost:    req.BobinCost,
 		BoxCostVal:   req.BoxCostVal,
 		BobinCostVal: req.BobinCostVal,
+		BbnReuseVal:  req.BbnReuseVal,
+		BoxReuseVal:  req.BoxReuseVal,
 		CreatedBy:    getUserFromContext(ctx),
 	})
 	if err != nil {
@@ -138,6 +140,8 @@ func (h *BoxBobbinCostHandler) UpdateBoxBobbinCost(ctx context.Context, req *fin
 		BobinCost:    req.BobinCost,
 		BoxCostVal:   req.BoxCostVal,
 		BobinCostVal: req.BobinCostVal,
+		BbnReuseVal:  req.BbnReuseVal,
+		BoxReuseVal:  req.BoxReuseVal,
 		UpdatedBy:    getUserFromContext(ctx),
 	})
 	if err != nil {
@@ -315,6 +319,8 @@ func boxBobbinCostEntityToProto(e *boxbobbincost.Entity) *financev1.BoxBobbinCos
 		BobinCost:    e.BobinCost(),
 		BoxCostVal:   e.BoxCostVal(),
 		BobinCostVal: e.BobinCostVal(),
+		BbnReuseVal:  e.BbnReuseVal(),
+		BoxReuseVal:  e.BoxReuseVal(),
 		Audit: &commonv1.AuditInfo{
 			CreatedAt: e.CreatedAt().Format(time.RFC3339),
 			CreatedBy: e.CreatedBy(),

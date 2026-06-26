@@ -21,6 +21,8 @@ type CreateCommand struct {
 	BobinCost    *float64
 	BoxCostVal   *float64
 	BobinCostVal *float64
+	BbnReuseVal  *float64
+	BoxReuseVal  *float64
 	CreatedBy    string
 }
 
@@ -38,6 +40,7 @@ func NewCreateHandler(repo boxbobbincost.Repository) *CreateHandler {
 func (h *CreateHandler) Handle(ctx context.Context, cmd CreateCommand) (*boxbobbincost.Entity, error) {
 	entity, err := boxbobbincost.New(cmd.Code, cmd.Name, cmd.BBCType, cmd.NoOfBob, cmd.Notes,
 		cmd.BbnReuse, cmd.BoxReuse, cmd.BoxCost, cmd.BobinCost, cmd.BoxCostVal, cmd.BobinCostVal,
+		cmd.BbnReuseVal, cmd.BoxReuseVal,
 		cmd.CreatedBy)
 	if err != nil {
 		return nil, err
