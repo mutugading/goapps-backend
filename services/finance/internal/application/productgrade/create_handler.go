@@ -19,6 +19,8 @@ type CreateCommand struct {
 	PgGradeLabel    string
 	StdSellingPrice float64
 	SpValue         float64
+	LossPct         *float64
+	SeqNo           *int32
 	Notes           string
 	CreatedBy       string
 }
@@ -48,6 +50,7 @@ func (h *CreateHandler) Handle(ctx context.Context, cmd CreateCommand) (*product
 		cmd.BCPerc, cmd.NonStdPerc, cmd.BCRecoveryRate,
 		cmd.PgDetailProduct, cmd.PgGradeLabel,
 		cmd.StdSellingPrice, cmd.SpValue,
+		cmd.LossPct, cmd.SeqNo,
 		cmd.Notes, cmd.CreatedBy,
 	)
 	if err != nil {

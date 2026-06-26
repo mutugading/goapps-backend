@@ -21,6 +21,8 @@ type UpdateCommand struct {
 	PgGradeLabel    *string
 	StdSellingPrice *float64
 	SpValue         *float64
+	LossPct         *float64
+	SeqNo           *int32
 	Notes           *string
 	IsActive        *bool
 	UpdatedBy       string
@@ -53,6 +55,8 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*product
 		PgGradeLabel:    cmd.PgGradeLabel,
 		StdSellingPrice: cmd.StdSellingPrice,
 		SpValue:         cmd.SpValue,
+		LossPct:         cmd.LossPct,
+		SeqNo:           cmd.SeqNo,
 		Notes:           cmd.Notes,
 		IsActive:        cmd.IsActive,
 	}, cmd.UpdatedBy); err != nil {
