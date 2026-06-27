@@ -85,38 +85,65 @@ func mergeSheetRows(f *excelize.File, baseName string, sheets []string, required
 			continue
 		}
 
-		sheetHeaders := make([]string, len(rows[0]))
-		for j, h := range rows[0] {
-			sheetHeaders[j] = strings.TrimSpace(h)
-		}
+		sheetHeaders := trimHeaders(rows[0])
 
 		if i == 0 {
 			headers = sheetHeaders
-			for _, req := range requiredHeaders {
-				if !slices.Contains(headers, req) {
-					return nil, fmt.Errorf("sheet matching %q (found %q) missing required header %q", baseName, sheet, req)
-				}
+			if err := checkRequiredHeaders(baseName, sheet, headers, requiredHeaders); err != nil {
+				return nil, err
 			}
 		}
 
-		for _, row := range rows[1:] {
-			allEmpty := true
-			rowMap := make(map[string]string, len(headers))
-			for j, h := range headers {
-				if j < len(row) {
-					val := strings.TrimSpace(row[j])
-					rowMap[h] = val
-					if val != "" {
-						allEmpty = false
-					}
-				} else {
-					rowMap[h] = ""
-				}
-			}
-			if !allEmpty {
-				result = append(result, rowMap)
-			}
-		}
+		result = appendDataRows(result, rows[1:], headers)
 	}
 	return result, nil
+}
+
+// trimHeaders returns a copy of rawHeaders with each element whitespace-trimmed.
+func trimHeaders(rawHeaders []string) []string {
+	out := make([]string, len(rawHeaders))
+	for i, h := range rawHeaders {
+		out[i] = strings.TrimSpace(h)
+	}
+	return out
+}
+
+// checkRequiredHeaders verifies that every required header is present in headers.
+func checkRequiredHeaders(baseName, sheet string, headers, requiredHeaders []string) error {
+	for _, req := range requiredHeaders {
+		if !slices.Contains(headers, req) {
+			return fmt.Errorf("sheet matching %q (found %q) missing required header %q", baseName, sheet, req)
+		}
+	}
+	return nil
+}
+
+// appendDataRows maps each non-empty row to the given headers and appends to dst.
+func appendDataRows(dst []map[string]string, rows [][]string, headers []string) []map[string]string {
+	for _, row := range rows {
+		rowMap, allEmpty := buildRowMap(row, headers)
+		if !allEmpty {
+			dst = append(dst, rowMap)
+		}
+	}
+	return dst
+}
+
+// buildRowMap converts a single row slice to a header→value map.
+// It also reports whether every value was empty.
+func buildRowMap(row []string, headers []string) (map[string]string, bool) {
+	allEmpty := true
+	rowMap := make(map[string]string, len(headers))
+	for j, h := range headers {
+		if j < len(row) {
+			val := strings.TrimSpace(row[j])
+			rowMap[h] = val
+			if val != "" {
+				allEmpty = false
+			}
+		} else {
+			rowMap[h] = ""
+		}
+	}
+	return rowMap, allEmpty
 }

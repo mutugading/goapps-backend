@@ -131,61 +131,8 @@ func ComputeProduct(ctx context.Context, in ComputeInput) (*ComputeOutput, error
 		return nil, err
 	}
 
-	// 1. Initialize scope from CAPP values.
-	scope := make(map[string]any, len(in.CAPP)+len(in.Formulas)+8)
-	for k, v := range in.CAPP {
-		scope[k] = v
-	}
-
-	// 1b. Pre-fill missing formula input params with 0 so expr-lang never sees nil.
-	// AllowUndefinedVariables() returns nil for absent vars, causing arithmetic
-	// panics like "<nil> > int". Defaulting to 0 is safe: conditional formulas
-	// (e.g. VB_QTY > 0 ? X/VB_QTY : 0) will take the zero branch, and additive
-	// formulas produce 0 contributions rather than crashing.
-	// Also pre-fill the formula's own ResultParamCode: some formulas (e.g.
-	// F_YARN_SPECIAL_COST_FLAG_PASS with expression "SPECIAL_COST_FLAG") read
-	// their own result param but declare no explicit InputParamCodes entries.
-	for _, f := range in.Formulas {
-		if f.FormulaType == FormulaTypeRMLookup {
-			continue // RM_LOOKUP handled separately below
-		}
-		for _, code := range f.InputParamCodes {
-			if _, exists := scope[code]; !exists {
-				scope[code] = float64(0)
-			}
-		}
-		// Ensure the result param itself is 0-defaulted for pass-through formulas.
-		if _, exists := scope[f.ResultParamCode]; !exists {
-			scope[f.ResultParamCode] = float64(0)
-		}
-	}
-
-	// Inject marketing_result() built-in function.
-	// Priority: (1) SELLING session snapshot, (2) existing CAPP scope value, (3) 0.
-	// Falling back to CAPP preserves the imported param value when no SELLING session
-	// has run yet — prevents FROM_MARKETING formulas from zeroing out user-supplied data.
-	// Signature matches expr-lang's Function type alias: func(...any) (any, error).
-	sellingSnap := in.SellingSnapshot
-	scope["marketing_result"] = func(args ...any) (any, error) {
-		// args: product (any), paramCode (string), period (any) — matches expr call signature.
-		if len(args) < 2 {
-			return float64(0), nil
-		}
-		paramCode, ok := args[1].(string)
-		if !ok {
-			return float64(0), nil
-		}
-		if v, found := sellingSnap[paramCode]; found {
-			return v, nil
-		}
-		// Fallback to CAPP scope value — preserves imported param when no SELLING session exists.
-		if existing, found := scope[paramCode]; found {
-			if fv, ok2 := existing.(float64); ok2 {
-				return fv, nil
-			}
-		}
-		return float64(0), nil
-	}
+	// 1. Initialize scope from CAPP values and pre-fill missing params with 0.
+	scope := buildInitialScope(in)
 
 	// 2. Aggregate RM cost across every sequence in the route.
 	totalRM, rmDetail, levelMap, err := aggregateRMCost(in)
@@ -196,60 +143,10 @@ func ComputeProduct(ctx context.Context, in ComputeInput) (*ComputeOutput, error
 	scope[ScopeKeyCostRMTotal] = totalRM
 
 	// 3. Evaluate formulas in topo order (loader pre-sorted).
-	// RM_LOOKUP formulas use a custom Oracle DSL that expr-lang cannot parse.
-	// They compute "sum of RM costs for current level" — identical to what
-	// aggregateRMCost() already computed as COST_RM_TOTAL. Phase-1 approximation:
-	// alias totalRM into the formula's ResultParamCode so downstream CALCULATION
-	// formulas can proceed. Phase-2 will implement per-pricing-type splitting.
-	formulaTrace := make([]FormulaEvalTrace, 0, len(in.Formulas))
-	for _, f := range in.Formulas {
-		if f.FormulaType == "SNAPSHOT" {
-			// SNAPSHOT formulas capture a value at a point in time.
-			// Read the referenced param from scope (already computed) and echo it.
-			// Expression format: "snapshot(PARAM_CODE) at process start"
-			// For now: treat as a pass-through read of the first input param.
-			val := float64(0)
-			if len(f.InputParamCodes) > 0 {
-				if v, ok := scope[f.InputParamCodes[0]]; ok {
-					if fv, ok2 := v.(float64); ok2 {
-						val = fv
-					}
-				}
-			} else if v, ok := scope[f.ResultParamCode]; ok {
-				if fv, ok2 := v.(float64); ok2 {
-					val = fv
-				}
-			}
-			scope[f.ResultParamCode] = val
-			formulaTrace = append(formulaTrace, FormulaEvalTrace{
-				FormulaCode:     f.FormulaCode,
-				Expression:      f.Expression,
-				ResultParamCode: f.ResultParamCode,
-				Output:          val,
-			})
-			continue
-		}
-		if f.FormulaType == FormulaTypeRMLookup {
-			// Phase-1: RM_LOOKUP → alias totalRM into result param.
-			scope[f.ResultParamCode] = totalRM
-			formulaTrace = append(formulaTrace, FormulaEvalTrace{
-				FormulaCode:     f.FormulaCode,
-				Expression:      f.Expression,
-				ResultParamCode: f.ResultParamCode,
-				Output:          totalRM,
-				Inputs:          map[string]float64{"COST_RM_TOTAL": totalRM},
-			})
-			continue
-		}
-		formulaResult, evalErr := evalOneFormula(ctx, in.EvalCache, f, scope)
-		if evalErr != nil {
-			wrapped := fmt.Errorf("%w: %s for product %d: %w",
-				costcalcdom.ErrFormulaEval, f.FormulaCode, in.ProductSysID, evalErr)
-			recordProductSpanError(span, wrapped)
-			return nil, wrapped
-		}
-		formulaTrace = append(formulaTrace, formulaResult)
-		scope[f.ResultParamCode] = formulaResult.Output
+	formulaTrace, err := evalFormulaChain(ctx, in.EvalCache, scope, totalRM, in.Formulas, in.ProductSysID)
+	if err != nil {
+		recordProductSpanError(span, err)
+		return nil, err
 	}
 
 	// 4. Extract final cost + optional conversion.
@@ -288,6 +185,158 @@ func ComputeProduct(ctx context.Context, in ComputeInput) (*ComputeOutput, error
 		CostByLevel:     buildCostByLevel(levelMap, conv, in.Route, in.ProductSysID, in.UpstreamCosts),
 		InputHash:       inputHash(in, totalRM),
 	}, nil
+}
+
+// buildInitialScope creates and populates the formula evaluation scope.
+// It copies CAPP values, pre-fills missing formula input params with 0, and
+// injects the marketing_result() built-in function.
+func buildInitialScope(in ComputeInput) map[string]any {
+	scope := make(map[string]any, len(in.CAPP)+len(in.Formulas)+8)
+	for k, v := range in.CAPP {
+		scope[k] = v
+	}
+
+	// Pre-fill missing formula input params with 0 so expr-lang never sees nil.
+	// AllowUndefinedVariables() returns nil for absent vars, causing arithmetic
+	// panics like "<nil> > int". Defaulting to 0 is safe: conditional formulas
+	// (e.g. VB_QTY > 0 ? X/VB_QTY : 0) will take the zero branch, and additive
+	// formulas produce 0 contributions rather than crashing.
+	// Also pre-fill the formula's own ResultParamCode: some formulas (e.g.
+	// F_YARN_SPECIAL_COST_FLAG_PASS with expression "SPECIAL_COST_FLAG") read
+	// their own result param but declare no explicit InputParamCodes entries.
+	for _, f := range in.Formulas {
+		if f.FormulaType == FormulaTypeRMLookup {
+			continue // RM_LOOKUP handled separately in evalFormulaChain
+		}
+		for _, code := range f.InputParamCodes {
+			if _, exists := scope[code]; !exists {
+				scope[code] = float64(0)
+			}
+		}
+		// Ensure the result param itself is 0-defaulted for pass-through formulas.
+		if _, exists := scope[f.ResultParamCode]; !exists {
+			scope[f.ResultParamCode] = float64(0)
+		}
+	}
+
+	injectMarketingResult(scope, in.SellingSnapshot)
+	return scope
+}
+
+// injectMarketingResult adds the marketing_result() built-in function to scope.
+// Priority: (1) SELLING session snapshot, (2) existing CAPP scope value, (3) 0.
+// Falling back to CAPP preserves the imported param value when no SELLING session
+// has run yet — prevents FROM_MARKETING formulas from zeroing out user-supplied data.
+// Signature matches expr-lang's Function type alias: func(...any) (any, error).
+func injectMarketingResult(scope map[string]any, sellingSnap map[string]float64) {
+	scope["marketing_result"] = func(args ...any) (any, error) {
+		// args: product (any), paramCode (string), period (any) — matches expr call signature.
+		if len(args) < 2 {
+			return float64(0), nil
+		}
+		paramCode, ok := args[1].(string)
+		if !ok {
+			return float64(0), nil
+		}
+		if v, found := sellingSnap[paramCode]; found {
+			return v, nil
+		}
+		// Fallback to CAPP scope value — preserves imported param when no SELLING session exists.
+		if existing, found := scope[paramCode]; found {
+			if fv, ok2 := existing.(float64); ok2 {
+				return fv, nil
+			}
+		}
+		return float64(0), nil
+	}
+}
+
+// evalFormulaChain evaluates all formulas in topological order and updates scope in place.
+// RM_LOOKUP formulas use a custom Oracle DSL; they are approximated as totalRM aliases.
+// SNAPSHOT formulas capture a param value at evaluation time.
+// CALCULATION formulas are evaluated by the expr-lang evaluator.
+func evalFormulaChain(
+	ctx context.Context,
+	cache *evaluator.Cache,
+	scope map[string]any,
+	totalRM float64,
+	formulas []Formula,
+	productSysID int64,
+) ([]FormulaEvalTrace, error) {
+	trace := make([]FormulaEvalTrace, 0, len(formulas))
+	for _, f := range formulas {
+		t, err := evalSingleFormulaStep(ctx, cache, scope, totalRM, f, productSysID)
+		if err != nil {
+			return nil, err
+		}
+		trace = append(trace, t)
+		scope[f.ResultParamCode] = t.Output
+	}
+	return trace, nil
+}
+
+// evalSingleFormulaStep dispatches one formula by type and returns its trace entry.
+func evalSingleFormulaStep(
+	ctx context.Context,
+	cache *evaluator.Cache,
+	scope map[string]any,
+	totalRM float64,
+	f Formula,
+	productSysID int64,
+) (FormulaEvalTrace, error) {
+	switch f.FormulaType {
+	case "SNAPSHOT":
+		return evalSnapshotFormula(f, scope), nil
+	case FormulaTypeRMLookup:
+		// Phase-1: RM_LOOKUP → alias totalRM into result param.
+		// Phase-2 will implement per-pricing-type splitting.
+		return FormulaEvalTrace{
+			FormulaCode:     f.FormulaCode,
+			Expression:      f.Expression,
+			ResultParamCode: f.ResultParamCode,
+			Output:          totalRM,
+			Inputs:          map[string]float64{"COST_RM_TOTAL": totalRM},
+		}, nil
+	default:
+		result, evalErr := evalOneFormula(ctx, cache, f, scope)
+		if evalErr != nil {
+			return FormulaEvalTrace{}, fmt.Errorf("%w: %s for product %d: %w",
+				costcalcdom.ErrFormulaEval, f.FormulaCode, productSysID, evalErr)
+		}
+		return result, nil
+	}
+}
+
+// evalSnapshotFormula handles a SNAPSHOT formula.
+// SNAPSHOT formulas capture a value at a point in time — they read the referenced
+// param from scope (already computed) and echo it as a pass-through.
+func evalSnapshotFormula(f Formula, scope map[string]any) FormulaEvalTrace {
+	val := snapshotValue(f, scope)
+	return FormulaEvalTrace{
+		FormulaCode:     f.FormulaCode,
+		Expression:      f.Expression,
+		ResultParamCode: f.ResultParamCode,
+		Output:          val,
+	}
+}
+
+// snapshotValue resolves the float64 value for a SNAPSHOT formula from scope.
+// It tries the first input param first, then falls back to the result param itself.
+func snapshotValue(f Formula, scope map[string]any) float64 {
+	if len(f.InputParamCodes) > 0 {
+		if v, ok := scope[f.InputParamCodes[0]]; ok {
+			if fv, ok2 := v.(float64); ok2 {
+				return fv
+			}
+		}
+		return float64(0)
+	}
+	if v, ok := scope[f.ResultParamCode]; ok {
+		if fv, ok2 := v.(float64); ok2 {
+			return fv
+		}
+	}
+	return float64(0)
 }
 
 // aggregateRMCost iterates every sequence in the route and sums the RM

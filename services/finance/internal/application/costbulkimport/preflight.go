@@ -91,32 +91,37 @@ func preflightParamSheet(
 	result := SheetResult{SheetName: sheetName, TotalRows: len(rows)}
 	for i, row := range rows {
 		rowNum := int32(i + 2) //nolint:gosec // row count fits int32
-		legacyID := row["legacy_oracle_sys_id"]
-		if legacyID == "" {
-			result.Errors = append(result.Errors, SheetError{rowNum, "legacy_oracle_sys_id", "required"})
-			continue
-		}
-		if inProducts != nil {
-			if _, ok := inProducts[legacyID]; !ok {
-				result.Errors = append(result.Errors, SheetError{rowNum, "legacy_oracle_sys_id", "product not found in product_master sheet: " + legacyID})
-				continue
-			}
-		}
-		paramCode := row["param_code"]
-		if paramCode == "" {
-			result.Errors = append(result.Errors, SheetError{rowNum, "param_code", "required"})
-			continue
-		}
-		if _, ok := maps.ParamMap[paramCode]; !ok {
-			result.Errors = append(result.Errors, SheetError{rowNum, "param_code", unknownParamPrefix + paramCode})
-			continue
-		}
-		// Validate MASTER_LOOKUP values against the referenced master table.
-		if errMsg := validateMasterLookupValue(row, paramCode, maps); errMsg != "" {
-			result.Errors = append(result.Errors, SheetError{rowNum, "value_text", errMsg})
+		if e := validateParamRow(rowNum, row, inProducts, maps); e != nil {
+			result.Errors = append(result.Errors, *e)
 		}
 	}
 	return result
+}
+
+// validateParamRow validates a single param sheet row.
+// Returns the first error found, or nil when the row is valid.
+func validateParamRow(rowNum int32, row map[string]string, inProducts map[string]struct{}, maps *ImportMaps) *SheetError {
+	legacyID := row["legacy_oracle_sys_id"]
+	if legacyID == "" {
+		return &SheetError{rowNum, "legacy_oracle_sys_id", "required"}
+	}
+	if inProducts != nil {
+		if _, ok := inProducts[legacyID]; !ok {
+			return &SheetError{rowNum, "legacy_oracle_sys_id", "product not found in product_master sheet: " + legacyID}
+		}
+	}
+	paramCode := row["param_code"]
+	if paramCode == "" {
+		return &SheetError{rowNum, "param_code", "required"}
+	}
+	if _, ok := maps.ParamMap[paramCode]; !ok {
+		return &SheetError{rowNum, "param_code", unknownParamPrefix + paramCode}
+	}
+	// Validate MASTER_LOOKUP values against the referenced master table.
+	if errMsg := validateMasterLookupValue(row, paramCode, maps); errMsg != "" {
+		return &SheetError{rowNum, "value_text", errMsg}
+	}
+	return nil
 }
 
 // preflightRouteHead validates route_head rows (cross-ref to inProducts) and
@@ -167,41 +172,47 @@ func preflightRouteSeq(
 
 	for i, row := range rows {
 		rowNum := int32(i + 2) //nolint:gosec // row count fits int32
-		headID := row[routeHeadLegacyIDField]
-		if headID == "" {
-			result.Errors = append(result.Errors, SheetError{rowNum, routeHeadLegacyIDField, "required"})
+		key, e := validateRouteSeqRow(rowNum, row, inHeads, inProducts)
+		if e != nil {
+			result.Errors = append(result.Errors, *e)
 			continue
 		}
-		if inHeads != nil {
-			if _, ok := inHeads[headID]; !ok {
-				result.Errors = append(result.Errors, SheetError{rowNum, routeHeadLegacyIDField, "route head not found in route_head sheet: " + headID})
-				continue
-			}
-		}
-		nodeID := row[nodeProductLegacyIDField]
-		if nodeID == "" {
-			result.Errors = append(result.Errors, SheetError{rowNum, nodeProductLegacyIDField, "required"})
-			continue
-		}
-		if inProducts != nil {
-			if _, ok := inProducts[nodeID]; !ok {
-				result.Errors = append(result.Errors, SheetError{rowNum, nodeProductLegacyIDField, "product not found in product_master sheet: " + nodeID})
-				continue
-			}
-		}
-		level, levelErr := strconv.Atoi(row["route_level"])
-		if levelErr != nil || level < 1 {
-			result.Errors = append(result.Errors, SheetError{rowNum, "route_level", "must be a positive integer"})
-			continue
-		}
-		seq, seqErr := strconv.Atoi(row["route_seq"])
-		if seqErr != nil || seq < 1 {
-			result.Errors = append(result.Errors, SheetError{rowNum, "route_seq", "must be a positive integer"})
-			continue
-		}
-		inSeqs[fmt.Sprintf("%s:%d:%d", headID, level, seq)] = struct{}{}
+		inSeqs[key] = struct{}{}
 	}
 	return result, inSeqs
+}
+
+// validateRouteSeqRow validates a single route_sequences row.
+// On success it returns the composite key "headID:level:seq" and nil.
+// On failure it returns "" and the first error found.
+func validateRouteSeqRow(rowNum int32, row map[string]string, inHeads, inProducts map[string]struct{}) (string, *SheetError) {
+	headID := row[routeHeadLegacyIDField]
+	if headID == "" {
+		return "", &SheetError{rowNum, routeHeadLegacyIDField, "required"}
+	}
+	if inHeads != nil {
+		if _, ok := inHeads[headID]; !ok {
+			return "", &SheetError{rowNum, routeHeadLegacyIDField, "route head not found in route_head sheet: " + headID}
+		}
+	}
+	nodeID := row[nodeProductLegacyIDField]
+	if nodeID == "" {
+		return "", &SheetError{rowNum, nodeProductLegacyIDField, "required"}
+	}
+	if inProducts != nil {
+		if _, ok := inProducts[nodeID]; !ok {
+			return "", &SheetError{rowNum, nodeProductLegacyIDField, "product not found in product_master sheet: " + nodeID}
+		}
+	}
+	level, levelErr := strconv.Atoi(row["route_level"])
+	if levelErr != nil || level < 1 {
+		return "", &SheetError{rowNum, "route_level", "must be a positive integer"}
+	}
+	seq, seqErr := strconv.Atoi(row["route_seq"])
+	if seqErr != nil || seq < 1 {
+		return "", &SheetError{rowNum, "route_seq", "must be a positive integer"}
+	}
+	return fmt.Sprintf("%s:%d:%d", headID, level, seq), nil
 }
 
 // preflightRouteRM validates route_rms rows against inSeqs, inProducts, and maps.RmGroupMap.
@@ -223,7 +234,7 @@ func preflightRouteRM(f *excelize.File, inSeqs map[string]struct{}, inProducts m
 }
 
 // preflightRMRow validates a single route_rms row. Returns the first error found.
-func preflightRMRow(rowNum int32, row map[string]string, inSeqs map[string]struct{}, inProducts map[string]struct{}, maps *ImportMaps) *SheetError {
+func preflightRMRow(rowNum int32, row map[string]string, inSeqs map[string]struct{}, inProducts map[string]struct{}, maps *ImportMaps) *SheetError { //nolint:gocognit // sequential single-row validation — splitting would obscure the linear field-check flow
 	headID := row[routeHeadLegacyIDField]
 	if headID == "" {
 		return &SheetError{rowNum, routeHeadLegacyIDField, "required"}
