@@ -136,8 +136,9 @@ func ComputeProduct(ctx context.Context, in ComputeInput) (*ComputeOutput, error
 	}
 
 	// Inject marketing_result() built-in function.
-	// Returns the SELLING session param value for the given param code.
-	// Falls back to 0 gracefully when no SELLING result exists yet.
+	// Priority: (1) SELLING session snapshot, (2) existing CAPP scope value, (3) 0.
+	// Falling back to CAPP preserves the imported param value when no SELLING session
+	// has run yet — prevents FROM_MARKETING formulas from zeroing out user-supplied data.
 	// Signature matches expr-lang's Function type alias: func(...any) (any, error).
 	sellingSnap := in.SellingSnapshot
 	scope["marketing_result"] = func(args ...any) (any, error) {
@@ -151,6 +152,12 @@ func ComputeProduct(ctx context.Context, in ComputeInput) (*ComputeOutput, error
 		}
 		if v, found := sellingSnap[paramCode]; found {
 			return v, nil
+		}
+		// Fallback to CAPP scope value — preserves imported param when no SELLING session exists.
+		if existing, found := scope[paramCode]; found {
+			if fv, ok2 := existing.(float64); ok2 {
+				return fv, nil
+			}
 		}
 		return float64(0), nil
 	}
