@@ -11,7 +11,7 @@ const FormulaTypeRMLookup = "RM_LOOKUP"
 type Formula struct {
 	FormulaCode     string
 	FormulaName     string
-	FormulaType     string   // e.g. "CALCULATION", "RM_LOOKUP", "FROM_MARKETING"
+	FormulaType     string // e.g. "CALCULATION", "RM_LOOKUP", "FROM_MARKETING"
 	Expression      string
 	ResultParamCode string   // output param this formula assigns into the scope
 	InputParamCodes []string // input params expected in scope before eval

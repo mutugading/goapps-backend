@@ -84,9 +84,9 @@ type FormulaEvalTrace struct {
 // ProductSysID is 0 for the FG (current product) and non-zero for upstream products.
 type LevelContribution struct {
 	ProductSysID int64   `json:"product_sys_id,omitempty"`
-	Level      int32   `json:"level"`
-	RMCost     float64 `json:"rm_cost"`
-	Conversion float64 `json:"conversion"`
+	Level        int32   `json:"level"`
+	RMCost       float64 `json:"rm_cost"`
+	Conversion   float64 `json:"conversion"`
 }
 
 // ComputeOutput is the result of one product compute pass.
@@ -592,7 +592,7 @@ func buildCostByLevel(
 // This is robust to product type changes and param renames: the "primary" cost
 // formula naturally has more intermediate steps feeding it than variant/helper
 // terminals like OIL_GAIN or VOLUME_BUCKET_X_DEL_COST.
-func findTerminalFormula(formulas []Formula) (*Formula, error) { //nolint:gocognit // depth-first memoised DAG traversal is cohesive and cannot be split further
+func findTerminalFormula(formulas []Formula) (*Formula, error) { //nolint:gocognit,gocyclo // depth-first memoised DAG traversal is cohesive and cannot be split further
 	// Build set of all params consumed as inputs (to identify terminals).
 	allInputs := make(map[string]bool, len(formulas)*2)
 	for _, f := range formulas {
