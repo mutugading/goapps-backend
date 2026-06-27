@@ -226,7 +226,9 @@ func (h *ParamOnlyImportHandler) loadParamOnlyMaps(ctx context.Context) (*Import
 			continue
 		}
 		optSet := make(map[string]bool, len(opts))
-		for _, o := range opts { optSet[o.Value] = true }
+		for _, o := range opts {
+			optSet[o.Value] = true
+		}
 		maps.MasterLookupValues[masterCode] = optSet
 	}
 

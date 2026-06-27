@@ -268,7 +268,9 @@ func writeMissingMasterValuesSheet(f *excelize.File, vals map[string]int) error 
 		}
 	}
 	sorted := make([]string, 0, len(vals))
-	for k := range vals { sorted = append(sorted, k) }
+	for k := range vals {
+		sorted = append(sorted, k)
+	}
 	sort.Strings(sorted)
 	for rowIdx, key := range sorted {
 		rowNum := rowIdx + 2

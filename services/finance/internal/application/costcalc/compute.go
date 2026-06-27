@@ -534,7 +534,11 @@ func buildCostByLevel(
 	upstreamCosts map[int64]float64,
 ) []LevelContribution {
 	seen := make(map[int32]bool)
-	var out []LevelContribution
+	routeLen := 0
+	if route != nil {
+		routeLen = len(route.Seqs)
+	}
+	out := make([]LevelContribution, 0, len(byLevel)+routeLen)
 
 	// Level 1: FG itself — use aggregated RM cost from byLevel
 	for l, rmCost := range byLevel {
@@ -588,7 +592,7 @@ func buildCostByLevel(
 // This is robust to product type changes and param renames: the "primary" cost
 // formula naturally has more intermediate steps feeding it than variant/helper
 // terminals like OIL_GAIN or VOLUME_BUCKET_X_DEL_COST.
-func findTerminalFormula(formulas []Formula) (*Formula, error) {
+func findTerminalFormula(formulas []Formula) (*Formula, error) { //nolint:gocognit // depth-first memoised DAG traversal is cohesive and cannot be split further
 	// Build set of all params consumed as inputs (to identify terminals).
 	allInputs := make(map[string]bool, len(formulas)*2)
 	for _, f := range formulas {

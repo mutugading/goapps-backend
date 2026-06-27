@@ -234,7 +234,7 @@ func preflightRouteRM(f *excelize.File, inSeqs map[string]struct{}, inProducts m
 }
 
 // preflightRMRow validates a single route_rms row. Returns the first error found.
-func preflightRMRow(rowNum int32, row map[string]string, inSeqs map[string]struct{}, inProducts map[string]struct{}, maps *ImportMaps) *SheetError { //nolint:gocognit // sequential single-row validation — splitting would obscure the linear field-check flow
+func preflightRMRow(rowNum int32, row map[string]string, inSeqs map[string]struct{}, inProducts map[string]struct{}, maps *ImportMaps) *SheetError { //nolint:gocognit,gocyclo // sequential single-row validation — splitting would obscure the linear field-check flow
 	headID := row[routeHeadLegacyIDField]
 	if headID == "" {
 		return &SheetError{rowNum, routeHeadLegacyIDField, "required"}
@@ -294,7 +294,6 @@ func sheetErrResult(sheetName string, parseErr error) SheetResult {
 		Errors:    []SheetError{{RowNumber: 1, Field: "sheet", Message: parseErr.Error()}},
 	}
 }
-
 
 // validateMasterLookupValue checks that a MASTER_LOOKUP param's value exists
 // in the referenced master table option set. Returns an error sentinel string
