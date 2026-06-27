@@ -125,20 +125,29 @@ func TestComputeProduct_TwoStage_PRODUCTUpstream(t *testing.T) {
 	assert.Equal(t, "product:20", out.RMCostDetail[0].RefCode)
 }
 
-func TestComputeProduct_MissingCAPP_SurfacesAsFormulaErr(t *testing.T) {
-	// CAPP omits WASTE_PCT; evaluator treats undefined vars as nil → arithmetic
-	// fails with non-numeric output, which our evaluator wraps as a run error.
+func TestComputeProduct_MissingCAPP_DefaultsToZero(t *testing.T) {
+	// CAPP omits WASTE_PCT; the engine pre-fills missing input params with 0
+	// so the expression evaluates as COST_RM_TOTAL * (1 + 0/100) = RM_TOTAL.
+	// This prevents nil-arithmetic panics for products that have partial CAPP data.
 	in := ComputeInput{
 		ProductSysID: 1,
 		Route:        buildOneStageRoute(1, costroute.RmTypeItem, "X", 1.0),
 		CAPP:         map[string]float64{},
-		Formulas:     []Formula{finalCostFormula("COST_RM_TOTAL * (1 + WASTE_PCT/100)")},
-		RMCosts:      map[string]float64{"X|": 10.0},
-		EvalCache:    evaluator.NewCache(),
+		Formulas: []Formula{
+			{
+				FormulaCode:     "F_FINAL",
+				Expression:      "COST_RM_TOTAL * (1 + WASTE_PCT/100)",
+				ResultParamCode: "COST_STAGE_OUT",
+				InputParamCodes: []string{"WASTE_PCT"},
+			},
+		},
+		RMCosts:   map[string]float64{"X|": 10.0},
+		EvalCache: evaluator.NewCache(),
 	}
-	_, err := ComputeProduct(context.Background(), in)
-	require.Error(t, err)
-	require.ErrorIs(t, err, costcalcdom.ErrFormulaEval)
+	out, err := ComputeProduct(context.Background(), in)
+	require.NoError(t, err)
+	// WASTE_PCT defaults to 0 → 10.0 * (1 + 0/100) = 10.0
+	require.InDelta(t, 10.0, out.CostPerUnit, 0.001)
 }
 
 func TestComputeProduct_MissingRMCost(t *testing.T) {

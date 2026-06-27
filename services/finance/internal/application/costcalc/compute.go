@@ -135,6 +135,19 @@ func ComputeProduct(ctx context.Context, in ComputeInput) (*ComputeOutput, error
 		scope[k] = v
 	}
 
+	// 1b. Pre-fill missing formula input params with 0 so expr-lang never sees nil.
+	// AllowUndefinedVariables() returns nil for absent vars, causing arithmetic
+	// panics like "<nil> > int". Defaulting to 0 is safe: conditional formulas
+	// (e.g. VB_QTY > 0 ? X/VB_QTY : 0) will take the zero branch, and additive
+	// formulas produce 0 contributions rather than crashing.
+	for _, f := range in.Formulas {
+		for _, code := range f.InputParamCodes {
+			if _, exists := scope[code]; !exists {
+				scope[code] = float64(0)
+			}
+		}
+	}
+
 	// Inject marketing_result() built-in function.
 	// Priority: (1) SELLING session snapshot, (2) existing CAPP scope value, (3) 0.
 	// Falling back to CAPP preserves the imported param value when no SELLING session
