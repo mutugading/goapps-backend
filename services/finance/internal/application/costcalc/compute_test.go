@@ -314,6 +314,54 @@ func TestComputeProduct_CostByLevel_Aggregates(t *testing.T) {
 //	COST_DEL_FINAL ≈ 3.244    (delivery packing slightly higher)
 //	VB1_DEL_COST   ≈ 3.264    (COST_DEL_FINAL + 100/5000)
 //	VB2_DEL_COST   ≈ 3.254    (COST_DEL_FINAL + 100/10000)
+func TestComputeProduct_MarketingResult_UsesSellingSnapshot(t *testing.T) {
+	// Formula calls marketing_result(product,'AX_WT',period).
+	// SellingSnapshot has AX_WT=4.8 → COST_STAGE_OUT = 100 + 4.8 = 104.8.
+	in := ComputeInput{
+		ProductSysID: 55,
+		Period:       "202606",
+		CalcType:     costcalcdom.CalcTypeActual,
+		Route:        buildOneStageRoute(55, costroute.RmTypeItem, "RM_X", 1.0),
+		CAPP:         map[string]float64{},
+		Formulas: []Formula{{
+			FormulaCode:     "F_YARN_AX_WT_FROM_MKT",
+			Expression:      "COST_RM_TOTAL + marketing_result(1, \"AX_WT\", \"202606\")",
+			ResultParamCode: ScopeKeyFinalCost,
+			InputParamCodes: []string{ScopeKeyCostRMTotal},
+		}},
+		RMCosts:         map[string]float64{"RM_X|": 100.0},
+		EvalCache:       evaluator.NewCache(),
+		SellingSnapshot: map[string]float64{"AX_WT": 4.8},
+	}
+	out, err := ComputeProduct(context.Background(), in)
+	require.NoError(t, err)
+	assert.InDelta(t, 104.8, out.CostPerUnit, 1e-9)
+}
+
+func TestComputeProduct_MarketingResult_EmptySnapshot_ReturnsZero(t *testing.T) {
+	// No SELLING session available — SellingSnapshot is empty.
+	// marketing_result() should return 0 gracefully; COST_STAGE_OUT = 100 + 0 = 100.
+	in := ComputeInput{
+		ProductSysID: 56,
+		Period:       "202606",
+		CalcType:     costcalcdom.CalcTypeActual,
+		Route:        buildOneStageRoute(56, costroute.RmTypeItem, "RM_Y", 1.0),
+		CAPP:         map[string]float64{},
+		Formulas: []Formula{{
+			FormulaCode:     "F_YARN_AX_WT_FROM_MKT",
+			Expression:      "COST_RM_TOTAL + marketing_result(1, \"AX_WT\", \"202606\")",
+			ResultParamCode: ScopeKeyFinalCost,
+			InputParamCodes: []string{ScopeKeyCostRMTotal},
+		}},
+		RMCosts:         map[string]float64{"RM_Y|": 100.0},
+		EvalCache:       evaluator.NewCache(),
+		SellingSnapshot: map[string]float64{}, // no SELLING result yet
+	}
+	out, err := ComputeProduct(context.Background(), in)
+	require.NoError(t, err)
+	assert.InDelta(t, 100.0, out.CostPerUnit, 1e-9)
+}
+
 func TestComputePTYMELANGEOracleReference(t *testing.T) {
 	t.Parallel()
 

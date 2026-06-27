@@ -55,6 +55,9 @@ type ComputeInput struct {
 	RMCosts       map[string]float64 // key matches loader.LoadRMCosts: "<rmCode>|<itemCode>"
 	UpstreamCosts map[int64]float64
 	EvalCache     *evaluator.Cache
+	// SellingSnapshot holds param values from the SELLING session for this product+period.
+	// Used to implement marketing_result() built-in. Empty map when no SELLING result exists.
+	SellingSnapshot map[string]float64
 }
 
 // RMCostDetail records one RM line's contribution to the total RM cost.
@@ -130,6 +133,26 @@ func ComputeProduct(ctx context.Context, in ComputeInput) (*ComputeOutput, error
 	scope := make(map[string]any, len(in.CAPP)+len(in.Formulas)+8)
 	for k, v := range in.CAPP {
 		scope[k] = v
+	}
+
+	// Inject marketing_result() built-in function.
+	// Returns the SELLING session param value for the given param code.
+	// Falls back to 0 gracefully when no SELLING result exists yet.
+	// Signature matches expr-lang's Function type alias: func(...any) (any, error).
+	sellingSnap := in.SellingSnapshot
+	scope["marketing_result"] = func(args ...any) (any, error) {
+		// args: product (any), paramCode (string), period (any) — matches expr call signature.
+		if len(args) < 2 {
+			return float64(0), nil
+		}
+		paramCode, ok := args[1].(string)
+		if !ok {
+			return float64(0), nil
+		}
+		if v, found := sellingSnap[paramCode]; found {
+			return v, nil
+		}
+		return float64(0), nil
 	}
 
 	// 2. Aggregate RM cost across every sequence in the route.
