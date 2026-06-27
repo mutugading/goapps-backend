@@ -706,12 +706,17 @@ func breakdownToProto(view *costcalc.CostBreakdownView) *financev1.CostBreakdown
 		if totalCost > 0 {
 			ratio = formatNumeric(contribution / totalCost)
 		}
-		byLevel = append(byLevel, &financev1.LevelBreakdown{
+		lb := &financev1.LevelBreakdown{
 			Level:            lc.Level,
 			ProductSysId:     lc.ProductSysID,
 			CostContribution: formatNumeric(contribution),
 			Ratio:            ratio,
-		})
+		}
+		if info, ok := view.LevelProducts[lc.ProductSysID]; ok {
+			lb.ProductCode = info.ProductCode
+			lb.ProductName = info.ProductName
+		}
+		byLevel = append(byLevel, lb)
 	}
 	rmDetails := make([]*financev1.CostRMDetail, 0, len(view.RMCostDetail))
 	for _, d := range view.RMCostDetail {
