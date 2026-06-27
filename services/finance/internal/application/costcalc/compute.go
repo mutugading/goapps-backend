@@ -485,61 +485,79 @@ func buildCostByLevel(byLevel map[int32]float64, totalConv float64) []LevelContr
 	return out
 }
 
-// knownFinalCostParams is the priority-ordered list of param codes that represent
-// the final product cost when COST_STAGE_OUT is not explicitly present.
-// CAPTIVE_COST_QLTY_LOSS is the canonical final cost for yarn products in Oracle.
-// DELIVERY_COST_QLTY_LOSS is the delivery-channel equivalent.
-// Checked in order: first match wins.
-var knownFinalCostParams = []string{
-	"CAPTIVE_COST_QLTY_LOSS",
-	"CAPTIVE_COST_BEFORE_QLOSS",
-	"DELIVERY_COST_QLTY_LOSS",
-	"DELIVERY_COST_BEFORE_QLOSS",
-}
-
 // findTerminalFormula returns the single formula whose result param is not
 // consumed as an input by any other formula in the set — i.e. the DAG sink.
 // Used when a product's formula chain does not explicitly produce COST_STAGE_OUT.
 //
 // When multiple sinks exist (e.g. CAP_FINAL + VB1_DEL…VB5_DEL), the function
-// uses knownFinalCostParams priority order to pick the canonical final cost
-// instead of returning an error.
+// picks the terminal with the deepest computation chain (most formula ancestors).
+// This is robust to product type changes and param renames: the "primary" cost
+// formula naturally has more intermediate steps feeding it than variant/helper
+// terminals like OIL_GAIN or VOLUME_BUCKET_X_DEL_COST.
 func findTerminalFormula(formulas []Formula) (*Formula, error) {
+	// Build set of all params consumed as inputs (to identify terminals).
 	allInputs := make(map[string]bool, len(formulas)*2)
 	for _, f := range formulas {
 		for _, inp := range f.InputParamCodes {
 			allInputs[inp] = true
 		}
 	}
+
+	// Map resultParamCode → formula for depth traversal.
+	byResult := make(map[string]*Formula, len(formulas))
+	for i := range formulas {
+		byResult[formulas[i].ResultParamCode] = &formulas[i]
+	}
+
+	// computeDepth returns the length of the longest formula ancestor chain.
+	// Memoised via depthCache to avoid re-traversal.
+	depthCache := make(map[string]int, len(formulas))
+	var computeDepth func(code string) int
+	computeDepth = func(resultCode string) int {
+		if v, ok := depthCache[resultCode]; ok {
+			return v
+		}
+		f, ok := byResult[resultCode]
+		if !ok {
+			depthCache[resultCode] = 0
+			return 0
+		}
+		maxParent := 0
+		for _, inp := range f.InputParamCodes {
+			if d := computeDepth(inp); d > maxParent {
+				maxParent = d
+			}
+		}
+		depth := maxParent + 1
+		depthCache[resultCode] = depth
+		return depth
+	}
+
 	var terminals []Formula
 	for _, f := range formulas {
 		if !allInputs[f.ResultParamCode] {
 			terminals = append(terminals, f)
 		}
 	}
+
 	switch len(terminals) {
 	case 1:
 		return &terminals[0], nil
 	case 0:
 		return nil, fmt.Errorf("formula DAG has no terminal node (cycle or empty set)")
 	default:
-		// Multiple terminal nodes: try known priority list before giving up.
-		termByResult := make(map[string]*Formula, len(terminals))
-		for i := range terminals {
-			termByResult[terminals[i].ResultParamCode] = &terminals[i]
-		}
-		for _, candidate := range knownFinalCostParams {
-			if f, ok := termByResult[candidate]; ok {
-				return f, nil
+		// Multiple terminals: pick the one with the deepest computation chain.
+		// Ties broken by FormulaCode for determinism.
+		best := &terminals[0]
+		bestDepth := computeDepth(best.ResultParamCode)
+		for i := 1; i < len(terminals); i++ {
+			d := computeDepth(terminals[i].ResultParamCode)
+			if d > bestDepth || (d == bestDepth && terminals[i].FormulaCode < best.FormulaCode) {
+				best = &terminals[i]
+				bestDepth = d
 			}
 		}
-		codes := make([]string, len(terminals))
-		for i, t := range terminals {
-			codes[i] = t.FormulaCode
-		}
-		return nil, fmt.Errorf(
-			"formula chain has %d terminal nodes (%v); add a formula that outputs %s to disambiguate",
-			len(terminals), codes, ScopeKeyFinalCost)
+		return best, nil
 	}
 }
 

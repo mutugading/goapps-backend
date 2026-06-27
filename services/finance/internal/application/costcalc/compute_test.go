@@ -219,32 +219,45 @@ func TestComputeProduct_NoFinalCostKey_SingleTerminal_Succeeds(t *testing.T) {
 	assert.Equal(t, 10.0, out.CostPerUnit)
 }
 
-func TestComputeProduct_NoFinalCostKey_MultipleTerminals_Errors(t *testing.T) {
-	// Two independent formulas (neither feeds the other) → two terminal nodes →
-	// ambiguous final cost → error.
+func TestComputeProduct_NoFinalCostKey_MultipleTerminals_PicksDeepest(t *testing.T) {
+	// Two terminal formulas with different chain depths.
+	// F_B is deeper (F_A's output feeds F_B's sibling chain, making F_B
+	// accumulate more ancestors), so F_B's output should be chosen as final cost.
+	// Actually for simplicity: F_DEEP uses OUT_A as input (depth=2),
+	// F_SHALLOW uses only COST_RM_TOTAL (depth=1).
+	// Engine picks F_DEEP's output as final cost without error.
 	in := ComputeInput{
 		ProductSysID: 1,
 		Route:        buildOneStageRoute(1, costroute.RmTypeItem, "X", 1.0),
 		Formulas: []Formula{
 			{
-				FormulaCode:     "F_A",
+				FormulaCode:     "F_SHALLOW",
 				Expression:      "COST_RM_TOTAL",
-				ResultParamCode: "OUT_A",
+				ResultParamCode: "OUT_SHALLOW",
 				InputParamCodes: []string{ScopeKeyCostRMTotal},
 			},
 			{
-				FormulaCode:     "F_B",
+				// depth=2: consumes OUT_SHALLOW which itself has depth=1
+				FormulaCode:     "F_DEEP",
+				Expression:      "OUT_SHALLOW * 1",
+				ResultParamCode: "OUT_DEEP",
+				InputParamCodes: []string{"OUT_SHALLOW"},
+			},
+			{
+				// pure helper, depth=1, terminal
+				FormulaCode:     "F_HELPER",
 				Expression:      "COST_RM_TOTAL",
-				ResultParamCode: "OUT_B",
+				ResultParamCode: "OUT_HELPER",
 				InputParamCodes: []string{ScopeKeyCostRMTotal},
 			},
 		},
 		RMCosts:   map[string]float64{"X|": 10.0},
 		EvalCache: evaluator.NewCache(),
 	}
-	_, err := ComputeProduct(context.Background(), in)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), ScopeKeyFinalCost)
+	out, err := ComputeProduct(context.Background(), in)
+	require.NoError(t, err)
+	// F_DEEP has depth 2 → picked as final; its output = OUT_SHALLOW * 1 = totalRM = 10
+	require.InDelta(t, 10.0, out.CostPerUnit, 0.001)
 }
 
 func TestComputeProduct_SnapshotIncludesInputs(t *testing.T) {
