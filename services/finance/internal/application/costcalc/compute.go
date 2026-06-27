@@ -201,6 +201,32 @@ func ComputeProduct(ctx context.Context, in ComputeInput) (*ComputeOutput, error
 	// formulas can proceed. Phase-2 will implement per-pricing-type splitting.
 	formulaTrace := make([]FormulaEvalTrace, 0, len(in.Formulas))
 	for _, f := range in.Formulas {
+		if f.FormulaType == "SNAPSHOT" {
+			// SNAPSHOT formulas capture a value at a point in time.
+			// Read the referenced param from scope (already computed) and echo it.
+			// Expression format: "snapshot(PARAM_CODE) at process start"
+			// For now: treat as a pass-through read of the first input param.
+			val := float64(0)
+			if len(f.InputParamCodes) > 0 {
+				if v, ok := scope[f.InputParamCodes[0]]; ok {
+					if fv, ok2 := v.(float64); ok2 {
+						val = fv
+					}
+				}
+			} else if v, ok := scope[f.ResultParamCode]; ok {
+				if fv, ok2 := v.(float64); ok2 {
+					val = fv
+				}
+			}
+			scope[f.ResultParamCode] = val
+			formulaTrace = append(formulaTrace, FormulaEvalTrace{
+				FormulaCode:     f.FormulaCode,
+				Expression:      f.Expression,
+				ResultParamCode: f.ResultParamCode,
+				Output:          val,
+			})
+			continue
+		}
 		if f.FormulaType == FormulaTypeRMLookup {
 			// Phase-1: RM_LOOKUP → alias totalRM into result param.
 			scope[f.ResultParamCode] = totalRM
@@ -459,10 +485,25 @@ func buildCostByLevel(byLevel map[int32]float64, totalConv float64) []LevelContr
 	return out
 }
 
+// knownFinalCostParams is the priority-ordered list of param codes that represent
+// the final product cost when COST_STAGE_OUT is not explicitly present.
+// CAPTIVE_COST_QLTY_LOSS is the canonical final cost for yarn products in Oracle.
+// DELIVERY_COST_QLTY_LOSS is the delivery-channel equivalent.
+// Checked in order: first match wins.
+var knownFinalCostParams = []string{
+	"CAPTIVE_COST_QLTY_LOSS",
+	"CAPTIVE_COST_BEFORE_QLOSS",
+	"DELIVERY_COST_QLTY_LOSS",
+	"DELIVERY_COST_BEFORE_QLOSS",
+}
+
 // findTerminalFormula returns the single formula whose result param is not
 // consumed as an input by any other formula in the set — i.e. the DAG sink.
 // Used when a product's formula chain does not explicitly produce COST_STAGE_OUT.
-// Returns an error if the number of sink formulas is not exactly one.
+//
+// When multiple sinks exist (e.g. CAP_FINAL + VB1_DEL…VB5_DEL), the function
+// uses knownFinalCostParams priority order to pick the canonical final cost
+// instead of returning an error.
 func findTerminalFormula(formulas []Formula) (*Formula, error) {
 	allInputs := make(map[string]bool, len(formulas)*2)
 	for _, f := range formulas {
@@ -482,6 +523,16 @@ func findTerminalFormula(formulas []Formula) (*Formula, error) {
 	case 0:
 		return nil, fmt.Errorf("formula DAG has no terminal node (cycle or empty set)")
 	default:
+		// Multiple terminal nodes: try known priority list before giving up.
+		termByResult := make(map[string]*Formula, len(terminals))
+		for i := range terminals {
+			termByResult[terminals[i].ResultParamCode] = &terminals[i]
+		}
+		for _, candidate := range knownFinalCostParams {
+			if f, ok := termByResult[candidate]; ok {
+				return f, nil
+			}
+		}
 		codes := make([]string, len(terminals))
 		for i, t := range terminals {
 			codes[i] = t.FormulaCode

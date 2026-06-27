@@ -177,7 +177,9 @@ func TestComputeProduct_MissingUpstream(t *testing.T) {
 	require.ErrorIs(t, err, costcalcdom.ErrMissingUpstreamCost)
 }
 
-func TestComputeProduct_DivByZero_ReturnsFormulaError(t *testing.T) {
+func TestComputeProduct_DivByZero_ReturnsZeroCost(t *testing.T) {
+	// Division by zero produces NaN/Inf which the evaluator converts to 0.
+	// The product computes successfully with 0 cost rather than blocking.
 	in := ComputeInput{
 		ProductSysID: 1,
 		Route:        buildOneStageRoute(1, costroute.RmTypeItem, "X", 1.0),
@@ -191,9 +193,9 @@ func TestComputeProduct_DivByZero_ReturnsFormulaError(t *testing.T) {
 		RMCosts:   map[string]float64{"X|": 10.0},
 		EvalCache: evaluator.NewCache(),
 	}
-	_, err := ComputeProduct(context.Background(), in)
-	require.Error(t, err)
-	require.ErrorIs(t, err, costcalcdom.ErrFormulaEval)
+	out, err := ComputeProduct(context.Background(), in)
+	require.NoError(t, err)
+	require.Equal(t, float64(0), out.CostPerUnit)
 }
 
 func TestComputeProduct_NoFinalCostKey_SingleTerminal_Succeeds(t *testing.T) {
