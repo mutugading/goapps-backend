@@ -55,7 +55,7 @@ func (h *ValidateHandler) Validate(ctx context.Context, fileContent []byte) (*Va
 		return nil, mapsErr
 	}
 
-	// Run preValidateAll in a goroutine so the caller's context deadline is honoured.
+	// Run preValidateAll in a goroutine so the caller's context deadline is honored.
 	// preValidateAll is CPU-bound and does not accept a context; the goroutine may outlive
 	// a ctx cancellation, but it is bounded and will finish on its own.
 	type sheetResults struct{ sheets []SheetResult }
