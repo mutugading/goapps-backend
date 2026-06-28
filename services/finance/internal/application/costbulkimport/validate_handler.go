@@ -16,11 +16,12 @@ const (
 	maxSampleErrors = 20
 
 	// validateMaxFileBytes is the maximum file size accepted by the preview validation
-	// endpoint. Files larger than this are rejected immediately with a clear message
-	// directing the user to import directly (which also validates and produces an
-	// error report Excel file). Keeping this limit low ensures the synchronous
-	// validate call completes well within the 30-second gRPC server timeout.
-	validateMaxFileBytes = 5 * 1024 * 1024 // 5 MB
+	// endpoint. excelize.OpenReader loads the entire xlsx into memory (ZIP extraction +
+	// XML parsing), which can use 10-50× the file size. A 2 MB limit keeps peak
+	// memory well within the pod's 1.5 Gi limit. Files larger than this should be
+	// imported directly — the async import handler validates all rows and produces a
+	// downloadable error report.
+	validateMaxFileBytes = 2 * 1024 * 1024 // 2 MB
 )
 
 // ValidateHandler performs a synchronous dry-run validation of a bulk import file.
@@ -52,8 +53,8 @@ type ValidateResult struct {
 func (h *ValidateHandler) Validate(ctx context.Context, fileContent []byte) (*ValidateResult, error) {
 	if len(fileContent) > validateMaxFileBytes {
 		return nil, fmt.Errorf(
-			"file too large for preview validation (%.1f MB > 5 MB limit); import directly to get the full error report",
-			float64(len(fileContent))/(1024*1024), //nolint:mnd // 1024*1024 = bytes-to-MB, not a magic number
+			"file too large for preview validation (%.1f MB > 2 MB limit); use Import directly — it validates all rows and generates a downloadable error report",
+			float64(len(fileContent))/(1024*1024), //nolint:mnd // 1024*1024 = bytes-to-MB conversion
 		)
 	}
 
