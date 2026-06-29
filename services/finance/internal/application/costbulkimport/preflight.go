@@ -42,9 +42,13 @@ func preValidateAll(f *excelize.File, maps *ImportMaps) []SheetResult { //nolint
 // all valid legacy_oracle_sys_id values found in the sheet.
 func preflightProductMaster(f *excelize.File, maps *ImportMaps) (SheetResult, map[string]struct{}) {
 	const sheetName = "product_master"
-	rows, parseErr := ParseSheet(f, sheetName, []string{"legacy_oracle_sys_id", "product_type_code", "product_name"})
+	// ParseSheetOptional: phase-2 routing-only files have no product_master sheet.
+	rows, parseErr := ParseSheetOptional(f, sheetName, []string{"legacy_oracle_sys_id", "product_type_code", "product_name"})
 	if parseErr != nil {
 		return sheetErrResult(sheetName, parseErr), nil
+	}
+	if len(rows) == 0 {
+		return SheetResult{SheetName: sheetName}, make(map[string]struct{})
 	}
 
 	result := SheetResult{SheetName: sheetName, TotalRows: len(rows)}
@@ -133,9 +137,13 @@ func validateParamRow(rowNum int32, row map[string]string, inProducts map[string
 // returns the set of all valid legacy_oracle_sys_id values in the sheet.
 func preflightRouteHead(f *excelize.File, inProducts map[string]struct{}) (SheetResult, map[string]struct{}) {
 	const sheetName = "route_head"
-	rows, parseErr := ParseSheet(f, sheetName, []string{legacyOracleSysIDField})
+	// Use ParseSheetOptional so phase-1 files (products-only, no routing sheets) succeed.
+	rows, parseErr := ParseSheetOptional(f, sheetName, []string{legacyOracleSysIDField})
 	if parseErr != nil {
 		return sheetErrResult(sheetName, parseErr), nil
+	}
+	if len(rows) == 0 {
+		return SheetResult{SheetName: sheetName}, make(map[string]struct{})
 	}
 
 	result := SheetResult{SheetName: sheetName, TotalRows: len(rows)}
@@ -167,9 +175,12 @@ func preflightRouteSeq(
 	inProducts map[string]struct{},
 ) (SheetResult, map[string]struct{}) {
 	const sheetName = "route_sequences"
-	rows, parseErr := ParseSheet(f, sheetName, []string{routeHeadLegacyIDField, nodeProductLegacyIDField, "route_level", "route_seq"})
+	rows, parseErr := ParseSheetOptional(f, sheetName, []string{routeHeadLegacyIDField, nodeProductLegacyIDField, "route_level", "route_seq"})
 	if parseErr != nil {
 		return sheetErrResult(sheetName, parseErr), nil
+	}
+	if len(rows) == 0 {
+		return SheetResult{SheetName: sheetName}, make(map[string]struct{})
 	}
 
 	result := SheetResult{SheetName: sheetName, TotalRows: len(rows)}
@@ -223,9 +234,12 @@ func validateRouteSeqRow(rowNum int32, row map[string]string, inHeads, inProduct
 // preflightRouteRM validates route_rms rows against inSeqs, inProducts, and maps.RmGroupMap.
 func preflightRouteRM(f *excelize.File, inSeqs map[string]struct{}, inProducts map[string]struct{}, maps *ImportMaps) SheetResult {
 	const sheetName = "route_rms"
-	rows, parseErr := ParseSheet(f, sheetName, []string{routeHeadLegacyIDField, "route_level", "route_seq", "rm_type", "ratio"})
+	rows, parseErr := ParseSheetOptional(f, sheetName, []string{routeHeadLegacyIDField, "route_level", "route_seq", "rm_type", "ratio"})
 	if parseErr != nil {
 		return sheetErrResult(sheetName, parseErr)
+	}
+	if len(rows) == 0 {
+		return SheetResult{SheetName: sheetName}
 	}
 
 	result := SheetResult{SheetName: sheetName, TotalRows: len(rows)}
