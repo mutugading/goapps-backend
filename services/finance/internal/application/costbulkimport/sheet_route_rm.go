@@ -33,9 +33,12 @@ func processRouteRM( //nolint:gocognit,gocyclo // cohesive row-validation pipeli
 	requiredHeaders := []string{
 		routeHeadLegacyIDField, "route_level", "route_seq", "rm_type", "ratio",
 	}
-	rows, parseErr := ParseSheet(f, sheetName, requiredHeaders)
+	rows, parseErr := ParseSheetOptional(f, sheetName, requiredHeaders)
 	if parseErr != nil {
 		return 0, nil, parseErr
+	}
+	if len(rows) == 0 {
+		return 0, nil, nil // sheet absent
 	}
 
 	// Group RM rows by seq_id using composite key to look up RouteSeqMap.

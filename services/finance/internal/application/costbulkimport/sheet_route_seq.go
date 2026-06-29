@@ -28,9 +28,12 @@ func processRouteSeq( //nolint:gocognit // cohesive row-validation pipeline
 		routeHeadLegacyIDField, nodeProductLegacyIDField,
 		"route_level", "route_seq",
 	}
-	rows, parseErr := ParseSheet(f, sheetName, requiredHeaders)
+	rows, parseErr := ParseSheetOptional(f, sheetName, requiredHeaders)
 	if parseErr != nil {
 		return 0, 0, nil, parseErr
+	}
+	if len(rows) == 0 {
+		return 0, 0, nil, nil // sheet absent
 	}
 
 	inputs := make([]costroute.SeqUpsertInput, 0, len(rows))

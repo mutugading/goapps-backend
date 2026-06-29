@@ -23,9 +23,12 @@ func processRouteHead(
 ) (inserted, updated, skipped int, errs []SheetError, err error) {
 	const sheetName = "route_head"
 	requiredHeaders := []string{legacyOracleSysIDField}
-	rows, parseErr := ParseSheet(f, sheetName, requiredHeaders)
+	rows, parseErr := ParseSheetOptional(f, sheetName, requiredHeaders)
 	if parseErr != nil {
 		return 0, 0, 0, nil, parseErr
+	}
+	if len(rows) == 0 {
+		return 0, 0, 0, nil, nil // sheet absent (phase-1 product-only file)
 	}
 
 	inputs := make([]costroute.HeadUpsertInput, 0, len(rows))

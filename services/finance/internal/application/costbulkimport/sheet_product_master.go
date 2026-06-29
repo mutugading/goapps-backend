@@ -25,9 +25,12 @@ func processProductMaster( //nolint:gocognit // cohesive row-validation pipeline
 	requiredHeaders := []string{
 		"legacy_oracle_sys_id", "product_type_code", "product_name",
 	}
-	rows, parseErr := ParseSheet(f, sheetName, requiredHeaders)
+	rows, parseErr := ParseSheetOptional(f, sheetName, requiredHeaders)
 	if parseErr != nil {
 		return 0, 0, nil, parseErr
+	}
+	if len(rows) == 0 {
+		return 0, 0, nil, nil // sheet absent (phase-2 routing-only file)
 	}
 
 	inputs := make([]costproductmaster.ProductUpsertInput, 0, len(rows))
