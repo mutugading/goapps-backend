@@ -334,7 +334,8 @@ func (r *PermissionRepository) GetByService(ctx context.Context, serviceName str
 
 	if serviceName != "" {
 		query = fmt.Sprintf(`
-			SELECT %s
+			SELECT %s,
+				COALESCE((SELECT COUNT(*) FROM role_permissions rp WHERE rp.permission_id = p.permission_id), 0) AS role_count
 			FROM mst_permission p
 			%s
 			WHERE p.service_name = $1 %s
@@ -344,7 +345,8 @@ func (r *PermissionRepository) GetByService(ctx context.Context, serviceName str
 	} else {
 		// Return ALL services when serviceName is empty.
 		query = fmt.Sprintf(`
-			SELECT %s
+			SELECT %s,
+				COALESCE((SELECT COUNT(*) FROM role_permissions rp WHERE rp.permission_id = p.permission_id), 0) AS role_count
 			FROM mst_permission p
 			%s
 			WHERE TRUE %s
@@ -372,7 +374,14 @@ func (r *PermissionRepository) GetByService(ctx context.Context, serviceName str
 
 	for rows.Next() {
 		var row permissionRow
-		if err := scanPermRow(rows, &row); err != nil {
+		var roleCount int32
+		if err := rows.Scan(
+			&row.ID, &row.Code, &row.Name, &row.Description,
+			&row.ServiceName, &row.ModuleName, &row.ActionType, &row.IsActive,
+			&row.CreatedAt, &row.CreatedBy, &row.UpdatedAt, &row.UpdatedBy,
+			&row.MenuID, &row.MenuTitle,
+			&roleCount,
+		); err != nil {
 			return nil, fmt.Errorf("failed to scan permission: %w", err)
 		}
 
@@ -389,7 +398,9 @@ func (r *PermissionRepository) GetByService(ctx context.Context, serviceName str
 		if _, modExists := sd.moduleMap[row.ModuleName]; !modExists {
 			sd.moduleOrder = append(sd.moduleOrder, row.ModuleName)
 		}
-		sd.moduleMap[row.ModuleName] = append(sd.moduleMap[row.ModuleName], row.toDomain())
+		perm := row.toDomain()
+		perm.SetRoleCount(roleCount)
+		sd.moduleMap[row.ModuleName] = append(sd.moduleMap[row.ModuleName], perm)
 	}
 
 	// Build result.
