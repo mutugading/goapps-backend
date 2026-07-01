@@ -105,11 +105,21 @@ func (h *PermissionHandler) UpdatePermission(ctx context.Context, req *iamv1.Upd
 
 	userID := getUserFromCtx(ctx)
 
+	var menuID *uuid.UUID
+	if rawMenuID := req.GetMenuId(); rawMenuID != "" {
+		parsed, parseErr := uuid.Parse(rawMenuID)
+		if parseErr != nil {
+			return &iamv1.UpdatePermissionResponse{Base: ErrorResponse("400", "invalid menu_id format")}, nil //nolint:nilerr // error returned in response body
+		}
+		menuID = &parsed
+	}
+
 	entity, err := h.updateHandler.Handle(ctx, permapp.UpdateCommand{
 		PermissionID: req.GetPermissionId(),
 		Name:         req.PermissionName,
 		Description:  req.Description,
 		IsActive:     req.IsActive,
+		MenuID:       menuID,
 		UpdatedBy:    userID,
 	})
 	if err != nil {
@@ -169,6 +179,7 @@ func (h *PermissionHandler) ListPermissions(ctx context.Context, req *iamv1.List
 		ServiceName: req.GetServiceName(),
 		ModuleName:  req.GetModuleName(),
 		ActionType:  req.GetActionType(),
+		MenuID:      req.GetMenuId(),
 		SortBy:      req.GetSortBy(),
 		SortOrder:   req.GetSortOrder(),
 	})

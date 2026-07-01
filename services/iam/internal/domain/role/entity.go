@@ -4,6 +4,7 @@ package role
 import (
 	"errors"
 	"regexp"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -15,6 +16,7 @@ var (
 	ErrInvalidRoleCodeFormat       = errors.New("role code must start with a letter and contain only uppercase letters, numbers, and underscores")
 	ErrInvalidPermissionCodeFormat = errors.New("permission code must follow format: service.module.entity.action")
 	ErrInvalidActionType           = errors.New("action type must be one of: view, create, update, delete, export, import")
+	ErrEmptyDescription            = errors.New("permission description must not be empty")
 	ErrSystemRoleDelete            = errors.New("system roles cannot be deleted")
 	ErrSystemRoleModify            = errors.New("system role code cannot be modified")
 )
@@ -179,6 +181,9 @@ func NewPermission(code, name, description, serviceName, moduleName, actionType,
 	if !validActionTypes[actionType] {
 		return nil, ErrInvalidActionType
 	}
+	if strings.TrimSpace(description) == "" {
+		return nil, ErrEmptyDescription
+	}
 
 	return &Permission{
 		id:          uuid.New(),
@@ -251,7 +256,7 @@ func (p *Permission) MenuTitle() string { return p.menuTitle }
 func (p *Permission) Audit() shared.AuditInfo { return p.audit }
 
 // Update updates mutable permission fields.
-func (p *Permission) Update(name, description *string, isActive *bool, updatedBy string) error {
+func (p *Permission) Update(name, description *string, isActive *bool, menuID *uuid.UUID, updatedBy string) error {
 	if name != nil {
 		if *name == "" {
 			return shared.ErrEmptyName
@@ -259,10 +264,16 @@ func (p *Permission) Update(name, description *string, isActive *bool, updatedBy
 		p.name = *name
 	}
 	if description != nil {
+		if strings.TrimSpace(*description) == "" {
+			return ErrEmptyDescription
+		}
 		p.description = *description
 	}
 	if isActive != nil {
 		p.isActive = *isActive
+	}
+	if menuID != nil {
+		p.menuID = menuID
 	}
 	p.audit.Update(updatedBy)
 	return nil

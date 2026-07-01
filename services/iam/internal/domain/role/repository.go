@@ -80,6 +80,7 @@ type PermissionListParams struct {
 	ServiceName string
 	ModuleName  string
 	ActionType  string
+	MenuID      string
 	SortBy      string
 	SortOrder   string
 }

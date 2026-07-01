@@ -164,9 +164,8 @@ func (r *PermissionRepository) Delete(ctx context.Context, id uuid.UUID, deleted
 }
 
 // List lists permissions with pagination.
-func (r *PermissionRepository) List(ctx context.Context, params role.PermissionListParams) ([]*role.Permission, int64, error) {
+func buildPermissionListFilter(params role.PermissionListParams) (whereClause string, args []interface{}) {
 	var conditions []string
-	var args []interface{}
 	argPos := 1
 
 	if params.Search != "" {
@@ -174,35 +173,42 @@ func (r *PermissionRepository) List(ctx context.Context, params role.PermissionL
 		args = append(args, "%"+params.Search+"%")
 		argPos++
 	}
-
 	if params.IsActive != nil {
 		conditions = append(conditions, fmt.Sprintf("p.is_active = $%d", argPos))
 		args = append(args, *params.IsActive)
 		argPos++
 	}
-
 	if params.ServiceName != "" {
 		conditions = append(conditions, fmt.Sprintf("p.service_name = $%d", argPos))
 		args = append(args, params.ServiceName)
 		argPos++
 	}
-
 	if params.ModuleName != "" {
 		conditions = append(conditions, fmt.Sprintf("p.module_name = $%d", argPos))
 		args = append(args, params.ModuleName)
 		argPos++
 	}
-
 	if params.ActionType != "" {
 		conditions = append(conditions, fmt.Sprintf("p.action_type = $%d", argPos))
 		args = append(args, params.ActionType)
 		argPos++
 	}
+	if params.MenuID != "" {
+		conditions = append(conditions, fmt.Sprintf("p.menu_id = $%d", argPos))
+		args = append(args, params.MenuID)
+	}
 
-	whereClause := "TRUE"
+	whereClause = "TRUE"
 	if len(conditions) > 0 {
 		whereClause = strings.Join(conditions, " AND ")
 	}
+	return whereClause, args
+}
+
+// List returns a paginated, filtered slice of permissions plus the total count.
+func (r *PermissionRepository) List(ctx context.Context, params role.PermissionListParams) ([]*role.Permission, int64, error) {
+	whereClause, args := buildPermissionListFilter(params)
+	argPos := len(args) + 1
 
 	// Count total
 	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM mst_permission p WHERE %s", whereClause)

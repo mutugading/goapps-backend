@@ -252,6 +252,22 @@ func TestNewPermission(t *testing.T) {
 			actionType: "read",
 			wantErr:    role.ErrInvalidActionType,
 		},
+		{
+			name:        "empty description",
+			code:        "finance.accounting.journal.view",
+			permName:    "View Journal",
+			description: "",
+			actionType:  "view",
+			wantErr:     role.ErrEmptyDescription,
+		},
+		{
+			name:        "whitespace-only description",
+			code:        "finance.accounting.journal.view",
+			permName:    "View Journal",
+			description: "   ",
+			actionType:  "view",
+			wantErr:     role.ErrEmptyDescription,
+		},
 	}
 
 	for _, tc := range tests {
@@ -289,7 +305,7 @@ func TestPermission_Update(t *testing.T) {
 		require.NoError(t, err)
 
 		newName := "View Journals"
-		err = p.Update(&newName, nil, nil, "editor")
+		err = p.Update(&newName, nil, nil, nil, "editor")
 
 		require.NoError(t, err)
 		assert.Equal(t, "View Journals", p.Name())
@@ -300,7 +316,7 @@ func TestPermission_Update(t *testing.T) {
 		require.NoError(t, err)
 
 		newDesc := "new desc"
-		err = p.Update(nil, &newDesc, nil, "editor")
+		err = p.Update(nil, &newDesc, nil, nil, "editor")
 
 		require.NoError(t, err)
 		assert.Equal(t, "new desc", p.Description())
@@ -311,7 +327,7 @@ func TestPermission_Update(t *testing.T) {
 		require.NoError(t, err)
 
 		inactive := false
-		err = p.Update(nil, nil, &inactive, "editor")
+		err = p.Update(nil, nil, &inactive, nil, "editor")
 
 		require.NoError(t, err)
 		assert.False(t, p.IsActive())
@@ -322,7 +338,7 @@ func TestPermission_Update(t *testing.T) {
 		require.NoError(t, err)
 
 		emptyName := ""
-		err = p.Update(&emptyName, nil, nil, "editor")
+		err = p.Update(&emptyName, nil, nil, nil, "editor")
 
 		assert.ErrorIs(t, err, shared.ErrEmptyName)
 	})
