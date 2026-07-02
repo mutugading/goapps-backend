@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.16.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.15.1...iam-service/v0.16.0) (2026-07-02)
+
+
+### Features
+
+* **cost-erp:** add ERP item CRUD — domain, repository, gRPC handler, migrations ([25671e2](https://github.com/mutugading/goapps-backend/commit/25671e2ac2104988a6f0fae334a8171bb5f4b362))
+* **email:** reduce social icon display size from 36px to 30px ([8d6131d](https://github.com/mutugading/goapps-backend/commit/8d6131daf85659b56812cf1a7377121730950221))
+* **email:** replace pill buttons with hosted PNG social icons in footer ([a5e70f2](https://github.com/mutugading/goapps-backend/commit/a5e70f2c32684af2125193be628d45dc6f5f9d7b))
+* **finance:** audit emit on product master/param mutations; calc schedule menu ([a241f9e](https://github.com/mutugading/goapps-backend/commit/a241f9e20fda2a6a2382fe696cd797b4b3b2af71))
+* **finance:** param value override with audit trail; lock enforces fill approval; confirm requires locked route ([8d50622](https://github.com/mutugading/goapps-backend/commit/8d50622660a76b886221ba0ebf12605e505cd605))
+* **iam:** add CheckPassword method, VerifyPassword gRPC handler, migration 000055 ([ce31daf](https://github.com/mutugading/goapps-backend/commit/ce31daf443c65d47353ccd1f6c6364ea78a2f65d))
+* **iam:** add menu_id column to mst_permission ([f26f704](https://github.com/mutugading/goapps-backend/commit/f26f7043af43903dc29b9f213b48078152597105))
+* **iam:** backfill permission menu_id from RBAC audit (275 mapped, 4 global) ([7c64a0a](https://github.com/mutugading/goapps-backend/commit/7c64a0a56391d01e71e0a7fe91d45b6fe9a9400f))
+* **iam:** permission repository persists menu_id, joins menu_title, ListByMenu ([792cc77](https://github.com/mutugading/goapps-backend/commit/792cc77f981db54cb9ae7cd92d54d70304e05140))
+* **iam:** require permission description; thread menu_id through update + list filter ([3c65162](https://github.com/mutugading/goapps-backend/commit/3c65162b3ec37805d58ad9957a82517622737d25))
+* **iam:** seed company mappings, employee levels and groups from legacy data ([75df047](https://github.com/mutugading/goapps-backend/commit/75df047338916f8a70973b15e622ed2be9906862))
+* **iam:** seed company mappings, employee levels and groups from legacy data ([fc0624b](https://github.com/mutugading/goapps-backend/commit/fc0624bf07a3a53786fe8b3198e33a3a8a1f9f80))
+* **iam:** seed Yarn Master menus and 24 permissions (migration 000057) ([f9a9333](https://github.com/mutugading/goapps-backend/commit/f9a9333fc917e6fc4bd34f1c049389f6c43204f7))
+
+
+### Bug Fixes
+
+* **bulk-export:** correct download filename and add import-jobs menu seed ([b9fe944](https://github.com/mutugading/goapps-backend/commit/b9fe944d38016e34454c8127f4be3cd6c69c97f2))
+* **iam:** align route-unlock permission migration with current mst_permission schema ([85f8482](https://github.com/mutugading/goapps-backend/commit/85f8482699c93b3f478bc084446e0ace9e74c980))
+* **iam:** GetPermissionsByService returns role_count per permission ([11f3646](https://github.com/mutugading/goapps-backend/commit/11f364682f22e4ecbb03ac0c4ef7d77d55fa0ae9))
+* **iam:** GetUserRolesAndPermissions returns true direct grants separately ([fe7e28a](https://github.com/mutugading/goapps-backend/commit/fe7e28a9af813c565db6861bc47394a9a50f8363))
+* **import:** Async Cost Data Import Engine, CPM Extensions & Email Assets ([780cb08](https://github.com/mutugading/goapps-backend/commit/780cb08c30cb387f0922eda609cbd288f13c4d8a))
+* **lint:** resolve golangci-lint v2 failures in finance and IAM services ([33aa588](https://github.com/mutugading/goapps-backend/commit/33aa5885e6fb89d3cc72ef61c6e187853cd27db7))
+* **lint:** resolve golangci-lint v2 issues across finance and iam ([393ee82](https://github.com/mutugading/goapps-backend/commit/393ee82c221a0ed06e01726d4a2ffb18d4238e55))
+* **notifications:** Multi-replica SSE via Redis Pub/Sub & Email Client Compatibility ([#120](https://github.com/mutugading/goapps-backend/issues/120)) ([ad4c9e4](https://github.com/mutugading/goapps-backend/commit/ad4c9e43323501e8b023fa619d04b75212bae410))
+* Route Lock Enforcement, Param Override Audit Trail, and IAM Password Verification ([d526e9d](https://github.com/mutugading/goapps-backend/commit/d526e9d8bdfa95e6562786d47450f1e768e52885))
+
+
+### Reverts
+
+* **cost-erp:** remove ERP item CRUD from backend; add legacy flex fields to product master pipeline ([cc4b4bf](https://github.com/mutugading/goapps-backend/commit/cc4b4bfd333b8c8a58d9918641d02d12868f6406))
+
 ## [0.15.1](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.15.0...iam-service/v0.15.1) (2026-06-12)
 
 
