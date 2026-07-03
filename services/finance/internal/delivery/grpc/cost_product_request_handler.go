@@ -668,6 +668,8 @@ func (h *CostProductRequestHandler) GetParamSummary(ctx context.Context, req *fi
 					ParamCode:    pv.ParamCode,
 					ParamName:    pv.ParamName,
 					DataType:     pv.DataType,
+					DisplayGroup: pv.DisplayGroup,
+					DisplayOrder: pv.DisplayOrder,
 					HasValue:     pv.HasValue,
 					ValueNumeric: pv.ValueNumeric,
 					ValueText:    pv.ValueText,

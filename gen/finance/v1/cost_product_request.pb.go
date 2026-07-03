@@ -3355,6 +3355,8 @@ type ParamValueEntry struct {
 	ValueFlag     bool                   `protobuf:"varint,8,opt,name=value_flag,json=valueFlag,proto3" json:"value_flag,omitempty"`
 	UomCode       string                 `protobuf:"bytes,9,opt,name=uom_code,json=uomCode,proto3" json:"uom_code,omitempty"`
 	IsRequired    bool                   `protobuf:"varint,10,opt,name=is_required,json=isRequired,proto3" json:"is_required,omitempty"`
+	DisplayGroup  string                 `protobuf:"bytes,11,opt,name=display_group,json=displayGroup,proto3" json:"display_group,omitempty"`
+	DisplayOrder  int32                  `protobuf:"varint,12,opt,name=display_order,json=displayOrder,proto3" json:"display_order,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3457,6 +3459,20 @@ func (x *ParamValueEntry) GetIsRequired() bool {
 		return x.IsRequired
 	}
 	return false
+}
+
+func (x *ParamValueEntry) GetDisplayGroup() string {
+	if x != nil {
+		return x.DisplayGroup
+	}
+	return ""
+}
+
+func (x *ParamValueEntry) GetDisplayOrder() int32 {
+	if x != nil {
+		return x.DisplayOrder
+	}
+	return 0
 }
 
 // FillLevelSummary groups params for one fill task level of a product.
@@ -4034,7 +4050,7 @@ const file_finance_v1_cost_product_request_proto_rawDesc = "" +
 	"request_id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\trequestId\"v\n" +
 	"\x13UnlinkRouteResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x122\n" +
-	"\x04data\x18\x02 \x01(\v2\x1e.finance.v1.CostProductRequestR\x04data\"\xc3\x02\n" +
+	"\x04data\x18\x02 \x01(\v2\x1e.finance.v1.CostProductRequestR\x04data\"\x8d\x03\n" +
 	"\x0fParamValueEntry\x12\x19\n" +
 	"\bparam_id\x18\x01 \x01(\tR\aparamId\x12\x1d\n" +
 	"\n" +
@@ -4051,7 +4067,9 @@ const file_finance_v1_cost_product_request_proto_rawDesc = "" +
 	"\buom_code\x18\t \x01(\tR\auomCode\x12\x1f\n" +
 	"\vis_required\x18\n" +
 	" \x01(\bR\n" +
-	"isRequired\"\xe5\x02\n" +
+	"isRequired\x12#\n" +
+	"\rdisplay_group\x18\v \x01(\tR\fdisplayGroup\x12#\n" +
+	"\rdisplay_order\x18\f \x01(\x05R\fdisplayOrder\"\xe5\x02\n" +
 	"\x10FillLevelSummary\x12\x1f\n" +
 	"\vroute_level\x18\x01 \x01(\x05R\n" +
 	"routeLevel\x12\x1f\n" +

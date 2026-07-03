@@ -1759,6 +1759,13 @@
         },
         "isRequired": {
           "type": "boolean"
+        },
+        "displayGroup": {
+          "type": "string"
+        },
+        "displayOrder": {
+          "type": "integer",
+          "format": "int32"
         }
       },
       "description": "ParamValueEntry is one parameter cell in the summary."
