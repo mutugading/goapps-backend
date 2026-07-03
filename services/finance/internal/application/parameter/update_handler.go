@@ -33,6 +33,10 @@ type UpdateCommand struct {
 	DisplayGroup         *string
 	Notes                *string
 
+	// Approval-review visibility (item #4). nil = leave unchanged.
+	IsApprovalVisible    *bool
+	ApprovalDisplayOrder *int32
+
 	UpdatedBy string
 }
 
@@ -83,6 +87,8 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*paramet
 		DisplayOrder:         cmd.DisplayOrder,
 		DisplayGroup:         cmd.DisplayGroup,
 		Notes:                cmd.Notes,
+		IsApprovalVisible:    cmd.IsApprovalVisible,
+		ApprovalDisplayOrder: cmd.ApprovalDisplayOrder,
 	}
 
 	if err := entity.Update(

@@ -34,6 +34,10 @@ type Parameter struct {
 	displayGroup         string
 	notes                string
 
+	// Approval-review visibility (item #4 — approval-scoped parameter subset).
+	isApprovalVisible    bool
+	approvalDisplayOrder int32
+
 	createdAt time.Time
 	createdBy string
 	updatedAt *time.Time
@@ -54,6 +58,10 @@ type CostingMetadata struct {
 	DisplayOrder         int32
 	DisplayGroup         string
 	Notes                string
+
+	// Approval-review visibility (item #4 — approval-scoped parameter subset).
+	IsApprovalVisible    bool
+	ApprovalDisplayOrder int32
 }
 
 // NewParameter creates a new Parameter entity with validation.
@@ -109,6 +117,9 @@ func NewParameter(
 	if len(costing.Notes) > 500 {
 		return nil, ErrNotesTooLong
 	}
+	if costing.ApprovalDisplayOrder < 0 {
+		return nil, ErrInvalidApprovalDisplayOrder
+	}
 
 	return &Parameter{
 		id:                   uuid.New(),
@@ -131,6 +142,8 @@ func NewParameter(
 		displayOrder:         costing.DisplayOrder,
 		displayGroup:         costing.DisplayGroup,
 		notes:                costing.Notes,
+		isApprovalVisible:    costing.IsApprovalVisible,
+		approvalDisplayOrder: costing.ApprovalDisplayOrder,
 		createdAt:            time.Now(),
 		createdBy:            createdBy,
 	}, nil
@@ -182,6 +195,8 @@ func ReconstructParameter(
 		displayOrder:         costing.DisplayOrder,
 		displayGroup:         costing.DisplayGroup,
 		notes:                costing.Notes,
+		isApprovalVisible:    costing.IsApprovalVisible,
+		approvalDisplayOrder: costing.ApprovalDisplayOrder,
 		createdAt:            createdAt,
 		createdBy:            createdBy,
 		updatedAt:            updatedAt,
@@ -282,6 +297,13 @@ func (p *Parameter) DisplayGroup() string { return p.displayGroup }
 // Notes returns the descriptive notes or formula hint.
 func (p *Parameter) Notes() string { return p.notes }
 
+// IsApprovalVisible returns whether the param is shown to the fill-approver during the
+// approval review step (item #4 — approval-scoped parameter subset).
+func (p *Parameter) IsApprovalVisible() bool { return p.isApprovalVisible }
+
+// ApprovalDisplayOrder returns the render order within the approval review drawer.
+func (p *Parameter) ApprovalDisplayOrder() int32 { return p.approvalDisplayOrder }
+
 // Costing returns the bundled costing metadata.
 func (p *Parameter) Costing() CostingMetadata {
 	return CostingMetadata{
@@ -294,6 +316,8 @@ func (p *Parameter) Costing() CostingMetadata {
 		DisplayOrder:         p.displayOrder,
 		DisplayGroup:         p.displayGroup,
 		Notes:                p.notes,
+		IsApprovalVisible:    p.isApprovalVisible,
+		ApprovalDisplayOrder: p.approvalDisplayOrder,
 	}
 }
 
@@ -313,6 +337,10 @@ type CostingUpdate struct {
 	DisplayOrder         *int32
 	DisplayGroup         *string
 	Notes                *string
+
+	// Approval-review visibility (item #4 — approval-scoped parameter subset).
+	IsApprovalVisible    *bool
+	ApprovalDisplayOrder *int32
 }
 
 // Update updates the Parameter with new values.
@@ -401,6 +429,22 @@ func (p *Parameter) applyCostingUpdate(c CostingUpdate) error { //nolint:gocogni
 			return ErrNotesTooLong
 		}
 		p.notes = *c.Notes
+	}
+	return p.applyApprovalVisibilityUpdate(c)
+}
+
+// applyApprovalVisibilityUpdate patches the approval-review visibility fields (item #4).
+// Extracted from applyCostingUpdate to keep that function's cognitive complexity flat
+// instead of pushing it further over the linter threshold.
+func (p *Parameter) applyApprovalVisibilityUpdate(c CostingUpdate) error {
+	if c.IsApprovalVisible != nil {
+		p.isApprovalVisible = *c.IsApprovalVisible
+	}
+	if c.ApprovalDisplayOrder != nil {
+		if *c.ApprovalDisplayOrder < 0 {
+			return ErrInvalidApprovalDisplayOrder
+		}
+		p.approvalDisplayOrder = *c.ApprovalDisplayOrder
 	}
 	return nil
 }
