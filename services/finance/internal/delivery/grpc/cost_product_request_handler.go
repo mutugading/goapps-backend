@@ -49,7 +49,7 @@ func NewCostProductRequestHandler(repo domain.Repository, routeRepo routeDomain.
 		listHandler:        app.NewListHandler(repo),
 		transitionHandler:  transition,
 		linkRouteHandler:   app.NewLinkRouteHandler(repo, routeRepo),
-		unlinkRouteHandler: app.NewUnlinkRouteHandler(repo),
+		unlinkRouteHandler: app.NewUnlinkRouteHandler(repo, routeRepo),
 		validation:         v,
 	}, nil
 }
@@ -726,6 +726,8 @@ func requestErrToBase(err error) *commonv1.BaseResponse {
 		return ErrorResponse("400", err.Error())
 	case errors.Is(err, app.ErrRouteNotLocked):
 		return ErrorResponse("422", err.Error())
+	case errors.Is(err, routeDomain.ErrLocked):
+		return ErrorResponse("409", "Cannot unlink: route is locked. Unlock first.")
 	default:
 		return InternalErrorResponse(err.Error())
 	}

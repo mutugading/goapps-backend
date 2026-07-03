@@ -51,11 +51,13 @@ func (h *LinkRouteHandler) Handle(ctx context.Context, cmd LinkRouteCommand) (*d
 // UnlinkRouteHandler clears the linked route head on a request.
 type UnlinkRouteHandler struct {
 	requestRepo domain.Repository
+	routeRepo   routeDomain.Repository
 }
 
-// NewUnlinkRouteHandler constructs the handler.
-func NewUnlinkRouteHandler(reqRepo domain.Repository) *UnlinkRouteHandler {
-	return &UnlinkRouteHandler{requestRepo: reqRepo}
+// NewUnlinkRouteHandler constructs the handler. The routeRepo is used to refuse
+// unlinking while the currently linked route head is LOCKED.
+func NewUnlinkRouteHandler(reqRepo domain.Repository, routeRepo routeDomain.Repository) *UnlinkRouteHandler {
+	return &UnlinkRouteHandler{requestRepo: reqRepo, routeRepo: routeRepo}
 }
 
 // UnlinkRouteCommand is the use-case input.
@@ -64,10 +66,14 @@ type UnlinkRouteCommand struct {
 	ActorUserID string
 }
 
-// Handle clears the link.
+// Handle clears the link. Refuses with routeDomain.ErrLocked when the currently
+// linked route head is LOCKED — the caller must Unlock the route first.
 func (h *UnlinkRouteHandler) Handle(ctx context.Context, cmd UnlinkRouteCommand) (*domain.Request, error) {
 	req, err := h.requestRepo.GetByID(ctx, cmd.RequestID)
 	if err != nil {
+		return nil, err
+	}
+	if err := h.rejectIfLinkedRouteLocked(ctx, req); err != nil {
 		return nil, err
 	}
 	if err := req.UnlinkRoute(); err != nil {
@@ -77,4 +83,24 @@ func (h *UnlinkRouteHandler) Handle(ctx context.Context, cmd UnlinkRouteCommand)
 		return nil, fmt.Errorf("save request after unlink: %w", err)
 	}
 	return req, nil
+}
+
+// rejectIfLinkedRouteLocked returns routeDomain.ErrLocked when req currently
+// has a linked route head and that head's RoutingStatus is LOCKED.
+func (h *UnlinkRouteHandler) rejectIfLinkedRouteLocked(ctx context.Context, req *domain.Request) error {
+	headID := req.LinkedRouteHeadID()
+	if headID <= 0 {
+		return nil
+	}
+	head, err := h.routeRepo.GetHead(ctx, headID)
+	if err != nil {
+		return fmt.Errorf("load route head %d: %w", headID, err)
+	}
+	if head == nil {
+		return nil
+	}
+	if head.IsLocked() {
+		return routeDomain.ErrLocked
+	}
+	return nil
 }
