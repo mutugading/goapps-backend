@@ -191,8 +191,12 @@ type Parameter struct {
 	LookupFillGroupCode string `protobuf:"bytes,31,opt,name=lookup_fill_group_code,json=lookupFillGroupCode,proto3" json:"lookup_fill_group_code,omitempty"`
 	// Column name in the master entity to read value from (e.g., "mc_speed").
 	LookupSourceColumn string `protobuf:"bytes,32,opt,name=lookup_source_column,json=lookupSourceColumn,proto3" json:"lookup_source_column,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// Whether this parameter is shown in the approval review drawer summary.
+	IsApprovalVisible bool `protobuf:"varint,33,opt,name=is_approval_visible,json=isApprovalVisible,proto3" json:"is_approval_visible,omitempty"`
+	// Render order within the approval review drawer summary.
+	ApprovalDisplayOrder int32 `protobuf:"varint,34,opt,name=approval_display_order,json=approvalDisplayOrder,proto3" json:"approval_display_order,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *Parameter) Reset() {
@@ -384,6 +388,20 @@ func (x *Parameter) GetLookupSourceColumn() string {
 		return x.LookupSourceColumn
 	}
 	return ""
+}
+
+func (x *Parameter) GetIsApprovalVisible() bool {
+	if x != nil {
+		return x.IsApprovalVisible
+	}
+	return false
+}
+
+func (x *Parameter) GetApprovalDisplayOrder() int32 {
+	if x != nil {
+		return x.ApprovalDisplayOrder
+	}
+	return 0
 }
 
 // CreateParameterRequest is the request for creating a new parameter.
@@ -784,8 +802,12 @@ type UpdateParameterRequest struct {
 	LookupFillGroupCode *string `protobuf:"bytes,18,opt,name=lookup_fill_group_code,json=lookupFillGroupCode,proto3,oneof" json:"lookup_fill_group_code,omitempty"`
 	// New source column (optional). Set to empty string to clear.
 	LookupSourceColumn *string `protobuf:"bytes,19,opt,name=lookup_source_column,json=lookupSourceColumn,proto3,oneof" json:"lookup_source_column,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// New is_approval_visible flag (optional).
+	IsApprovalVisible *bool `protobuf:"varint,20,opt,name=is_approval_visible,json=isApprovalVisible,proto3,oneof" json:"is_approval_visible,omitempty"`
+	// New approval display order (optional).
+	ApprovalDisplayOrder *int32 `protobuf:"varint,21,opt,name=approval_display_order,json=approvalDisplayOrder,proto3,oneof" json:"approval_display_order,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *UpdateParameterRequest) Reset() {
@@ -949,6 +971,20 @@ func (x *UpdateParameterRequest) GetLookupSourceColumn() string {
 		return *x.LookupSourceColumn
 	}
 	return ""
+}
+
+func (x *UpdateParameterRequest) GetIsApprovalVisible() bool {
+	if x != nil && x.IsApprovalVisible != nil {
+		return *x.IsApprovalVisible
+	}
+	return false
+}
+
+func (x *UpdateParameterRequest) GetApprovalDisplayOrder() int32 {
+	if x != nil && x.ApprovalDisplayOrder != nil {
+		return *x.ApprovalDisplayOrder
+	}
+	return 0
 }
 
 // UpdateParameterResponse is the response for updating a parameter.
@@ -1673,7 +1709,7 @@ var File_finance_v1_parameter_proto protoreflect.FileDescriptor
 const file_finance_v1_parameter_proto_rawDesc = "" +
 	"\n" +
 	"\x1afinance/v1/parameter.proto\x12\n" +
-	"finance.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16common/v1/common.proto\x1a\x14finance/v1/uom.proto\x1a\x1cgoogle/api/annotations.proto\"\xff\x06\n" +
+	"finance.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16common/v1/common.proto\x1a\x14finance/v1/uom.proto\x1a\x1cgoogle/api/annotations.proto\"\xe5\a\n" +
 	"\tParameter\x12\x19\n" +
 	"\bparam_id\x18\x01 \x01(\tR\aparamId\x12\x1d\n" +
 	"\n" +
@@ -1700,7 +1736,9 @@ const file_finance_v1_parameter_proto_rawDesc = "" +
 	"\rdisplay_group\x18\x1d \x01(\tR\fdisplayGroup\x12\x14\n" +
 	"\x05notes\x18\x1e \x01(\tR\x05notes\x123\n" +
 	"\x16lookup_fill_group_code\x18\x1f \x01(\tR\x13lookupFillGroupCode\x120\n" +
-	"\x14lookup_source_column\x18  \x01(\tR\x12lookupSourceColumn\"\xa1\a\n" +
+	"\x14lookup_source_column\x18  \x01(\tR\x12lookupSourceColumn\x12.\n" +
+	"\x13is_approval_visible\x18! \x01(\bR\x11isApprovalVisible\x124\n" +
+	"\x16approval_display_order\x18\" \x01(\x05R\x14approvalDisplayOrder\"\xa1\a\n" +
 	"\x16CreateParameterRequest\x12;\n" +
 	"\n" +
 	"param_code\x18\x01 \x01(\tB\x1c\xbaH\x19r\x17\x10\x01\x18\x142\x11^[A-Z][A-Z0-9_]*$R\tparamCode\x12)\n" +
@@ -1731,8 +1769,7 @@ const file_finance_v1_parameter_proto_rawDesc = "" +
 	"\bparam_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aparamId\"n\n" +
 	"\x14GetParameterResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12)\n" +
-	"\x04data\x18\x02 \x01(\v2\x15.finance.v1.ParameterR\x04data\"\xa4\n" +
-	"\n" +
+	"\x04data\x18\x02 \x01(\v2\x15.finance.v1.ParameterR\x04data\"\xd0\v\n" +
 	"\x16UpdateParameterRequest\x12#\n" +
 	"\bparam_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aparamId\x12,\n" +
 	"\n" +
@@ -1755,7 +1792,9 @@ const file_finance_v1_parameter_proto_rawDesc = "" +
 	"\rdisplay_group\x18\x10 \x01(\tB\a\xbaH\x04r\x02\x182H\x0eR\fdisplayGroup\x88\x01\x01\x12#\n" +
 	"\x05notes\x18\x11 \x01(\tB\b\xbaH\x05r\x03\x18\xf4\x03H\x0fR\x05notes\x88\x01\x01\x12A\n" +
 	"\x16lookup_fill_group_code\x18\x12 \x01(\tB\a\xbaH\x04r\x02\x18\x14H\x10R\x13lookupFillGroupCode\x88\x01\x01\x12>\n" +
-	"\x14lookup_source_column\x18\x13 \x01(\tB\a\xbaH\x04r\x02\x182H\x11R\x12lookupSourceColumn\x88\x01\x01B\r\n" +
+	"\x14lookup_source_column\x18\x13 \x01(\tB\a\xbaH\x04r\x02\x182H\x11R\x12lookupSourceColumn\x88\x01\x01\x123\n" +
+	"\x13is_approval_visible\x18\x14 \x01(\bH\x12R\x11isApprovalVisible\x88\x01\x01\x12B\n" +
+	"\x16approval_display_order\x18\x15 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00H\x13R\x14approvalDisplayOrder\x88\x01\x01B\r\n" +
 	"\v_param_nameB\x13\n" +
 	"\x11_param_short_nameB\f\n" +
 	"\n" +
@@ -1777,7 +1816,9 @@ const file_finance_v1_parameter_proto_rawDesc = "" +
 	"\x0e_display_groupB\b\n" +
 	"\x06_notesB\x19\n" +
 	"\x17_lookup_fill_group_codeB\x17\n" +
-	"\x15_lookup_source_column\"q\n" +
+	"\x15_lookup_source_columnB\x16\n" +
+	"\x14_is_approval_visibleB\x19\n" +
+	"\x17_approval_display_order\"q\n" +
 	"\x17UpdateParameterResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12)\n" +
 	"\x04data\x18\x02 \x01(\v2\x15.finance.v1.ParameterR\x04data\"=\n" +
