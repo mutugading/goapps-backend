@@ -527,16 +527,20 @@ func (x *CostProductRequest) GetReferenceProductSysId() int64 {
 type SpecInput struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Deprecated for new writes: retained for historical rows, no longer populated by new writes.
+	// Validation is skipped when empty so new writes (which always send "") pass.
 	RawMaterialType    string `protobuf:"bytes,1,opt,name=raw_material_type,json=rawMaterialType,proto3" json:"raw_material_type,omitempty"`
 	ProductDescription string `protobuf:"bytes,2,opt,name=product_description,json=productDescription,proto3" json:"product_description,omitempty"`
 	ShadeId            int32  `protobuf:"varint,3,opt,name=shade_id,json=shadeId,proto3" json:"shade_id,omitempty"`
 	// Free-text or master shade code (e.g. NL, Z114S). Renamed from shade_custom_text — field number unchanged for wire compatibility.
 	ShadeCode string `protobuf:"bytes,4,opt,name=shade_code,json=shadeCode,proto3" json:"shade_code,omitempty"`
 	// Deprecated: retained for historical rows, no longer populated by new writes. Use tube_type instead.
+	// Validation is skipped when zero so new writes (which always send 0) pass.
 	PaperTubeTypeId int32 `protobuf:"varint,5,opt,name=paper_tube_type_id,json=paperTubeTypeId,proto3" json:"paper_tube_type_id,omitempty"`
 	// Deprecated for new writes: retained for historical rows, no longer populated by new writes.
+	// Validation is skipped when empty so new writes (which always send "") pass.
 	WeightPerBobbinKg string `protobuf:"bytes,6,opt,name=weight_per_bobbin_kg,json=weightPerBobbinKg,proto3" json:"weight_per_bobbin_kg,omitempty"`
 	// Deprecated for new writes: retained for historical rows, no longer populated by new writes.
+	// Validation is skipped when empty so new writes (which always send "") pass.
 	BoxType string `protobuf:"bytes,7,opt,name=box_type,json=boxType,proto3" json:"box_type,omitempty"`
 	// Human-readable shade name (e.g. Natural, Jet Black), mirrors cost_product_master's shade_name.
 	ShadeName string `protobuf:"bytes,8,opt,name=shade_name,json=shadeName,proto3" json:"shade_name,omitempty"`
@@ -4493,17 +4497,18 @@ const file_finance_v1_cost_product_request_proto_rawDesc = "" +
 	"\x17existing_product_sys_id\x18\x1c \x01(\x03R\x14existingProductSysId\x12/\n" +
 	"\x14linked_route_head_id\x18\x1d \x01(\x03R\x11linkedRouteHeadId\x12&\n" +
 	"\x0fwfl_instance_id\x18\x1e \x01(\tR\rwflInstanceId\x127\n" +
-	"\x18reference_product_sys_id\x18\x1f \x01(\x03R\x15referenceProductSysId\"\xf7\x03\n" +
-	"\tSpecInput\x12d\n" +
-	"\x11raw_material_type\x18\x01 \x01(\tB8\xbaH5r3R\rPOY_BOUGHTOUTR\bCHIPS_SDR\tCHIPS_BRTR\rCHIPS_RECYCLER\x0frawMaterialType\x12;\n" +
+	"\x18reference_product_sys_id\x18\x1f \x01(\x03R\x15referenceProductSysId\"\x83\x04\n" +
+	"\tSpecInput\x12g\n" +
+	"\x11raw_material_type\x18\x01 \x01(\tB;\xbaH8\xd8\x01\x01r3R\rPOY_BOUGHTOUTR\bCHIPS_SDR\tCHIPS_BRTR\rCHIPS_RECYCLER\x0frawMaterialType\x12;\n" +
 	"\x13product_description\x18\x02 \x01(\tB\n" +
 	"\xbaH\ar\x05\x10\x01\x18\x88'R\x12productDescription\x12\x19\n" +
 	"\bshade_id\x18\x03 \x01(\x05R\ashadeId\x12&\n" +
 	"\n" +
-	"shade_code\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x18dR\tshadeCode\x124\n" +
-	"\x12paper_tube_type_id\x18\x05 \x01(\x05B\a\xbaH\x04\x1a\x02(\x01R\x0fpaperTubeTypeId\x12:\n" +
-	"\x14weight_per_bobbin_kg\x18\x06 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18\x14R\x11weightPerBobbinKg\x127\n" +
-	"\bbox_type\x18\a \x01(\tB\x1c\xbaH\x19r\x17R\x05JUMBOR\x06NORMALR\x06PALLETR\aboxType\x12&\n" +
+	"shade_code\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x18dR\tshadeCode\x127\n" +
+	"\x12paper_tube_type_id\x18\x05 \x01(\x05B\n" +
+	"\xbaH\a\xd8\x01\x01\x1a\x02(\x01R\x0fpaperTubeTypeId\x12=\n" +
+	"\x14weight_per_bobbin_kg\x18\x06 \x01(\tB\f\xbaH\t\xd8\x01\x01r\x04\x10\x01\x18\x14R\x11weightPerBobbinKg\x12:\n" +
+	"\bbox_type\x18\a \x01(\tB\x1f\xbaH\x1c\xd8\x01\x01r\x17R\x05JUMBOR\x06NORMALR\x06PALLETR\aboxType\x12&\n" +
 	"\n" +
 	"shade_name\x18\b \x01(\tB\a\xbaH\x04r\x02\x18dR\tshadeName\x121\n" +
 	"\ttube_type\x18\t \x01(\x0e2\x14.finance.v1.TubeTypeR\btubeType\"\x97\x05\n" +

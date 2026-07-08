@@ -2142,7 +2142,7 @@
       "properties": {
         "rawMaterialType": {
           "type": "string",
-          "description": "Deprecated for new writes: retained for historical rows, no longer populated by new writes."
+          "description": "Deprecated for new writes: retained for historical rows, no longer populated by new writes.\nValidation is skipped when empty so new writes (which always send \"\") pass."
         },
         "productDescription": {
           "type": "string"
@@ -2158,15 +2158,15 @@
         "paperTubeTypeId": {
           "type": "integer",
           "format": "int32",
-          "description": "Deprecated: retained for historical rows, no longer populated by new writes. Use tube_type instead."
+          "description": "Deprecated: retained for historical rows, no longer populated by new writes. Use tube_type instead.\nValidation is skipped when zero so new writes (which always send 0) pass."
         },
         "weightPerBobbinKg": {
           "type": "string",
-          "description": "Deprecated for new writes: retained for historical rows, no longer populated by new writes."
+          "description": "Deprecated for new writes: retained for historical rows, no longer populated by new writes.\nValidation is skipped when empty so new writes (which always send \"\") pass."
         },
         "boxType": {
           "type": "string",
-          "description": "Deprecated for new writes: retained for historical rows, no longer populated by new writes."
+          "description": "Deprecated for new writes: retained for historical rows, no longer populated by new writes.\nValidation is skipped when empty so new writes (which always send \"\") pass."
         },
         "shadeName": {
           "type": "string",
