@@ -257,6 +257,8 @@ func routeHeadToProto(h *costroute.Head) *financev1.CostRouteHead {
 		PromotedFromDraftId: h.PromotedFromDraftID,
 		CylTypeId:           h.CylTypeID,
 		Notes:               h.Notes,
+		LevelCount:          h.LevelCount,
+		RmCount:             h.RmCount,
 		LockedBy:            h.LockedBy,
 		UnlockedBy:          h.UnlockedBy,
 	}
@@ -299,6 +301,9 @@ func routeGraphToProto(g *costroute.Graph) *financev1.RouteGraph {
 				UomId:              rm.UomID,
 				SubType:            rm.SubType,
 				Notes:              rm.Notes,
+				PositionX:          rm.PositionX,
+				PositionY:          rm.PositionY,
+				RmGroupName:        rm.RmGroupName,
 			})
 		}
 		seqs = append(seqs, &financev1.CostRouteSeq{
@@ -374,6 +379,9 @@ func routeGraphFromProto(p *financev1.RouteGraph) *costroute.Graph {
 				UomID:              rm.GetUomId(),
 				SubType:            rm.GetSubType(),
 				Notes:              rm.GetNotes(),
+				PositionX:          rm.GetPositionX(),
+				PositionY:          rm.GetPositionY(),
+				RmGroupName:        rm.GetRmGroupName(),
 			})
 		}
 		out.Seqs = append(out.Seqs, seq)

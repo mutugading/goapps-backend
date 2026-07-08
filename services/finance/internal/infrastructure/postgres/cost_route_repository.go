@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -264,9 +265,12 @@ func (r *CostRouteRepository) loadRms(ctx context.Context, headID int64) ([]*cos
 		       COALESCE(rm.crm_rm_product_sys_id, 0), COALESCE(rm.crm_rm_item_code, ''), COALESCE(rm.crm_rm_group_code, ''),
 		       COALESCE(rm.crm_route_rm_name, ''), COALESCE(rm.crm_route_rm_item_code, ''),
 		       COALESCE(rm.crm_route_rm_shade_code, ''), COALESCE(rm.crm_route_rm_shade_name, ''),
-		       rm.crm_route_rm_ratio, COALESCE(rm.crm_uom_id, 0), COALESCE(rm.crm_sub_type, ''), COALESCE(rm.crm_notes, '')
+		       rm.crm_route_rm_ratio, COALESCE(rm.crm_uom_id, 0), COALESCE(rm.crm_sub_type, ''), COALESCE(rm.crm_notes, ''),
+		       COALESCE(rm.crm_position_x, 0), COALESCE(rm.crm_position_y, 0),
+		       COALESCE(g.group_name, '')
 		FROM cost_route_rm rm
 		JOIN cost_route_seq s ON s.crs_seq_id = rm.crm_seq_id
+		LEFT JOIN cst_rm_group_head g ON g.group_code = rm.crm_rm_group_code AND g.deleted_at IS NULL
 		WHERE s.crs_head_id = $1
 		ORDER BY rm.crm_seq_id, rm.crm_rm_id`
 	rows, err := r.db.QueryContext(ctx, q, headID)
@@ -285,6 +289,8 @@ func (r *CostRouteRepository) loadRms(ctx context.Context, headID int64) ([]*cos
 			&rm.RmProductSysID, &rm.RmItemCode, &rm.RmGroupCode,
 			&rm.RouteRmName, &rm.RouteRmItemCode, &rm.RouteRmShadeCode, &rm.RouteRmShadeName,
 			&rm.RouteRmRatio, &rm.UomID, &rm.SubType, &rm.Notes,
+			&rm.PositionX, &rm.PositionY,
+			&rm.RmGroupName,
 		); err != nil {
 			return nil, fmt.Errorf("scan route rm: %w", err)
 		}
@@ -446,16 +452,18 @@ func (r *CostRouteRepository) SaveGraph(ctx context.Context, headID int64, in *c
 						crm_rm_type,
 						crm_route_rm_name, crm_route_rm_item_code, crm_route_rm_shade_code, crm_route_rm_shade_name,
 						crm_route_rm_ratio, crm_uom_id, crm_sub_type, crm_notes,
+						crm_position_x, crm_position_y,
 						crm_created_by, crm_updated_by
 					) VALUES ($1,$2,NULLIF($3,0),NULLIF($4,''),NULLIF($5,''),$6,
 					          NULLIF($7,''),NULLIF($8,''),NULLIF($9,''),NULLIF($10,''),
-					          $11,NULLIF($12,0),NULLIF($13,''),NULLIF($14,''),$15,$15)
+					          $11,NULLIF($12,0),NULLIF($13,''),NULLIF($14,''),$15,$16,$17,$17)
 					RETURNING crm_rm_id`,
 					s.SeqID, s.ProductSysID,
 					rm.RmProductSysID, rm.RmItemCode, rm.RmGroupCode,
 					rm.RmType,
 					rm.RouteRmName, rm.RouteRmItemCode, rm.RouteRmShadeCode, rm.RouteRmShadeName,
 					rm.RouteRmRatio, rm.UomID, rm.SubType, rm.Notes,
+					rm.PositionX, rm.PositionY,
 					actor,
 				).Scan(&rm.RmID); err != nil {
 					return nil, fmt.Errorf("insert rm under seq %d: %w", s.SeqID, err)
@@ -468,13 +476,15 @@ func (r *CostRouteRepository) SaveGraph(ctx context.Context, headID int64, in *c
 						crm_route_rm_name=NULLIF($6,''), crm_route_rm_item_code=NULLIF($7,''),
 						crm_route_rm_shade_code=NULLIF($8,''), crm_route_rm_shade_name=NULLIF($9,''),
 						crm_route_rm_ratio=$10, crm_uom_id=NULLIF($11,0), crm_sub_type=NULLIF($12,''), crm_notes=NULLIF($13,''),
-						crm_updated_at=now(), crm_updated_by=$14
+						crm_position_x=$14, crm_position_y=$15,
+						crm_updated_at=now(), crm_updated_by=$16
 					WHERE crm_rm_id=$1`,
 					rm.RmID,
 					rm.RmProductSysID, rm.RmItemCode, rm.RmGroupCode,
 					rm.RmType,
 					rm.RouteRmName, rm.RouteRmItemCode, rm.RouteRmShadeCode, rm.RouteRmShadeName,
 					rm.RouteRmRatio, rm.UomID, rm.SubType, rm.Notes,
+					rm.PositionX, rm.PositionY,
 					actor,
 				); err != nil {
 					return nil, fmt.Errorf("update rm %d: %w", rm.RmID, err)
@@ -552,6 +562,51 @@ func (r *CostRouteRepository) DeleteHead(ctx context.Context, headID int64, acto
 }
 
 // ListHeads applies a paginated filter.
+// routeSortColumn maps a frontend sort key to a real cost_route_head column.
+// Every key here MUST appear in the proto ListRoutesRequest.sort_by in-list, or
+// the two silently diverge and sorting empties the list (L1 bug class).
+func routeSortColumn(sortBy string) string {
+	switch sortBy {
+	case "product_code":
+		return "p.cpm_product_code"
+	case sortKeyStatus:
+		return "h.crh_routing_status"
+	case "head_id":
+		return "h.crh_head_id"
+	case "version":
+		return "h.crh_version"
+	case "level_count":
+		return "agg.level_count"
+	case "rm_count":
+		return "agg.rm_count"
+	case sortKeyCreatedAt, "":
+		return "h.crh_created_at"
+	default:
+		return "h.crh_created_at"
+	}
+}
+
+// routeOrderBy builds the ORDER BY body. An empty sort key defaults to newest
+// first; otherwise the requested direction (asc default) is applied to the
+// mapped column. head_id is appended as a stable secondary tiebreaker.
+func routeOrderBy(sortBy, sortOrder string) string {
+	col := routeSortColumn(sortBy)
+	dir := sortASC
+	switch {
+	case strings.EqualFold(sortOrder, "desc"):
+		dir = sortDESC
+	case sortOrder == "" && sortBy == "":
+		dir = sortDESC
+	}
+	orderBy := col + " " + dir
+	if col != "h.crh_head_id" {
+		orderBy += ", h.crh_head_id " + sortASC
+	}
+	return orderBy
+}
+
+// ListHeads applies a search/filter and returns paginated route heads, each
+// with its level_count / rm_count read-time aggregates.
 func (r *CostRouteRepository) ListHeads(ctx context.Context, f costroute.Filter) ([]*costroute.Head, int64, error) { //nolint:gocognit,gocyclo // filter + pagination builder
 	where := []string{"h.crh_deleted_at IS NULL"}
 	args := []any{}
@@ -584,20 +639,7 @@ func (r *CostRouteRepository) ListHeads(ctx context.Context, f costroute.Filter)
 	}
 	offset := (page - 1) * pageSize
 
-	orderBy := "h.crh_created_at DESC"
-	switch f.SortBy {
-	case "product_code":
-		orderBy = "p.cpm_product_code"
-	case sortKeyStatus:
-		orderBy = "h.crh_routing_status"
-	case sortKeyCreatedAt, "":
-		orderBy = "h.crh_created_at"
-	}
-	if f.SortOrder == "desc" || (f.SortOrder == "" && f.SortBy == "") {
-		orderBy += " DESC"
-	} else if f.SortOrder == "asc" {
-		orderBy += " ASC"
-	}
+	orderBy := routeOrderBy(f.SortBy, f.SortOrder)
 
 	var total int64
 	if err := r.db.QueryRowContext(ctx, `SELECT count(*) FROM cost_route_head h LEFT JOIN cost_product_master p ON p.cpm_product_sys_id = h.crh_product_sys_id`+whereSQL, args...).Scan(&total); err != nil {
@@ -609,11 +651,19 @@ func (r *CostRouteRepository) ListHeads(ctx context.Context, f costroute.Filter)
 		       h.crh_routing_status, h.crh_version,
 		       COALESCE(h.crh_promoted_from_draft_id, 0), COALESCE(h.crh_cyl_type_id, 0),
 		       COALESCE(h.crh_notes, ''),
+		       COALESCE(agg.level_count, 0), COALESCE(agg.rm_count, 0),
 		       h.crh_created_at, h.crh_created_by, h.crh_updated_at, COALESCE(h.crh_updated_by, ''),
 		       COALESCE(h.crh_locked_by, ''), h.crh_locked_at,
 		       COALESCE(h.crh_unlocked_by, ''), h.crh_unlocked_at
 		FROM cost_route_head h
-		LEFT JOIN cost_product_master p ON p.cpm_product_sys_id = h.crh_product_sys_id` + whereSQL + ` ORDER BY ` + orderBy + fmt.Sprintf(" LIMIT $%d OFFSET $%d", idx, idx+1)
+		LEFT JOIN cost_product_master p ON p.cpm_product_sys_id = h.crh_product_sys_id
+		LEFT JOIN LATERAL (
+			SELECT COUNT(DISTINCT s.crs_route_level) AS level_count,
+			       COUNT(rm.crm_rm_id) AS rm_count
+			FROM cost_route_seq s
+			LEFT JOIN cost_route_rm rm ON rm.crm_seq_id = s.crs_seq_id
+			WHERE s.crs_head_id = h.crh_head_id AND s.crs_deleted_at IS NULL
+		) agg ON TRUE` + whereSQL + ` ORDER BY ` + orderBy + fmt.Sprintf(" LIMIT $%d OFFSET $%d", idx, idx+1)
 	args = append(args, pageSize, offset)
 	rows, err := r.db.QueryContext(ctx, listSQL, args...)
 	if err != nil {
@@ -631,6 +681,7 @@ func (r *CostRouteRepository) ListHeads(ctx context.Context, f costroute.Filter)
 		if err := rows.Scan(&h.HeadID, &h.ProductSysID, &h.ProductCode, &h.ProductName,
 			&h.RoutingStatus, &h.Version,
 			&h.PromotedFromDraftID, &h.CylTypeID, &h.Notes,
+			&h.LevelCount, &h.RmCount,
 			&h.CreatedAt, &h.CreatedBy, &h.UpdatedAt, &h.UpdatedBy,
 			&h.LockedBy, &lockedAt,
 			&h.UnlockedBy, &unlockedAt,
@@ -975,6 +1026,7 @@ func (r *CostRouteRepository) duplicateGraphTx( //nolint:gocognit,gocyclo // coh
 		rmType, name, itemCode, shadeC, shadeN, subT, notes string
 		ratio                                               float64
 		uomID                                               int32
+		posX, posY                                          float64
 	}
 	rmRows, err := tx.QueryContext(ctx, `
 		SELECT rm.crm_seq_id, rm.crm_parent_product_sys_id,
@@ -982,7 +1034,8 @@ func (r *CostRouteRepository) duplicateGraphTx( //nolint:gocognit,gocyclo // coh
 		       rm.crm_rm_type,
 		       COALESCE(rm.crm_route_rm_name,''), COALESCE(rm.crm_route_rm_item_code,''),
 		       COALESCE(rm.crm_route_rm_shade_code,''), COALESCE(rm.crm_route_rm_shade_name,''),
-		       rm.crm_route_rm_ratio, COALESCE(rm.crm_uom_id, 0), COALESCE(rm.crm_sub_type,''), COALESCE(rm.crm_notes,'')
+		       rm.crm_route_rm_ratio, COALESCE(rm.crm_uom_id, 0), COALESCE(rm.crm_sub_type,''), COALESCE(rm.crm_notes,''),
+		       COALESCE(rm.crm_position_x, 0), COALESCE(rm.crm_position_y, 0)
 		FROM cost_route_rm rm
 		JOIN cost_route_seq s ON s.crs_seq_id = rm.crm_seq_id
 		WHERE s.crs_head_id = $1`, sourceHeadID)
@@ -993,7 +1046,8 @@ func (r *CostRouteRepository) duplicateGraphTx( //nolint:gocognit,gocyclo // coh
 	for rmRows.Next() {
 		var rm srcRm
 		if err := rmRows.Scan(&rm.oldSeqID, &rm.parentProd, &rm.rmProd, &rm.itemC, &rm.groupC, &rm.rmType,
-			&rm.name, &rm.itemCode, &rm.shadeC, &rm.shadeN, &rm.ratio, &rm.uomID, &rm.subT, &rm.notes); err != nil {
+			&rm.name, &rm.itemCode, &rm.shadeC, &rm.shadeN, &rm.ratio, &rm.uomID, &rm.subT, &rm.notes,
+			&rm.posX, &rm.posY); err != nil {
 			if cerr := rmRows.Close(); cerr != nil {
 				_ = cerr
 			}
@@ -1032,12 +1086,14 @@ func (r *CostRouteRepository) duplicateGraphTx( //nolint:gocognit,gocyclo // coh
 				crm_rm_type,
 				crm_route_rm_name, crm_route_rm_item_code, crm_route_rm_shade_code, crm_route_rm_shade_name,
 				crm_route_rm_ratio, crm_uom_id, crm_sub_type, crm_notes,
+				crm_position_x, crm_position_y,
 				crm_created_by, crm_updated_by
 			) VALUES ($1,$2,$3,NULLIF($4,''),NULLIF($5,''),$6,
 			          NULLIF($7,''),NULLIF($8,''),NULLIF($9,''),NULLIF($10,''),
-			          $11,NULLIF($12,0)::integer,NULLIF($13,''),NULLIF($14,''),$15,$15)`,
+			          $11,NULLIF($12,0)::integer,NULLIF($13,''),NULLIF($14,''),$15,$16,$17,$17)`,
 			newSeqID, newParent, newRmProdSysID, rm.itemC, rm.groupC, rm.rmType,
-			rm.name, rm.itemCode, rm.shadeC, rm.shadeN, rm.ratio, rm.uomID, rm.subT, rm.notes, actor); err != nil {
+			rm.name, rm.itemCode, rm.shadeC, rm.shadeN, rm.ratio, rm.uomID, rm.subT, rm.notes,
+			rm.posX, rm.posY, actor); err != nil {
 			return fmt.Errorf("insert duplicated rm: %w", err)
 		}
 	}
