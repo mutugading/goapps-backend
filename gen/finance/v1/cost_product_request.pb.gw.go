@@ -400,6 +400,51 @@ func local_request_CostProductRequestService_DecideCostProductRequestFeasibility
 	return msg, metadata, err
 }
 
+func request_CostProductRequestService_SubmitAndDecideCostProductRequest_0(ctx context.Context, marshaler runtime.Marshaler, client CostProductRequestServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq SubmitAndDecideCostProductRequestRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	if req.Body != nil {
+		_, _ = io.Copy(io.Discard, req.Body)
+	}
+	val, ok := pathParams["request_id"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "request_id")
+	}
+	protoReq.RequestId, err = runtime.Int64(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "request_id", err)
+	}
+	msg, err := client.SubmitAndDecideCostProductRequest(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_CostProductRequestService_SubmitAndDecideCostProductRequest_0(ctx context.Context, marshaler runtime.Marshaler, server CostProductRequestServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq SubmitAndDecideCostProductRequestRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	val, ok := pathParams["request_id"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "request_id")
+	}
+	protoReq.RequestId, err = runtime.Int64(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "request_id", err)
+	}
+	msg, err := server.SubmitAndDecideCostProductRequest(ctx, &protoReq)
+	return msg, metadata, err
+}
+
 func request_CostProductRequestService_UseExistingCostingForCostProductRequest_0(ctx context.Context, marshaler runtime.Marshaler, client CostProductRequestServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var (
 		protoReq UseExistingCostingForCostProductRequestRequest
@@ -1108,6 +1153,89 @@ func local_request_CostProductRequestService_GetParamSummary_0(ctx context.Conte
 	return msg, metadata, err
 }
 
+var filter_CostProductRequestService_ExportCostProductRequests_0 = &utilities.DoubleArray{Encoding: map[string]int{}, Base: []int(nil), Check: []int(nil)}
+
+func request_CostProductRequestService_ExportCostProductRequests_0(ctx context.Context, marshaler runtime.Marshaler, client CostProductRequestServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq ExportCostProductRequestsRequest
+		metadata runtime.ServerMetadata
+	)
+	if req.Body != nil {
+		_, _ = io.Copy(io.Discard, req.Body)
+	}
+	if err := req.ParseForm(); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_CostProductRequestService_ExportCostProductRequests_0); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	msg, err := client.ExportCostProductRequests(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_CostProductRequestService_ExportCostProductRequests_0(ctx context.Context, marshaler runtime.Marshaler, server CostProductRequestServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq ExportCostProductRequestsRequest
+		metadata runtime.ServerMetadata
+	)
+	if err := req.ParseForm(); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_CostProductRequestService_ExportCostProductRequests_0); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	msg, err := server.ExportCostProductRequests(ctx, &protoReq)
+	return msg, metadata, err
+}
+
+func request_CostProductRequestService_ImportCostProductRequests_0(ctx context.Context, marshaler runtime.Marshaler, client CostProductRequestServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq ImportCostProductRequestsRequest
+		metadata runtime.ServerMetadata
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	if req.Body != nil {
+		_, _ = io.Copy(io.Discard, req.Body)
+	}
+	msg, err := client.ImportCostProductRequests(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_CostProductRequestService_ImportCostProductRequests_0(ctx context.Context, marshaler runtime.Marshaler, server CostProductRequestServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq ImportCostProductRequestsRequest
+		metadata runtime.ServerMetadata
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	msg, err := server.ImportCostProductRequests(ctx, &protoReq)
+	return msg, metadata, err
+}
+
+func request_CostProductRequestService_GetCostProductRequestImportTemplate_0(ctx context.Context, marshaler runtime.Marshaler, client CostProductRequestServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq GetCostProductRequestImportTemplateRequest
+		metadata runtime.ServerMetadata
+	)
+	if req.Body != nil {
+		_, _ = io.Copy(io.Discard, req.Body)
+	}
+	msg, err := client.GetCostProductRequestImportTemplate(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_CostProductRequestService_GetCostProductRequestImportTemplate_0(ctx context.Context, marshaler runtime.Marshaler, server CostProductRequestServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq GetCostProductRequestImportTemplateRequest
+		metadata runtime.ServerMetadata
+	)
+	msg, err := server.GetCostProductRequestImportTemplate(ctx, &protoReq)
+	return msg, metadata, err
+}
+
 // RegisterCostProductRequestServiceHandlerServer registers the http handlers for service CostProductRequestService to "mux".
 // UnaryRPC     :call CostProductRequestServiceServer directly.
 // StreamingRPC :currently unsupported pending https://github.com/grpc/grpc-go/issues/906.
@@ -1293,6 +1421,26 @@ func RegisterCostProductRequestServiceHandlerServer(ctx context.Context, mux *ru
 			return
 		}
 		forward_CostProductRequestService_DecideCostProductRequestFeasibility_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodPost, pattern_CostProductRequestService_SubmitAndDecideCostProductRequest_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/finance.v1.CostProductRequestService/SubmitAndDecideCostProductRequest", runtime.WithHTTPPathPattern("/api/v1/finance/cost-product-requests/{request_id}/submit-and-decide"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_CostProductRequestService_SubmitAndDecideCostProductRequest_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_CostProductRequestService_SubmitAndDecideCostProductRequest_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
 	mux.Handle(http.MethodPost, pattern_CostProductRequestService_UseExistingCostingForCostProductRequest_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
@@ -1614,6 +1762,66 @@ func RegisterCostProductRequestServiceHandlerServer(ctx context.Context, mux *ru
 		}
 		forward_CostProductRequestService_GetParamSummary_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
+	mux.Handle(http.MethodGet, pattern_CostProductRequestService_ExportCostProductRequests_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/finance.v1.CostProductRequestService/ExportCostProductRequests", runtime.WithHTTPPathPattern("/api/v1/finance/cost-product-requests/export"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_CostProductRequestService_ExportCostProductRequests_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_CostProductRequestService_ExportCostProductRequests_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodPost, pattern_CostProductRequestService_ImportCostProductRequests_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/finance.v1.CostProductRequestService/ImportCostProductRequests", runtime.WithHTTPPathPattern("/api/v1/finance/cost-product-requests/import"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_CostProductRequestService_ImportCostProductRequests_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_CostProductRequestService_ImportCostProductRequests_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodGet, pattern_CostProductRequestService_GetCostProductRequestImportTemplate_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/finance.v1.CostProductRequestService/GetCostProductRequestImportTemplate", runtime.WithHTTPPathPattern("/api/v1/finance/cost-product-requests/template"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_CostProductRequestService_GetCostProductRequestImportTemplate_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_CostProductRequestService_GetCostProductRequestImportTemplate_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
 
 	return nil
 }
@@ -1806,6 +2014,23 @@ func RegisterCostProductRequestServiceHandlerClient(ctx context.Context, mux *ru
 			return
 		}
 		forward_CostProductRequestService_DecideCostProductRequestFeasibility_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodPost, pattern_CostProductRequestService_SubmitAndDecideCostProductRequest_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/finance.v1.CostProductRequestService/SubmitAndDecideCostProductRequest", runtime.WithHTTPPathPattern("/api/v1/finance/cost-product-requests/{request_id}/submit-and-decide"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_CostProductRequestService_SubmitAndDecideCostProductRequest_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_CostProductRequestService_SubmitAndDecideCostProductRequest_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
 	mux.Handle(http.MethodPost, pattern_CostProductRequestService_UseExistingCostingForCostProductRequest_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
@@ -2079,6 +2304,57 @@ func RegisterCostProductRequestServiceHandlerClient(ctx context.Context, mux *ru
 		}
 		forward_CostProductRequestService_GetParamSummary_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
+	mux.Handle(http.MethodGet, pattern_CostProductRequestService_ExportCostProductRequests_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/finance.v1.CostProductRequestService/ExportCostProductRequests", runtime.WithHTTPPathPattern("/api/v1/finance/cost-product-requests/export"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_CostProductRequestService_ExportCostProductRequests_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_CostProductRequestService_ExportCostProductRequests_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodPost, pattern_CostProductRequestService_ImportCostProductRequests_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/finance.v1.CostProductRequestService/ImportCostProductRequests", runtime.WithHTTPPathPattern("/api/v1/finance/cost-product-requests/import"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_CostProductRequestService_ImportCostProductRequests_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_CostProductRequestService_ImportCostProductRequests_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodGet, pattern_CostProductRequestService_GetCostProductRequestImportTemplate_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/finance.v1.CostProductRequestService/GetCostProductRequestImportTemplate", runtime.WithHTTPPathPattern("/api/v1/finance/cost-product-requests/template"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_CostProductRequestService_GetCostProductRequestImportTemplate_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_CostProductRequestService_GetCostProductRequestImportTemplate_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
 	return nil
 }
 
@@ -2092,6 +2368,7 @@ var (
 	pattern_CostProductRequestService_StartCostProductRequestReview_0           = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5}, []string{"api", "v1", "finance", "cost-product-requests", "request_id", "start-review"}, ""))
 	pattern_CostProductRequestService_VerifyCostProductRequestClassification_0  = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5}, []string{"api", "v1", "finance", "cost-product-requests", "request_id", "verify-classification"}, ""))
 	pattern_CostProductRequestService_DecideCostProductRequestFeasibility_0     = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5}, []string{"api", "v1", "finance", "cost-product-requests", "request_id", "decide-feasibility"}, ""))
+	pattern_CostProductRequestService_SubmitAndDecideCostProductRequest_0       = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5}, []string{"api", "v1", "finance", "cost-product-requests", "request_id", "submit-and-decide"}, ""))
 	pattern_CostProductRequestService_UseExistingCostingForCostProductRequest_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5}, []string{"api", "v1", "finance", "cost-product-requests", "request_id", "use-existing-costing"}, ""))
 	pattern_CostProductRequestService_RejectCostProductRequest_0                = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5}, []string{"api", "v1", "finance", "cost-product-requests", "request_id", "reject"}, ""))
 	pattern_CostProductRequestService_ReviseCostProductRequest_0                = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5}, []string{"api", "v1", "finance", "cost-product-requests", "request_id", "revise"}, ""))
@@ -2108,6 +2385,9 @@ var (
 	pattern_CostProductRequestService_ReleaseCostProductRequest_0               = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5}, []string{"api", "v1", "finance", "cost-product-requests", "request_id", "release"}, ""))
 	pattern_CostProductRequestService_GetCostProductRequestHistory_0            = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5}, []string{"api", "v1", "finance", "cost-product-requests", "request_id", "history"}, ""))
 	pattern_CostProductRequestService_GetParamSummary_0                         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5}, []string{"api", "v1", "finance", "cost-product-requests", "request_id", "param-summary"}, ""))
+	pattern_CostProductRequestService_ExportCostProductRequests_0               = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"api", "v1", "finance", "cost-product-requests", "export"}, ""))
+	pattern_CostProductRequestService_ImportCostProductRequests_0               = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"api", "v1", "finance", "cost-product-requests", "import"}, ""))
+	pattern_CostProductRequestService_GetCostProductRequestImportTemplate_0     = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"api", "v1", "finance", "cost-product-requests", "template"}, ""))
 )
 
 var (
@@ -2120,6 +2400,7 @@ var (
 	forward_CostProductRequestService_StartCostProductRequestReview_0           = runtime.ForwardResponseMessage
 	forward_CostProductRequestService_VerifyCostProductRequestClassification_0  = runtime.ForwardResponseMessage
 	forward_CostProductRequestService_DecideCostProductRequestFeasibility_0     = runtime.ForwardResponseMessage
+	forward_CostProductRequestService_SubmitAndDecideCostProductRequest_0       = runtime.ForwardResponseMessage
 	forward_CostProductRequestService_UseExistingCostingForCostProductRequest_0 = runtime.ForwardResponseMessage
 	forward_CostProductRequestService_RejectCostProductRequest_0                = runtime.ForwardResponseMessage
 	forward_CostProductRequestService_ReviseCostProductRequest_0                = runtime.ForwardResponseMessage
@@ -2136,4 +2417,7 @@ var (
 	forward_CostProductRequestService_ReleaseCostProductRequest_0               = runtime.ForwardResponseMessage
 	forward_CostProductRequestService_GetCostProductRequestHistory_0            = runtime.ForwardResponseMessage
 	forward_CostProductRequestService_GetParamSummary_0                         = runtime.ForwardResponseMessage
+	forward_CostProductRequestService_ExportCostProductRequests_0               = runtime.ForwardResponseMessage
+	forward_CostProductRequestService_ImportCostProductRequests_0               = runtime.ForwardResponseMessage
+	forward_CostProductRequestService_GetCostProductRequestImportTemplate_0     = runtime.ForwardResponseMessage
 )

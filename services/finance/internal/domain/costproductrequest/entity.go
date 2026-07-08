@@ -10,9 +10,12 @@ import (
 
 // allowedUrgency / allowedClassification / allowedSubstatus checks.
 var (
-	allowedClassification = map[string]struct{}{ClassExisting: {}, ClassNew: {}}
-	allowedUrgency        = map[string]struct{}{UrgencyLow: {}, UrgencyMedium: {}, UrgencyHigh: {}}
-	allowedSubstatus      = map[string]struct{}{ClosedWon: {}, ClosedLost: {}, ClosedCancelled: {}, ClosedOnHold: {}}
+	allowedClassification = map[string]struct{}{ClassExisting: {}, ClassNew: {}, ClassPending: {}}
+	// allowedVerifiedClassification restricts VerifyClassification's verified value —
+	// "pending" is a legal base classification but never a legal verified value.
+	allowedVerifiedClassification = map[string]struct{}{ClassExisting: {}, ClassNew: {}}
+	allowedUrgency                = map[string]struct{}{UrgencyLow: {}, UrgencyMedium: {}, UrgencyHigh: {}}
+	allowedSubstatus              = map[string]struct{}{ClosedWon: {}, ClosedLost: {}, ClosedCancelled: {}, ClosedOnHold: {}}
 )
 
 // Request is the aggregate root.
@@ -20,6 +23,7 @@ type Request struct {
 	requestID                    int64
 	requestNo                    string // assigned by repo via generate_cost_request_no()
 	requestTypeID                int32
+	requestTypeCode              string
 	title                        string
 	description                  string
 	customerName                 string
@@ -46,8 +50,14 @@ type Request struct {
 	// LinkedRouteHeadID is the FK to the unified routing head currently attached
 	// to this request (0 = unlinked). Set by LinkRoute, cleared by UnlinkRoute.
 	linkedRouteHeadID int64
-	createdAt         time.Time
-	updatedAt         time.Time
+	// referenceProductSysID is an optional reviewer-facing hint pointing at an
+	// existing cost_product_master row similar to this request, set at
+	// create/edit time to prefill routing suggestions during review (0 =
+	// unset). Distinct from existingProductSysID, which records the product
+	// whose costing was actually reused once classification is verified.
+	referenceProductSysID int64
+	createdAt             time.Time
+	updatedAt             time.Time
 
 	// Optional embedded spec (when productClassification = new).
 	spec *Spec
@@ -67,6 +77,7 @@ type NewInput struct {
 	NeededByDate          string
 	RequesterUserID       string
 	Spec                  *SpecInput // required iff classification = new
+	ReferenceProductSysID int64      // optional; 0 = unset
 }
 
 // New constructs a request in the DRAFT state.
@@ -87,12 +98,19 @@ func New(in NewInput) (*Request, error) {
 	if _, ok := allowedUrgency[urgency]; !ok {
 		return nil, ErrInvalidUrgency
 	}
-	// Spec presence rule.
-	if in.ProductClassification == ClassNew && in.Spec == nil {
-		return nil, ErrSpecRequired
+	if err := validateReferenceProductSysID(&in.ReferenceProductSysID); err != nil {
+		return nil, err
 	}
-	if in.ProductClassification == ClassExisting && in.Spec != nil {
-		return nil, ErrSpecNotAllowed
+	// Spec presence rule — only enforced for existing|new; pending leaves spec optional.
+	switch in.ProductClassification {
+	case ClassNew:
+		if in.Spec == nil {
+			return nil, ErrSpecRequired
+		}
+	case ClassExisting:
+		if in.Spec != nil {
+			return nil, ErrSpecNotAllowed
+		}
 	}
 	if in.Spec != nil {
 		if err := in.Spec.Validate(); err != nil {
@@ -113,6 +131,7 @@ func New(in NewInput) (*Request, error) {
 		neededByDate:          strings.TrimSpace(in.NeededByDate),
 		status:                StatusDraft,
 		requesterUserID:       in.RequesterUserID,
+		referenceProductSysID: in.ReferenceProductSysID,
 		createdAt:             now,
 		updatedAt:             now,
 	}
@@ -128,6 +147,7 @@ type ReconstructInput struct {
 	RequestID                    int64
 	RequestNo                    string
 	RequestTypeID                int32
+	RequestTypeCode              string
 	Title                        string
 	Description                  string
 	CustomerName                 string
@@ -151,6 +171,7 @@ type ReconstructInput struct {
 	RequesterUserID              string
 	ExistingProductSysID         int64
 	LinkedRouteHeadID            int64
+	ReferenceProductSysID        int64
 	CreatedAt                    time.Time
 	UpdatedAt                    time.Time
 	Spec                         *Spec
@@ -162,6 +183,7 @@ func Reconstruct(in ReconstructInput) *Request {
 		requestID:                    in.RequestID,
 		requestNo:                    in.RequestNo,
 		requestTypeID:                in.RequestTypeID,
+		requestTypeCode:              in.RequestTypeCode,
 		title:                        in.Title,
 		description:                  in.Description,
 		customerName:                 in.CustomerName,
@@ -185,6 +207,7 @@ func Reconstruct(in ReconstructInput) *Request {
 		requesterUserID:              in.RequesterUserID,
 		existingProductSysID:         in.ExistingProductSysID,
 		linkedRouteHeadID:            in.LinkedRouteHeadID,
+		referenceProductSysID:        in.ReferenceProductSysID,
 		createdAt:                    in.CreatedAt,
 		updatedAt:                    in.UpdatedAt,
 		spec:                         in.Spec,
@@ -220,6 +243,52 @@ type UpdateInput struct {
 	UrgencyLevel          string
 	NeededByDate          string
 	Spec                  *SpecInput
+	// ReferenceProductSysID follows the same pointer-optional convention as
+	// Spec: nil leaves/clears the reference (stored as 0 = unset), a non-nil
+	// value (which must be >= 0) replaces it.
+	ReferenceProductSysID *int64
+}
+
+// validateUpdateInput checks the DRAFT-mode invariants shared by Update
+// before any field is mutated, returning the resolved urgency level on
+// success. Extracted from Update to keep its cognitive/cyclomatic
+// complexity under the linter thresholds.
+func validateUpdateInput(in UpdateInput) (string, error) {
+	if strings.TrimSpace(in.Title) == "" {
+		return "", ErrInvalidTitle
+	}
+	if strings.TrimSpace(in.CustomerName) == "" {
+		return "", ErrInvalidCustomerName
+	}
+	if _, ok := allowedClassification[in.ProductClassification]; !ok {
+		return "", ErrInvalidClassification
+	}
+	urgency := in.UrgencyLevel
+	if urgency == "" {
+		urgency = UrgencyMedium
+	}
+	if _, ok := allowedUrgency[urgency]; !ok {
+		return "", ErrInvalidUrgency
+	}
+	if err := validateReferenceProductSysID(in.ReferenceProductSysID); err != nil {
+		return "", err
+	}
+	switch in.ProductClassification {
+	case ClassNew:
+		if in.Spec == nil {
+			return "", ErrSpecRequired
+		}
+	case ClassExisting:
+		if in.Spec != nil {
+			return "", ErrSpecNotAllowed
+		}
+	}
+	if in.Spec != nil {
+		if err := in.Spec.Validate(); err != nil {
+			return "", err
+		}
+	}
+	return urgency, nil
 }
 
 // Update mutates DRAFT fields. Allowed only while status = DRAFT.
@@ -227,32 +296,9 @@ func (r *Request) Update(in UpdateInput) error {
 	if r.status != StatusDraft {
 		return ErrInvalidTransition
 	}
-	if strings.TrimSpace(in.Title) == "" {
-		return ErrInvalidTitle
-	}
-	if strings.TrimSpace(in.CustomerName) == "" {
-		return ErrInvalidCustomerName
-	}
-	if _, ok := allowedClassification[in.ProductClassification]; !ok {
-		return ErrInvalidClassification
-	}
-	urgency := in.UrgencyLevel
-	if urgency == "" {
-		urgency = UrgencyMedium
-	}
-	if _, ok := allowedUrgency[urgency]; !ok {
-		return ErrInvalidUrgency
-	}
-	if in.ProductClassification == ClassNew && in.Spec == nil {
-		return ErrSpecRequired
-	}
-	if in.ProductClassification == ClassExisting && in.Spec != nil {
-		return ErrSpecNotAllowed
-	}
-	if in.Spec != nil {
-		if err := in.Spec.Validate(); err != nil {
-			return err
-		}
+	urgency, err := validateUpdateInput(in)
+	if err != nil {
+		return err
 	}
 	r.title = strings.TrimSpace(in.Title)
 	r.description = strings.TrimSpace(in.Description)
@@ -263,6 +309,7 @@ func (r *Request) Update(in UpdateInput) error {
 	r.targetPriceRange = strings.TrimSpace(in.TargetPriceRange)
 	r.urgencyLevel = urgency
 	r.neededByDate = strings.TrimSpace(in.NeededByDate)
+	r.applyReferenceProductSysID(in.ReferenceProductSysID)
 	r.touch()
 	if in.Spec == nil {
 		r.spec = nil
@@ -304,10 +351,10 @@ func (r *Request) StartReview() error {
 // VerifyClassification sets verified_classification + (required) override_reason if it differs.
 // Does NOT advance state on its own.
 func (r *Request) VerifyClassification(verified, reason string) error {
-	if _, ok := allowedClassification[verified]; !ok {
+	if _, ok := allowedVerifiedClassification[verified]; !ok {
 		return ErrInvalidVerified
 	}
-	if verified != r.productClassification && strings.TrimSpace(reason) == "" {
+	if verified != r.productClassification && r.productClassification != ClassPending && strings.TrimSpace(reason) == "" {
 		return ErrOverrideReasonRequired
 	}
 	r.verifiedClassification = verified
@@ -325,6 +372,9 @@ func (r *Request) DecideFeasibility(decision, note, actor string) error {
 	if r.status != StatusUnderReview {
 		return ErrInvalidTransition
 	}
+	if err := r.resolveVerifiedClassification(); err != nil {
+		return err
+	}
 	switch decision {
 	case FeasibilityFeasible:
 		if !canTransition(r.status, StatusRoutingDefined) {
@@ -335,10 +385,6 @@ func (r *Request) DecideFeasibility(decision, note, actor string) error {
 		r.feasibilityBy = actor
 		now := time.Now().UTC()
 		r.feasibilityAt = &now
-		// Preserve original classification; only override when explicitly verified.
-		if r.verifiedClassification == "" {
-			r.verifiedClassification = r.productClassification
-		}
 		r.status = StatusRoutingDefined
 	case FeasibilityNotFeasible:
 		if strings.TrimSpace(note) == "" {
@@ -352,15 +398,28 @@ func (r *Request) DecideFeasibility(decision, note, actor string) error {
 		r.feasibilityBy = actor
 		now := time.Now().UTC()
 		r.feasibilityAt = &now
-		if r.verifiedClassification == "" {
-			r.verifiedClassification = r.productClassification
-		}
 		r.status = StatusRejected
 		r.rejectReason = strings.TrimSpace(note)
 	default:
 		return ErrInvalidFeasibility
 	}
 	r.touch()
+	return nil
+}
+
+// resolveVerifiedClassification preserves the original classification into
+// verifiedClassification when it has not been explicitly verified yet. It
+// rejects the transition if the underlying classification is still
+// ClassPending — persisting "pending" into verified_classification would
+// violate chk_cpr_verified_classification, which only allows existing|new.
+func (r *Request) resolveVerifiedClassification() error {
+	if r.verifiedClassification != "" && r.verifiedClassification != ClassPending {
+		return nil
+	}
+	if r.productClassification == ClassPending {
+		return ErrClassificationNotVerified
+	}
+	r.verifiedClassification = r.productClassification
 	return nil
 }
 
@@ -391,6 +450,10 @@ func (r *Request) ExistingProductSysID() int64 { return r.existingProductSysID }
 
 // LinkedRouteHeadID returns the linked route head id or 0 if not linked.
 func (r *Request) LinkedRouteHeadID() int64 { return r.linkedRouteHeadID }
+
+// ReferenceProductSysID returns the optional reference product master hint
+// (0 = unset).
+func (r *Request) ReferenceProductSysID() int64 { return r.referenceProductSysID }
 
 // LinkRoute attaches a route head to this request. Allowed only while the request
 // is still in a pre-terminal state. Idempotent re-link is allowed.
@@ -570,6 +633,24 @@ func (r *Request) Assign(assignee string) error {
 
 func (r *Request) touch() { r.updatedAt = time.Now().UTC() }
 
+// validateReferenceProductSysID enforces the shared New()/Update() rule for
+// the optional reference_product_sys_id: nil is always valid (unset/no
+// change), a non-nil value must be zero or positive.
+func validateReferenceProductSysID(v *int64) error {
+	if v != nil && *v < 0 {
+		return ErrInvalidReferenceProduct
+	}
+	return nil
+}
+
+// applyReferenceProductSysID mutates referenceProductSysID following the
+// pointer-optional convention: nil leaves the current value unchanged.
+func (r *Request) applyReferenceProductSysID(v *int64) {
+	if v != nil {
+		r.referenceProductSysID = *v
+	}
+}
+
 // =============================================================================
 // Accessors (immutable view).
 // =============================================================================
@@ -582,6 +663,9 @@ func (r *Request) RequestNo() string { return r.requestNo }
 
 // RequestTypeID returns the request type id.
 func (r *Request) RequestTypeID() int32 { return r.requestTypeID }
+
+// RequestTypeCode returns the request type code (joined from cost_request_type).
+func (r *Request) RequestTypeCode() string { return r.requestTypeCode }
 
 // Title returns the title.
 func (r *Request) Title() string { return r.title }

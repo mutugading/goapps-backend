@@ -28,6 +28,7 @@ const (
 	CostProductRequestService_StartCostProductRequestReview_FullMethodName           = "/finance.v1.CostProductRequestService/StartCostProductRequestReview"
 	CostProductRequestService_VerifyCostProductRequestClassification_FullMethodName  = "/finance.v1.CostProductRequestService/VerifyCostProductRequestClassification"
 	CostProductRequestService_DecideCostProductRequestFeasibility_FullMethodName     = "/finance.v1.CostProductRequestService/DecideCostProductRequestFeasibility"
+	CostProductRequestService_SubmitAndDecideCostProductRequest_FullMethodName       = "/finance.v1.CostProductRequestService/SubmitAndDecideCostProductRequest"
 	CostProductRequestService_UseExistingCostingForCostProductRequest_FullMethodName = "/finance.v1.CostProductRequestService/UseExistingCostingForCostProductRequest"
 	CostProductRequestService_RejectCostProductRequest_FullMethodName                = "/finance.v1.CostProductRequestService/RejectCostProductRequest"
 	CostProductRequestService_ReviseCostProductRequest_FullMethodName                = "/finance.v1.CostProductRequestService/ReviseCostProductRequest"
@@ -44,6 +45,9 @@ const (
 	CostProductRequestService_ReleaseCostProductRequest_FullMethodName               = "/finance.v1.CostProductRequestService/ReleaseCostProductRequest"
 	CostProductRequestService_GetCostProductRequestHistory_FullMethodName            = "/finance.v1.CostProductRequestService/GetCostProductRequestHistory"
 	CostProductRequestService_GetParamSummary_FullMethodName                         = "/finance.v1.CostProductRequestService/GetParamSummary"
+	CostProductRequestService_ExportCostProductRequests_FullMethodName               = "/finance.v1.CostProductRequestService/ExportCostProductRequests"
+	CostProductRequestService_ImportCostProductRequests_FullMethodName               = "/finance.v1.CostProductRequestService/ImportCostProductRequests"
+	CostProductRequestService_GetCostProductRequestImportTemplate_FullMethodName     = "/finance.v1.CostProductRequestService/GetCostProductRequestImportTemplate"
 )
 
 // CostProductRequestServiceClient is the client API for CostProductRequestService service.
@@ -59,6 +63,10 @@ type CostProductRequestServiceClient interface {
 	StartCostProductRequestReview(ctx context.Context, in *StartCostProductRequestReviewRequest, opts ...grpc.CallOption) (*StartCostProductRequestReviewResponse, error)
 	VerifyCostProductRequestClassification(ctx context.Context, in *VerifyCostProductRequestClassificationRequest, opts ...grpc.CallOption) (*VerifyCostProductRequestClassificationResponse, error)
 	DecideCostProductRequestFeasibility(ctx context.Context, in *DecideCostProductRequestFeasibilityRequest, opts ...grpc.CallOption) (*DecideCostProductRequestFeasibilityResponse, error)
+	// SubmitAndDecideCostProductRequest merges Submit + Start-review + Verify
+	// classification + Decide feasibility + (when feasible) Link route into a
+	// single action (design.md §3 B3).
+	SubmitAndDecideCostProductRequest(ctx context.Context, in *SubmitAndDecideCostProductRequestRequest, opts ...grpc.CallOption) (*SubmitAndDecideCostProductRequestResponse, error)
 	UseExistingCostingForCostProductRequest(ctx context.Context, in *UseExistingCostingForCostProductRequestRequest, opts ...grpc.CallOption) (*UseExistingCostingForCostProductRequestResponse, error)
 	RejectCostProductRequest(ctx context.Context, in *RejectCostProductRequestRequest, opts ...grpc.CallOption) (*RejectCostProductRequestResponse, error)
 	ReviseCostProductRequest(ctx context.Context, in *ReviseCostProductRequestRequest, opts ...grpc.CallOption) (*ReviseCostProductRequestResponse, error)
@@ -89,6 +97,13 @@ type CostProductRequestServiceClient interface {
 	// GetParamSummary returns all param values for the request grouped by product
 	// and fill level. Used by ParamSummaryPanel and ConfirmActionDialog.
 	GetParamSummary(ctx context.Context, in *GetParamSummaryRequest, opts ...grpc.CallOption) (*GetParamSummaryResponse, error)
+	// ExportCostProductRequests exports cost product requests to Excel file.
+	ExportCostProductRequests(ctx context.Context, in *ExportCostProductRequestsRequest, opts ...grpc.CallOption) (*ExportCostProductRequestsResponse, error)
+	// ImportCostProductRequests imports cost product requests from Excel file.
+	// Create-only: every row creates a new DRAFT request, no dedup/merge.
+	ImportCostProductRequests(ctx context.Context, in *ImportCostProductRequestsRequest, opts ...grpc.CallOption) (*ImportCostProductRequestsResponse, error)
+	// GetCostProductRequestImportTemplate downloads the Excel import template.
+	GetCostProductRequestImportTemplate(ctx context.Context, in *GetCostProductRequestImportTemplateRequest, opts ...grpc.CallOption) (*GetCostProductRequestImportTemplateResponse, error)
 }
 
 type costProductRequestServiceClient struct {
@@ -183,6 +198,16 @@ func (c *costProductRequestServiceClient) DecideCostProductRequestFeasibility(ct
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DecideCostProductRequestFeasibilityResponse)
 	err := c.cc.Invoke(ctx, CostProductRequestService_DecideCostProductRequestFeasibility_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *costProductRequestServiceClient) SubmitAndDecideCostProductRequest(ctx context.Context, in *SubmitAndDecideCostProductRequestRequest, opts ...grpc.CallOption) (*SubmitAndDecideCostProductRequestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SubmitAndDecideCostProductRequestResponse)
+	err := c.cc.Invoke(ctx, CostProductRequestService_SubmitAndDecideCostProductRequest_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -349,6 +374,36 @@ func (c *costProductRequestServiceClient) GetParamSummary(ctx context.Context, i
 	return out, nil
 }
 
+func (c *costProductRequestServiceClient) ExportCostProductRequests(ctx context.Context, in *ExportCostProductRequestsRequest, opts ...grpc.CallOption) (*ExportCostProductRequestsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExportCostProductRequestsResponse)
+	err := c.cc.Invoke(ctx, CostProductRequestService_ExportCostProductRequests_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *costProductRequestServiceClient) ImportCostProductRequests(ctx context.Context, in *ImportCostProductRequestsRequest, opts ...grpc.CallOption) (*ImportCostProductRequestsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ImportCostProductRequestsResponse)
+	err := c.cc.Invoke(ctx, CostProductRequestService_ImportCostProductRequests_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *costProductRequestServiceClient) GetCostProductRequestImportTemplate(ctx context.Context, in *GetCostProductRequestImportTemplateRequest, opts ...grpc.CallOption) (*GetCostProductRequestImportTemplateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetCostProductRequestImportTemplateResponse)
+	err := c.cc.Invoke(ctx, CostProductRequestService_GetCostProductRequestImportTemplate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CostProductRequestServiceServer is the server API for CostProductRequestService service.
 // All implementations must embed UnimplementedCostProductRequestServiceServer
 // for forward compatibility.
@@ -362,6 +417,10 @@ type CostProductRequestServiceServer interface {
 	StartCostProductRequestReview(context.Context, *StartCostProductRequestReviewRequest) (*StartCostProductRequestReviewResponse, error)
 	VerifyCostProductRequestClassification(context.Context, *VerifyCostProductRequestClassificationRequest) (*VerifyCostProductRequestClassificationResponse, error)
 	DecideCostProductRequestFeasibility(context.Context, *DecideCostProductRequestFeasibilityRequest) (*DecideCostProductRequestFeasibilityResponse, error)
+	// SubmitAndDecideCostProductRequest merges Submit + Start-review + Verify
+	// classification + Decide feasibility + (when feasible) Link route into a
+	// single action (design.md §3 B3).
+	SubmitAndDecideCostProductRequest(context.Context, *SubmitAndDecideCostProductRequestRequest) (*SubmitAndDecideCostProductRequestResponse, error)
 	UseExistingCostingForCostProductRequest(context.Context, *UseExistingCostingForCostProductRequestRequest) (*UseExistingCostingForCostProductRequestResponse, error)
 	RejectCostProductRequest(context.Context, *RejectCostProductRequestRequest) (*RejectCostProductRequestResponse, error)
 	ReviseCostProductRequest(context.Context, *ReviseCostProductRequestRequest) (*ReviseCostProductRequestResponse, error)
@@ -392,6 +451,13 @@ type CostProductRequestServiceServer interface {
 	// GetParamSummary returns all param values for the request grouped by product
 	// and fill level. Used by ParamSummaryPanel and ConfirmActionDialog.
 	GetParamSummary(context.Context, *GetParamSummaryRequest) (*GetParamSummaryResponse, error)
+	// ExportCostProductRequests exports cost product requests to Excel file.
+	ExportCostProductRequests(context.Context, *ExportCostProductRequestsRequest) (*ExportCostProductRequestsResponse, error)
+	// ImportCostProductRequests imports cost product requests from Excel file.
+	// Create-only: every row creates a new DRAFT request, no dedup/merge.
+	ImportCostProductRequests(context.Context, *ImportCostProductRequestsRequest) (*ImportCostProductRequestsResponse, error)
+	// GetCostProductRequestImportTemplate downloads the Excel import template.
+	GetCostProductRequestImportTemplate(context.Context, *GetCostProductRequestImportTemplateRequest) (*GetCostProductRequestImportTemplateResponse, error)
 	mustEmbedUnimplementedCostProductRequestServiceServer()
 }
 
@@ -428,6 +494,9 @@ func (UnimplementedCostProductRequestServiceServer) VerifyCostProductRequestClas
 }
 func (UnimplementedCostProductRequestServiceServer) DecideCostProductRequestFeasibility(context.Context, *DecideCostProductRequestFeasibilityRequest) (*DecideCostProductRequestFeasibilityResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DecideCostProductRequestFeasibility not implemented")
+}
+func (UnimplementedCostProductRequestServiceServer) SubmitAndDecideCostProductRequest(context.Context, *SubmitAndDecideCostProductRequestRequest) (*SubmitAndDecideCostProductRequestResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SubmitAndDecideCostProductRequest not implemented")
 }
 func (UnimplementedCostProductRequestServiceServer) UseExistingCostingForCostProductRequest(context.Context, *UseExistingCostingForCostProductRequestRequest) (*UseExistingCostingForCostProductRequestResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UseExistingCostingForCostProductRequest not implemented")
@@ -476,6 +545,15 @@ func (UnimplementedCostProductRequestServiceServer) GetCostProductRequestHistory
 }
 func (UnimplementedCostProductRequestServiceServer) GetParamSummary(context.Context, *GetParamSummaryRequest) (*GetParamSummaryResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetParamSummary not implemented")
+}
+func (UnimplementedCostProductRequestServiceServer) ExportCostProductRequests(context.Context, *ExportCostProductRequestsRequest) (*ExportCostProductRequestsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ExportCostProductRequests not implemented")
+}
+func (UnimplementedCostProductRequestServiceServer) ImportCostProductRequests(context.Context, *ImportCostProductRequestsRequest) (*ImportCostProductRequestsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ImportCostProductRequests not implemented")
+}
+func (UnimplementedCostProductRequestServiceServer) GetCostProductRequestImportTemplate(context.Context, *GetCostProductRequestImportTemplateRequest) (*GetCostProductRequestImportTemplateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetCostProductRequestImportTemplate not implemented")
 }
 func (UnimplementedCostProductRequestServiceServer) mustEmbedUnimplementedCostProductRequestServiceServer() {
 }
@@ -657,6 +735,24 @@ func _CostProductRequestService_DecideCostProductRequestFeasibility_Handler(srv 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(CostProductRequestServiceServer).DecideCostProductRequestFeasibility(ctx, req.(*DecideCostProductRequestFeasibilityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CostProductRequestService_SubmitAndDecideCostProductRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SubmitAndDecideCostProductRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CostProductRequestServiceServer).SubmitAndDecideCostProductRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CostProductRequestService_SubmitAndDecideCostProductRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CostProductRequestServiceServer).SubmitAndDecideCostProductRequest(ctx, req.(*SubmitAndDecideCostProductRequestRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -949,6 +1045,60 @@ func _CostProductRequestService_GetParamSummary_Handler(srv interface{}, ctx con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CostProductRequestService_ExportCostProductRequests_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExportCostProductRequestsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CostProductRequestServiceServer).ExportCostProductRequests(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CostProductRequestService_ExportCostProductRequests_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CostProductRequestServiceServer).ExportCostProductRequests(ctx, req.(*ExportCostProductRequestsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CostProductRequestService_ImportCostProductRequests_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ImportCostProductRequestsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CostProductRequestServiceServer).ImportCostProductRequests(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CostProductRequestService_ImportCostProductRequests_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CostProductRequestServiceServer).ImportCostProductRequests(ctx, req.(*ImportCostProductRequestsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CostProductRequestService_GetCostProductRequestImportTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCostProductRequestImportTemplateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CostProductRequestServiceServer).GetCostProductRequestImportTemplate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CostProductRequestService_GetCostProductRequestImportTemplate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CostProductRequestServiceServer).GetCostProductRequestImportTemplate(ctx, req.(*GetCostProductRequestImportTemplateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CostProductRequestService_ServiceDesc is the grpc.ServiceDesc for CostProductRequestService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -991,6 +1141,10 @@ var CostProductRequestService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DecideCostProductRequestFeasibility",
 			Handler:    _CostProductRequestService_DecideCostProductRequestFeasibility_Handler,
+		},
+		{
+			MethodName: "SubmitAndDecideCostProductRequest",
+			Handler:    _CostProductRequestService_SubmitAndDecideCostProductRequest_Handler,
 		},
 		{
 			MethodName: "UseExistingCostingForCostProductRequest",
@@ -1055,6 +1209,18 @@ var CostProductRequestService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetParamSummary",
 			Handler:    _CostProductRequestService_GetParamSummary_Handler,
+		},
+		{
+			MethodName: "ExportCostProductRequests",
+			Handler:    _CostProductRequestService_ExportCostProductRequests_Handler,
+		},
+		{
+			MethodName: "ImportCostProductRequests",
+			Handler:    _CostProductRequestService_ImportCostProductRequests_Handler,
+		},
+		{
+			MethodName: "GetCostProductRequestImportTemplate",
+			Handler:    _CostProductRequestService_GetCostProductRequestImportTemplate_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

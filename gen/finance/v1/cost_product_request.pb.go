@@ -24,22 +24,85 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// TubeType represents the fixed Paper/Plastic tube classification for a
+// product spec, replacing the old master-data-backed paper_tube_type_id lookup.
+type TubeType int32
+
+const (
+	// Default unspecified value - used when no tube type has been selected.
+	TubeType_TUBE_TYPE_UNSPECIFIED TubeType = 0
+	// Paper tube.
+	TubeType_TUBE_TYPE_PAPER TubeType = 1
+	// Plastic tube.
+	TubeType_TUBE_TYPE_PLASTIC TubeType = 2
+)
+
+// Enum value maps for TubeType.
+var (
+	TubeType_name = map[int32]string{
+		0: "TUBE_TYPE_UNSPECIFIED",
+		1: "TUBE_TYPE_PAPER",
+		2: "TUBE_TYPE_PLASTIC",
+	}
+	TubeType_value = map[string]int32{
+		"TUBE_TYPE_UNSPECIFIED": 0,
+		"TUBE_TYPE_PAPER":       1,
+		"TUBE_TYPE_PLASTIC":     2,
+	}
+)
+
+func (x TubeType) Enum() *TubeType {
+	p := new(TubeType)
+	*p = x
+	return p
+}
+
+func (x TubeType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (TubeType) Descriptor() protoreflect.EnumDescriptor {
+	return file_finance_v1_cost_product_request_proto_enumTypes[0].Descriptor()
+}
+
+func (TubeType) Type() protoreflect.EnumType {
+	return &file_finance_v1_cost_product_request_proto_enumTypes[0]
+}
+
+func (x TubeType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use TubeType.Descriptor instead.
+func (TubeType) EnumDescriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{0}
+}
+
 type CostProductSpec struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	SpecId    int64                  `protobuf:"varint,1,opt,name=spec_id,json=specId,proto3" json:"spec_id,omitempty"`
 	RequestId int64                  `protobuf:"varint,2,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
 	// POY_BOUGHTOUT | CHIPS_SD | CHIPS_BRT | CHIPS_RECYCLE.
+	// Deprecated for new writes: retained for historical rows, no longer populated by new writes.
 	RawMaterialType    string `protobuf:"bytes,3,opt,name=raw_material_type,json=rawMaterialType,proto3" json:"raw_material_type,omitempty"`
 	ProductDescription string `protobuf:"bytes,4,opt,name=product_description,json=productDescription,proto3" json:"product_description,omitempty"`
 	ShadeId            int32  `protobuf:"varint,5,opt,name=shade_id,json=shadeId,proto3" json:"shade_id,omitempty"`
-	ShadeCustomText    string `protobuf:"bytes,6,opt,name=shade_custom_text,json=shadeCustomText,proto3" json:"shade_custom_text,omitempty"`
-	PaperTubeTypeId    int32  `protobuf:"varint,7,opt,name=paper_tube_type_id,json=paperTubeTypeId,proto3" json:"paper_tube_type_id,omitempty"`
-	PaperTubeLabel     string `protobuf:"bytes,8,opt,name=paper_tube_label,json=paperTubeLabel,proto3" json:"paper_tube_label,omitempty"`            // denormalized
-	WeightPerBobbinKg  string `protobuf:"bytes,9,opt,name=weight_per_bobbin_kg,json=weightPerBobbinKg,proto3" json:"weight_per_bobbin_kg,omitempty"` // decimal stringified to preserve precision
+	// Free-text or master shade code (e.g. NL, Z114S). Renamed from shade_custom_text — field number unchanged for wire compatibility.
+	ShadeCode string `protobuf:"bytes,6,opt,name=shade_code,json=shadeCode,proto3" json:"shade_code,omitempty"`
+	// Deprecated: retained for historical rows, no longer populated by new writes. Use tube_type instead.
+	PaperTubeTypeId int32  `protobuf:"varint,7,opt,name=paper_tube_type_id,json=paperTubeTypeId,proto3" json:"paper_tube_type_id,omitempty"`
+	PaperTubeLabel  string `protobuf:"bytes,8,opt,name=paper_tube_label,json=paperTubeLabel,proto3" json:"paper_tube_label,omitempty"` // denormalized
+	// Deprecated for new writes: retained for historical rows, no longer populated by new writes.
+	WeightPerBobbinKg string `protobuf:"bytes,9,opt,name=weight_per_bobbin_kg,json=weightPerBobbinKg,proto3" json:"weight_per_bobbin_kg,omitempty"` // decimal stringified to preserve precision
 	// JUMBO | NORMAL | PALLET.
-	BoxType       string `protobuf:"bytes,10,opt,name=box_type,json=boxType,proto3" json:"box_type,omitempty"`
-	CreatedAt     string `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	CreatedBy     string `protobuf:"bytes,12,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
+	// Deprecated for new writes: retained for historical rows, no longer populated by new writes.
+	BoxType   string `protobuf:"bytes,10,opt,name=box_type,json=boxType,proto3" json:"box_type,omitempty"`
+	CreatedAt string `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	CreatedBy string `protobuf:"bytes,12,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
+	// Human-readable shade name (e.g. Natural, Jet Black), mirrors cost_product_master's shade_name.
+	ShadeName string `protobuf:"bytes,13,opt,name=shade_name,json=shadeName,proto3" json:"shade_name,omitempty"`
+	// Fixed Paper/Plastic tube classification. Replaces paper_tube_type_id for new writes.
+	TubeType      TubeType `protobuf:"varint,14,opt,name=tube_type,json=tubeType,proto3,enum=finance.v1.TubeType" json:"tube_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -109,9 +172,9 @@ func (x *CostProductSpec) GetShadeId() int32 {
 	return 0
 }
 
-func (x *CostProductSpec) GetShadeCustomText() string {
+func (x *CostProductSpec) GetShadeCode() string {
 	if x != nil {
-		return x.ShadeCustomText
+		return x.ShadeCode
 	}
 	return ""
 }
@@ -158,6 +221,20 @@ func (x *CostProductSpec) GetCreatedBy() string {
 	return ""
 }
 
+func (x *CostProductSpec) GetShadeName() string {
+	if x != nil {
+		return x.ShadeName
+	}
+	return ""
+}
+
+func (x *CostProductSpec) GetTubeType() TubeType {
+	if x != nil {
+		return x.TubeType
+	}
+	return TubeType_TUBE_TYPE_UNSPECIFIED
+}
+
 type CostProductRequest struct {
 	state                        protoimpl.MessageState `protogen:"open.v1"`
 	RequestId                    int64                  `protobuf:"varint,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
@@ -193,8 +270,11 @@ type CostProductRequest struct {
 	LinkedRouteHeadId int64 `protobuf:"varint,29,opt,name=linked_route_head_id,json=linkedRouteHeadId,proto3" json:"linked_route_head_id,omitempty"`
 	// IAM workflow instance ID linked to this request (empty if no workflow attached).
 	WflInstanceId string `protobuf:"bytes,30,opt,name=wfl_instance_id,json=wflInstanceId,proto3" json:"wfl_instance_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// Optional reviewer-facing hint pointing at a similar existing product master,
+	// used to pre-fill routing resolution during review. 0 = unset.
+	ReferenceProductSysId int64 `protobuf:"varint,31,opt,name=reference_product_sys_id,json=referenceProductSysId,proto3" json:"reference_product_sys_id,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *CostProductRequest) Reset() {
@@ -437,17 +517,33 @@ func (x *CostProductRequest) GetWflInstanceId() string {
 	return ""
 }
 
+func (x *CostProductRequest) GetReferenceProductSysId() int64 {
+	if x != nil {
+		return x.ReferenceProductSysId
+	}
+	return 0
+}
+
 type SpecInput struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	RawMaterialType    string                 `protobuf:"bytes,1,opt,name=raw_material_type,json=rawMaterialType,proto3" json:"raw_material_type,omitempty"`
-	ProductDescription string                 `protobuf:"bytes,2,opt,name=product_description,json=productDescription,proto3" json:"product_description,omitempty"`
-	ShadeId            int32                  `protobuf:"varint,3,opt,name=shade_id,json=shadeId,proto3" json:"shade_id,omitempty"`
-	ShadeCustomText    string                 `protobuf:"bytes,4,opt,name=shade_custom_text,json=shadeCustomText,proto3" json:"shade_custom_text,omitempty"`
-	PaperTubeTypeId    int32                  `protobuf:"varint,5,opt,name=paper_tube_type_id,json=paperTubeTypeId,proto3" json:"paper_tube_type_id,omitempty"`
-	WeightPerBobbinKg  string                 `protobuf:"bytes,6,opt,name=weight_per_bobbin_kg,json=weightPerBobbinKg,proto3" json:"weight_per_bobbin_kg,omitempty"`
-	BoxType            string                 `protobuf:"bytes,7,opt,name=box_type,json=boxType,proto3" json:"box_type,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Deprecated for new writes: retained for historical rows, no longer populated by new writes.
+	RawMaterialType    string `protobuf:"bytes,1,opt,name=raw_material_type,json=rawMaterialType,proto3" json:"raw_material_type,omitempty"`
+	ProductDescription string `protobuf:"bytes,2,opt,name=product_description,json=productDescription,proto3" json:"product_description,omitempty"`
+	ShadeId            int32  `protobuf:"varint,3,opt,name=shade_id,json=shadeId,proto3" json:"shade_id,omitempty"`
+	// Free-text or master shade code (e.g. NL, Z114S). Renamed from shade_custom_text — field number unchanged for wire compatibility.
+	ShadeCode string `protobuf:"bytes,4,opt,name=shade_code,json=shadeCode,proto3" json:"shade_code,omitempty"`
+	// Deprecated: retained for historical rows, no longer populated by new writes. Use tube_type instead.
+	PaperTubeTypeId int32 `protobuf:"varint,5,opt,name=paper_tube_type_id,json=paperTubeTypeId,proto3" json:"paper_tube_type_id,omitempty"`
+	// Deprecated for new writes: retained for historical rows, no longer populated by new writes.
+	WeightPerBobbinKg string `protobuf:"bytes,6,opt,name=weight_per_bobbin_kg,json=weightPerBobbinKg,proto3" json:"weight_per_bobbin_kg,omitempty"`
+	// Deprecated for new writes: retained for historical rows, no longer populated by new writes.
+	BoxType string `protobuf:"bytes,7,opt,name=box_type,json=boxType,proto3" json:"box_type,omitempty"`
+	// Human-readable shade name (e.g. Natural, Jet Black), mirrors cost_product_master's shade_name.
+	ShadeName string `protobuf:"bytes,8,opt,name=shade_name,json=shadeName,proto3" json:"shade_name,omitempty"`
+	// Fixed Paper/Plastic tube classification. Replaces paper_tube_type_id for new writes.
+	TubeType      TubeType `protobuf:"varint,9,opt,name=tube_type,json=tubeType,proto3,enum=finance.v1.TubeType" json:"tube_type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SpecInput) Reset() {
@@ -501,9 +597,9 @@ func (x *SpecInput) GetShadeId() int32 {
 	return 0
 }
 
-func (x *SpecInput) GetShadeCustomText() string {
+func (x *SpecInput) GetShadeCode() string {
 	if x != nil {
-		return x.ShadeCustomText
+		return x.ShadeCode
 	}
 	return ""
 }
@@ -529,6 +625,20 @@ func (x *SpecInput) GetBoxType() string {
 	return ""
 }
 
+func (x *SpecInput) GetShadeName() string {
+	if x != nil {
+		return x.ShadeName
+	}
+	return ""
+}
+
+func (x *SpecInput) GetTubeType() TubeType {
+	if x != nil {
+		return x.TubeType
+	}
+	return TubeType_TUBE_TYPE_UNSPECIFIED
+}
+
 type CreateCostProductRequestRequest struct {
 	state                 protoimpl.MessageState `protogen:"open.v1"`
 	RequestTypeId         int32                  `protobuf:"varint,1,opt,name=request_type_id,json=requestTypeId,proto3" json:"request_type_id,omitempty"`
@@ -542,6 +652,9 @@ type CreateCostProductRequestRequest struct {
 	UrgencyLevel          string                 `protobuf:"bytes,9,opt,name=urgency_level,json=urgencyLevel,proto3" json:"urgency_level,omitempty"`
 	NeededByDate          string                 `protobuf:"bytes,10,opt,name=needed_by_date,json=neededByDate,proto3" json:"needed_by_date,omitempty"`
 	Spec                  *SpecInput             `protobuf:"bytes,11,opt,name=spec,proto3" json:"spec,omitempty"`
+	// Optional reviewer-facing hint pointing at a similar existing product master.
+	// 0 = unset.
+	ReferenceProductSysId int64 `protobuf:"varint,12,opt,name=reference_product_sys_id,json=referenceProductSysId,proto3" json:"reference_product_sys_id,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -651,6 +764,13 @@ func (x *CreateCostProductRequestRequest) GetSpec() *SpecInput {
 		return x.Spec
 	}
 	return nil
+}
+
+func (x *CreateCostProductRequestRequest) GetReferenceProductSysId() int64 {
+	if x != nil {
+		return x.ReferenceProductSysId
+	}
+	return 0
 }
 
 type CreateCostProductRequestResponse struct {
@@ -910,6 +1030,9 @@ type UpdateCostProductRequestRequest struct {
 	UrgencyLevel          string                 `protobuf:"bytes,9,opt,name=urgency_level,json=urgencyLevel,proto3" json:"urgency_level,omitempty"`
 	NeededByDate          string                 `protobuf:"bytes,10,opt,name=needed_by_date,json=neededByDate,proto3" json:"needed_by_date,omitempty"`
 	Spec                  *SpecInput             `protobuf:"bytes,11,opt,name=spec,proto3" json:"spec,omitempty"`
+	// Optional reviewer-facing hint pointing at a similar existing product master.
+	// 0 = unset.
+	ReferenceProductSysId int64 `protobuf:"varint,12,opt,name=reference_product_sys_id,json=referenceProductSysId,proto3" json:"reference_product_sys_id,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -1019,6 +1142,13 @@ func (x *UpdateCostProductRequestRequest) GetSpec() *SpecInput {
 		return x.Spec
 	}
 	return nil
+}
+
+func (x *UpdateCostProductRequestRequest) GetReferenceProductSysId() int64 {
+	if x != nil {
+		return x.ReferenceProductSysId
+	}
+	return 0
 }
 
 type UpdateCostProductRequestResponse struct {
@@ -1233,6 +1363,396 @@ func (x *ListCostProductRequestsResponse) GetPagination() *v1.PaginationResponse
 	return nil
 }
 
+// ExportCostProductRequestsRequest is the request for exporting cost product
+// requests to Excel. Filters mirror ListCostProductRequestsRequest's subset
+// relevant to export (no pagination/sort — export returns all matches).
+type ExportCostProductRequestsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Search        string                 `protobuf:"bytes,1,opt,name=search,proto3" json:"search,omitempty"`
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	RequestTypeId int32                  `protobuf:"varint,3,opt,name=request_type_id,json=requestTypeId,proto3" json:"request_type_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExportCostProductRequestsRequest) Reset() {
+	*x = ExportCostProductRequestsRequest{}
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExportCostProductRequestsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExportCostProductRequestsRequest) ProtoMessage() {}
+
+func (x *ExportCostProductRequestsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExportCostProductRequestsRequest.ProtoReflect.Descriptor instead.
+func (*ExportCostProductRequestsRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ExportCostProductRequestsRequest) GetSearch() string {
+	if x != nil {
+		return x.Search
+	}
+	return ""
+}
+
+func (x *ExportCostProductRequestsRequest) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *ExportCostProductRequestsRequest) GetRequestTypeId() int32 {
+	if x != nil {
+		return x.RequestTypeId
+	}
+	return 0
+}
+
+// ExportCostProductRequestsResponse is the response containing the Excel file.
+type ExportCostProductRequestsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Base  *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	// Excel file content as bytes (.xlsx format).
+	FileContent []byte `protobuf:"bytes,2,opt,name=file_content,json=fileContent,proto3" json:"file_content,omitempty"`
+	// Suggested filename.
+	FileName      string `protobuf:"bytes,3,opt,name=file_name,json=fileName,proto3" json:"file_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExportCostProductRequestsResponse) Reset() {
+	*x = ExportCostProductRequestsResponse{}
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExportCostProductRequestsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExportCostProductRequestsResponse) ProtoMessage() {}
+
+func (x *ExportCostProductRequestsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExportCostProductRequestsResponse.ProtoReflect.Descriptor instead.
+func (*ExportCostProductRequestsResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ExportCostProductRequestsResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *ExportCostProductRequestsResponse) GetFileContent() []byte {
+	if x != nil {
+		return x.FileContent
+	}
+	return nil
+}
+
+func (x *ExportCostProductRequestsResponse) GetFileName() string {
+	if x != nil {
+		return x.FileName
+	}
+	return ""
+}
+
+// ImportCostProductRequestsRequest is the request for importing cost product
+// requests from Excel. Create-only: every row creates a new DRAFT request
+// regardless of duplicate_action — the field is accepted for shape parity
+// with other import RPCs but has no skip/update effect in v1.
+type ImportCostProductRequestsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Excel file content as bytes (.xlsx or .xls format).
+	FileContent []byte `protobuf:"bytes,1,opt,name=file_content,json=fileContent,proto3" json:"file_content,omitempty"`
+	// Original filename (for format detection).
+	// Must be a simple filename without path separators.
+	FileName string `protobuf:"bytes,2,opt,name=file_name,json=fileName,proto3" json:"file_name,omitempty"`
+	// Accepted for shape parity with other import RPCs. Create-only: only
+	// "error" semantics apply (unresolvable rows fail with a row-level
+	// ImportError); there is no update/skip behavior in v1.
+	DuplicateAction string `protobuf:"bytes,3,opt,name=duplicate_action,json=duplicateAction,proto3" json:"duplicate_action,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ImportCostProductRequestsRequest) Reset() {
+	*x = ImportCostProductRequestsRequest{}
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ImportCostProductRequestsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ImportCostProductRequestsRequest) ProtoMessage() {}
+
+func (x *ImportCostProductRequestsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ImportCostProductRequestsRequest.ProtoReflect.Descriptor instead.
+func (*ImportCostProductRequestsRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ImportCostProductRequestsRequest) GetFileContent() []byte {
+	if x != nil {
+		return x.FileContent
+	}
+	return nil
+}
+
+func (x *ImportCostProductRequestsRequest) GetFileName() string {
+	if x != nil {
+		return x.FileName
+	}
+	return ""
+}
+
+func (x *ImportCostProductRequestsRequest) GetDuplicateAction() string {
+	if x != nil {
+		return x.DuplicateAction
+	}
+	return ""
+}
+
+// ImportCostProductRequestsResponse is the response for importing cost
+// product requests. updated_count/skipped_count are always 0 in v1 since
+// the import is create-only (kept for shape consistency with other imports).
+type ImportCostProductRequestsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Base  *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	// Number of successfully created DRAFT requests.
+	SuccessCount int32 `protobuf:"varint,2,opt,name=success_count,json=successCount,proto3" json:"success_count,omitempty"`
+	// Always 0 in v1 (create-only import has no skip semantics).
+	SkippedCount int32 `protobuf:"varint,3,opt,name=skipped_count,json=skippedCount,proto3" json:"skipped_count,omitempty"`
+	// Always 0 in v1 (create-only import has no update semantics).
+	UpdatedCount int32 `protobuf:"varint,4,opt,name=updated_count,json=updatedCount,proto3" json:"updated_count,omitempty"`
+	// Number of failed rows.
+	FailedCount int32 `protobuf:"varint,5,opt,name=failed_count,json=failedCount,proto3" json:"failed_count,omitempty"`
+	// Details of failed rows.
+	Errors        []*ImportError `protobuf:"bytes,6,rep,name=errors,proto3" json:"errors,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ImportCostProductRequestsResponse) Reset() {
+	*x = ImportCostProductRequestsResponse{}
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ImportCostProductRequestsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ImportCostProductRequestsResponse) ProtoMessage() {}
+
+func (x *ImportCostProductRequestsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ImportCostProductRequestsResponse.ProtoReflect.Descriptor instead.
+func (*ImportCostProductRequestsResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *ImportCostProductRequestsResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *ImportCostProductRequestsResponse) GetSuccessCount() int32 {
+	if x != nil {
+		return x.SuccessCount
+	}
+	return 0
+}
+
+func (x *ImportCostProductRequestsResponse) GetSkippedCount() int32 {
+	if x != nil {
+		return x.SkippedCount
+	}
+	return 0
+}
+
+func (x *ImportCostProductRequestsResponse) GetUpdatedCount() int32 {
+	if x != nil {
+		return x.UpdatedCount
+	}
+	return 0
+}
+
+func (x *ImportCostProductRequestsResponse) GetFailedCount() int32 {
+	if x != nil {
+		return x.FailedCount
+	}
+	return 0
+}
+
+func (x *ImportCostProductRequestsResponse) GetErrors() []*ImportError {
+	if x != nil {
+		return x.Errors
+	}
+	return nil
+}
+
+// GetCostProductRequestImportTemplateRequest is the request for downloading
+// the Excel import template.
+type GetCostProductRequestImportTemplateRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCostProductRequestImportTemplateRequest) Reset() {
+	*x = GetCostProductRequestImportTemplateRequest{}
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCostProductRequestImportTemplateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCostProductRequestImportTemplateRequest) ProtoMessage() {}
+
+func (x *GetCostProductRequestImportTemplateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCostProductRequestImportTemplateRequest.ProtoReflect.Descriptor instead.
+func (*GetCostProductRequestImportTemplateRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{17}
+}
+
+// GetCostProductRequestImportTemplateResponse is the response containing the
+// template file.
+type GetCostProductRequestImportTemplateResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Base  *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	// Excel template file content as bytes (.xlsx format).
+	FileContent []byte `protobuf:"bytes,2,opt,name=file_content,json=fileContent,proto3" json:"file_content,omitempty"`
+	// Suggested filename.
+	FileName      string `protobuf:"bytes,3,opt,name=file_name,json=fileName,proto3" json:"file_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCostProductRequestImportTemplateResponse) Reset() {
+	*x = GetCostProductRequestImportTemplateResponse{}
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCostProductRequestImportTemplateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCostProductRequestImportTemplateResponse) ProtoMessage() {}
+
+func (x *GetCostProductRequestImportTemplateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCostProductRequestImportTemplateResponse.ProtoReflect.Descriptor instead.
+func (*GetCostProductRequestImportTemplateResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *GetCostProductRequestImportTemplateResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *GetCostProductRequestImportTemplateResponse) GetFileContent() []byte {
+	if x != nil {
+		return x.FileContent
+	}
+	return nil
+}
+
+func (x *GetCostProductRequestImportTemplateResponse) GetFileName() string {
+	if x != nil {
+		return x.FileName
+	}
+	return ""
+}
+
 type SubmitCostProductRequestRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RequestId     int64                  `protobuf:"varint,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
@@ -1242,7 +1762,7 @@ type SubmitCostProductRequestRequest struct {
 
 func (x *SubmitCostProductRequestRequest) Reset() {
 	*x = SubmitCostProductRequestRequest{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[13]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1254,7 +1774,7 @@ func (x *SubmitCostProductRequestRequest) String() string {
 func (*SubmitCostProductRequestRequest) ProtoMessage() {}
 
 func (x *SubmitCostProductRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[13]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1267,7 +1787,7 @@ func (x *SubmitCostProductRequestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitCostProductRequestRequest.ProtoReflect.Descriptor instead.
 func (*SubmitCostProductRequestRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{13}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *SubmitCostProductRequestRequest) GetRequestId() int64 {
@@ -1287,7 +1807,7 @@ type SubmitCostProductRequestResponse struct {
 
 func (x *SubmitCostProductRequestResponse) Reset() {
 	*x = SubmitCostProductRequestResponse{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[14]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1299,7 +1819,7 @@ func (x *SubmitCostProductRequestResponse) String() string {
 func (*SubmitCostProductRequestResponse) ProtoMessage() {}
 
 func (x *SubmitCostProductRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[14]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1312,7 +1832,7 @@ func (x *SubmitCostProductRequestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitCostProductRequestResponse.ProtoReflect.Descriptor instead.
 func (*SubmitCostProductRequestResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{14}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *SubmitCostProductRequestResponse) GetBase() *v1.BaseResponse {
@@ -1338,7 +1858,7 @@ type StartCostProductRequestReviewRequest struct {
 
 func (x *StartCostProductRequestReviewRequest) Reset() {
 	*x = StartCostProductRequestReviewRequest{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[15]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1350,7 +1870,7 @@ func (x *StartCostProductRequestReviewRequest) String() string {
 func (*StartCostProductRequestReviewRequest) ProtoMessage() {}
 
 func (x *StartCostProductRequestReviewRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[15]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1363,7 +1883,7 @@ func (x *StartCostProductRequestReviewRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use StartCostProductRequestReviewRequest.ProtoReflect.Descriptor instead.
 func (*StartCostProductRequestReviewRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{15}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *StartCostProductRequestReviewRequest) GetRequestId() int64 {
@@ -1383,7 +1903,7 @@ type StartCostProductRequestReviewResponse struct {
 
 func (x *StartCostProductRequestReviewResponse) Reset() {
 	*x = StartCostProductRequestReviewResponse{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[16]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1395,7 +1915,7 @@ func (x *StartCostProductRequestReviewResponse) String() string {
 func (*StartCostProductRequestReviewResponse) ProtoMessage() {}
 
 func (x *StartCostProductRequestReviewResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[16]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1408,7 +1928,7 @@ func (x *StartCostProductRequestReviewResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use StartCostProductRequestReviewResponse.ProtoReflect.Descriptor instead.
 func (*StartCostProductRequestReviewResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{16}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *StartCostProductRequestReviewResponse) GetBase() *v1.BaseResponse {
@@ -1436,7 +1956,7 @@ type VerifyCostProductRequestClassificationRequest struct {
 
 func (x *VerifyCostProductRequestClassificationRequest) Reset() {
 	*x = VerifyCostProductRequestClassificationRequest{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[17]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1448,7 +1968,7 @@ func (x *VerifyCostProductRequestClassificationRequest) String() string {
 func (*VerifyCostProductRequestClassificationRequest) ProtoMessage() {}
 
 func (x *VerifyCostProductRequestClassificationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[17]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1461,7 +1981,7 @@ func (x *VerifyCostProductRequestClassificationRequest) ProtoReflect() protorefl
 
 // Deprecated: Use VerifyCostProductRequestClassificationRequest.ProtoReflect.Descriptor instead.
 func (*VerifyCostProductRequestClassificationRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{17}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *VerifyCostProductRequestClassificationRequest) GetRequestId() int64 {
@@ -1495,7 +2015,7 @@ type VerifyCostProductRequestClassificationResponse struct {
 
 func (x *VerifyCostProductRequestClassificationResponse) Reset() {
 	*x = VerifyCostProductRequestClassificationResponse{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[18]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1507,7 +2027,7 @@ func (x *VerifyCostProductRequestClassificationResponse) String() string {
 func (*VerifyCostProductRequestClassificationResponse) ProtoMessage() {}
 
 func (x *VerifyCostProductRequestClassificationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[18]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1520,7 +2040,7 @@ func (x *VerifyCostProductRequestClassificationResponse) ProtoReflect() protoref
 
 // Deprecated: Use VerifyCostProductRequestClassificationResponse.ProtoReflect.Descriptor instead.
 func (*VerifyCostProductRequestClassificationResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{18}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *VerifyCostProductRequestClassificationResponse) GetBase() *v1.BaseResponse {
@@ -1548,7 +2068,7 @@ type DecideCostProductRequestFeasibilityRequest struct {
 
 func (x *DecideCostProductRequestFeasibilityRequest) Reset() {
 	*x = DecideCostProductRequestFeasibilityRequest{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[19]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1560,7 +2080,7 @@ func (x *DecideCostProductRequestFeasibilityRequest) String() string {
 func (*DecideCostProductRequestFeasibilityRequest) ProtoMessage() {}
 
 func (x *DecideCostProductRequestFeasibilityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[19]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1573,7 +2093,7 @@ func (x *DecideCostProductRequestFeasibilityRequest) ProtoReflect() protoreflect
 
 // Deprecated: Use DecideCostProductRequestFeasibilityRequest.ProtoReflect.Descriptor instead.
 func (*DecideCostProductRequestFeasibilityRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{19}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *DecideCostProductRequestFeasibilityRequest) GetRequestId() int64 {
@@ -1607,7 +2127,7 @@ type DecideCostProductRequestFeasibilityResponse struct {
 
 func (x *DecideCostProductRequestFeasibilityResponse) Reset() {
 	*x = DecideCostProductRequestFeasibilityResponse{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[20]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1619,7 +2139,7 @@ func (x *DecideCostProductRequestFeasibilityResponse) String() string {
 func (*DecideCostProductRequestFeasibilityResponse) ProtoMessage() {}
 
 func (x *DecideCostProductRequestFeasibilityResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[20]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1632,7 +2152,7 @@ func (x *DecideCostProductRequestFeasibilityResponse) ProtoReflect() protoreflec
 
 // Deprecated: Use DecideCostProductRequestFeasibilityResponse.ProtoReflect.Descriptor instead.
 func (*DecideCostProductRequestFeasibilityResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{20}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *DecideCostProductRequestFeasibilityResponse) GetBase() *v1.BaseResponse {
@@ -1643,6 +2163,150 @@ func (x *DecideCostProductRequestFeasibilityResponse) GetBase() *v1.BaseResponse
 }
 
 func (x *DecideCostProductRequestFeasibilityResponse) GetData() *CostProductRequest {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+// SubmitAndDecideCostProductRequest merges Submit + Start-review + Verify
+// classification + Decide feasibility + (when feasible) Link route into a
+// single action (design.md §3 B3). SUBMITTED and UNDER_REVIEW remain real
+// internal states recorded in the audit trail; only one consolidated
+// notification pair is emitted regardless of the feasibility outcome.
+type SubmitAndDecideCostProductRequestRequest struct {
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	RequestId              int64                  `protobuf:"varint,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	VerifiedClassification string                 `protobuf:"bytes,2,opt,name=verified_classification,json=verifiedClassification,proto3" json:"verified_classification,omitempty"`
+	OverrideReason         string                 `protobuf:"bytes,3,opt,name=override_reason,json=overrideReason,proto3" json:"override_reason,omitempty"`
+	Decision               string                 `protobuf:"bytes,4,opt,name=decision,proto3" json:"decision,omitempty"`
+	Note                   string                 `protobuf:"bytes,5,opt,name=note,proto3" json:"note,omitempty"`
+	// reference_product_head_id is the route head resolved by RoutingResolver
+	// on the client before submitting; only applied when decision is FEASIBLE.
+	// 0 means no route was resolved (e.g. decision is NOT_FEASIBLE).
+	ReferenceProductHeadId int64 `protobuf:"varint,6,opt,name=reference_product_head_id,json=referenceProductHeadId,proto3" json:"reference_product_head_id,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *SubmitAndDecideCostProductRequestRequest) Reset() {
+	*x = SubmitAndDecideCostProductRequestRequest{}
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubmitAndDecideCostProductRequestRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubmitAndDecideCostProductRequestRequest) ProtoMessage() {}
+
+func (x *SubmitAndDecideCostProductRequestRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubmitAndDecideCostProductRequestRequest.ProtoReflect.Descriptor instead.
+func (*SubmitAndDecideCostProductRequestRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *SubmitAndDecideCostProductRequestRequest) GetRequestId() int64 {
+	if x != nil {
+		return x.RequestId
+	}
+	return 0
+}
+
+func (x *SubmitAndDecideCostProductRequestRequest) GetVerifiedClassification() string {
+	if x != nil {
+		return x.VerifiedClassification
+	}
+	return ""
+}
+
+func (x *SubmitAndDecideCostProductRequestRequest) GetOverrideReason() string {
+	if x != nil {
+		return x.OverrideReason
+	}
+	return ""
+}
+
+func (x *SubmitAndDecideCostProductRequestRequest) GetDecision() string {
+	if x != nil {
+		return x.Decision
+	}
+	return ""
+}
+
+func (x *SubmitAndDecideCostProductRequestRequest) GetNote() string {
+	if x != nil {
+		return x.Note
+	}
+	return ""
+}
+
+func (x *SubmitAndDecideCostProductRequestRequest) GetReferenceProductHeadId() int64 {
+	if x != nil {
+		return x.ReferenceProductHeadId
+	}
+	return 0
+}
+
+type SubmitAndDecideCostProductRequestResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Base          *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	Data          *CostProductRequest    `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubmitAndDecideCostProductRequestResponse) Reset() {
+	*x = SubmitAndDecideCostProductRequestResponse{}
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubmitAndDecideCostProductRequestResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubmitAndDecideCostProductRequestResponse) ProtoMessage() {}
+
+func (x *SubmitAndDecideCostProductRequestResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubmitAndDecideCostProductRequestResponse.ProtoReflect.Descriptor instead.
+func (*SubmitAndDecideCostProductRequestResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *SubmitAndDecideCostProductRequestResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *SubmitAndDecideCostProductRequestResponse) GetData() *CostProductRequest {
 	if x != nil {
 		return x.Data
 	}
@@ -1661,7 +2325,7 @@ type UseExistingCostingForCostProductRequestRequest struct {
 
 func (x *UseExistingCostingForCostProductRequestRequest) Reset() {
 	*x = UseExistingCostingForCostProductRequestRequest{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[21]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1673,7 +2337,7 @@ func (x *UseExistingCostingForCostProductRequestRequest) String() string {
 func (*UseExistingCostingForCostProductRequestRequest) ProtoMessage() {}
 
 func (x *UseExistingCostingForCostProductRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[21]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1686,7 +2350,7 @@ func (x *UseExistingCostingForCostProductRequestRequest) ProtoReflect() protoref
 
 // Deprecated: Use UseExistingCostingForCostProductRequestRequest.ProtoReflect.Descriptor instead.
 func (*UseExistingCostingForCostProductRequestRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{21}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *UseExistingCostingForCostProductRequestRequest) GetRequestId() int64 {
@@ -1713,7 +2377,7 @@ type UseExistingCostingForCostProductRequestResponse struct {
 
 func (x *UseExistingCostingForCostProductRequestResponse) Reset() {
 	*x = UseExistingCostingForCostProductRequestResponse{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[22]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1725,7 +2389,7 @@ func (x *UseExistingCostingForCostProductRequestResponse) String() string {
 func (*UseExistingCostingForCostProductRequestResponse) ProtoMessage() {}
 
 func (x *UseExistingCostingForCostProductRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[22]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1738,7 +2402,7 @@ func (x *UseExistingCostingForCostProductRequestResponse) ProtoReflect() protore
 
 // Deprecated: Use UseExistingCostingForCostProductRequestResponse.ProtoReflect.Descriptor instead.
 func (*UseExistingCostingForCostProductRequestResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{22}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *UseExistingCostingForCostProductRequestResponse) GetBase() *v1.BaseResponse {
@@ -1765,7 +2429,7 @@ type RejectCostProductRequestRequest struct {
 
 func (x *RejectCostProductRequestRequest) Reset() {
 	*x = RejectCostProductRequestRequest{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[23]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1777,7 +2441,7 @@ func (x *RejectCostProductRequestRequest) String() string {
 func (*RejectCostProductRequestRequest) ProtoMessage() {}
 
 func (x *RejectCostProductRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[23]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1790,7 +2454,7 @@ func (x *RejectCostProductRequestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RejectCostProductRequestRequest.ProtoReflect.Descriptor instead.
 func (*RejectCostProductRequestRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{23}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *RejectCostProductRequestRequest) GetRequestId() int64 {
@@ -1817,7 +2481,7 @@ type RejectCostProductRequestResponse struct {
 
 func (x *RejectCostProductRequestResponse) Reset() {
 	*x = RejectCostProductRequestResponse{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[24]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1829,7 +2493,7 @@ func (x *RejectCostProductRequestResponse) String() string {
 func (*RejectCostProductRequestResponse) ProtoMessage() {}
 
 func (x *RejectCostProductRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[24]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1842,7 +2506,7 @@ func (x *RejectCostProductRequestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RejectCostProductRequestResponse.ProtoReflect.Descriptor instead.
 func (*RejectCostProductRequestResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{24}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *RejectCostProductRequestResponse) GetBase() *v1.BaseResponse {
@@ -1868,7 +2532,7 @@ type ReviseCostProductRequestRequest struct {
 
 func (x *ReviseCostProductRequestRequest) Reset() {
 	*x = ReviseCostProductRequestRequest{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[25]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1880,7 +2544,7 @@ func (x *ReviseCostProductRequestRequest) String() string {
 func (*ReviseCostProductRequestRequest) ProtoMessage() {}
 
 func (x *ReviseCostProductRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[25]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1893,7 +2557,7 @@ func (x *ReviseCostProductRequestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReviseCostProductRequestRequest.ProtoReflect.Descriptor instead.
 func (*ReviseCostProductRequestRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{25}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *ReviseCostProductRequestRequest) GetRequestId() int64 {
@@ -1913,7 +2577,7 @@ type ReviseCostProductRequestResponse struct {
 
 func (x *ReviseCostProductRequestResponse) Reset() {
 	*x = ReviseCostProductRequestResponse{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[26]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1925,7 +2589,7 @@ func (x *ReviseCostProductRequestResponse) String() string {
 func (*ReviseCostProductRequestResponse) ProtoMessage() {}
 
 func (x *ReviseCostProductRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[26]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1938,7 +2602,7 @@ func (x *ReviseCostProductRequestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReviseCostProductRequestResponse.ProtoReflect.Descriptor instead.
 func (*ReviseCostProductRequestResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{26}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ReviseCostProductRequestResponse) GetBase() *v1.BaseResponse {
@@ -1966,7 +2630,7 @@ type ReopenCostProductRequestRequest struct {
 
 func (x *ReopenCostProductRequestRequest) Reset() {
 	*x = ReopenCostProductRequestRequest{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[27]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1978,7 +2642,7 @@ func (x *ReopenCostProductRequestRequest) String() string {
 func (*ReopenCostProductRequestRequest) ProtoMessage() {}
 
 func (x *ReopenCostProductRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[27]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1991,7 +2655,7 @@ func (x *ReopenCostProductRequestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReopenCostProductRequestRequest.ProtoReflect.Descriptor instead.
 func (*ReopenCostProductRequestRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{27}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *ReopenCostProductRequestRequest) GetRequestId() int64 {
@@ -2011,7 +2675,7 @@ type ReopenCostProductRequestResponse struct {
 
 func (x *ReopenCostProductRequestResponse) Reset() {
 	*x = ReopenCostProductRequestResponse{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[28]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2023,7 +2687,7 @@ func (x *ReopenCostProductRequestResponse) String() string {
 func (*ReopenCostProductRequestResponse) ProtoMessage() {}
 
 func (x *ReopenCostProductRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[28]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2036,7 +2700,7 @@ func (x *ReopenCostProductRequestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReopenCostProductRequestResponse.ProtoReflect.Descriptor instead.
 func (*ReopenCostProductRequestResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{28}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *ReopenCostProductRequestResponse) GetBase() *v1.BaseResponse {
@@ -2064,7 +2728,7 @@ type MarkParameterPendingRequest struct {
 
 func (x *MarkParameterPendingRequest) Reset() {
 	*x = MarkParameterPendingRequest{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[29]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2076,7 +2740,7 @@ func (x *MarkParameterPendingRequest) String() string {
 func (*MarkParameterPendingRequest) ProtoMessage() {}
 
 func (x *MarkParameterPendingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[29]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2089,7 +2753,7 @@ func (x *MarkParameterPendingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MarkParameterPendingRequest.ProtoReflect.Descriptor instead.
 func (*MarkParameterPendingRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{29}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *MarkParameterPendingRequest) GetRequestId() int64 {
@@ -2109,7 +2773,7 @@ type MarkParameterPendingResponse struct {
 
 func (x *MarkParameterPendingResponse) Reset() {
 	*x = MarkParameterPendingResponse{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[30]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2121,7 +2785,7 @@ func (x *MarkParameterPendingResponse) String() string {
 func (*MarkParameterPendingResponse) ProtoMessage() {}
 
 func (x *MarkParameterPendingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[30]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2134,7 +2798,7 @@ func (x *MarkParameterPendingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MarkParameterPendingResponse.ProtoReflect.Descriptor instead.
 func (*MarkParameterPendingResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{30}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *MarkParameterPendingResponse) GetBase() *v1.BaseResponse {
@@ -2163,7 +2827,7 @@ type MarkParameterCompleteRequest struct {
 
 func (x *MarkParameterCompleteRequest) Reset() {
 	*x = MarkParameterCompleteRequest{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[31]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2175,7 +2839,7 @@ func (x *MarkParameterCompleteRequest) String() string {
 func (*MarkParameterCompleteRequest) ProtoMessage() {}
 
 func (x *MarkParameterCompleteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[31]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2188,7 +2852,7 @@ func (x *MarkParameterCompleteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MarkParameterCompleteRequest.ProtoReflect.Descriptor instead.
 func (*MarkParameterCompleteRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{31}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *MarkParameterCompleteRequest) GetRequestId() int64 {
@@ -2211,7 +2875,7 @@ type MarkParameterCompleteResponse struct {
 
 func (x *MarkParameterCompleteResponse) Reset() {
 	*x = MarkParameterCompleteResponse{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[32]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2223,7 +2887,7 @@ func (x *MarkParameterCompleteResponse) String() string {
 func (*MarkParameterCompleteResponse) ProtoMessage() {}
 
 func (x *MarkParameterCompleteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[32]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2236,7 +2900,7 @@ func (x *MarkParameterCompleteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MarkParameterCompleteResponse.ProtoReflect.Descriptor instead.
 func (*MarkParameterCompleteResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{32}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *MarkParameterCompleteResponse) GetBase() *v1.BaseResponse {
@@ -2272,7 +2936,7 @@ type MissingProductParams struct {
 
 func (x *MissingProductParams) Reset() {
 	*x = MissingProductParams{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[33]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2284,7 +2948,7 @@ func (x *MissingProductParams) String() string {
 func (*MissingProductParams) ProtoMessage() {}
 
 func (x *MissingProductParams) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[33]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2297,7 +2961,7 @@ func (x *MissingProductParams) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MissingProductParams.ProtoReflect.Descriptor instead.
 func (*MissingProductParams) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{33}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *MissingProductParams) GetProductSysId() int64 {
@@ -2338,7 +3002,7 @@ type CancelCostProductRequestRequest struct {
 
 func (x *CancelCostProductRequestRequest) Reset() {
 	*x = CancelCostProductRequestRequest{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[34]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2350,7 +3014,7 @@ func (x *CancelCostProductRequestRequest) String() string {
 func (*CancelCostProductRequestRequest) ProtoMessage() {}
 
 func (x *CancelCostProductRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[34]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2363,7 +3027,7 @@ func (x *CancelCostProductRequestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelCostProductRequestRequest.ProtoReflect.Descriptor instead.
 func (*CancelCostProductRequestRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{34}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *CancelCostProductRequestRequest) GetRequestId() int64 {
@@ -2390,7 +3054,7 @@ type CancelCostProductRequestResponse struct {
 
 func (x *CancelCostProductRequestResponse) Reset() {
 	*x = CancelCostProductRequestResponse{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[35]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2402,7 +3066,7 @@ func (x *CancelCostProductRequestResponse) String() string {
 func (*CancelCostProductRequestResponse) ProtoMessage() {}
 
 func (x *CancelCostProductRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[35]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2415,7 +3079,7 @@ func (x *CancelCostProductRequestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelCostProductRequestResponse.ProtoReflect.Descriptor instead.
 func (*CancelCostProductRequestResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{35}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *CancelCostProductRequestResponse) GetBase() *v1.BaseResponse {
@@ -2442,7 +3106,7 @@ type CloseCostProductRequestRequest struct {
 
 func (x *CloseCostProductRequestRequest) Reset() {
 	*x = CloseCostProductRequestRequest{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[36]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2454,7 +3118,7 @@ func (x *CloseCostProductRequestRequest) String() string {
 func (*CloseCostProductRequestRequest) ProtoMessage() {}
 
 func (x *CloseCostProductRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[36]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2467,7 +3131,7 @@ func (x *CloseCostProductRequestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloseCostProductRequestRequest.ProtoReflect.Descriptor instead.
 func (*CloseCostProductRequestRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{36}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *CloseCostProductRequestRequest) GetRequestId() int64 {
@@ -2494,7 +3158,7 @@ type CloseCostProductRequestResponse struct {
 
 func (x *CloseCostProductRequestResponse) Reset() {
 	*x = CloseCostProductRequestResponse{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[37]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2506,7 +3170,7 @@ func (x *CloseCostProductRequestResponse) String() string {
 func (*CloseCostProductRequestResponse) ProtoMessage() {}
 
 func (x *CloseCostProductRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[37]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2519,7 +3183,7 @@ func (x *CloseCostProductRequestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloseCostProductRequestResponse.ProtoReflect.Descriptor instead.
 func (*CloseCostProductRequestResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{37}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *CloseCostProductRequestResponse) GetBase() *v1.BaseResponse {
@@ -2546,7 +3210,7 @@ type AssignCostProductRequestRequest struct {
 
 func (x *AssignCostProductRequestRequest) Reset() {
 	*x = AssignCostProductRequestRequest{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[38]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2558,7 +3222,7 @@ func (x *AssignCostProductRequestRequest) String() string {
 func (*AssignCostProductRequestRequest) ProtoMessage() {}
 
 func (x *AssignCostProductRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[38]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2571,7 +3235,7 @@ func (x *AssignCostProductRequestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AssignCostProductRequestRequest.ProtoReflect.Descriptor instead.
 func (*AssignCostProductRequestRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{38}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *AssignCostProductRequestRequest) GetRequestId() int64 {
@@ -2598,7 +3262,7 @@ type AssignCostProductRequestResponse struct {
 
 func (x *AssignCostProductRequestResponse) Reset() {
 	*x = AssignCostProductRequestResponse{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[39]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2610,7 +3274,7 @@ func (x *AssignCostProductRequestResponse) String() string {
 func (*AssignCostProductRequestResponse) ProtoMessage() {}
 
 func (x *AssignCostProductRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[39]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2623,7 +3287,7 @@ func (x *AssignCostProductRequestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AssignCostProductRequestResponse.ProtoReflect.Descriptor instead.
 func (*AssignCostProductRequestResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{39}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *AssignCostProductRequestResponse) GetBase() *v1.BaseResponse {
@@ -2651,7 +3315,7 @@ type ConfirmCostProductRequestRequest struct {
 
 func (x *ConfirmCostProductRequestRequest) Reset() {
 	*x = ConfirmCostProductRequestRequest{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[40]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2663,7 +3327,7 @@ func (x *ConfirmCostProductRequestRequest) String() string {
 func (*ConfirmCostProductRequestRequest) ProtoMessage() {}
 
 func (x *ConfirmCostProductRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[40]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2676,7 +3340,7 @@ func (x *ConfirmCostProductRequestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfirmCostProductRequestRequest.ProtoReflect.Descriptor instead.
 func (*ConfirmCostProductRequestRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{40}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *ConfirmCostProductRequestRequest) GetRequestId() int64 {
@@ -2696,7 +3360,7 @@ type ConfirmCostProductRequestResponse struct {
 
 func (x *ConfirmCostProductRequestResponse) Reset() {
 	*x = ConfirmCostProductRequestResponse{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[41]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2708,7 +3372,7 @@ func (x *ConfirmCostProductRequestResponse) String() string {
 func (*ConfirmCostProductRequestResponse) ProtoMessage() {}
 
 func (x *ConfirmCostProductRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[41]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2721,7 +3385,7 @@ func (x *ConfirmCostProductRequestResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use ConfirmCostProductRequestResponse.ProtoReflect.Descriptor instead.
 func (*ConfirmCostProductRequestResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{41}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *ConfirmCostProductRequestResponse) GetBase() *v1.BaseResponse {
@@ -2750,7 +3414,7 @@ type ApproveCostProductRequestRequest struct {
 
 func (x *ApproveCostProductRequestRequest) Reset() {
 	*x = ApproveCostProductRequestRequest{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[42]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2762,7 +3426,7 @@ func (x *ApproveCostProductRequestRequest) String() string {
 func (*ApproveCostProductRequestRequest) ProtoMessage() {}
 
 func (x *ApproveCostProductRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[42]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2775,7 +3439,7 @@ func (x *ApproveCostProductRequestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApproveCostProductRequestRequest.ProtoReflect.Descriptor instead.
 func (*ApproveCostProductRequestRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{42}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *ApproveCostProductRequestRequest) GetRequestId() int64 {
@@ -2802,7 +3466,7 @@ type ApproveCostProductRequestResponse struct {
 
 func (x *ApproveCostProductRequestResponse) Reset() {
 	*x = ApproveCostProductRequestResponse{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[43]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2814,7 +3478,7 @@ func (x *ApproveCostProductRequestResponse) String() string {
 func (*ApproveCostProductRequestResponse) ProtoMessage() {}
 
 func (x *ApproveCostProductRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[43]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2827,7 +3491,7 @@ func (x *ApproveCostProductRequestResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use ApproveCostProductRequestResponse.ProtoReflect.Descriptor instead.
 func (*ApproveCostProductRequestResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{43}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *ApproveCostProductRequestResponse) GetBase() *v1.BaseResponse {
@@ -2856,7 +3520,7 @@ type ReleaseCostProductRequestRequest struct {
 
 func (x *ReleaseCostProductRequestRequest) Reset() {
 	*x = ReleaseCostProductRequestRequest{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[44]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2868,7 +3532,7 @@ func (x *ReleaseCostProductRequestRequest) String() string {
 func (*ReleaseCostProductRequestRequest) ProtoMessage() {}
 
 func (x *ReleaseCostProductRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[44]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2881,7 +3545,7 @@ func (x *ReleaseCostProductRequestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseCostProductRequestRequest.ProtoReflect.Descriptor instead.
 func (*ReleaseCostProductRequestRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{44}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *ReleaseCostProductRequestRequest) GetRequestId() int64 {
@@ -2901,7 +3565,7 @@ type ReleaseCostProductRequestResponse struct {
 
 func (x *ReleaseCostProductRequestResponse) Reset() {
 	*x = ReleaseCostProductRequestResponse{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[45]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2913,7 +3577,7 @@ func (x *ReleaseCostProductRequestResponse) String() string {
 func (*ReleaseCostProductRequestResponse) ProtoMessage() {}
 
 func (x *ReleaseCostProductRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[45]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2926,7 +3590,7 @@ func (x *ReleaseCostProductRequestResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use ReleaseCostProductRequestResponse.ProtoReflect.Descriptor instead.
 func (*ReleaseCostProductRequestResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{45}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *ReleaseCostProductRequestResponse) GetBase() *v1.BaseResponse {
@@ -2960,7 +3624,7 @@ type StatusHistoryEntry struct {
 
 func (x *StatusHistoryEntry) Reset() {
 	*x = StatusHistoryEntry{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[46]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2972,7 +3636,7 @@ func (x *StatusHistoryEntry) String() string {
 func (*StatusHistoryEntry) ProtoMessage() {}
 
 func (x *StatusHistoryEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[46]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2985,7 +3649,7 @@ func (x *StatusHistoryEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusHistoryEntry.ProtoReflect.Descriptor instead.
 func (*StatusHistoryEntry) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{46}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *StatusHistoryEntry) GetId() int64 {
@@ -3054,7 +3718,7 @@ type GetCostProductRequestHistoryRequest struct {
 
 func (x *GetCostProductRequestHistoryRequest) Reset() {
 	*x = GetCostProductRequestHistoryRequest{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[47]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3066,7 +3730,7 @@ func (x *GetCostProductRequestHistoryRequest) String() string {
 func (*GetCostProductRequestHistoryRequest) ProtoMessage() {}
 
 func (x *GetCostProductRequestHistoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[47]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3079,7 +3743,7 @@ func (x *GetCostProductRequestHistoryRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use GetCostProductRequestHistoryRequest.ProtoReflect.Descriptor instead.
 func (*GetCostProductRequestHistoryRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{47}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *GetCostProductRequestHistoryRequest) GetRequestId() int64 {
@@ -3100,7 +3764,7 @@ type GetCostProductRequestHistoryResponse struct {
 
 func (x *GetCostProductRequestHistoryResponse) Reset() {
 	*x = GetCostProductRequestHistoryResponse{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[48]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3112,7 +3776,7 @@ func (x *GetCostProductRequestHistoryResponse) String() string {
 func (*GetCostProductRequestHistoryResponse) ProtoMessage() {}
 
 func (x *GetCostProductRequestHistoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[48]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3125,7 +3789,7 @@ func (x *GetCostProductRequestHistoryResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use GetCostProductRequestHistoryResponse.ProtoReflect.Descriptor instead.
 func (*GetCostProductRequestHistoryResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{48}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *GetCostProductRequestHistoryResponse) GetBase() *v1.BaseResponse {
@@ -3152,7 +3816,7 @@ type LinkExistingRouteRequest struct {
 
 func (x *LinkExistingRouteRequest) Reset() {
 	*x = LinkExistingRouteRequest{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[49]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3164,7 +3828,7 @@ func (x *LinkExistingRouteRequest) String() string {
 func (*LinkExistingRouteRequest) ProtoMessage() {}
 
 func (x *LinkExistingRouteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[49]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3177,7 +3841,7 @@ func (x *LinkExistingRouteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LinkExistingRouteRequest.ProtoReflect.Descriptor instead.
 func (*LinkExistingRouteRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{49}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *LinkExistingRouteRequest) GetRequestId() int64 {
@@ -3204,7 +3868,7 @@ type LinkExistingRouteResponse struct {
 
 func (x *LinkExistingRouteResponse) Reset() {
 	*x = LinkExistingRouteResponse{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[50]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3216,7 +3880,7 @@ func (x *LinkExistingRouteResponse) String() string {
 func (*LinkExistingRouteResponse) ProtoMessage() {}
 
 func (x *LinkExistingRouteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[50]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3229,7 +3893,7 @@ func (x *LinkExistingRouteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LinkExistingRouteResponse.ProtoReflect.Descriptor instead.
 func (*LinkExistingRouteResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{50}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *LinkExistingRouteResponse) GetBase() *v1.BaseResponse {
@@ -3255,7 +3919,7 @@ type UnlinkRouteRequest struct {
 
 func (x *UnlinkRouteRequest) Reset() {
 	*x = UnlinkRouteRequest{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[51]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3267,7 +3931,7 @@ func (x *UnlinkRouteRequest) String() string {
 func (*UnlinkRouteRequest) ProtoMessage() {}
 
 func (x *UnlinkRouteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[51]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3280,7 +3944,7 @@ func (x *UnlinkRouteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnlinkRouteRequest.ProtoReflect.Descriptor instead.
 func (*UnlinkRouteRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{51}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *UnlinkRouteRequest) GetRequestId() int64 {
@@ -3300,7 +3964,7 @@ type UnlinkRouteResponse struct {
 
 func (x *UnlinkRouteResponse) Reset() {
 	*x = UnlinkRouteResponse{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[52]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3312,7 +3976,7 @@ func (x *UnlinkRouteResponse) String() string {
 func (*UnlinkRouteResponse) ProtoMessage() {}
 
 func (x *UnlinkRouteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[52]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3325,7 +3989,7 @@ func (x *UnlinkRouteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnlinkRouteResponse.ProtoReflect.Descriptor instead.
 func (*UnlinkRouteResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{52}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *UnlinkRouteResponse) GetBase() *v1.BaseResponse {
@@ -3363,7 +4027,7 @@ type ParamValueEntry struct {
 
 func (x *ParamValueEntry) Reset() {
 	*x = ParamValueEntry{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[53]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3375,7 +4039,7 @@ func (x *ParamValueEntry) String() string {
 func (*ParamValueEntry) ProtoMessage() {}
 
 func (x *ParamValueEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[53]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3388,7 +4052,7 @@ func (x *ParamValueEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ParamValueEntry.ProtoReflect.Descriptor instead.
 func (*ParamValueEntry) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{53}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *ParamValueEntry) GetParamId() string {
@@ -3495,7 +4159,7 @@ type FillLevelSummary struct {
 
 func (x *FillLevelSummary) Reset() {
 	*x = FillLevelSummary{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[54]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3507,7 +4171,7 @@ func (x *FillLevelSummary) String() string {
 func (*FillLevelSummary) ProtoMessage() {}
 
 func (x *FillLevelSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[54]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3520,7 +4184,7 @@ func (x *FillLevelSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FillLevelSummary.ProtoReflect.Descriptor instead.
 func (*FillLevelSummary) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{54}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *FillLevelSummary) GetRouteLevel() int32 {
@@ -3599,7 +4263,7 @@ type ProductParamSummary struct {
 
 func (x *ProductParamSummary) Reset() {
 	*x = ProductParamSummary{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[55]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3611,7 +4275,7 @@ func (x *ProductParamSummary) String() string {
 func (*ProductParamSummary) ProtoMessage() {}
 
 func (x *ProductParamSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[55]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3624,7 +4288,7 @@ func (x *ProductParamSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProductParamSummary.ProtoReflect.Descriptor instead.
 func (*ProductParamSummary) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{55}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *ProductParamSummary) GetProductSysId() int64 {
@@ -3664,7 +4328,7 @@ type GetParamSummaryRequest struct {
 
 func (x *GetParamSummaryRequest) Reset() {
 	*x = GetParamSummaryRequest{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[56]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3676,7 +4340,7 @@ func (x *GetParamSummaryRequest) String() string {
 func (*GetParamSummaryRequest) ProtoMessage() {}
 
 func (x *GetParamSummaryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[56]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3689,7 +4353,7 @@ func (x *GetParamSummaryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetParamSummaryRequest.ProtoReflect.Descriptor instead.
 func (*GetParamSummaryRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{56}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *GetParamSummaryRequest) GetRequestId() int64 {
@@ -3711,7 +4375,7 @@ type GetParamSummaryResponse struct {
 
 func (x *GetParamSummaryResponse) Reset() {
 	*x = GetParamSummaryResponse{}
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[57]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3723,7 +4387,7 @@ func (x *GetParamSummaryResponse) String() string {
 func (*GetParamSummaryResponse) ProtoMessage() {}
 
 func (x *GetParamSummaryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_request_proto_msgTypes[57]
+	mi := &file_finance_v1_cost_product_request_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3736,7 +4400,7 @@ func (x *GetParamSummaryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetParamSummaryResponse.ProtoReflect.Descriptor instead.
 func (*GetParamSummaryResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{57}
+	return file_finance_v1_cost_product_request_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *GetParamSummaryResponse) GetBase() *v1.BaseResponse {
@@ -3772,15 +4436,16 @@ var File_finance_v1_cost_product_request_proto protoreflect.FileDescriptor
 const file_finance_v1_cost_product_request_proto_rawDesc = "" +
 	"\n" +
 	"%finance/v1/cost_product_request.proto\x12\n" +
-	"finance.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16common/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\"\xce\x03\n" +
+	"finance.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16common/v1/common.proto\x1a\x14finance/v1/uom.proto\x1a\x1cgoogle/api/annotations.proto\"\x93\x04\n" +
 	"\x0fCostProductSpec\x12\x17\n" +
 	"\aspec_id\x18\x01 \x01(\x03R\x06specId\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x02 \x01(\x03R\trequestId\x12*\n" +
 	"\x11raw_material_type\x18\x03 \x01(\tR\x0frawMaterialType\x12/\n" +
 	"\x13product_description\x18\x04 \x01(\tR\x12productDescription\x12\x19\n" +
-	"\bshade_id\x18\x05 \x01(\x05R\ashadeId\x12*\n" +
-	"\x11shade_custom_text\x18\x06 \x01(\tR\x0fshadeCustomText\x12+\n" +
+	"\bshade_id\x18\x05 \x01(\x05R\ashadeId\x12\x1d\n" +
+	"\n" +
+	"shade_code\x18\x06 \x01(\tR\tshadeCode\x12+\n" +
 	"\x12paper_tube_type_id\x18\a \x01(\x05R\x0fpaperTubeTypeId\x12(\n" +
 	"\x10paper_tube_label\x18\b \x01(\tR\x0epaperTubeLabel\x12/\n" +
 	"\x14weight_per_bobbin_kg\x18\t \x01(\tR\x11weightPerBobbinKg\x12\x19\n" +
@@ -3789,7 +4454,11 @@ const file_finance_v1_cost_product_request_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\v \x01(\tR\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"created_by\x18\f \x01(\tR\tcreatedBy\"\xfd\t\n" +
+	"created_by\x18\f \x01(\tR\tcreatedBy\x12\x1d\n" +
+	"\n" +
+	"shade_name\x18\r \x01(\tR\tshadeName\x121\n" +
+	"\ttube_type\x18\x0e \x01(\x0e2\x14.finance.v1.TubeTypeR\btubeType\"\xb6\n" +
+	"\n" +
 	"\x12CostProductRequest\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\x03R\trequestId\x12\x1d\n" +
@@ -3823,16 +4492,21 @@ const file_finance_v1_cost_product_request_proto_rawDesc = "" +
 	"\x04spec\x18\x1b \x01(\v2\x1b.finance.v1.CostProductSpecR\x04spec\x125\n" +
 	"\x17existing_product_sys_id\x18\x1c \x01(\x03R\x14existingProductSysId\x12/\n" +
 	"\x14linked_route_head_id\x18\x1d \x01(\x03R\x11linkedRouteHeadId\x12&\n" +
-	"\x0fwfl_instance_id\x18\x1e \x01(\tR\rwflInstanceId\"\xa9\x03\n" +
+	"\x0fwfl_instance_id\x18\x1e \x01(\tR\rwflInstanceId\x127\n" +
+	"\x18reference_product_sys_id\x18\x1f \x01(\x03R\x15referenceProductSysId\"\xf7\x03\n" +
 	"\tSpecInput\x12d\n" +
 	"\x11raw_material_type\x18\x01 \x01(\tB8\xbaH5r3R\rPOY_BOUGHTOUTR\bCHIPS_SDR\tCHIPS_BRTR\rCHIPS_RECYCLER\x0frawMaterialType\x12;\n" +
 	"\x13product_description\x18\x02 \x01(\tB\n" +
 	"\xbaH\ar\x05\x10\x01\x18\x88'R\x12productDescription\x12\x19\n" +
-	"\bshade_id\x18\x03 \x01(\x05R\ashadeId\x123\n" +
-	"\x11shade_custom_text\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x18dR\x0fshadeCustomText\x124\n" +
+	"\bshade_id\x18\x03 \x01(\x05R\ashadeId\x12&\n" +
+	"\n" +
+	"shade_code\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x18dR\tshadeCode\x124\n" +
 	"\x12paper_tube_type_id\x18\x05 \x01(\x05B\a\xbaH\x04\x1a\x02(\x01R\x0fpaperTubeTypeId\x12:\n" +
 	"\x14weight_per_bobbin_kg\x18\x06 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18\x14R\x11weightPerBobbinKg\x127\n" +
-	"\bbox_type\x18\a \x01(\tB\x1c\xbaH\x19r\x17R\x05JUMBOR\x06NORMALR\x06PALLETR\aboxType\"\xcc\x04\n" +
+	"\bbox_type\x18\a \x01(\tB\x1c\xbaH\x19r\x17R\x05JUMBOR\x06NORMALR\x06PALLETR\aboxType\x12&\n" +
+	"\n" +
+	"shade_name\x18\b \x01(\tB\a\xbaH\x04r\x02\x18dR\tshadeName\x121\n" +
+	"\ttube_type\x18\t \x01(\x0e2\x14.finance.v1.TubeTypeR\btubeType\"\x97\x05\n" +
 	"\x1fCreateCostProductRequestRequest\x12/\n" +
 	"\x0frequest_type_id\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x01R\rrequestTypeId\x12 \n" +
 	"\x05title\x18\x02 \x01(\tB\n" +
@@ -3840,15 +4514,16 @@ const file_finance_v1_cost_product_request_proto_rawDesc = "" +
 	"\vdescription\x18\x03 \x01(\tB\b\xbaH\x05r\x03\x18\x90NR\vdescription\x12/\n" +
 	"\rcustomer_name\x18\x04 \x01(\tB\n" +
 	"\xbaH\ar\x05\x10\x01\x18\xff\x01R\fcustomerName\x12,\n" +
-	"\rcustomer_code\x18\x05 \x01(\tB\a\xbaH\x04r\x02\x182R\fcustomerCode\x12K\n" +
-	"\x16product_classification\x18\x06 \x01(\tB\x14\xbaH\x11r\x0fR\bexistingR\x03newR\x15productClassification\x12,\n" +
+	"\rcustomer_code\x18\x05 \x01(\tB\a\xbaH\x04r\x02\x182R\fcustomerCode\x12T\n" +
+	"\x16product_classification\x18\x06 \x01(\tB\x1d\xbaH\x1ar\x18R\bexistingR\x03newR\apendingR\x15productClassification\x12,\n" +
 	"\rtarget_volume\x18\a \x01(\tB\a\xbaH\x04r\x02\x18\x1eR\ftargetVolume\x125\n" +
 	"\x12target_price_range\x18\b \x01(\tB\a\xbaH\x04r\x02\x182R\x10targetPriceRange\x12?\n" +
 	"\rurgency_level\x18\t \x01(\tB\x1a\xbaH\x17r\x15R\x00R\x03lowR\x06mediumR\x04highR\furgencyLevel\x12-\n" +
 	"\x0eneeded_by_date\x18\n" +
 	" \x01(\tB\a\xbaH\x04r\x02\x18\n" +
 	"R\fneededByDate\x12)\n" +
-	"\x04spec\x18\v \x01(\v2\x15.finance.v1.SpecInputR\x04spec\"\x83\x01\n" +
+	"\x04spec\x18\v \x01(\v2\x15.finance.v1.SpecInputR\x04spec\x12@\n" +
+	"\x18reference_product_sys_id\x18\f \x01(\x03B\a\xbaH\x04\"\x02(\x00R\x15referenceProductSysId\"\x83\x01\n" +
 	" CreateCostProductRequestResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x122\n" +
 	"\x04data\x18\x02 \x01(\v2\x1e.finance.v1.CostProductRequestR\x04data\"F\n" +
@@ -3863,7 +4538,7 @@ const file_finance_v1_cost_product_request_proto_rawDesc = "" +
 	"request_no\x18\x01 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18\x1eR\trequestNo\"\x84\x01\n" +
 	"!GetCostProductRequestByNoResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x122\n" +
-	"\x04data\x18\x02 \x01(\v2\x1e.finance.v1.CostProductRequestR\x04data\"\xc3\x04\n" +
+	"\x04data\x18\x02 \x01(\v2\x1e.finance.v1.CostProductRequestR\x04data\"\x8e\x05\n" +
 	"\x1fUpdateCostProductRequestRequest\x12&\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02(\x01R\trequestId\x12 \n" +
@@ -3872,18 +4547,19 @@ const file_finance_v1_cost_product_request_proto_rawDesc = "" +
 	"\vdescription\x18\x03 \x01(\tB\b\xbaH\x05r\x03\x18\x90NR\vdescription\x12/\n" +
 	"\rcustomer_name\x18\x04 \x01(\tB\n" +
 	"\xbaH\ar\x05\x10\x01\x18\xff\x01R\fcustomerName\x12,\n" +
-	"\rcustomer_code\x18\x05 \x01(\tB\a\xbaH\x04r\x02\x182R\fcustomerCode\x12K\n" +
-	"\x16product_classification\x18\x06 \x01(\tB\x14\xbaH\x11r\x0fR\bexistingR\x03newR\x15productClassification\x12,\n" +
+	"\rcustomer_code\x18\x05 \x01(\tB\a\xbaH\x04r\x02\x182R\fcustomerCode\x12T\n" +
+	"\x16product_classification\x18\x06 \x01(\tB\x1d\xbaH\x1ar\x18R\bexistingR\x03newR\apendingR\x15productClassification\x12,\n" +
 	"\rtarget_volume\x18\a \x01(\tB\a\xbaH\x04r\x02\x18\x1eR\ftargetVolume\x125\n" +
 	"\x12target_price_range\x18\b \x01(\tB\a\xbaH\x04r\x02\x182R\x10targetPriceRange\x12?\n" +
 	"\rurgency_level\x18\t \x01(\tB\x1a\xbaH\x17r\x15R\x00R\x03lowR\x06mediumR\x04highR\furgencyLevel\x12-\n" +
 	"\x0eneeded_by_date\x18\n" +
 	" \x01(\tB\a\xbaH\x04r\x02\x18\n" +
 	"R\fneededByDate\x12)\n" +
-	"\x04spec\x18\v \x01(\v2\x15.finance.v1.SpecInputR\x04spec\"\x83\x01\n" +
+	"\x04spec\x18\v \x01(\v2\x15.finance.v1.SpecInputR\x04spec\x12@\n" +
+	"\x18reference_product_sys_id\x18\f \x01(\x03B\a\xbaH\x04\"\x02(\x00R\x15referenceProductSysId\"\x83\x01\n" +
 	" UpdateCostProductRequestResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x122\n" +
-	"\x04data\x18\x02 \x01(\v2\x1e.finance.v1.CostProductRequestR\x04data\"\xb2\x03\n" +
+	"\x04data\x18\x02 \x01(\v2\x1e.finance.v1.CostProductRequestR\x04data\"\xd9\x03\n" +
 	"\x1eListCostProductRequestsRequest\x12 \n" +
 	"\x06search\x18\x01 \x01(\tB\b\xbaH\x05r\x03\x18\xc8\x01R\x06search\x12\x1f\n" +
 	"\x06status\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x18\x1eR\x06status\x12&\n" +
@@ -3892,11 +4568,11 @@ const file_finance_v1_cost_product_request_proto_rawDesc = "" +
 	"\x10assignee_user_id\x18\x05 \x01(\tB\a\xbaH\x04r\x02\x18@R\x0eassigneeUserId\x12<\n" +
 	"\n" +
 	"pagination\x18\x06 \x01(\v2\x1c.common.v1.PaginationRequestR\n" +
-	"pagination\x12L\n" +
-	"\asort_by\x18\a \x01(\tB3\xbaH0r.R\x00R\n" +
+	"pagination\x12s\n" +
+	"\asort_by\x18\a \x01(\tBZ\xbaHWrUR\x00R\n" +
 	"request_noR\n" +
 	"created_atR\n" +
-	"updated_atR\x06statusR\x06sortBy\x121\n" +
+	"updated_atR\x06statusR\x04typeR\x05titleR\bcustomerR\x05classR\aurgencyR\x06sortBy\x121\n" +
 	"\n" +
 	"sort_order\x18\b \x01(\tB\x12\xbaH\x0fr\rR\x00R\x03ascR\x04descR\tsortOrder\"\xc1\x01\n" +
 	"\x1fListCostProductRequestsResponse\x12+\n" +
@@ -3904,7 +4580,31 @@ const file_finance_v1_cost_product_request_proto_rawDesc = "" +
 	"\x04data\x18\x02 \x03(\v2\x1e.finance.v1.CostProductRequestR\x04data\x12=\n" +
 	"\n" +
 	"pagination\x18\x03 \x01(\v2\x1d.common.v1.PaginationResponseR\n" +
-	"pagination\"I\n" +
+	"pagination\"\x8d\x01\n" +
+	" ExportCostProductRequestsRequest\x12 \n" +
+	"\x06search\x18\x01 \x01(\tB\b\xbaH\x05r\x03\x18\xc8\x01R\x06search\x12\x1f\n" +
+	"\x06status\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x18\x1eR\x06status\x12&\n" +
+	"\x0frequest_type_id\x18\x03 \x01(\x05R\rrequestTypeId\"\x90\x01\n" +
+	"!ExportCostProductRequestsResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12!\n" +
+	"\ffile_content\x18\x02 \x01(\fR\vfileContent\x12\x1b\n" +
+	"\tfile_name\x18\x03 \x01(\tR\bfileName\"\xdc\x01\n" +
+	" ImportCostProductRequestsRequest\x12/\n" +
+	"\ffile_content\x18\x01 \x01(\fB\f\xbaH\tz\a\x10\x01\x18\x80\x80\x80\x05R\vfileContent\x12>\n" +
+	"\tfile_name\x18\x02 \x01(\tB!\xbaH\x1er\x1c\x10\x01\x18\xff\x012\x15^[^/\\\\]+\\.(xlsx|xls)$R\bfileName\x12G\n" +
+	"\x10duplicate_action\x18\x03 \x01(\tB\x1c\xbaH\x19r\x17\x10\x01R\x04skipR\x06updateR\x05errorR\x0fduplicateAction\"\x93\x02\n" +
+	"!ImportCostProductRequestsResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12#\n" +
+	"\rsuccess_count\x18\x02 \x01(\x05R\fsuccessCount\x12#\n" +
+	"\rskipped_count\x18\x03 \x01(\x05R\fskippedCount\x12#\n" +
+	"\rupdated_count\x18\x04 \x01(\x05R\fupdatedCount\x12!\n" +
+	"\ffailed_count\x18\x05 \x01(\x05R\vfailedCount\x12/\n" +
+	"\x06errors\x18\x06 \x03(\v2\x17.finance.v1.ImportErrorR\x06errors\",\n" +
+	"*GetCostProductRequestImportTemplateRequest\"\x9a\x01\n" +
+	"+GetCostProductRequestImportTemplateResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12!\n" +
+	"\ffile_content\x18\x02 \x01(\fR\vfileContent\x12\x1b\n" +
+	"\tfile_name\x18\x03 \x01(\tR\bfileName\"I\n" +
 	"\x1fSubmitCostProductRequestRequest\x12&\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02(\x01R\trequestId\"\x83\x01\n" +
@@ -3931,6 +4631,17 @@ const file_finance_v1_cost_product_request_proto_rawDesc = "" +
 	"\bdecision\x18\x02 \x01(\tB\x1d\xbaH\x1ar\x18R\bFEASIBLER\fNOT_FEASIBLER\bdecision\x12\x1c\n" +
 	"\x04note\x18\x03 \x01(\tB\b\xbaH\x05r\x03\x18\x88'R\x04note\"\x8e\x01\n" +
 	"+DecideCostProductRequestFeasibilityResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x122\n" +
+	"\x04data\x18\x02 \x01(\v2\x1e.finance.v1.CostProductRequestR\x04data\"\xf1\x02\n" +
+	"(SubmitAndDecideCostProductRequestRequest\x12&\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02(\x01R\trequestId\x12M\n" +
+	"\x17verified_classification\x18\x02 \x01(\tB\x14\xbaH\x11r\x0fR\bexistingR\x03newR\x16verifiedClassification\x121\n" +
+	"\x0foverride_reason\x18\x03 \x01(\tB\b\xbaH\x05r\x03\x18\xd0\x0fR\x0eoverrideReason\x129\n" +
+	"\bdecision\x18\x04 \x01(\tB\x1d\xbaH\x1ar\x18R\bFEASIBLER\fNOT_FEASIBLER\bdecision\x12\x1c\n" +
+	"\x04note\x18\x05 \x01(\tB\b\xbaH\x05r\x03\x18\x88'R\x04note\x12B\n" +
+	"\x19reference_product_head_id\x18\x06 \x01(\x03B\a\xbaH\x04\"\x02(\x00R\x16referenceProductHeadId\"\x8c\x01\n" +
+	")SubmitAndDecideCostProductRequestResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x122\n" +
 	"\x04data\x18\x02 \x01(\v2\x1e.finance.v1.CostProductRequestR\x04data\"\x98\x01\n" +
 	".UseExistingCostingForCostProductRequestRequest\x12&\n" +
@@ -4094,7 +4805,11 @@ const file_finance_v1_cost_product_request_proto_rawDesc = "" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12;\n" +
 	"\bproducts\x18\x02 \x03(\v2\x1f.finance.v1.ProductParamSummaryR\bproducts\x12!\n" +
 	"\ftotal_params\x18\x03 \x01(\x05R\vtotalParams\x12#\n" +
-	"\rfilled_params\x18\x04 \x01(\x05R\ffilledParams2\xeb%\n" +
+	"\rfilled_params\x18\x04 \x01(\x05R\ffilledParams*Q\n" +
+	"\bTubeType\x12\x19\n" +
+	"\x15TUBE_TYPE_UNSPECIFIED\x10\x00\x12\x13\n" +
+	"\x0fTUBE_TYPE_PAPER\x10\x01\x12\x15\n" +
+	"\x11TUBE_TYPE_PLASTIC\x10\x022\x85,\n" +
 	"\x19CostProductRequestService\x12\xa7\x01\n" +
 	"\x18CreateCostProductRequest\x12+.finance.v1.CreateCostProductRequestRequest\x1a,.finance.v1.CreateCostProductRequestResponse\"0\x82\xd3\xe4\x93\x02*:\x01*\"%/api/v1/finance/cost-product-requests\x12\xa8\x01\n" +
 	"\x15GetCostProductRequest\x12(.finance.v1.GetCostProductRequestRequest\x1a).finance.v1.GetCostProductRequestResponse\":\x82\xd3\xe4\x93\x024\x122/api/v1/finance/cost-product-requests/{request_id}\x12\xba\x01\n" +
@@ -4104,7 +4819,8 @@ const file_finance_v1_cost_product_request_proto_rawDesc = "" +
 	"\x18SubmitCostProductRequest\x12+.finance.v1.SubmitCostProductRequestRequest\x1a,.finance.v1.SubmitCostProductRequestResponse\"D\x82\xd3\xe4\x93\x02>:\x01*\"9/api/v1/finance/cost-product-requests/{request_id}/submit\x12\xd0\x01\n" +
 	"\x1dStartCostProductRequestReview\x120.finance.v1.StartCostProductRequestReviewRequest\x1a1.finance.v1.StartCostProductRequestReviewResponse\"J\x82\xd3\xe4\x93\x02D:\x01*\"?/api/v1/finance/cost-product-requests/{request_id}/start-review\x12\xf4\x01\n" +
 	"&VerifyCostProductRequestClassification\x129.finance.v1.VerifyCostProductRequestClassificationRequest\x1a:.finance.v1.VerifyCostProductRequestClassificationResponse\"S\x82\xd3\xe4\x93\x02M:\x01*\"H/api/v1/finance/cost-product-requests/{request_id}/verify-classification\x12\xe8\x01\n" +
-	"#DecideCostProductRequestFeasibility\x126.finance.v1.DecideCostProductRequestFeasibilityRequest\x1a7.finance.v1.DecideCostProductRequestFeasibilityResponse\"P\x82\xd3\xe4\x93\x02J:\x01*\"E/api/v1/finance/cost-product-requests/{request_id}/decide-feasibility\x12\xf6\x01\n" +
+	"#DecideCostProductRequestFeasibility\x126.finance.v1.DecideCostProductRequestFeasibilityRequest\x1a7.finance.v1.DecideCostProductRequestFeasibilityResponse\"P\x82\xd3\xe4\x93\x02J:\x01*\"E/api/v1/finance/cost-product-requests/{request_id}/decide-feasibility\x12\xe1\x01\n" +
+	"!SubmitAndDecideCostProductRequest\x124.finance.v1.SubmitAndDecideCostProductRequestRequest\x1a5.finance.v1.SubmitAndDecideCostProductRequestResponse\"O\x82\xd3\xe4\x93\x02I:\x01*\"D/api/v1/finance/cost-product-requests/{request_id}/submit-and-decide\x12\xf6\x01\n" +
 	"'UseExistingCostingForCostProductRequest\x12:.finance.v1.UseExistingCostingForCostProductRequestRequest\x1a;.finance.v1.UseExistingCostingForCostProductRequestResponse\"R\x82\xd3\xe4\x93\x02L:\x01*\"G/api/v1/finance/cost-product-requests/{request_id}/use-existing-costing\x12\xbb\x01\n" +
 	"\x18RejectCostProductRequest\x12+.finance.v1.RejectCostProductRequestRequest\x1a,.finance.v1.RejectCostProductRequestResponse\"D\x82\xd3\xe4\x93\x02>:\x01*\"9/api/v1/finance/cost-product-requests/{request_id}/reject\x12\xbb\x01\n" +
 	"\x18ReviseCostProductRequest\x12+.finance.v1.ReviseCostProductRequestRequest\x1a,.finance.v1.ReviseCostProductRequestResponse\"D\x82\xd3\xe4\x93\x02>:\x01*\"9/api/v1/finance/cost-product-requests/{request_id}/revise\x12\xbb\x01\n" +
@@ -4120,7 +4836,10 @@ const file_finance_v1_cost_product_request_proto_rawDesc = "" +
 	"\x19ApproveCostProductRequest\x12,.finance.v1.ApproveCostProductRequestRequest\x1a-.finance.v1.ApproveCostProductRequestResponse\"E\x82\xd3\xe4\x93\x02?:\x01*\":/api/v1/finance/cost-product-requests/{request_id}/approve\x12\xbf\x01\n" +
 	"\x19ReleaseCostProductRequest\x12,.finance.v1.ReleaseCostProductRequestRequest\x1a-.finance.v1.ReleaseCostProductRequestResponse\"E\x82\xd3\xe4\x93\x02?:\x01*\":/api/v1/finance/cost-product-requests/{request_id}/release\x12\xc5\x01\n" +
 	"\x1cGetCostProductRequestHistory\x12/.finance.v1.GetCostProductRequestHistoryRequest\x1a0.finance.v1.GetCostProductRequestHistoryResponse\"B\x82\xd3\xe4\x93\x02<\x12:/api/v1/finance/cost-product-requests/{request_id}/history\x12\xa4\x01\n" +
-	"\x0fGetParamSummary\x12\".finance.v1.GetParamSummaryRequest\x1a#.finance.v1.GetParamSummaryResponse\"H\x82\xd3\xe4\x93\x02B\x12@/api/v1/finance/cost-product-requests/{request_id}/param-summaryB\xb1\x01\n" +
+	"\x0fGetParamSummary\x12\".finance.v1.GetParamSummaryRequest\x1a#.finance.v1.GetParamSummaryResponse\"H\x82\xd3\xe4\x93\x02B\x12@/api/v1/finance/cost-product-requests/{request_id}/param-summary\x12\xae\x01\n" +
+	"\x19ExportCostProductRequests\x12,.finance.v1.ExportCostProductRequestsRequest\x1a-.finance.v1.ExportCostProductRequestsResponse\"4\x82\xd3\xe4\x93\x02.\x12,/api/v1/finance/cost-product-requests/export\x12\xb1\x01\n" +
+	"\x19ImportCostProductRequests\x12,.finance.v1.ImportCostProductRequestsRequest\x1a-.finance.v1.ImportCostProductRequestsResponse\"7\x82\xd3\xe4\x93\x021:\x01*\",/api/v1/finance/cost-product-requests/import\x12\xce\x01\n" +
+	"#GetCostProductRequestImportTemplate\x126.finance.v1.GetCostProductRequestImportTemplateRequest\x1a7.finance.v1.GetCostProductRequestImportTemplateResponse\"6\x82\xd3\xe4\x93\x020\x12./api/v1/finance/cost-product-requests/templateB\xb1\x01\n" +
 	"\x0ecom.finance.v1B\x17CostProductRequestProtoP\x01Z=github.com/mutugading/goapps-backend/gen/finance/v1;financev1\xa2\x02\x03FXX\xaa\x02\n" +
 	"Finance.V1\xca\x02\n" +
 	"Finance\\V1\xe2\x02\x16Finance\\V1\\GPBMetadata\xea\x02\vFinance::V1b\x06proto3"
@@ -4137,186 +4856,213 @@ func file_finance_v1_cost_product_request_proto_rawDescGZIP() []byte {
 	return file_finance_v1_cost_product_request_proto_rawDescData
 }
 
-var file_finance_v1_cost_product_request_proto_msgTypes = make([]protoimpl.MessageInfo, 58)
+var file_finance_v1_cost_product_request_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_finance_v1_cost_product_request_proto_msgTypes = make([]protoimpl.MessageInfo, 66)
 var file_finance_v1_cost_product_request_proto_goTypes = []any{
-	(*CostProductSpec)(nil),                                 // 0: finance.v1.CostProductSpec
-	(*CostProductRequest)(nil),                              // 1: finance.v1.CostProductRequest
-	(*SpecInput)(nil),                                       // 2: finance.v1.SpecInput
-	(*CreateCostProductRequestRequest)(nil),                 // 3: finance.v1.CreateCostProductRequestRequest
-	(*CreateCostProductRequestResponse)(nil),                // 4: finance.v1.CreateCostProductRequestResponse
-	(*GetCostProductRequestRequest)(nil),                    // 5: finance.v1.GetCostProductRequestRequest
-	(*GetCostProductRequestResponse)(nil),                   // 6: finance.v1.GetCostProductRequestResponse
-	(*GetCostProductRequestByNoRequest)(nil),                // 7: finance.v1.GetCostProductRequestByNoRequest
-	(*GetCostProductRequestByNoResponse)(nil),               // 8: finance.v1.GetCostProductRequestByNoResponse
-	(*UpdateCostProductRequestRequest)(nil),                 // 9: finance.v1.UpdateCostProductRequestRequest
-	(*UpdateCostProductRequestResponse)(nil),                // 10: finance.v1.UpdateCostProductRequestResponse
-	(*ListCostProductRequestsRequest)(nil),                  // 11: finance.v1.ListCostProductRequestsRequest
-	(*ListCostProductRequestsResponse)(nil),                 // 12: finance.v1.ListCostProductRequestsResponse
-	(*SubmitCostProductRequestRequest)(nil),                 // 13: finance.v1.SubmitCostProductRequestRequest
-	(*SubmitCostProductRequestResponse)(nil),                // 14: finance.v1.SubmitCostProductRequestResponse
-	(*StartCostProductRequestReviewRequest)(nil),            // 15: finance.v1.StartCostProductRequestReviewRequest
-	(*StartCostProductRequestReviewResponse)(nil),           // 16: finance.v1.StartCostProductRequestReviewResponse
-	(*VerifyCostProductRequestClassificationRequest)(nil),   // 17: finance.v1.VerifyCostProductRequestClassificationRequest
-	(*VerifyCostProductRequestClassificationResponse)(nil),  // 18: finance.v1.VerifyCostProductRequestClassificationResponse
-	(*DecideCostProductRequestFeasibilityRequest)(nil),      // 19: finance.v1.DecideCostProductRequestFeasibilityRequest
-	(*DecideCostProductRequestFeasibilityResponse)(nil),     // 20: finance.v1.DecideCostProductRequestFeasibilityResponse
-	(*UseExistingCostingForCostProductRequestRequest)(nil),  // 21: finance.v1.UseExistingCostingForCostProductRequestRequest
-	(*UseExistingCostingForCostProductRequestResponse)(nil), // 22: finance.v1.UseExistingCostingForCostProductRequestResponse
-	(*RejectCostProductRequestRequest)(nil),                 // 23: finance.v1.RejectCostProductRequestRequest
-	(*RejectCostProductRequestResponse)(nil),                // 24: finance.v1.RejectCostProductRequestResponse
-	(*ReviseCostProductRequestRequest)(nil),                 // 25: finance.v1.ReviseCostProductRequestRequest
-	(*ReviseCostProductRequestResponse)(nil),                // 26: finance.v1.ReviseCostProductRequestResponse
-	(*ReopenCostProductRequestRequest)(nil),                 // 27: finance.v1.ReopenCostProductRequestRequest
-	(*ReopenCostProductRequestResponse)(nil),                // 28: finance.v1.ReopenCostProductRequestResponse
-	(*MarkParameterPendingRequest)(nil),                     // 29: finance.v1.MarkParameterPendingRequest
-	(*MarkParameterPendingResponse)(nil),                    // 30: finance.v1.MarkParameterPendingResponse
-	(*MarkParameterCompleteRequest)(nil),                    // 31: finance.v1.MarkParameterCompleteRequest
-	(*MarkParameterCompleteResponse)(nil),                   // 32: finance.v1.MarkParameterCompleteResponse
-	(*MissingProductParams)(nil),                            // 33: finance.v1.MissingProductParams
-	(*CancelCostProductRequestRequest)(nil),                 // 34: finance.v1.CancelCostProductRequestRequest
-	(*CancelCostProductRequestResponse)(nil),                // 35: finance.v1.CancelCostProductRequestResponse
-	(*CloseCostProductRequestRequest)(nil),                  // 36: finance.v1.CloseCostProductRequestRequest
-	(*CloseCostProductRequestResponse)(nil),                 // 37: finance.v1.CloseCostProductRequestResponse
-	(*AssignCostProductRequestRequest)(nil),                 // 38: finance.v1.AssignCostProductRequestRequest
-	(*AssignCostProductRequestResponse)(nil),                // 39: finance.v1.AssignCostProductRequestResponse
-	(*ConfirmCostProductRequestRequest)(nil),                // 40: finance.v1.ConfirmCostProductRequestRequest
-	(*ConfirmCostProductRequestResponse)(nil),               // 41: finance.v1.ConfirmCostProductRequestResponse
-	(*ApproveCostProductRequestRequest)(nil),                // 42: finance.v1.ApproveCostProductRequestRequest
-	(*ApproveCostProductRequestResponse)(nil),               // 43: finance.v1.ApproveCostProductRequestResponse
-	(*ReleaseCostProductRequestRequest)(nil),                // 44: finance.v1.ReleaseCostProductRequestRequest
-	(*ReleaseCostProductRequestResponse)(nil),               // 45: finance.v1.ReleaseCostProductRequestResponse
-	(*StatusHistoryEntry)(nil),                              // 46: finance.v1.StatusHistoryEntry
-	(*GetCostProductRequestHistoryRequest)(nil),             // 47: finance.v1.GetCostProductRequestHistoryRequest
-	(*GetCostProductRequestHistoryResponse)(nil),            // 48: finance.v1.GetCostProductRequestHistoryResponse
-	(*LinkExistingRouteRequest)(nil),                        // 49: finance.v1.LinkExistingRouteRequest
-	(*LinkExistingRouteResponse)(nil),                       // 50: finance.v1.LinkExistingRouteResponse
-	(*UnlinkRouteRequest)(nil),                              // 51: finance.v1.UnlinkRouteRequest
-	(*UnlinkRouteResponse)(nil),                             // 52: finance.v1.UnlinkRouteResponse
-	(*ParamValueEntry)(nil),                                 // 53: finance.v1.ParamValueEntry
-	(*FillLevelSummary)(nil),                                // 54: finance.v1.FillLevelSummary
-	(*ProductParamSummary)(nil),                             // 55: finance.v1.ProductParamSummary
-	(*GetParamSummaryRequest)(nil),                          // 56: finance.v1.GetParamSummaryRequest
-	(*GetParamSummaryResponse)(nil),                         // 57: finance.v1.GetParamSummaryResponse
-	(*v1.AuditInfo)(nil),                                    // 58: common.v1.AuditInfo
-	(*v1.BaseResponse)(nil),                                 // 59: common.v1.BaseResponse
-	(*v1.PaginationRequest)(nil),                            // 60: common.v1.PaginationRequest
-	(*v1.PaginationResponse)(nil),                           // 61: common.v1.PaginationResponse
+	(TubeType)(0),                                           // 0: finance.v1.TubeType
+	(*CostProductSpec)(nil),                                 // 1: finance.v1.CostProductSpec
+	(*CostProductRequest)(nil),                              // 2: finance.v1.CostProductRequest
+	(*SpecInput)(nil),                                       // 3: finance.v1.SpecInput
+	(*CreateCostProductRequestRequest)(nil),                 // 4: finance.v1.CreateCostProductRequestRequest
+	(*CreateCostProductRequestResponse)(nil),                // 5: finance.v1.CreateCostProductRequestResponse
+	(*GetCostProductRequestRequest)(nil),                    // 6: finance.v1.GetCostProductRequestRequest
+	(*GetCostProductRequestResponse)(nil),                   // 7: finance.v1.GetCostProductRequestResponse
+	(*GetCostProductRequestByNoRequest)(nil),                // 8: finance.v1.GetCostProductRequestByNoRequest
+	(*GetCostProductRequestByNoResponse)(nil),               // 9: finance.v1.GetCostProductRequestByNoResponse
+	(*UpdateCostProductRequestRequest)(nil),                 // 10: finance.v1.UpdateCostProductRequestRequest
+	(*UpdateCostProductRequestResponse)(nil),                // 11: finance.v1.UpdateCostProductRequestResponse
+	(*ListCostProductRequestsRequest)(nil),                  // 12: finance.v1.ListCostProductRequestsRequest
+	(*ListCostProductRequestsResponse)(nil),                 // 13: finance.v1.ListCostProductRequestsResponse
+	(*ExportCostProductRequestsRequest)(nil),                // 14: finance.v1.ExportCostProductRequestsRequest
+	(*ExportCostProductRequestsResponse)(nil),               // 15: finance.v1.ExportCostProductRequestsResponse
+	(*ImportCostProductRequestsRequest)(nil),                // 16: finance.v1.ImportCostProductRequestsRequest
+	(*ImportCostProductRequestsResponse)(nil),               // 17: finance.v1.ImportCostProductRequestsResponse
+	(*GetCostProductRequestImportTemplateRequest)(nil),      // 18: finance.v1.GetCostProductRequestImportTemplateRequest
+	(*GetCostProductRequestImportTemplateResponse)(nil),     // 19: finance.v1.GetCostProductRequestImportTemplateResponse
+	(*SubmitCostProductRequestRequest)(nil),                 // 20: finance.v1.SubmitCostProductRequestRequest
+	(*SubmitCostProductRequestResponse)(nil),                // 21: finance.v1.SubmitCostProductRequestResponse
+	(*StartCostProductRequestReviewRequest)(nil),            // 22: finance.v1.StartCostProductRequestReviewRequest
+	(*StartCostProductRequestReviewResponse)(nil),           // 23: finance.v1.StartCostProductRequestReviewResponse
+	(*VerifyCostProductRequestClassificationRequest)(nil),   // 24: finance.v1.VerifyCostProductRequestClassificationRequest
+	(*VerifyCostProductRequestClassificationResponse)(nil),  // 25: finance.v1.VerifyCostProductRequestClassificationResponse
+	(*DecideCostProductRequestFeasibilityRequest)(nil),      // 26: finance.v1.DecideCostProductRequestFeasibilityRequest
+	(*DecideCostProductRequestFeasibilityResponse)(nil),     // 27: finance.v1.DecideCostProductRequestFeasibilityResponse
+	(*SubmitAndDecideCostProductRequestRequest)(nil),        // 28: finance.v1.SubmitAndDecideCostProductRequestRequest
+	(*SubmitAndDecideCostProductRequestResponse)(nil),       // 29: finance.v1.SubmitAndDecideCostProductRequestResponse
+	(*UseExistingCostingForCostProductRequestRequest)(nil),  // 30: finance.v1.UseExistingCostingForCostProductRequestRequest
+	(*UseExistingCostingForCostProductRequestResponse)(nil), // 31: finance.v1.UseExistingCostingForCostProductRequestResponse
+	(*RejectCostProductRequestRequest)(nil),                 // 32: finance.v1.RejectCostProductRequestRequest
+	(*RejectCostProductRequestResponse)(nil),                // 33: finance.v1.RejectCostProductRequestResponse
+	(*ReviseCostProductRequestRequest)(nil),                 // 34: finance.v1.ReviseCostProductRequestRequest
+	(*ReviseCostProductRequestResponse)(nil),                // 35: finance.v1.ReviseCostProductRequestResponse
+	(*ReopenCostProductRequestRequest)(nil),                 // 36: finance.v1.ReopenCostProductRequestRequest
+	(*ReopenCostProductRequestResponse)(nil),                // 37: finance.v1.ReopenCostProductRequestResponse
+	(*MarkParameterPendingRequest)(nil),                     // 38: finance.v1.MarkParameterPendingRequest
+	(*MarkParameterPendingResponse)(nil),                    // 39: finance.v1.MarkParameterPendingResponse
+	(*MarkParameterCompleteRequest)(nil),                    // 40: finance.v1.MarkParameterCompleteRequest
+	(*MarkParameterCompleteResponse)(nil),                   // 41: finance.v1.MarkParameterCompleteResponse
+	(*MissingProductParams)(nil),                            // 42: finance.v1.MissingProductParams
+	(*CancelCostProductRequestRequest)(nil),                 // 43: finance.v1.CancelCostProductRequestRequest
+	(*CancelCostProductRequestResponse)(nil),                // 44: finance.v1.CancelCostProductRequestResponse
+	(*CloseCostProductRequestRequest)(nil),                  // 45: finance.v1.CloseCostProductRequestRequest
+	(*CloseCostProductRequestResponse)(nil),                 // 46: finance.v1.CloseCostProductRequestResponse
+	(*AssignCostProductRequestRequest)(nil),                 // 47: finance.v1.AssignCostProductRequestRequest
+	(*AssignCostProductRequestResponse)(nil),                // 48: finance.v1.AssignCostProductRequestResponse
+	(*ConfirmCostProductRequestRequest)(nil),                // 49: finance.v1.ConfirmCostProductRequestRequest
+	(*ConfirmCostProductRequestResponse)(nil),               // 50: finance.v1.ConfirmCostProductRequestResponse
+	(*ApproveCostProductRequestRequest)(nil),                // 51: finance.v1.ApproveCostProductRequestRequest
+	(*ApproveCostProductRequestResponse)(nil),               // 52: finance.v1.ApproveCostProductRequestResponse
+	(*ReleaseCostProductRequestRequest)(nil),                // 53: finance.v1.ReleaseCostProductRequestRequest
+	(*ReleaseCostProductRequestResponse)(nil),               // 54: finance.v1.ReleaseCostProductRequestResponse
+	(*StatusHistoryEntry)(nil),                              // 55: finance.v1.StatusHistoryEntry
+	(*GetCostProductRequestHistoryRequest)(nil),             // 56: finance.v1.GetCostProductRequestHistoryRequest
+	(*GetCostProductRequestHistoryResponse)(nil),            // 57: finance.v1.GetCostProductRequestHistoryResponse
+	(*LinkExistingRouteRequest)(nil),                        // 58: finance.v1.LinkExistingRouteRequest
+	(*LinkExistingRouteResponse)(nil),                       // 59: finance.v1.LinkExistingRouteResponse
+	(*UnlinkRouteRequest)(nil),                              // 60: finance.v1.UnlinkRouteRequest
+	(*UnlinkRouteResponse)(nil),                             // 61: finance.v1.UnlinkRouteResponse
+	(*ParamValueEntry)(nil),                                 // 62: finance.v1.ParamValueEntry
+	(*FillLevelSummary)(nil),                                // 63: finance.v1.FillLevelSummary
+	(*ProductParamSummary)(nil),                             // 64: finance.v1.ProductParamSummary
+	(*GetParamSummaryRequest)(nil),                          // 65: finance.v1.GetParamSummaryRequest
+	(*GetParamSummaryResponse)(nil),                         // 66: finance.v1.GetParamSummaryResponse
+	(*v1.AuditInfo)(nil),                                    // 67: common.v1.AuditInfo
+	(*v1.BaseResponse)(nil),                                 // 68: common.v1.BaseResponse
+	(*v1.PaginationRequest)(nil),                            // 69: common.v1.PaginationRequest
+	(*v1.PaginationResponse)(nil),                           // 70: common.v1.PaginationResponse
+	(*ImportError)(nil),                                     // 71: finance.v1.ImportError
 }
 var file_finance_v1_cost_product_request_proto_depIdxs = []int32{
-	58, // 0: finance.v1.CostProductRequest.audit:type_name -> common.v1.AuditInfo
-	0,  // 1: finance.v1.CostProductRequest.spec:type_name -> finance.v1.CostProductSpec
-	2,  // 2: finance.v1.CreateCostProductRequestRequest.spec:type_name -> finance.v1.SpecInput
-	59, // 3: finance.v1.CreateCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 4: finance.v1.CreateCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
-	59, // 5: finance.v1.GetCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 6: finance.v1.GetCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
-	59, // 7: finance.v1.GetCostProductRequestByNoResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 8: finance.v1.GetCostProductRequestByNoResponse.data:type_name -> finance.v1.CostProductRequest
-	2,  // 9: finance.v1.UpdateCostProductRequestRequest.spec:type_name -> finance.v1.SpecInput
-	59, // 10: finance.v1.UpdateCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 11: finance.v1.UpdateCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
-	60, // 12: finance.v1.ListCostProductRequestsRequest.pagination:type_name -> common.v1.PaginationRequest
-	59, // 13: finance.v1.ListCostProductRequestsResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 14: finance.v1.ListCostProductRequestsResponse.data:type_name -> finance.v1.CostProductRequest
-	61, // 15: finance.v1.ListCostProductRequestsResponse.pagination:type_name -> common.v1.PaginationResponse
-	59, // 16: finance.v1.SubmitCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 17: finance.v1.SubmitCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
-	59, // 18: finance.v1.StartCostProductRequestReviewResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 19: finance.v1.StartCostProductRequestReviewResponse.data:type_name -> finance.v1.CostProductRequest
-	59, // 20: finance.v1.VerifyCostProductRequestClassificationResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 21: finance.v1.VerifyCostProductRequestClassificationResponse.data:type_name -> finance.v1.CostProductRequest
-	59, // 22: finance.v1.DecideCostProductRequestFeasibilityResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 23: finance.v1.DecideCostProductRequestFeasibilityResponse.data:type_name -> finance.v1.CostProductRequest
-	59, // 24: finance.v1.UseExistingCostingForCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 25: finance.v1.UseExistingCostingForCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
-	59, // 26: finance.v1.RejectCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 27: finance.v1.RejectCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
-	59, // 28: finance.v1.ReviseCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 29: finance.v1.ReviseCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
-	59, // 30: finance.v1.ReopenCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 31: finance.v1.ReopenCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
-	59, // 32: finance.v1.MarkParameterPendingResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 33: finance.v1.MarkParameterPendingResponse.data:type_name -> finance.v1.CostProductRequest
-	59, // 34: finance.v1.MarkParameterCompleteResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 35: finance.v1.MarkParameterCompleteResponse.data:type_name -> finance.v1.CostProductRequest
-	33, // 36: finance.v1.MarkParameterCompleteResponse.missing_products:type_name -> finance.v1.MissingProductParams
-	59, // 37: finance.v1.CancelCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 38: finance.v1.CancelCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
-	59, // 39: finance.v1.CloseCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 40: finance.v1.CloseCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
-	59, // 41: finance.v1.AssignCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 42: finance.v1.AssignCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
-	59, // 43: finance.v1.ConfirmCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 44: finance.v1.ConfirmCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
-	59, // 45: finance.v1.ApproveCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 46: finance.v1.ApproveCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
-	59, // 47: finance.v1.ReleaseCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 48: finance.v1.ReleaseCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
-	59, // 49: finance.v1.GetCostProductRequestHistoryResponse.base:type_name -> common.v1.BaseResponse
-	46, // 50: finance.v1.GetCostProductRequestHistoryResponse.entries:type_name -> finance.v1.StatusHistoryEntry
-	59, // 51: finance.v1.LinkExistingRouteResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 52: finance.v1.LinkExistingRouteResponse.data:type_name -> finance.v1.CostProductRequest
-	59, // 53: finance.v1.UnlinkRouteResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 54: finance.v1.UnlinkRouteResponse.data:type_name -> finance.v1.CostProductRequest
-	53, // 55: finance.v1.FillLevelSummary.params:type_name -> finance.v1.ParamValueEntry
-	54, // 56: finance.v1.ProductParamSummary.levels:type_name -> finance.v1.FillLevelSummary
-	59, // 57: finance.v1.GetParamSummaryResponse.base:type_name -> common.v1.BaseResponse
-	55, // 58: finance.v1.GetParamSummaryResponse.products:type_name -> finance.v1.ProductParamSummary
-	3,  // 59: finance.v1.CostProductRequestService.CreateCostProductRequest:input_type -> finance.v1.CreateCostProductRequestRequest
-	5,  // 60: finance.v1.CostProductRequestService.GetCostProductRequest:input_type -> finance.v1.GetCostProductRequestRequest
-	7,  // 61: finance.v1.CostProductRequestService.GetCostProductRequestByNo:input_type -> finance.v1.GetCostProductRequestByNoRequest
-	9,  // 62: finance.v1.CostProductRequestService.UpdateCostProductRequest:input_type -> finance.v1.UpdateCostProductRequestRequest
-	11, // 63: finance.v1.CostProductRequestService.ListCostProductRequests:input_type -> finance.v1.ListCostProductRequestsRequest
-	13, // 64: finance.v1.CostProductRequestService.SubmitCostProductRequest:input_type -> finance.v1.SubmitCostProductRequestRequest
-	15, // 65: finance.v1.CostProductRequestService.StartCostProductRequestReview:input_type -> finance.v1.StartCostProductRequestReviewRequest
-	17, // 66: finance.v1.CostProductRequestService.VerifyCostProductRequestClassification:input_type -> finance.v1.VerifyCostProductRequestClassificationRequest
-	19, // 67: finance.v1.CostProductRequestService.DecideCostProductRequestFeasibility:input_type -> finance.v1.DecideCostProductRequestFeasibilityRequest
-	21, // 68: finance.v1.CostProductRequestService.UseExistingCostingForCostProductRequest:input_type -> finance.v1.UseExistingCostingForCostProductRequestRequest
-	23, // 69: finance.v1.CostProductRequestService.RejectCostProductRequest:input_type -> finance.v1.RejectCostProductRequestRequest
-	25, // 70: finance.v1.CostProductRequestService.ReviseCostProductRequest:input_type -> finance.v1.ReviseCostProductRequestRequest
-	27, // 71: finance.v1.CostProductRequestService.ReopenCostProductRequest:input_type -> finance.v1.ReopenCostProductRequestRequest
-	29, // 72: finance.v1.CostProductRequestService.MarkParameterPending:input_type -> finance.v1.MarkParameterPendingRequest
-	31, // 73: finance.v1.CostProductRequestService.MarkParameterComplete:input_type -> finance.v1.MarkParameterCompleteRequest
-	34, // 74: finance.v1.CostProductRequestService.CancelCostProductRequest:input_type -> finance.v1.CancelCostProductRequestRequest
-	36, // 75: finance.v1.CostProductRequestService.CloseCostProductRequest:input_type -> finance.v1.CloseCostProductRequestRequest
-	38, // 76: finance.v1.CostProductRequestService.AssignCostProductRequest:input_type -> finance.v1.AssignCostProductRequestRequest
-	49, // 77: finance.v1.CostProductRequestService.LinkExistingRoute:input_type -> finance.v1.LinkExistingRouteRequest
-	51, // 78: finance.v1.CostProductRequestService.UnlinkRoute:input_type -> finance.v1.UnlinkRouteRequest
-	40, // 79: finance.v1.CostProductRequestService.ConfirmCostProductRequest:input_type -> finance.v1.ConfirmCostProductRequestRequest
-	42, // 80: finance.v1.CostProductRequestService.ApproveCostProductRequest:input_type -> finance.v1.ApproveCostProductRequestRequest
-	44, // 81: finance.v1.CostProductRequestService.ReleaseCostProductRequest:input_type -> finance.v1.ReleaseCostProductRequestRequest
-	47, // 82: finance.v1.CostProductRequestService.GetCostProductRequestHistory:input_type -> finance.v1.GetCostProductRequestHistoryRequest
-	56, // 83: finance.v1.CostProductRequestService.GetParamSummary:input_type -> finance.v1.GetParamSummaryRequest
-	4,  // 84: finance.v1.CostProductRequestService.CreateCostProductRequest:output_type -> finance.v1.CreateCostProductRequestResponse
-	6,  // 85: finance.v1.CostProductRequestService.GetCostProductRequest:output_type -> finance.v1.GetCostProductRequestResponse
-	8,  // 86: finance.v1.CostProductRequestService.GetCostProductRequestByNo:output_type -> finance.v1.GetCostProductRequestByNoResponse
-	10, // 87: finance.v1.CostProductRequestService.UpdateCostProductRequest:output_type -> finance.v1.UpdateCostProductRequestResponse
-	12, // 88: finance.v1.CostProductRequestService.ListCostProductRequests:output_type -> finance.v1.ListCostProductRequestsResponse
-	14, // 89: finance.v1.CostProductRequestService.SubmitCostProductRequest:output_type -> finance.v1.SubmitCostProductRequestResponse
-	16, // 90: finance.v1.CostProductRequestService.StartCostProductRequestReview:output_type -> finance.v1.StartCostProductRequestReviewResponse
-	18, // 91: finance.v1.CostProductRequestService.VerifyCostProductRequestClassification:output_type -> finance.v1.VerifyCostProductRequestClassificationResponse
-	20, // 92: finance.v1.CostProductRequestService.DecideCostProductRequestFeasibility:output_type -> finance.v1.DecideCostProductRequestFeasibilityResponse
-	22, // 93: finance.v1.CostProductRequestService.UseExistingCostingForCostProductRequest:output_type -> finance.v1.UseExistingCostingForCostProductRequestResponse
-	24, // 94: finance.v1.CostProductRequestService.RejectCostProductRequest:output_type -> finance.v1.RejectCostProductRequestResponse
-	26, // 95: finance.v1.CostProductRequestService.ReviseCostProductRequest:output_type -> finance.v1.ReviseCostProductRequestResponse
-	28, // 96: finance.v1.CostProductRequestService.ReopenCostProductRequest:output_type -> finance.v1.ReopenCostProductRequestResponse
-	30, // 97: finance.v1.CostProductRequestService.MarkParameterPending:output_type -> finance.v1.MarkParameterPendingResponse
-	32, // 98: finance.v1.CostProductRequestService.MarkParameterComplete:output_type -> finance.v1.MarkParameterCompleteResponse
-	35, // 99: finance.v1.CostProductRequestService.CancelCostProductRequest:output_type -> finance.v1.CancelCostProductRequestResponse
-	37, // 100: finance.v1.CostProductRequestService.CloseCostProductRequest:output_type -> finance.v1.CloseCostProductRequestResponse
-	39, // 101: finance.v1.CostProductRequestService.AssignCostProductRequest:output_type -> finance.v1.AssignCostProductRequestResponse
-	50, // 102: finance.v1.CostProductRequestService.LinkExistingRoute:output_type -> finance.v1.LinkExistingRouteResponse
-	52, // 103: finance.v1.CostProductRequestService.UnlinkRoute:output_type -> finance.v1.UnlinkRouteResponse
-	41, // 104: finance.v1.CostProductRequestService.ConfirmCostProductRequest:output_type -> finance.v1.ConfirmCostProductRequestResponse
-	43, // 105: finance.v1.CostProductRequestService.ApproveCostProductRequest:output_type -> finance.v1.ApproveCostProductRequestResponse
-	45, // 106: finance.v1.CostProductRequestService.ReleaseCostProductRequest:output_type -> finance.v1.ReleaseCostProductRequestResponse
-	48, // 107: finance.v1.CostProductRequestService.GetCostProductRequestHistory:output_type -> finance.v1.GetCostProductRequestHistoryResponse
-	57, // 108: finance.v1.CostProductRequestService.GetParamSummary:output_type -> finance.v1.GetParamSummaryResponse
-	84, // [84:109] is the sub-list for method output_type
-	59, // [59:84] is the sub-list for method input_type
-	59, // [59:59] is the sub-list for extension type_name
-	59, // [59:59] is the sub-list for extension extendee
-	0,  // [0:59] is the sub-list for field type_name
+	0,  // 0: finance.v1.CostProductSpec.tube_type:type_name -> finance.v1.TubeType
+	67, // 1: finance.v1.CostProductRequest.audit:type_name -> common.v1.AuditInfo
+	1,  // 2: finance.v1.CostProductRequest.spec:type_name -> finance.v1.CostProductSpec
+	0,  // 3: finance.v1.SpecInput.tube_type:type_name -> finance.v1.TubeType
+	3,  // 4: finance.v1.CreateCostProductRequestRequest.spec:type_name -> finance.v1.SpecInput
+	68, // 5: finance.v1.CreateCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 6: finance.v1.CreateCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
+	68, // 7: finance.v1.GetCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 8: finance.v1.GetCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
+	68, // 9: finance.v1.GetCostProductRequestByNoResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 10: finance.v1.GetCostProductRequestByNoResponse.data:type_name -> finance.v1.CostProductRequest
+	3,  // 11: finance.v1.UpdateCostProductRequestRequest.spec:type_name -> finance.v1.SpecInput
+	68, // 12: finance.v1.UpdateCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 13: finance.v1.UpdateCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
+	69, // 14: finance.v1.ListCostProductRequestsRequest.pagination:type_name -> common.v1.PaginationRequest
+	68, // 15: finance.v1.ListCostProductRequestsResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 16: finance.v1.ListCostProductRequestsResponse.data:type_name -> finance.v1.CostProductRequest
+	70, // 17: finance.v1.ListCostProductRequestsResponse.pagination:type_name -> common.v1.PaginationResponse
+	68, // 18: finance.v1.ExportCostProductRequestsResponse.base:type_name -> common.v1.BaseResponse
+	68, // 19: finance.v1.ImportCostProductRequestsResponse.base:type_name -> common.v1.BaseResponse
+	71, // 20: finance.v1.ImportCostProductRequestsResponse.errors:type_name -> finance.v1.ImportError
+	68, // 21: finance.v1.GetCostProductRequestImportTemplateResponse.base:type_name -> common.v1.BaseResponse
+	68, // 22: finance.v1.SubmitCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 23: finance.v1.SubmitCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
+	68, // 24: finance.v1.StartCostProductRequestReviewResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 25: finance.v1.StartCostProductRequestReviewResponse.data:type_name -> finance.v1.CostProductRequest
+	68, // 26: finance.v1.VerifyCostProductRequestClassificationResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 27: finance.v1.VerifyCostProductRequestClassificationResponse.data:type_name -> finance.v1.CostProductRequest
+	68, // 28: finance.v1.DecideCostProductRequestFeasibilityResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 29: finance.v1.DecideCostProductRequestFeasibilityResponse.data:type_name -> finance.v1.CostProductRequest
+	68, // 30: finance.v1.SubmitAndDecideCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 31: finance.v1.SubmitAndDecideCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
+	68, // 32: finance.v1.UseExistingCostingForCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 33: finance.v1.UseExistingCostingForCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
+	68, // 34: finance.v1.RejectCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 35: finance.v1.RejectCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
+	68, // 36: finance.v1.ReviseCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 37: finance.v1.ReviseCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
+	68, // 38: finance.v1.ReopenCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 39: finance.v1.ReopenCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
+	68, // 40: finance.v1.MarkParameterPendingResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 41: finance.v1.MarkParameterPendingResponse.data:type_name -> finance.v1.CostProductRequest
+	68, // 42: finance.v1.MarkParameterCompleteResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 43: finance.v1.MarkParameterCompleteResponse.data:type_name -> finance.v1.CostProductRequest
+	42, // 44: finance.v1.MarkParameterCompleteResponse.missing_products:type_name -> finance.v1.MissingProductParams
+	68, // 45: finance.v1.CancelCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 46: finance.v1.CancelCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
+	68, // 47: finance.v1.CloseCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 48: finance.v1.CloseCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
+	68, // 49: finance.v1.AssignCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 50: finance.v1.AssignCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
+	68, // 51: finance.v1.ConfirmCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 52: finance.v1.ConfirmCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
+	68, // 53: finance.v1.ApproveCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 54: finance.v1.ApproveCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
+	68, // 55: finance.v1.ReleaseCostProductRequestResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 56: finance.v1.ReleaseCostProductRequestResponse.data:type_name -> finance.v1.CostProductRequest
+	68, // 57: finance.v1.GetCostProductRequestHistoryResponse.base:type_name -> common.v1.BaseResponse
+	55, // 58: finance.v1.GetCostProductRequestHistoryResponse.entries:type_name -> finance.v1.StatusHistoryEntry
+	68, // 59: finance.v1.LinkExistingRouteResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 60: finance.v1.LinkExistingRouteResponse.data:type_name -> finance.v1.CostProductRequest
+	68, // 61: finance.v1.UnlinkRouteResponse.base:type_name -> common.v1.BaseResponse
+	2,  // 62: finance.v1.UnlinkRouteResponse.data:type_name -> finance.v1.CostProductRequest
+	62, // 63: finance.v1.FillLevelSummary.params:type_name -> finance.v1.ParamValueEntry
+	63, // 64: finance.v1.ProductParamSummary.levels:type_name -> finance.v1.FillLevelSummary
+	68, // 65: finance.v1.GetParamSummaryResponse.base:type_name -> common.v1.BaseResponse
+	64, // 66: finance.v1.GetParamSummaryResponse.products:type_name -> finance.v1.ProductParamSummary
+	4,  // 67: finance.v1.CostProductRequestService.CreateCostProductRequest:input_type -> finance.v1.CreateCostProductRequestRequest
+	6,  // 68: finance.v1.CostProductRequestService.GetCostProductRequest:input_type -> finance.v1.GetCostProductRequestRequest
+	8,  // 69: finance.v1.CostProductRequestService.GetCostProductRequestByNo:input_type -> finance.v1.GetCostProductRequestByNoRequest
+	10, // 70: finance.v1.CostProductRequestService.UpdateCostProductRequest:input_type -> finance.v1.UpdateCostProductRequestRequest
+	12, // 71: finance.v1.CostProductRequestService.ListCostProductRequests:input_type -> finance.v1.ListCostProductRequestsRequest
+	20, // 72: finance.v1.CostProductRequestService.SubmitCostProductRequest:input_type -> finance.v1.SubmitCostProductRequestRequest
+	22, // 73: finance.v1.CostProductRequestService.StartCostProductRequestReview:input_type -> finance.v1.StartCostProductRequestReviewRequest
+	24, // 74: finance.v1.CostProductRequestService.VerifyCostProductRequestClassification:input_type -> finance.v1.VerifyCostProductRequestClassificationRequest
+	26, // 75: finance.v1.CostProductRequestService.DecideCostProductRequestFeasibility:input_type -> finance.v1.DecideCostProductRequestFeasibilityRequest
+	28, // 76: finance.v1.CostProductRequestService.SubmitAndDecideCostProductRequest:input_type -> finance.v1.SubmitAndDecideCostProductRequestRequest
+	30, // 77: finance.v1.CostProductRequestService.UseExistingCostingForCostProductRequest:input_type -> finance.v1.UseExistingCostingForCostProductRequestRequest
+	32, // 78: finance.v1.CostProductRequestService.RejectCostProductRequest:input_type -> finance.v1.RejectCostProductRequestRequest
+	34, // 79: finance.v1.CostProductRequestService.ReviseCostProductRequest:input_type -> finance.v1.ReviseCostProductRequestRequest
+	36, // 80: finance.v1.CostProductRequestService.ReopenCostProductRequest:input_type -> finance.v1.ReopenCostProductRequestRequest
+	38, // 81: finance.v1.CostProductRequestService.MarkParameterPending:input_type -> finance.v1.MarkParameterPendingRequest
+	40, // 82: finance.v1.CostProductRequestService.MarkParameterComplete:input_type -> finance.v1.MarkParameterCompleteRequest
+	43, // 83: finance.v1.CostProductRequestService.CancelCostProductRequest:input_type -> finance.v1.CancelCostProductRequestRequest
+	45, // 84: finance.v1.CostProductRequestService.CloseCostProductRequest:input_type -> finance.v1.CloseCostProductRequestRequest
+	47, // 85: finance.v1.CostProductRequestService.AssignCostProductRequest:input_type -> finance.v1.AssignCostProductRequestRequest
+	58, // 86: finance.v1.CostProductRequestService.LinkExistingRoute:input_type -> finance.v1.LinkExistingRouteRequest
+	60, // 87: finance.v1.CostProductRequestService.UnlinkRoute:input_type -> finance.v1.UnlinkRouteRequest
+	49, // 88: finance.v1.CostProductRequestService.ConfirmCostProductRequest:input_type -> finance.v1.ConfirmCostProductRequestRequest
+	51, // 89: finance.v1.CostProductRequestService.ApproveCostProductRequest:input_type -> finance.v1.ApproveCostProductRequestRequest
+	53, // 90: finance.v1.CostProductRequestService.ReleaseCostProductRequest:input_type -> finance.v1.ReleaseCostProductRequestRequest
+	56, // 91: finance.v1.CostProductRequestService.GetCostProductRequestHistory:input_type -> finance.v1.GetCostProductRequestHistoryRequest
+	65, // 92: finance.v1.CostProductRequestService.GetParamSummary:input_type -> finance.v1.GetParamSummaryRequest
+	14, // 93: finance.v1.CostProductRequestService.ExportCostProductRequests:input_type -> finance.v1.ExportCostProductRequestsRequest
+	16, // 94: finance.v1.CostProductRequestService.ImportCostProductRequests:input_type -> finance.v1.ImportCostProductRequestsRequest
+	18, // 95: finance.v1.CostProductRequestService.GetCostProductRequestImportTemplate:input_type -> finance.v1.GetCostProductRequestImportTemplateRequest
+	5,  // 96: finance.v1.CostProductRequestService.CreateCostProductRequest:output_type -> finance.v1.CreateCostProductRequestResponse
+	7,  // 97: finance.v1.CostProductRequestService.GetCostProductRequest:output_type -> finance.v1.GetCostProductRequestResponse
+	9,  // 98: finance.v1.CostProductRequestService.GetCostProductRequestByNo:output_type -> finance.v1.GetCostProductRequestByNoResponse
+	11, // 99: finance.v1.CostProductRequestService.UpdateCostProductRequest:output_type -> finance.v1.UpdateCostProductRequestResponse
+	13, // 100: finance.v1.CostProductRequestService.ListCostProductRequests:output_type -> finance.v1.ListCostProductRequestsResponse
+	21, // 101: finance.v1.CostProductRequestService.SubmitCostProductRequest:output_type -> finance.v1.SubmitCostProductRequestResponse
+	23, // 102: finance.v1.CostProductRequestService.StartCostProductRequestReview:output_type -> finance.v1.StartCostProductRequestReviewResponse
+	25, // 103: finance.v1.CostProductRequestService.VerifyCostProductRequestClassification:output_type -> finance.v1.VerifyCostProductRequestClassificationResponse
+	27, // 104: finance.v1.CostProductRequestService.DecideCostProductRequestFeasibility:output_type -> finance.v1.DecideCostProductRequestFeasibilityResponse
+	29, // 105: finance.v1.CostProductRequestService.SubmitAndDecideCostProductRequest:output_type -> finance.v1.SubmitAndDecideCostProductRequestResponse
+	31, // 106: finance.v1.CostProductRequestService.UseExistingCostingForCostProductRequest:output_type -> finance.v1.UseExistingCostingForCostProductRequestResponse
+	33, // 107: finance.v1.CostProductRequestService.RejectCostProductRequest:output_type -> finance.v1.RejectCostProductRequestResponse
+	35, // 108: finance.v1.CostProductRequestService.ReviseCostProductRequest:output_type -> finance.v1.ReviseCostProductRequestResponse
+	37, // 109: finance.v1.CostProductRequestService.ReopenCostProductRequest:output_type -> finance.v1.ReopenCostProductRequestResponse
+	39, // 110: finance.v1.CostProductRequestService.MarkParameterPending:output_type -> finance.v1.MarkParameterPendingResponse
+	41, // 111: finance.v1.CostProductRequestService.MarkParameterComplete:output_type -> finance.v1.MarkParameterCompleteResponse
+	44, // 112: finance.v1.CostProductRequestService.CancelCostProductRequest:output_type -> finance.v1.CancelCostProductRequestResponse
+	46, // 113: finance.v1.CostProductRequestService.CloseCostProductRequest:output_type -> finance.v1.CloseCostProductRequestResponse
+	48, // 114: finance.v1.CostProductRequestService.AssignCostProductRequest:output_type -> finance.v1.AssignCostProductRequestResponse
+	59, // 115: finance.v1.CostProductRequestService.LinkExistingRoute:output_type -> finance.v1.LinkExistingRouteResponse
+	61, // 116: finance.v1.CostProductRequestService.UnlinkRoute:output_type -> finance.v1.UnlinkRouteResponse
+	50, // 117: finance.v1.CostProductRequestService.ConfirmCostProductRequest:output_type -> finance.v1.ConfirmCostProductRequestResponse
+	52, // 118: finance.v1.CostProductRequestService.ApproveCostProductRequest:output_type -> finance.v1.ApproveCostProductRequestResponse
+	54, // 119: finance.v1.CostProductRequestService.ReleaseCostProductRequest:output_type -> finance.v1.ReleaseCostProductRequestResponse
+	57, // 120: finance.v1.CostProductRequestService.GetCostProductRequestHistory:output_type -> finance.v1.GetCostProductRequestHistoryResponse
+	66, // 121: finance.v1.CostProductRequestService.GetParamSummary:output_type -> finance.v1.GetParamSummaryResponse
+	15, // 122: finance.v1.CostProductRequestService.ExportCostProductRequests:output_type -> finance.v1.ExportCostProductRequestsResponse
+	17, // 123: finance.v1.CostProductRequestService.ImportCostProductRequests:output_type -> finance.v1.ImportCostProductRequestsResponse
+	19, // 124: finance.v1.CostProductRequestService.GetCostProductRequestImportTemplate:output_type -> finance.v1.GetCostProductRequestImportTemplateResponse
+	96, // [96:125] is the sub-list for method output_type
+	67, // [67:96] is the sub-list for method input_type
+	67, // [67:67] is the sub-list for extension type_name
+	67, // [67:67] is the sub-list for extension extendee
+	0,  // [0:67] is the sub-list for field type_name
 }
 
 func init() { file_finance_v1_cost_product_request_proto_init() }
@@ -4324,18 +5070,20 @@ func file_finance_v1_cost_product_request_proto_init() {
 	if File_finance_v1_cost_product_request_proto != nil {
 		return
 	}
+	file_finance_v1_uom_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_finance_v1_cost_product_request_proto_rawDesc), len(file_finance_v1_cost_product_request_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   58,
+			NumEnums:      1,
+			NumMessages:   66,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_finance_v1_cost_product_request_proto_goTypes,
 		DependencyIndexes: file_finance_v1_cost_product_request_proto_depIdxs,
+		EnumInfos:         file_finance_v1_cost_product_request_proto_enumTypes,
 		MessageInfos:      file_finance_v1_cost_product_request_proto_msgTypes,
 	}.Build()
 	File_finance_v1_cost_product_request_proto = out.File

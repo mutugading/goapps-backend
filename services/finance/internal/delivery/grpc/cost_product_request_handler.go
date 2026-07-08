@@ -10,7 +10,9 @@ import (
 	commonv1 "github.com/mutugading/goapps-backend/gen/common/v1"
 	financev1 "github.com/mutugading/goapps-backend/gen/finance/v1"
 	app "github.com/mutugading/goapps-backend/services/finance/internal/application/costproductrequest"
+	pmDomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductmaster"
 	domain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductrequest"
+	rtDomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costrequesttype"
 	routeDomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costroute"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/requesthistory"
 )
@@ -25,6 +27,9 @@ type CostProductRequestHandler struct {
 	transitionHandler  *app.TransitionHandler
 	linkRouteHandler   *app.LinkRouteHandler
 	unlinkRouteHandler *app.UnlinkRouteHandler
+	exportHandler      *app.ExportHandler
+	importHandler      *app.ImportHandler
+	templateHandler    *app.TemplateHandler
 	validation         *ValidationHelper
 	historyRepo        requesthistory.Repository   // optional; nil disables GetCostProductRequestHistory
 	paramSummary       *app.GetParamSummaryHandler // optional; nil returns empty response
@@ -32,8 +37,16 @@ type CostProductRequestHandler struct {
 
 // NewCostProductRequestHandler constructs the handler. Pass auditEmitter=nil to
 // disable audit log emission on state transitions. The routeRepo is used to
-// validate route head existence on LinkExistingRoute.
-func NewCostProductRequestHandler(repo domain.Repository, routeRepo routeDomain.Repository, auditEmitter app.AuditEmitter) (*CostProductRequestHandler, error) {
+// validate route head existence on LinkExistingRoute. requestTypeRepo and
+// productMasterRepo back the D6 import/export handlers (design.md §4 Area
+// D6) — request type / reference product code resolution.
+func NewCostProductRequestHandler(
+	repo domain.Repository,
+	routeRepo routeDomain.Repository,
+	auditEmitter app.AuditEmitter,
+	requestTypeRepo rtDomain.Repository,
+	productMasterRepo pmDomain.Repository,
+) (*CostProductRequestHandler, error) {
 	v, err := NewValidationHelper()
 	if err != nil {
 		return nil, err
@@ -42,14 +55,18 @@ func NewCostProductRequestHandler(repo domain.Repository, routeRepo routeDomain.
 	if auditEmitter != nil {
 		transition = transition.WithAudit(auditEmitter)
 	}
+	createHandler := app.NewCreateHandler(repo)
 	return &CostProductRequestHandler{
-		createHandler:      app.NewCreateHandler(repo),
+		createHandler:      createHandler,
 		getHandler:         app.NewGetHandler(repo),
 		updateHandler:      app.NewUpdateHandler(repo),
 		listHandler:        app.NewListHandler(repo),
 		transitionHandler:  transition,
 		linkRouteHandler:   app.NewLinkRouteHandler(repo, routeRepo),
 		unlinkRouteHandler: app.NewUnlinkRouteHandler(repo, routeRepo),
+		exportHandler:      app.NewExportHandler(repo, productMasterRepo),
+		importHandler:      app.NewImportHandler(requestTypeRepo, productMasterRepo, createHandler),
+		templateHandler:    app.NewTemplateHandler(),
 		validation:         v,
 	}, nil
 }
@@ -146,6 +163,7 @@ func (h *CostProductRequestHandler) CreateCostProductRequest(ctx context.Context
 		NeededByDate:          req.GetNeededByDate(),
 		RequesterUserID:       actor,
 		Spec:                  specInputFromProto(req.GetSpec()),
+		ReferenceProductSysID: req.GetReferenceProductSysId(),
 	})
 	if err != nil {
 		return &financev1.CreateCostProductRequestResponse{Base: requestErrToBase(err)}, nil
@@ -191,6 +209,7 @@ func (h *CostProductRequestHandler) UpdateCostProductRequest(ctx context.Context
 	if baseResp := h.validation.ValidateRequest(req); baseResp != nil {
 		return &financev1.UpdateCostProductRequestResponse{Base: baseResp}, nil
 	}
+	refProductSysID := req.GetReferenceProductSysId()
 	r, err := h.updateHandler.Handle(ctx, app.UpdateCommand{
 		RequestID:             req.GetRequestId(),
 		Title:                 req.GetTitle(),
@@ -203,6 +222,7 @@ func (h *CostProductRequestHandler) UpdateCostProductRequest(ctx context.Context
 		UrgencyLevel:          req.GetUrgencyLevel(),
 		NeededByDate:          req.GetNeededByDate(),
 		Spec:                  specInputFromProto(req.GetSpec()),
+		ReferenceProductSysID: &refProductSysID,
 	})
 	if err != nil {
 		return &financev1.UpdateCostProductRequestResponse{Base: requestErrToBase(err)}, nil
@@ -302,6 +322,29 @@ func (h *CostProductRequestHandler) DecideCostProductRequestFeasibility(ctx cont
 		return &financev1.DecideCostProductRequestFeasibilityResponse{Base: requestErrToBase(err)}, nil
 	}
 	return &financev1.DecideCostProductRequestFeasibilityResponse{Base: successResponse("Feasibility decided"), Data: requestToProto(r)}, nil
+}
+
+// SubmitAndDecideCostProductRequest merges Submit + Start-review + Verify
+// classification + Decide feasibility + (when feasible) Link route into a
+// single action (design.md §3 B3).
+func (h *CostProductRequestHandler) SubmitAndDecideCostProductRequest(ctx context.Context, req *financev1.SubmitAndDecideCostProductRequestRequest) (*financev1.SubmitAndDecideCostProductRequestResponse, error) {
+	if baseResp := h.validation.ValidateRequest(req); baseResp != nil {
+		return &financev1.SubmitAndDecideCostProductRequestResponse{Base: baseResp}, nil
+	}
+	actor, _ := GetUserIDFromCtx(ctx)
+	actorName, _ := GetUsernameFromCtx(ctx)
+	r, err := h.transitionHandler.SubmitAndDecide(
+		ctx,
+		req.GetRequestId(),
+		req.GetVerifiedClassification(), req.GetOverrideReason(),
+		req.GetDecision(), req.GetNote(),
+		req.GetReferenceProductHeadId(),
+		actor, actorName,
+	)
+	if err != nil {
+		return &financev1.SubmitAndDecideCostProductRequestResponse{Base: requestErrToBase(err)}, nil
+	}
+	return &financev1.SubmitAndDecideCostProductRequestResponse{Base: successResponse("Submitted and decided"), Data: requestToProto(r)}, nil
 }
 
 // UseExistingCostingForCostProductRequest jumps UNDER_REVIEW → QUOTE_READY.
@@ -497,10 +540,38 @@ func specInputFromProto(in *financev1.SpecInput) *domain.SpecInput {
 		RawMaterialType:    in.GetRawMaterialType(),
 		ProductDescription: in.GetProductDescription(),
 		ShadeID:            in.GetShadeId(),
-		ShadeCustomText:    in.GetShadeCustomText(),
+		ShadeCode:          in.GetShadeCode(),
+		ShadeName:          in.GetShadeName(),
 		PaperTubeTypeID:    in.GetPaperTubeTypeId(),
+		TubeType:           protoTubeTypeToString(in.GetTubeType()),
 		WeightPerBobbinKg:  in.GetWeightPerBobbinKg(),
 		BoxType:            in.GetBoxType(),
+	}
+}
+
+// protoTubeTypeToString converts the proto TubeType enum to the domain's
+// plain-string representation ("PAPER"/"PLASTIC"/empty).
+func protoTubeTypeToString(t financev1.TubeType) string {
+	switch t {
+	case financev1.TubeType_TUBE_TYPE_PAPER:
+		return domain.TubeTypePaper
+	case financev1.TubeType_TUBE_TYPE_PLASTIC:
+		return domain.TubeTypePlastic
+	default:
+		return ""
+	}
+}
+
+// stringToProtoTubeType converts the domain's plain-string TubeType
+// ("PAPER"/"PLASTIC"/empty) to the proto enum.
+func stringToProtoTubeType(s string) financev1.TubeType {
+	switch s {
+	case domain.TubeTypePaper:
+		return financev1.TubeType_TUBE_TYPE_PAPER
+	case domain.TubeTypePlastic:
+		return financev1.TubeType_TUBE_TYPE_PLASTIC
+	default:
+		return financev1.TubeType_TUBE_TYPE_UNSPECIFIED
 	}
 }
 
@@ -509,6 +580,7 @@ func requestToProto(r *domain.Request) *financev1.CostProductRequest {
 		RequestId:                    r.RequestID(),
 		RequestNo:                    r.RequestNo(),
 		RequestTypeId:                r.RequestTypeID(),
+		RequestTypeCode:              r.RequestTypeCode(),
 		Title:                        r.Title(),
 		Description:                  r.Description(),
 		CustomerName:                 r.CustomerName(),
@@ -531,6 +603,7 @@ func requestToProto(r *domain.Request) *financev1.CostProductRequest {
 		RequesterUserId:              r.RequesterUserID(),
 		ExistingProductSysId:         r.ExistingProductSysID(),
 		LinkedRouteHeadId:            r.LinkedRouteHeadID(),
+		ReferenceProductSysId:        r.ReferenceProductSysID(),
 		Audit: &commonv1.AuditInfo{
 			CreatedAt: r.CreatedAt().Format(time.RFC3339),
 			CreatedBy: r.RequesterUserID(),
@@ -546,8 +619,9 @@ func requestToProto(r *domain.Request) *financev1.CostProductRequest {
 			RequestId:          r.RequestID(),
 			RawMaterialType:    s.RawMaterialType,
 			ProductDescription: s.ProductDescription,
-			ShadeCustomText:    s.ShadeCustomText,
-			PaperTubeTypeId:    s.PaperTubeTypeID,
+			ShadeCode:          s.ShadeCode,
+			ShadeName:          s.ShadeName,
+			TubeType:           stringToProtoTubeType(s.TubeType),
 			WeightPerBobbinKg:  s.WeightPerBobbinKg,
 			BoxType:            s.BoxType,
 			CreatedAt:          s.CreatedAt.Format(time.RFC3339),
@@ -555,6 +629,9 @@ func requestToProto(r *domain.Request) *financev1.CostProductRequest {
 		}
 		if s.ShadeID != nil {
 			out.Spec.ShadeId = *s.ShadeID
+		}
+		if s.PaperTubeTypeID != nil {
+			out.Spec.PaperTubeTypeId = *s.PaperTubeTypeID //nolint:staticcheck // retained for historical-row round-trip compatibility, see tube_type
 		}
 	}
 	return out
@@ -702,6 +779,81 @@ func (h *CostProductRequestHandler) GetParamSummary(ctx context.Context, req *fi
 		Products:     protoProducts,
 		TotalParams:  total,
 		FilledParams: filled,
+	}, nil
+}
+
+// =============================================================================
+// Import / Export (design.md §4 Area D6)
+// =============================================================================
+
+// ExportCostProductRequests exports cost product requests to an Excel file.
+func (h *CostProductRequestHandler) ExportCostProductRequests(ctx context.Context, req *financev1.ExportCostProductRequestsRequest) (*financev1.ExportCostProductRequestsResponse, error) {
+	if baseResp := h.validation.ValidateRequest(req); baseResp != nil {
+		return &financev1.ExportCostProductRequestsResponse{Base: baseResp}, nil
+	}
+	result, err := h.exportHandler.Handle(ctx, app.ExportQuery{
+		Search:        req.GetSearch(),
+		Status:        req.GetStatus(),
+		RequestTypeID: req.GetRequestTypeId(),
+	})
+	if err != nil {
+		return &financev1.ExportCostProductRequestsResponse{Base: InternalErrorResponse(err.Error())}, nil
+	}
+	return &financev1.ExportCostProductRequestsResponse{
+		Base:        successResponse("Requests exported successfully"),
+		FileContent: result.FileContent,
+		FileName:    result.FileName,
+	}, nil
+}
+
+// ImportCostProductRequests imports cost product requests from an Excel file.
+// Create-only (design.md §4 Area D6): every row creates a new DRAFT request,
+// row-level failures are reported in Errors without aborting the batch.
+func (h *CostProductRequestHandler) ImportCostProductRequests(ctx context.Context, req *financev1.ImportCostProductRequestsRequest) (*financev1.ImportCostProductRequestsResponse, error) {
+	if baseResp := h.validation.ValidateRequest(req); baseResp != nil {
+		return &financev1.ImportCostProductRequestsResponse{Base: baseResp}, nil
+	}
+	actor, _ := GetUserIDFromCtx(ctx)
+	result, err := h.importHandler.Handle(ctx, app.ImportCommand{
+		FileContent:     req.GetFileContent(),
+		FileName:        req.GetFileName(),
+		DuplicateAction: req.GetDuplicateAction(),
+		CreatedBy:       actor,
+	})
+	if err != nil {
+		return &financev1.ImportCostProductRequestsResponse{Base: InternalErrorResponse(err.Error())}, nil
+	}
+	importErrors := make([]*financev1.ImportError, len(result.Errors))
+	for i, e := range result.Errors {
+		importErrors[i] = &financev1.ImportError{
+			RowNumber: e.RowNumber,
+			Field:     e.Field,
+			Message:   e.Message,
+		}
+	}
+	return &financev1.ImportCostProductRequestsResponse{
+		Base:         successResponse("Import completed"),
+		SuccessCount: result.SuccessCount,
+		SkippedCount: result.SkippedCount,
+		UpdatedCount: result.UpdatedCount,
+		FailedCount:  result.FailedCount,
+		Errors:       importErrors,
+	}, nil
+}
+
+// GetCostProductRequestImportTemplate downloads the Excel import template.
+func (h *CostProductRequestHandler) GetCostProductRequestImportTemplate(_ context.Context, req *financev1.GetCostProductRequestImportTemplateRequest) (*financev1.GetCostProductRequestImportTemplateResponse, error) {
+	if baseResp := h.validation.ValidateRequest(req); baseResp != nil {
+		return &financev1.GetCostProductRequestImportTemplateResponse{Base: baseResp}, nil
+	}
+	result, err := h.templateHandler.Handle()
+	if err != nil {
+		return &financev1.GetCostProductRequestImportTemplateResponse{Base: InternalErrorResponse(err.Error())}, nil
+	}
+	return &financev1.GetCostProductRequestImportTemplateResponse{
+		Base:        successResponse("Template generated successfully"),
+		FileContent: result.FileContent,
+		FileName:    result.FileName,
 	}, nil
 }
 

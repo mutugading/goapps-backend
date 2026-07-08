@@ -44,6 +44,10 @@ func (r *fakeUnlinkRequestRepo) List(_ context.Context, _ cpr.Filter) ([]*cpr.Re
 	return nil, 0, nil
 }
 
+func (r *fakeUnlinkRequestRepo) ListAll(_ context.Context, _ cpr.Filter) ([]*cpr.Request, error) {
+	return nil, nil
+}
+
 // fakeUnlinkRouteRepo is a configurable no-op fake for costroute.Repository,
 // used only by UnlinkRouteHandler tests. Only GetHead is exercised.
 type fakeUnlinkRouteRepo struct {

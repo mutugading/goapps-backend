@@ -98,7 +98,7 @@ func TestUseExistingCosting_AutoSetsVerifiedClassification(t *testing.T) {
 			PaperTubeTypeID:    1,
 			WeightPerBobbinKg:  "1.5",
 			BoxType:            cpr.BoxTypeNormal,
-			ShadeCustomText:    "BRIGHT",
+			ShadeCode:          "BRIGHT",
 		},
 	})
 	if err != nil {

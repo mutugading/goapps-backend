@@ -2686,6 +2686,38 @@
         ]
       }
     },
+    "/api/v1/finance/costing/export/bulk_product_routing": {
+      "post": {
+        "operationId": "CostDataImportService_ExportBulkProductRouting",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ExportBulkProductRoutingResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ExportBulkProductRoutingRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CostDataImportService"
+        ]
+      }
+    },
     "/api/v1/finance/costing/import-jobs": {
       "get": {
         "operationId": "CostDataImportService_ListCostImportJobs",
@@ -2762,6 +2794,172 @@
             "required": true,
             "type": "string",
             "format": "int64"
+          }
+        ],
+        "tags": [
+          "CostDataImportService"
+        ]
+      }
+    },
+    "/api/v1/finance/costing/import/bulk_params_only": {
+      "post": {
+        "summary": "ImportBulkParamsOnly imports product parameters from a params-only file.\nProducts must already exist in the database from a prior bulk import run.",
+        "operationId": "CostDataImportService_ImportBulkParamsOnly",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ImportBulkParamsOnlyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "ImportBulkParamsOnlyRequest imports product_parameters + product_applicable_params\nfrom a file that does NOT contain a product_master sheet. Products must already\nexist in the database from a prior bulk import. Supports split part-sheets\n(e.g. \"product_parameters_p1\" + \"_p2\"). Max 200 MB.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ImportBulkParamsOnlyRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CostDataImportService"
+        ]
+      }
+    },
+    "/api/v1/finance/costing/import/bulk_product_routing": {
+      "post": {
+        "operationId": "CostDataImportService_ImportBulkProductRouting",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ImportBulkProductRoutingResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ImportBulkProductRoutingRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CostDataImportService"
+        ]
+      }
+    },
+    "/api/v1/finance/costing/import/start": {
+      "post": {
+        "summary": "StartCostingImport starts an async ETL import job for a previously uploaded\nobject (referenced by object_key).",
+        "operationId": "CostDataImportService_StartCostingImport",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1StartCostingImportResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "StartCostingImportRequest starts an async ETL import job for an already\nuploaded object (identified by object_key from GetImportUploadURL).",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1StartCostingImportRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CostDataImportService"
+        ]
+      }
+    },
+    "/api/v1/finance/costing/import/upload-url": {
+      "post": {
+        "summary": "GetImportUploadURL returns a presigned PUT URL for direct browser upload of\nan import file to object storage.",
+        "operationId": "CostDataImportService_GetImportUploadURL",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetImportUploadURLResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "GetImportUploadURLRequest asks for a presigned PUT URL to upload an import\nfile directly to object storage (bypassing the BFF and gRPC message path).",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1GetImportUploadURLRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CostDataImportService"
+        ]
+      }
+    },
+    "/api/v1/finance/costing/validate/bulk_product_routing": {
+      "post": {
+        "operationId": "CostDataImportService_ValidateBulkProductRoutingFile",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ValidateBulkProductRoutingFileResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ValidateBulkProductRoutingFileRequest"
+            }
           }
         ],
         "tags": [
@@ -2981,7 +3179,7 @@
         "parameters": [
           {
             "name": "search",
-            "description": "matches product_code OR product_name OR erp_item_code",
+            "description": "matches product_code OR product_name OR erp_item_code OR oracle sys id (flex_02)",
             "in": "query",
             "required": false,
             "type": "string"
@@ -3032,6 +3230,18 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "productTypeIds",
+            "description": "additional type filter, unioned with product_type_id",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "collectionFormat": "multi"
           }
         ],
         "tags": [
@@ -3690,6 +3900,40 @@
         ]
       }
     },
+    "/api/v1/finance/cost-product-parameters/applicable/add-with-children": {
+      "post": {
+        "summary": "AddApplicableParamWithChildren adds a MASTER_LOOKUP param + all its child params atomically.",
+        "operationId": "CostProductParameterService_AddApplicableParamWithChildren",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1AddApplicableParamWithChildrenResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "AddApplicableParamWithChildrenRequest adds a MASTER_LOOKUP param and all its child params atomically.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1AddApplicableParamWithChildrenRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CostProductParameterService"
+        ]
+      }
+    },
     "/api/v1/finance/cost-product-parameters/applicable/remove": {
       "post": {
         "summary": "RemoveApplicableParam removes a parameter from a product (deletes value too).",
@@ -3715,6 +3959,74 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/v1RemoveApplicableParamRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CostProductParameterService"
+        ]
+      }
+    },
+    "/api/v1/finance/cost-product-parameters/applicable/remove-preview": {
+      "post": {
+        "summary": "GetRemoveApplicablePreview returns trigger + children for the confirm-delete dialog.",
+        "operationId": "CostProductParameterService_GetRemoveApplicablePreview",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetRemoveApplicablePreviewResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "GetRemoveApplicablePreviewRequest is the request for previewing the params to be removed.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1GetRemoveApplicablePreviewRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CostProductParameterService"
+        ]
+      }
+    },
+    "/api/v1/finance/cost-product-parameters/applicable/remove-with-children": {
+      "post": {
+        "summary": "RemoveApplicableParamWithChildren removes a MASTER_LOOKUP param + all children + CPP values atomically.",
+        "operationId": "CostProductParameterService_RemoveApplicableParamWithChildren",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RemoveApplicableParamWithChildrenResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "RemoveApplicableParamWithChildrenRequest removes a MASTER_LOOKUP param and all its children.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1RemoveApplicableParamWithChildrenRequest"
             }
           }
         ],
@@ -4174,6 +4486,107 @@
             "type": "string"
           }
         ],
+        "tags": [
+          "CostProductRequestService"
+        ]
+      }
+    },
+    "/api/v1/finance/cost-product-requests/export": {
+      "get": {
+        "summary": "ExportCostProductRequests exports cost product requests to Excel file.",
+        "operationId": "CostProductRequestService_ExportCostProductRequests",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ExportCostProductRequestsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "requestTypeId",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "CostProductRequestService"
+        ]
+      }
+    },
+    "/api/v1/finance/cost-product-requests/import": {
+      "post": {
+        "summary": "ImportCostProductRequests imports cost product requests from Excel file.\nCreate-only: every row creates a new DRAFT request, no dedup/merge.",
+        "operationId": "CostProductRequestService_ImportCostProductRequests",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ImportCostProductRequestsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "ImportCostProductRequestsRequest is the request for importing cost product\nrequests from Excel. Create-only: every row creates a new DRAFT request\nregardless of duplicate_action \u2014 the field is accepted for shape parity\nwith other import RPCs but has no skip/update effect in v1.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ImportCostProductRequestsRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CostProductRequestService"
+        ]
+      }
+    },
+    "/api/v1/finance/cost-product-requests/template": {
+      "get": {
+        "summary": "GetCostProductRequestImportTemplate downloads the Excel import template.",
+        "operationId": "CostProductRequestService_GetCostProductRequestImportTemplate",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetCostProductRequestImportTemplateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
         "tags": [
           "CostProductRequestService"
         ]
@@ -4895,6 +5308,46 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/CostProductRequestServiceSubmitCostProductRequestBody"
+            }
+          }
+        ],
+        "tags": [
+          "CostProductRequestService"
+        ]
+      }
+    },
+    "/api/v1/finance/cost-product-requests/{requestId}/submit-and-decide": {
+      "post": {
+        "summary": "SubmitAndDecideCostProductRequest merges Submit + Start-review + Verify\nclassification + Decide feasibility + (when feasible) Link route into a\nsingle action (design.md \u00a73 B3).",
+        "operationId": "CostProductRequestService_SubmitAndDecideCostProductRequest",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SubmitAndDecideCostProductRequestResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CostProductRequestServiceSubmitAndDecideCostProductRequestBody"
             }
           }
         ],
@@ -6421,7 +6874,7 @@
           },
           {
             "name": "formulaType",
-            "description": "Filter by formula type.\nFORMULA_TYPE_UNSPECIFIED (0) means \"show all types\" (no filter).\n\n - FORMULA_TYPE_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - FORMULA_TYPE_CALCULATION: Mathematical calculation using parameter codes (e.g., \"ELEC_CONSUMPTION * ELEC_RATE\").\n - FORMULA_TYPE_SQL_QUERY: SQL query to fetch data from other tables.\n - FORMULA_TYPE_CONSTANT: Constant value (no calculation).",
+            "description": "Filter by formula type.\nFORMULA_TYPE_UNSPECIFIED (0) means \"show all types\" (no filter).\n\n - FORMULA_TYPE_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - FORMULA_TYPE_CALCULATION: Mathematical calculation using parameter codes (e.g., \"ELEC_CONSUMPTION * ELEC_RATE\").\n - FORMULA_TYPE_SQL_QUERY: SQL query to fetch data from other tables.\n - FORMULA_TYPE_CONSTANT: Constant value (no calculation).\n - FORMULA_TYPE_CONDITIONAL: Conditional expression with if/else branching.\n - FORMULA_TYPE_LOOKUP: Lookup from a master table via param code.\n - FORMULA_TYPE_RM_LOOKUP: Lookup using RM group cost rates.\n - FORMULA_TYPE_FROM_MARKETING: Copy value from the SELLING (marketing) session result.\n - FORMULA_TYPE_INTERMINGLING: Intermingling cost lookup.\n - FORMULA_TYPE_SNAPSHOT: Snapshot of a previously computed value.\n - FORMULA_TYPE_PENDING: Placeholder \u2014 formula not yet defined.\n - FORMULA_TYPE_INITIAL_VALUE: Seeds an initial value before the formula chain starts.",
             "in": "query",
             "required": false,
             "type": "string",
@@ -6429,7 +6882,15 @@
               "FORMULA_TYPE_UNSPECIFIED",
               "FORMULA_TYPE_CALCULATION",
               "FORMULA_TYPE_SQL_QUERY",
-              "FORMULA_TYPE_CONSTANT"
+              "FORMULA_TYPE_CONSTANT",
+              "FORMULA_TYPE_CONDITIONAL",
+              "FORMULA_TYPE_LOOKUP",
+              "FORMULA_TYPE_RM_LOOKUP",
+              "FORMULA_TYPE_FROM_MARKETING",
+              "FORMULA_TYPE_INTERMINGLING",
+              "FORMULA_TYPE_SNAPSHOT",
+              "FORMULA_TYPE_PENDING",
+              "FORMULA_TYPE_INITIAL_VALUE"
             ],
             "default": "FORMULA_TYPE_UNSPECIFIED"
           },
@@ -6519,7 +6980,7 @@
         "parameters": [
           {
             "name": "formulaType",
-            "description": "Filter by formula type.\n\n - FORMULA_TYPE_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - FORMULA_TYPE_CALCULATION: Mathematical calculation using parameter codes (e.g., \"ELEC_CONSUMPTION * ELEC_RATE\").\n - FORMULA_TYPE_SQL_QUERY: SQL query to fetch data from other tables.\n - FORMULA_TYPE_CONSTANT: Constant value (no calculation).",
+            "description": "Filter by formula type.\n\n - FORMULA_TYPE_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - FORMULA_TYPE_CALCULATION: Mathematical calculation using parameter codes (e.g., \"ELEC_CONSUMPTION * ELEC_RATE\").\n - FORMULA_TYPE_SQL_QUERY: SQL query to fetch data from other tables.\n - FORMULA_TYPE_CONSTANT: Constant value (no calculation).\n - FORMULA_TYPE_CONDITIONAL: Conditional expression with if/else branching.\n - FORMULA_TYPE_LOOKUP: Lookup from a master table via param code.\n - FORMULA_TYPE_RM_LOOKUP: Lookup using RM group cost rates.\n - FORMULA_TYPE_FROM_MARKETING: Copy value from the SELLING (marketing) session result.\n - FORMULA_TYPE_INTERMINGLING: Intermingling cost lookup.\n - FORMULA_TYPE_SNAPSHOT: Snapshot of a previously computed value.\n - FORMULA_TYPE_PENDING: Placeholder \u2014 formula not yet defined.\n - FORMULA_TYPE_INITIAL_VALUE: Seeds an initial value before the formula chain starts.",
             "in": "query",
             "required": false,
             "type": "string",
@@ -6527,7 +6988,15 @@
               "FORMULA_TYPE_UNSPECIFIED",
               "FORMULA_TYPE_CALCULATION",
               "FORMULA_TYPE_SQL_QUERY",
-              "FORMULA_TYPE_CONSTANT"
+              "FORMULA_TYPE_CONSTANT",
+              "FORMULA_TYPE_CONDITIONAL",
+              "FORMULA_TYPE_LOOKUP",
+              "FORMULA_TYPE_RM_LOOKUP",
+              "FORMULA_TYPE_FROM_MARKETING",
+              "FORMULA_TYPE_INTERMINGLING",
+              "FORMULA_TYPE_SNAPSHOT",
+              "FORMULA_TYPE_PENDING",
+              "FORMULA_TYPE_INITIAL_VALUE"
             ],
             "default": "FORMULA_TYPE_UNSPECIFIED"
           },
@@ -7034,7 +7503,7 @@
           },
           {
             "name": "paramCategory",
-            "description": "Filter by category.\nPARAM_CATEGORY_UNSPECIFIED (0) means \"show all categories\" (no filter).\n\n - PARAM_CATEGORY_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - PARAM_CATEGORY_INPUT: Input parameter - manually entered values.\n - PARAM_CATEGORY_RATE: Rate parameter - rate/ratio values.\n - PARAM_CATEGORY_CALCULATED: Calculated parameter - computed from other parameters.",
+            "description": "Filter by category.\nPARAM_CATEGORY_UNSPECIFIED (0) means \"show all categories\" (no filter).\n\n - PARAM_CATEGORY_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - PARAM_CATEGORY_INPUT: Input parameter - manually entered values.\n - PARAM_CATEGORY_RATE: Rate parameter - rate/ratio values.\n - PARAM_CATEGORY_CALCULATED: Calculated parameter - computed from other parameters.\n - PARAM_CATEGORY_MASTER_LOOKUP: PARAM_CATEGORY_MASTER_LOOKUP: selector from a master table; triggers auto-fill of child params.",
             "in": "query",
             "required": false,
             "type": "string",
@@ -7042,7 +7511,8 @@
               "PARAM_CATEGORY_UNSPECIFIED",
               "PARAM_CATEGORY_INPUT",
               "PARAM_CATEGORY_RATE",
-              "PARAM_CATEGORY_CALCULATED"
+              "PARAM_CATEGORY_CALCULATED",
+              "PARAM_CATEGORY_MASTER_LOOKUP"
             ],
             "default": "PARAM_CATEGORY_UNSPECIFIED"
           },
@@ -7069,6 +7539,13 @@
           {
             "name": "sortOrder",
             "description": "Sort order: \"asc\", \"desc\" (default: \"asc\").",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "lookupFillGroupCodeFilter",
+            "description": "Filter by lookup_fill_group_code. Empty string = no filter.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -7146,7 +7623,7 @@
           },
           {
             "name": "paramCategory",
-            "description": "Filter by category.\n\n - PARAM_CATEGORY_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - PARAM_CATEGORY_INPUT: Input parameter - manually entered values.\n - PARAM_CATEGORY_RATE: Rate parameter - rate/ratio values.\n - PARAM_CATEGORY_CALCULATED: Calculated parameter - computed from other parameters.",
+            "description": "Filter by category.\n\n - PARAM_CATEGORY_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - PARAM_CATEGORY_INPUT: Input parameter - manually entered values.\n - PARAM_CATEGORY_RATE: Rate parameter - rate/ratio values.\n - PARAM_CATEGORY_CALCULATED: Calculated parameter - computed from other parameters.\n - PARAM_CATEGORY_MASTER_LOOKUP: PARAM_CATEGORY_MASTER_LOOKUP: selector from a master table; triggers auto-fill of child params.",
             "in": "query",
             "required": false,
             "type": "string",
@@ -7154,7 +7631,8 @@
               "PARAM_CATEGORY_UNSPECIFIED",
               "PARAM_CATEGORY_INPUT",
               "PARAM_CATEGORY_RATE",
-              "PARAM_CATEGORY_CALCULATED"
+              "PARAM_CATEGORY_CALCULATED",
+              "PARAM_CATEGORY_MASTER_LOOKUP"
             ],
             "default": "PARAM_CATEGORY_UNSPECIFIED"
           },
@@ -11112,6 +11590,398 @@
         ],
         "tags": [
           "InterminglingService"
+        ]
+      }
+    },
+    "/api/v1/finance/lookup-fill-values": {
+      "get": {
+        "summary": "GetLookupFillValues returns numeric and text fills to auto-populate CAPP params.",
+        "operationId": "YarnLookupFillService_GetLookupFillValues",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetLookupFillValuesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "lookupMasterCode",
+            "description": "lookup_master_code from mst_parameter.lookup_master_code.\nValid values: \"MACHINE\" | \"INTERMINGLING\" | \"PRODUCT_GRADE\" | \"MB_HEAD\" | \"BOX_BOBBIN_COST\"",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "selectedKey",
+            "description": "Key of the selected master record (e.g., mc_code, intm_code, pg_code, mbh_mb_costing, bbc_code).",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sourceParamCode",
+            "description": "Source param code that triggered the lookup \u2014 used to resolve CAP vs DEL variant for BOX_BOBBIN_COST.\nOptional; required only for BOX_BOBBIN_COST.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "YarnLookupFillService"
+        ]
+      }
+    },
+    "/api/v1/finance/lookup-master-columns": {
+      "get": {
+        "summary": "ListLookupMasterColumns returns the selectable columns for one lookup master.",
+        "operationId": "LookupMasterService_ListLookupMasterColumns",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListLookupMasterColumnsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "masterCode",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "LookupMasterService"
+        ]
+      },
+      "post": {
+        "summary": "CreateLookupMasterColumn adds a fillable column to a master.",
+        "operationId": "LookupMasterService_CreateLookupMasterColumn",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateLookupMasterColumnResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "CreateLookupMasterColumnRequest is the request for adding a fillable column to a master.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateLookupMasterColumnRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LookupMasterService"
+        ]
+      }
+    },
+    "/api/v1/finance/lookup-master-columns/{lmcId}": {
+      "delete": {
+        "summary": "DeleteLookupMasterColumn removes a column from a master.",
+        "operationId": "LookupMasterService_DeleteLookupMasterColumn",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteLookupMasterColumnResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "lmcId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "LookupMasterService"
+        ]
+      }
+    },
+    "/api/v1/finance/lookup-master-options": {
+      "get": {
+        "summary": "ListMasterOptions returns combobox options (value+label) by querying the registered table.",
+        "operationId": "LookupMasterService_ListMasterOptions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListMasterOptionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "masterCode",
+            "description": "lookup_master_code (e.g., \"MACHINE\") \u2014 used to resolve table_name + code/label fields.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "LookupMasterService"
+        ]
+      }
+    },
+    "/api/v1/finance/lookup-master-table-columns": {
+      "get": {
+        "summary": "ListTableColumns introspects a registered PostgreSQL table's columns via information_schema.",
+        "operationId": "LookupMasterService_ListTableColumns",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListTableColumnsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "tableName",
+            "description": "Table name \u2014 must match an lm_table_name value in mst_lookup_master for safety.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "LookupMasterService"
+        ]
+      }
+    },
+    "/api/v1/finance/lookup-masters": {
+      "get": {
+        "summary": "ListLookupMasters returns all registered lookup masters.",
+        "operationId": "LookupMasterService_ListLookupMasters",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListLookupMastersResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "activeOnly",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "tags": [
+          "LookupMasterService"
+        ]
+      },
+      "post": {
+        "summary": "CreateLookupMaster adds a new master to the registry.",
+        "operationId": "LookupMasterService_CreateLookupMaster",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateLookupMasterResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "CreateLookupMasterRequest is the request for adding a new master to the registry.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateLookupMasterRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LookupMasterService"
+        ]
+      }
+    },
+    "/api/v1/finance/lookup-masters/export": {
+      "get": {
+        "summary": "ExportLookupMasters exports all masters and columns to an Excel workbook.",
+        "operationId": "LookupMasterService_ExportLookupMasters",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ExportLookupMastersResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "LookupMasterService"
+        ]
+      }
+    },
+    "/api/v1/finance/lookup-masters/import": {
+      "post": {
+        "summary": "ImportLookupMasters imports masters and columns from an Excel workbook.",
+        "operationId": "LookupMasterService_ImportLookupMasters",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ImportLookupMastersResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "ImportLookupMastersRequest carries an Excel workbook to import registry entries.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ImportLookupMastersRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LookupMasterService"
+        ]
+      }
+    },
+    "/api/v1/finance/lookup-masters/{lmCode}": {
+      "delete": {
+        "summary": "DeleteLookupMaster removes a master from the registry.",
+        "operationId": "LookupMasterService_DeleteLookupMaster",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteLookupMasterResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "lmCode",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "LookupMasterService"
+        ]
+      },
+      "put": {
+        "summary": "UpdateLookupMaster updates display_name, table_name, and/or is_active of an existing master.",
+        "operationId": "LookupMasterService_UpdateLookupMaster",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateLookupMasterResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "lmCode",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/LookupMasterServiceUpdateLookupMasterBody"
+            }
+          }
+        ],
+        "tags": [
+          "LookupMasterService"
         ]
       }
     },
@@ -15384,6 +16254,33 @@
       },
       "description": "UpsertLevelConfigResponse confirms the upsert."
     },
+    "v1BulkSheetValidationResult": {
+      "type": "object",
+      "properties": {
+        "sheetName": {
+          "type": "string"
+        },
+        "totalRows": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "errorCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "warningCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "sampleErrors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ImportRowError"
+          }
+        }
+      }
+    },
     "v1CostImportJob": {
       "type": "object",
       "properties": {
@@ -15464,6 +16361,46 @@
         }
       }
     },
+    "v1ExportBulkProductRoutingRequest": {
+      "type": "object",
+      "properties": {
+        "productTypeCodes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "includeRouting": {
+          "type": "boolean"
+        },
+        "activeOnly": {
+          "type": "boolean"
+        },
+        "productSysIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "product_sys_ids, when non-empty, restricts the export to the transitive\nclosure of the given products (the listed products plus every intermediate\nproduct reachable via PRODUCT-type route RMs). Mutually exclusive with\nproduct_type_codes; product_sys_ids takes precedence when both are set."
+        }
+      }
+    },
+    "v1ExportBulkProductRoutingResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "jobId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "status": {
+          "type": "string"
+        }
+      }
+    },
     "v1ExportCostApplicableParamsResponse": {
       "type": "object",
       "properties": {
@@ -15502,6 +16439,96 @@
         },
         "data": {
           "$ref": "#/definitions/v1CostImportJob"
+        }
+      }
+    },
+    "v1GetImportUploadURLRequest": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/v1ImportKind"
+        },
+        "fileName": {
+          "type": "string"
+        }
+      },
+      "description": "GetImportUploadURLRequest asks for a presigned PUT URL to upload an import\nfile directly to object storage (bypassing the BFF and gRPC message path)."
+    },
+    "v1GetImportUploadURLResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "uploadUrl": {
+          "type": "string"
+        },
+        "objectKey": {
+          "type": "string"
+        },
+        "expiresInSeconds": {
+          "type": "string",
+          "format": "int64"
+        }
+      },
+      "description": "GetImportUploadURLResponse returns the presigned PUT URL plus the object key\nto pass back to StartCostingImport once the upload completes."
+    },
+    "v1ImportBulkParamsOnlyRequest": {
+      "type": "object",
+      "properties": {
+        "fileContent": {
+          "type": "string",
+          "format": "byte"
+        },
+        "fileName": {
+          "type": "string"
+        }
+      },
+      "description": "ImportBulkParamsOnlyRequest imports product_parameters + product_applicable_params\nfrom a file that does NOT contain a product_master sheet. Products must already\nexist in the database from a prior bulk import. Supports split part-sheets\n(e.g. \"product_parameters_p1\" + \"_p2\"). Max 200 MB."
+    },
+    "v1ImportBulkParamsOnlyResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "jobId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "description": "ImportBulkParamsOnlyResponse returns the created async job ID."
+    },
+    "v1ImportBulkProductRoutingRequest": {
+      "type": "object",
+      "properties": {
+        "fileContent": {
+          "type": "string",
+          "format": "byte"
+        },
+        "fileName": {
+          "type": "string"
+        },
+        "duplicateAction": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ImportBulkProductRoutingResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "jobId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "status": {
+          "type": "string"
         }
       }
     },
@@ -15559,6 +16586,31 @@
         }
       }
     },
+    "v1ImportKind": {
+      "type": "string",
+      "enum": [
+        "IMPORT_KIND_UNSPECIFIED",
+        "IMPORT_KIND_PRODUCT_ROUTING",
+        "IMPORT_KIND_PARAMS_ONLY"
+      ],
+      "default": "IMPORT_KIND_UNSPECIFIED",
+      "description": "ImportKind identifies which dataset a presigned upload / import job carries.\n\n - IMPORT_KIND_UNSPECIFIED: Default \u2014 invalid, must be set by the caller.\n - IMPORT_KIND_PRODUCT_ROUTING: Product master + routing dataset (xlsx or zip CSV).\n - IMPORT_KIND_PARAMS_ONLY: Params-only dataset (zip of CSV files)."
+    },
+    "v1ImportRowError": {
+      "type": "object",
+      "properties": {
+        "rowNumber": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "field": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
     "v1ListCostImportJobsResponse": {
       "type": "object",
       "properties": {
@@ -15574,6 +16626,70 @@
         },
         "pagination": {
           "$ref": "#/definitions/v1PaginationResponse"
+        }
+      }
+    },
+    "v1StartCostingImportRequest": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/v1ImportKind"
+        },
+        "objectKey": {
+          "type": "string"
+        },
+        "fileName": {
+          "type": "string"
+        },
+        "duplicateAction": {
+          "type": "string"
+        }
+      },
+      "description": "StartCostingImportRequest starts an async ETL import job for an already\nuploaded object (identified by object_key from GetImportUploadURL)."
+    },
+    "v1StartCostingImportResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "jobId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "description": "StartCostingImportResponse returns the created async job ID and its status."
+    },
+    "v1ValidateBulkProductRoutingFileRequest": {
+      "type": "object",
+      "properties": {
+        "fileContent": {
+          "type": "string",
+          "format": "byte"
+        },
+        "fileName": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ValidateBulkProductRoutingFileResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "isValid": {
+          "type": "boolean"
+        },
+        "sheets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1BulkSheetValidationResult"
+          }
         }
       }
     },
@@ -15724,6 +16840,18 @@
         },
         "description": {
           "type": "string"
+        },
+        "flex01": {
+          "type": "string",
+          "description": "Legacy / import identifiers \u2014 plain text, no validation constraint.\n\nlegacy_erp_compound_key"
+        },
+        "flex02": {
+          "type": "string",
+          "title": "legacy_oracle_sys_id"
+        },
+        "flex03": {
+          "type": "string",
+          "title": "legacy_type_label"
         }
       }
     },
@@ -15829,6 +16957,18 @@
         },
         "description": {
           "type": "string"
+        },
+        "flex01": {
+          "type": "string",
+          "description": "Legacy / import identifiers \u2014 plain text, no validation constraint.\n\nlegacy_erp_compound_key"
+        },
+        "flex02": {
+          "type": "string",
+          "title": "legacy_oracle_sys_id"
+        },
+        "flex03": {
+          "type": "string",
+          "title": "legacy_type_label"
         }
       }
     },
@@ -16410,6 +17550,36 @@
         }
       }
     },
+    "v1AddApplicableParamWithChildrenRequest": {
+      "type": "object",
+      "properties": {
+        "productSysId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "paramId": {
+          "type": "string"
+        },
+        "isRequired": {
+          "type": "boolean"
+        },
+        "displayOrder": {
+          "type": "integer",
+          "format": "int32",
+          "description": "0 means inherit mst_parameter.display_order."
+        }
+      },
+      "description": "AddApplicableParamWithChildrenRequest adds a MASTER_LOOKUP param and all its child params atomically."
+    },
+    "v1AddApplicableParamWithChildrenResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      },
+      "description": "AddApplicableParamWithChildrenResponse is the response for adding a MASTER_LOOKUP param with children."
+    },
     "v1AvailableParamEntry": {
       "type": "object",
       "properties": {
@@ -16450,6 +17620,10 @@
         },
         "displayGroup": {
           "type": "string"
+        },
+        "lookupFillGroupCode": {
+          "type": "string",
+          "description": "param_code of the MASTER_LOOKUP trigger param this child belongs to (empty = not a child param)."
         }
       }
     },
@@ -16559,6 +17733,41 @@
           "$ref": "#/definitions/v1BaseResponse"
         }
       }
+    },
+    "v1GetRemoveApplicablePreviewRequest": {
+      "type": "object",
+      "properties": {
+        "productSysId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "paramId": {
+          "type": "string"
+        }
+      },
+      "description": "GetRemoveApplicablePreviewRequest is the request for previewing the params to be removed."
+    },
+    "v1GetRemoveApplicablePreviewResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "triggerParamCode": {
+          "type": "string"
+        },
+        "triggerParamName": {
+          "type": "string"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ParamWithValue"
+          }
+        }
+      },
+      "description": "GetRemoveApplicablePreviewResponse lists trigger + children for the confirm-delete dialog."
     },
     "v1ListAvailableParamsResponse": {
       "type": "object",
@@ -16685,6 +17894,21 @@
       },
       "description": "ParamEditLogEntry is one record of a param value change by an authorized user."
     },
+    "v1ParamWithValue": {
+      "type": "object",
+      "properties": {
+        "paramCode": {
+          "type": "string"
+        },
+        "paramName": {
+          "type": "string"
+        },
+        "currentValue": {
+          "type": "string"
+        }
+      },
+      "description": "ParamWithValue carries param code, name, and current display value for the remove-preview dialog."
+    },
     "v1RemoveApplicableParamRequest": {
       "type": "object",
       "properties": {
@@ -16704,6 +17928,28 @@
           "$ref": "#/definitions/v1BaseResponse"
         }
       }
+    },
+    "v1RemoveApplicableParamWithChildrenRequest": {
+      "type": "object",
+      "properties": {
+        "productSysId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "paramId": {
+          "type": "string"
+        }
+      },
+      "description": "RemoveApplicableParamWithChildrenRequest removes a MASTER_LOOKUP param and all its children."
+    },
+    "v1RemoveApplicableParamWithChildrenResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      },
+      "description": "RemoveApplicableParamWithChildrenResponse is the response for removing a MASTER_LOOKUP param with children."
     },
     "v1RequiredParamEntry": {
       "type": "object",
@@ -16744,6 +17990,10 @@
         },
         "displayGroup": {
           "type": "string"
+        },
+        "lookupFillGroupCode": {
+          "type": "string",
+          "description": "param_code of the MASTER_LOOKUP trigger param this child belongs to (empty = not a child param)."
         },
         "hasValue": {
           "type": "boolean",
@@ -16956,6 +18206,29 @@
     "CostProductRequestServiceStartCostProductRequestReviewBody": {
       "type": "object"
     },
+    "CostProductRequestServiceSubmitAndDecideCostProductRequestBody": {
+      "type": "object",
+      "properties": {
+        "verifiedClassification": {
+          "type": "string"
+        },
+        "overrideReason": {
+          "type": "string"
+        },
+        "decision": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "referenceProductHeadId": {
+          "type": "string",
+          "format": "int64",
+          "description": "reference_product_head_id is the route head resolved by RoutingResolver\non the client before submitting; only applied when decision is FEASIBLE.\n0 means no route was resolved (e.g. decision is NOT_FEASIBLE)."
+        }
+      },
+      "description": "SubmitAndDecideCostProductRequest merges Submit + Start-review + Verify\nclassification + Decide feasibility + (when feasible) Link route into a\nsingle action (design.md \u00a73 B3). SUBMITTED and UNDER_REVIEW remain real\ninternal states recorded in the audit trail; only one consolidated\nnotification pair is emitted regardless of the feasibility outcome."
+    },
     "CostProductRequestServiceSubmitCostProductRequestBody": {
       "type": "object"
     },
@@ -16994,6 +18267,11 @@
         },
         "spec": {
           "$ref": "#/definitions/v1SpecInput"
+        },
+        "referenceProductSysId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Optional reviewer-facing hint pointing at a similar existing product master.\n0 = unset."
         }
       }
     },
@@ -17179,6 +18457,11 @@
         "wflInstanceId": {
           "type": "string",
           "description": "IAM workflow instance ID linked to this request (empty if no workflow attached)."
+        },
+        "referenceProductSysId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Optional reviewer-facing hint pointing at a similar existing product master,\nused to pre-fill routing resolution during review. 0 = unset."
         }
       }
     },
@@ -17195,7 +18478,7 @@
         },
         "rawMaterialType": {
           "type": "string",
-          "description": "POY_BOUGHTOUT | CHIPS_SD | CHIPS_BRT | CHIPS_RECYCLE."
+          "description": "POY_BOUGHTOUT | CHIPS_SD | CHIPS_BRT | CHIPS_RECYCLE.\nDeprecated for new writes: retained for historical rows, no longer populated by new writes."
         },
         "productDescription": {
           "type": "string"
@@ -17204,12 +18487,14 @@
           "type": "integer",
           "format": "int32"
         },
-        "shadeCustomText": {
-          "type": "string"
+        "shadeCode": {
+          "type": "string",
+          "description": "Free-text or master shade code (e.g. NL, Z114S). Renamed from shade_custom_text \u2014 field number unchanged for wire compatibility."
         },
         "paperTubeTypeId": {
           "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "description": "Deprecated: retained for historical rows, no longer populated by new writes. Use tube_type instead."
         },
         "paperTubeLabel": {
           "type": "string",
@@ -17217,17 +18502,25 @@
         },
         "weightPerBobbinKg": {
           "type": "string",
-          "title": "decimal stringified to preserve precision"
+          "description": "Deprecated for new writes: retained for historical rows, no longer populated by new writes.\n\ndecimal stringified to preserve precision"
         },
         "boxType": {
           "type": "string",
-          "description": "JUMBO | NORMAL | PALLET."
+          "description": "JUMBO | NORMAL | PALLET.\nDeprecated for new writes: retained for historical rows, no longer populated by new writes."
         },
         "createdAt": {
           "type": "string"
         },
         "createdBy": {
           "type": "string"
+        },
+        "shadeName": {
+          "type": "string",
+          "description": "Human-readable shade name (e.g. Natural, Jet Black), mirrors cost_product_master's shade_name."
+        },
+        "tubeType": {
+          "$ref": "#/definitions/v1TubeType",
+          "description": "Fixed Paper/Plastic tube classification. Replaces paper_tube_type_id for new writes."
         }
       }
     },
@@ -17267,6 +18560,11 @@
         },
         "spec": {
           "$ref": "#/definitions/v1SpecInput"
+        },
+        "referenceProductSysId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Optional reviewer-facing hint pointing at a similar existing product master.\n0 = unset."
         }
       }
     },
@@ -17291,6 +18589,24 @@
           "$ref": "#/definitions/v1CostProductRequest"
         }
       }
+    },
+    "v1ExportCostProductRequestsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "Excel file content as bytes (.xlsx format)."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Suggested filename."
+        }
+      },
+      "description": "ExportCostProductRequestsResponse is the response containing the Excel file."
     },
     "v1FillLevelSummary": {
       "type": "object",
@@ -17361,6 +18677,24 @@
       },
       "description": "GetCostProductRequestHistoryResponse returns the full status-transition timeline."
     },
+    "v1GetCostProductRequestImportTemplateResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "Excel template file content as bytes (.xlsx format)."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Suggested filename."
+        }
+      },
+      "description": "GetCostProductRequestImportTemplateResponse is the response containing the\ntemplate file."
+    },
     "v1GetCostProductRequestResponse": {
       "type": "object",
       "properties": {
@@ -17394,6 +18728,81 @@
           "format": "int32"
         }
       }
+    },
+    "v1ImportCostProductRequestsRequest": {
+      "type": "object",
+      "properties": {
+        "fileContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "Excel file content as bytes (.xlsx or .xls format)."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Original filename (for format detection).\nMust be a simple filename without path separators."
+        },
+        "duplicateAction": {
+          "type": "string",
+          "description": "Accepted for shape parity with other import RPCs. Create-only: only\n\"error\" semantics apply (unresolvable rows fail with a row-level\nImportError); there is no update/skip behavior in v1."
+        }
+      },
+      "description": "ImportCostProductRequestsRequest is the request for importing cost product\nrequests from Excel. Create-only: every row creates a new DRAFT request\nregardless of duplicate_action \u2014 the field is accepted for shape parity\nwith other import RPCs but has no skip/update effect in v1."
+    },
+    "v1ImportCostProductRequestsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "successCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of successfully created DRAFT requests."
+        },
+        "skippedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Always 0 in v1 (create-only import has no skip semantics)."
+        },
+        "updatedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Always 0 in v1 (create-only import has no update semantics)."
+        },
+        "failedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of failed rows."
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ImportError"
+          },
+          "description": "Details of failed rows."
+        }
+      },
+      "description": "ImportCostProductRequestsResponse is the response for importing cost\nproduct requests. updated_count/skipped_count are always 0 in v1 since\nthe import is create-only (kept for shape consistency with other imports)."
+    },
+    "v1ImportError": {
+      "type": "object",
+      "properties": {
+        "rowNumber": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Row number in the Excel file."
+        },
+        "field": {
+          "type": "string",
+          "description": "Field that caused the error."
+        },
+        "message": {
+          "type": "string",
+          "description": "Error message."
+        }
+      },
+      "description": "ImportError represents a single import error."
     },
     "v1LinkExistingRouteResponse": {
       "type": "object",
@@ -17507,6 +18916,13 @@
         },
         "isRequired": {
           "type": "boolean"
+        },
+        "displayGroup": {
+          "type": "string"
+        },
+        "displayOrder": {
+          "type": "integer",
+          "format": "int32"
         }
       },
       "description": "ParamValueEntry is one parameter cell in the summary."
@@ -17582,7 +18998,8 @@
       "type": "object",
       "properties": {
         "rawMaterialType": {
-          "type": "string"
+          "type": "string",
+          "description": "Deprecated for new writes: retained for historical rows, no longer populated by new writes."
         },
         "productDescription": {
           "type": "string"
@@ -17591,18 +19008,30 @@
           "type": "integer",
           "format": "int32"
         },
-        "shadeCustomText": {
-          "type": "string"
+        "shadeCode": {
+          "type": "string",
+          "description": "Free-text or master shade code (e.g. NL, Z114S). Renamed from shade_custom_text \u2014 field number unchanged for wire compatibility."
         },
         "paperTubeTypeId": {
           "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "description": "Deprecated: retained for historical rows, no longer populated by new writes. Use tube_type instead."
         },
         "weightPerBobbinKg": {
-          "type": "string"
+          "type": "string",
+          "description": "Deprecated for new writes: retained for historical rows, no longer populated by new writes."
         },
         "boxType": {
-          "type": "string"
+          "type": "string",
+          "description": "Deprecated for new writes: retained for historical rows, no longer populated by new writes."
+        },
+        "shadeName": {
+          "type": "string",
+          "description": "Human-readable shade name (e.g. Natural, Jet Black), mirrors cost_product_master's shade_name."
+        },
+        "tubeType": {
+          "$ref": "#/definitions/v1TubeType",
+          "description": "Fixed Paper/Plastic tube classification. Replaces paper_tube_type_id for new writes."
         }
       }
     },
@@ -17649,6 +19078,17 @@
       },
       "description": "StatusHistoryEntry records a single CPR status transition."
     },
+    "v1SubmitAndDecideCostProductRequestResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1CostProductRequest"
+        }
+      }
+    },
     "v1SubmitCostProductRequestResponse": {
       "type": "object",
       "properties": {
@@ -17659,6 +19099,16 @@
           "$ref": "#/definitions/v1CostProductRequest"
         }
       }
+    },
+    "v1TubeType": {
+      "type": "string",
+      "enum": [
+        "TUBE_TYPE_UNSPECIFIED",
+        "TUBE_TYPE_PAPER",
+        "TUBE_TYPE_PLASTIC"
+      ],
+      "default": "TUBE_TYPE_UNSPECIFIED",
+      "description": "TubeType represents the fixed Paper/Plastic tube classification for a\nproduct spec, replacing the old master-data-backed paper_tube_type_id lookup.\n\n - TUBE_TYPE_UNSPECIFIED: Default unspecified value - used when no tube type has been selected.\n - TUBE_TYPE_PAPER: Paper tube.\n - TUBE_TYPE_PLASTIC: Plastic tube."
     },
     "v1UnlinkRouteResponse": {
       "type": "object",
@@ -17845,25 +19295,6 @@
           }
         }
       }
-    },
-    "v1ImportError": {
-      "type": "object",
-      "properties": {
-        "rowNumber": {
-          "type": "integer",
-          "format": "int32",
-          "description": "Row number in the Excel file."
-        },
-        "field": {
-          "type": "string",
-          "description": "Field that caused the error."
-        },
-        "message": {
-          "type": "string",
-          "description": "Error message."
-        }
-      },
-      "description": "ImportError represents a single import error."
     },
     "v1ListCostProductTypesResponse": {
       "type": "object",
@@ -18345,6 +19776,16 @@
         "notes": {
           "type": "string"
         },
+        "levelCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of distinct route levels in this routing (read-time aggregate)."
+        },
+        "rmCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of RM inputs across all stages (read-time aggregate)."
+        },
         "lockedBy": {
           "type": "string",
           "description": "Lock tracking -- populated when routing_status = \"LOCKED\"."
@@ -18418,6 +19859,20 @@
         },
         "notes": {
           "type": "string"
+        },
+        "positionX": {
+          "type": "number",
+          "format": "double",
+          "description": "Persisted node X position on the routing graph."
+        },
+        "positionY": {
+          "type": "number",
+          "format": "double",
+          "description": "Persisted node Y position on the routing graph."
+        },
+        "rmGroupName": {
+          "type": "string",
+          "description": "RM group display name (read-time join on rm_group_code)."
         }
       },
       "description": "CostRouteRm is one input edge feeding a SEQ.\nExactly one of (rm_product_sys_id, rm_item_code, rm_group_code) is set,\nmatching rm_type."
@@ -19301,10 +20756,18 @@
         "FORMULA_TYPE_UNSPECIFIED",
         "FORMULA_TYPE_CALCULATION",
         "FORMULA_TYPE_SQL_QUERY",
-        "FORMULA_TYPE_CONSTANT"
+        "FORMULA_TYPE_CONSTANT",
+        "FORMULA_TYPE_CONDITIONAL",
+        "FORMULA_TYPE_LOOKUP",
+        "FORMULA_TYPE_RM_LOOKUP",
+        "FORMULA_TYPE_FROM_MARKETING",
+        "FORMULA_TYPE_INTERMINGLING",
+        "FORMULA_TYPE_SNAPSHOT",
+        "FORMULA_TYPE_PENDING",
+        "FORMULA_TYPE_INITIAL_VALUE"
       ],
       "default": "FORMULA_TYPE_UNSPECIFIED",
-      "description": "FormulaType represents the type of a formula expression.\n\n - FORMULA_TYPE_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - FORMULA_TYPE_CALCULATION: Mathematical calculation using parameter codes (e.g., \"ELEC_CONSUMPTION * ELEC_RATE\").\n - FORMULA_TYPE_SQL_QUERY: SQL query to fetch data from other tables.\n - FORMULA_TYPE_CONSTANT: Constant value (no calculation)."
+      "description": "FormulaType represents the type of a formula expression.\n\n - FORMULA_TYPE_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - FORMULA_TYPE_CALCULATION: Mathematical calculation using parameter codes (e.g., \"ELEC_CONSUMPTION * ELEC_RATE\").\n - FORMULA_TYPE_SQL_QUERY: SQL query to fetch data from other tables.\n - FORMULA_TYPE_CONSTANT: Constant value (no calculation).\n - FORMULA_TYPE_CONDITIONAL: Conditional expression with if/else branching.\n - FORMULA_TYPE_LOOKUP: Lookup from a master table via param code.\n - FORMULA_TYPE_RM_LOOKUP: Lookup using RM group cost rates.\n - FORMULA_TYPE_FROM_MARKETING: Copy value from the SELLING (marketing) session result.\n - FORMULA_TYPE_INTERMINGLING: Intermingling cost lookup.\n - FORMULA_TYPE_SNAPSHOT: Snapshot of a previously computed value.\n - FORMULA_TYPE_PENDING: Placeholder \u2014 formula not yet defined.\n - FORMULA_TYPE_INITIAL_VALUE: Seeds an initial value before the formula chain starts."
     },
     "v1GetFormulaResponse": {
       "type": "object",
@@ -19891,6 +21354,27 @@
         "displayGroup": {
           "type": "string",
           "description": "New display group (optional). Set to empty string to clear."
+        },
+        "notes": {
+          "type": "string",
+          "description": "New notes (optional). Set to empty string to clear."
+        },
+        "lookupFillGroupCode": {
+          "type": "string",
+          "description": "New fill group code (optional). Set to empty string to clear."
+        },
+        "lookupSourceColumn": {
+          "type": "string",
+          "description": "New source column (optional). Set to empty string to clear."
+        },
+        "isApprovalVisible": {
+          "type": "boolean",
+          "description": "New is_approval_visible flag (optional)."
+        },
+        "approvalDisplayOrder": {
+          "type": "integer",
+          "format": "int32",
+          "description": "New approval display order (optional)."
         }
       },
       "description": "UpdateParameterRequest is the request for updating a parameter.\nNote: param_code is immutable and cannot be changed after creation."
@@ -19958,6 +21442,18 @@
         "displayGroup": {
           "type": "string",
           "description": "Display group (optional, max 50 chars). E.g. 'Spec', 'Machine'."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Descriptive notes or formula hint (optional, max 500 chars)."
+        },
+        "lookupFillGroupCode": {
+          "type": "string",
+          "description": "Fill group: param_code of the parent MASTER_LOOKUP param (optional, max 20 chars)."
+        },
+        "lookupSourceColumn": {
+          "type": "string",
+          "description": "Source column in the master table (optional, max 50 chars)."
         }
       },
       "description": "CreateParameterRequest is the request for creating a new parameter."
@@ -20134,10 +21630,11 @@
         "PARAM_CATEGORY_UNSPECIFIED",
         "PARAM_CATEGORY_INPUT",
         "PARAM_CATEGORY_RATE",
-        "PARAM_CATEGORY_CALCULATED"
+        "PARAM_CATEGORY_CALCULATED",
+        "PARAM_CATEGORY_MASTER_LOOKUP"
       ],
       "default": "PARAM_CATEGORY_UNSPECIFIED",
-      "description": "ParamCategory represents the category/purpose of a parameter.\n\n - PARAM_CATEGORY_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - PARAM_CATEGORY_INPUT: Input parameter - manually entered values.\n - PARAM_CATEGORY_RATE: Rate parameter - rate/ratio values.\n - PARAM_CATEGORY_CALCULATED: Calculated parameter - computed from other parameters."
+      "description": "ParamCategory represents the category/purpose of a parameter.\n\n - PARAM_CATEGORY_UNSPECIFIED: Default unspecified value - used as \"no filter\" in list/export requests.\n - PARAM_CATEGORY_INPUT: Input parameter - manually entered values.\n - PARAM_CATEGORY_RATE: Rate parameter - rate/ratio values.\n - PARAM_CATEGORY_CALCULATED: Calculated parameter - computed from other parameters.\n - PARAM_CATEGORY_MASTER_LOOKUP: PARAM_CATEGORY_MASTER_LOOKUP: selector from a master table; triggers auto-fill of child params."
     },
     "v1Parameter": {
       "type": "object",
@@ -20222,6 +21719,27 @@
         "displayGroup": {
           "type": "string",
           "description": "Form section: Spec / Machine / Grade / Packing / Cost / etc."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Descriptive notes or formula hint for this parameter (read-only, populated from seed/migration)."
+        },
+        "lookupFillGroupCode": {
+          "type": "string",
+          "description": "param_code of the MASTER_LOOKUP trigger param this child belongs to (empty = not a child param)."
+        },
+        "lookupSourceColumn": {
+          "type": "string",
+          "description": "Column name in the master entity to read value from (e.g., \"mc_speed\")."
+        },
+        "isApprovalVisible": {
+          "type": "boolean",
+          "description": "Whether this parameter is shown in the approval review drawer summary."
+        },
+        "approvalDisplayOrder": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Render order within the approval review drawer summary."
         }
       },
       "description": "Parameter represents a master parameter entity for costing calculations."
@@ -23866,6 +25384,46 @@
         "isActive": {
           "type": "boolean",
           "description": "Updated active status."
+        },
+        "bbnReuse": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional updated bobbin reuse count (\u2265 0)."
+        },
+        "boxReuse": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional updated box reuse count (\u2265 0)."
+        },
+        "boxCost": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional updated MKT box rate in USD/box (\u2265 0)."
+        },
+        "bobinCost": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional updated MKT bobbin rate in USD/bobbin (\u2265 0)."
+        },
+        "boxCostVal": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional updated VAL box rate in USD/box (\u2265 0)."
+        },
+        "bobinCostVal": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional updated VAL bobbin rate in USD/bobbin (\u2265 0)."
+        },
+        "bbnReuseVal": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMBBC_BBN_REUSE_VAL (\u2265 0)."
+        },
+        "boxReuseVal": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMBBC_BOX_REUSE_VAL (\u2265 0)."
         }
       },
       "description": "UpdateBoxBobbinCostRequest is the request for updating a Box Bobbin Cost config."
@@ -23892,6 +25450,21 @@
         }
       },
       "description": "UpdateInterminglingRequest is the request for updating an intermingling record."
+    },
+    "LookupMasterServiceUpdateLookupMasterBody": {
+      "type": "object",
+      "properties": {
+        "lmDisplayName": {
+          "type": "string"
+        },
+        "lmTableName": {
+          "type": "string"
+        },
+        "lmIsActive": {
+          "type": "boolean"
+        }
+      },
+      "description": "UpdateLookupMasterRequest updates mutable fields of an existing lookup master."
     },
     "MBHeadServiceUpdateMBHeadBody": {
       "type": "object",
@@ -23922,6 +25495,27 @@
         "mbhIsActive": {
           "type": "boolean",
           "description": "Updated active status."
+        },
+        "mbhCheckStatus": {
+          "type": "string",
+          "description": "Optional Oracle CMBH_CHECK_STATUS (max 50 chars)."
+        },
+        "mbhStatus": {
+          "type": "string",
+          "description": "Optional Oracle CMBH_STATUS (max 100 chars)."
+        },
+        "mbhLdrPrsn": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMBH_LDR_PRSN (\u2265 0)."
+        },
+        "mbhFinalProduct": {
+          "type": "string",
+          "description": "Optional Oracle CMBH_FINAL_PRODUCT (max 200 chars)."
+        },
+        "mbhCode": {
+          "type": "string",
+          "description": "Optional Oracle CMBH_CODE (max 100 chars)."
         }
       },
       "description": "UpdateMBHeadRequest is the request for updating an MB Head record."
@@ -23955,6 +25549,28 @@
         "mbsMbCosting": {
           "type": "string",
           "description": "Optional spin cost code (max 100 chars)."
+        },
+        "mbsCc": {
+          "type": "string",
+          "description": "Optional MB/SP cost code (max 100 chars)."
+        },
+        "mbsCostRateMkt": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional MB rate MKT in USD/kg."
+        },
+        "mbsStatus": {
+          "type": "string",
+          "description": "Optional Oracle CMBS_STATUS (max 100 chars)."
+        },
+        "mbsLdrPrsn": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMBS_LDR_PRSN (\u2265 0)."
+        },
+        "mbsFinalProduct": {
+          "type": "string",
+          "description": "Optional Oracle CMBS_FINAL_PRODUCT (max 200 chars)."
         }
       },
       "description": "CreateMBSpinRequest is the request for creating an MB Spin record."
@@ -24007,6 +25623,28 @@
         "mbsIsActive": {
           "type": "boolean",
           "description": "Updated active status."
+        },
+        "mbsCc": {
+          "type": "string",
+          "description": "Optional MB/SP cost code (max 100 chars)."
+        },
+        "mbsCostRateMkt": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional MB rate MKT in USD/kg."
+        },
+        "mbsStatus": {
+          "type": "string",
+          "description": "Optional Oracle CMBS_STATUS (max 100 chars)."
+        },
+        "mbsLdrPrsn": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMBS_LDR_PRSN (\u2265 0)."
+        },
+        "mbsFinalProduct": {
+          "type": "string",
+          "description": "Optional Oracle CMBS_FINAL_PRODUCT (max 200 chars)."
         }
       },
       "description": "UpdateMBSpinRequest is the request for updating an MB Spin record."
@@ -24063,6 +25701,81 @@
         "isActive": {
           "type": "boolean",
           "description": "Updated active status."
+        },
+        "mpPerDay": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional manpower cost per day in USD."
+        },
+        "ohsPerDay": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional overhead per head per day in USD."
+        },
+        "sparesPerDay": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional spares cost per day in USD."
+        },
+        "kgsLostChange": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional change-over quality loss in kgs."
+        },
+        "vb1Qty": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional volume bucket 1 quantity threshold."
+        },
+        "vb2Qty": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional volume bucket 2 quantity threshold."
+        },
+        "vb3Qty": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional volume bucket 3 quantity threshold."
+        },
+        "vb4Qty": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional volume bucket 4 quantity threshold."
+        },
+        "vb5Qty": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional volume bucket 5 quantity threshold."
+        },
+        "mcPoyBobbinWeight": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional updated Oracle CMM_POY_BOBBIN_WEIGHT (\u2265 0)."
+        },
+        "mcTotFxdCst": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional updated Oracle CMM_TOT_FXD_CST (\u2265 0)."
+        },
+        "mcBobbinPerTrolly": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional updated Oracle CMM_BOBBIN_PER_TROLLY (\u2265 0)."
+        },
+        "mcBoxCost": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional updated Oracle CMM_BOX_COST (\u2265 0)."
+        },
+        "mcCaptivePerBobbin": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional updated Oracle CMM_CAPTIVE_PER_BOBBIN (\u2265 0)."
+        },
+        "mcWeightage": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional updated Oracle CMM_WEIGHTAGE (\u2265 0)."
         }
       },
       "description": "UpdateMachineRequest is the request for updating a machine."
@@ -24100,6 +25813,34 @@
         "isActive": {
           "type": "boolean",
           "description": "Updated active status."
+        },
+        "pgDetailProduct": {
+          "type": "string",
+          "description": "Optional pattern match key (max 100 chars)."
+        },
+        "pgGradeLabel": {
+          "type": "string",
+          "description": "Optional grade label for STD_VALUE_LOSS (max 50 chars)."
+        },
+        "stdSellingPrice": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional BC_SPECIAL_PROD rate (\u2265 0)."
+        },
+        "spValue": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional VALUE_LOSS rate (\u2265 0)."
+        },
+        "lossPct": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional updated loss factor (\u2265 0)."
+        },
+        "seqNo": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Optional updated display sequence number (\u2265 0)."
         }
       },
       "description": "UpdateProductGradeRequest is the request for updating a Product Grade."
@@ -24144,9 +25885,49 @@
           },
           "description": "Period-specific rate entries."
         },
+        "bbnReuse": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional bobbin reuse count (from Oracle CMBBC_BBN_REUSE)."
+        },
+        "boxReuse": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional box reuse count (from Oracle CMBBC_BOX_REUSE)."
+        },
+        "boxCost": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional MKT box rate in USD/box (param CAPTIVE/DELIVERY_BOX_RATE MKT)."
+        },
+        "bobinCost": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional MKT bobbin rate in USD/bobbin (param CAPTIVE/DELIVERY_BOB_RATE MKT)."
+        },
+        "boxCostVal": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional VAL box rate in USD/box (param CAPTIVE/DELIVERY_BOX_RATE VAL)."
+        },
+        "bobinCostVal": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional VAL bobbin rate in USD/bobbin (param CAPTIVE/DELIVERY_BOB_RATE VAL)."
+        },
+        "bbnReuseVal": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMBBC_BBN_REUSE_VAL \u2014 bobbin reuse count for VAL session."
+        },
         "audit": {
           "$ref": "#/definitions/v1AuditInfo",
           "description": "Audit metadata."
+        },
+        "boxReuseVal": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMBBC_BOX_REUSE_VAL \u2014 box reuse count for VAL session."
         }
       },
       "description": "BoxBobbinCost represents a packing configuration master record."
@@ -24230,6 +26011,46 @@
         "notes": {
           "type": "string",
           "description": "Optional notes (max 1000 chars)."
+        },
+        "bbnReuse": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional bobbin reuse count (\u2265 0)."
+        },
+        "boxReuse": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional box reuse count (\u2265 0)."
+        },
+        "boxCost": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional MKT box rate in USD/box (\u2265 0)."
+        },
+        "bobinCost": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional MKT bobbin rate in USD/bobbin (\u2265 0)."
+        },
+        "boxCostVal": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional VAL box rate in USD/box (\u2265 0)."
+        },
+        "bobinCostVal": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional VAL bobbin rate in USD/bobbin (\u2265 0)."
+        },
+        "bbnReuseVal": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMBBC_BBN_REUSE_VAL (\u2265 0)."
+        },
+        "boxReuseVal": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMBBC_BOX_REUSE_VAL (\u2265 0)."
         }
       },
       "description": "CreateBoxBobbinCostRequest is the request for creating a Box Bobbin Cost config."
@@ -24285,6 +26106,80 @@
       },
       "description": "CreateInterminglingResponse is the response for creating an intermingling record."
     },
+    "v1CreateLookupMasterColumnRequest": {
+      "type": "object",
+      "properties": {
+        "lmcMasterCode": {
+          "type": "string"
+        },
+        "lmcColumnName": {
+          "type": "string"
+        },
+        "lmcDisplayName": {
+          "type": "string"
+        },
+        "lmcDataType": {
+          "type": "string"
+        },
+        "lmcSortOrder": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "description": "CreateLookupMasterColumnRequest is the request for adding a fillable column to a master."
+    },
+    "v1CreateLookupMasterColumnResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1LookupMasterColumn"
+        }
+      },
+      "description": "CreateLookupMasterColumnResponse is the response for adding a column."
+    },
+    "v1CreateLookupMasterRequest": {
+      "type": "object",
+      "properties": {
+        "lmCode": {
+          "type": "string"
+        },
+        "lmDisplayName": {
+          "type": "string"
+        },
+        "lmApiPath": {
+          "type": "string",
+          "description": "Deprecated: no longer required. Send empty string or omit."
+        },
+        "lmCodeField": {
+          "type": "string",
+          "description": "Deprecated: no longer required. Send empty string or omit."
+        },
+        "lmLabelField": {
+          "type": "string",
+          "description": "Deprecated: no longer required. Send empty string or omit."
+        },
+        "lmTableName": {
+          "type": "string",
+          "description": "PostgreSQL table name for DB introspection (optional, max 63 chars)."
+        }
+      },
+      "description": "CreateLookupMasterRequest is the request for adding a new master to the registry."
+    },
+    "v1CreateLookupMasterResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1LookupMaster"
+        }
+      },
+      "description": "CreateLookupMasterResponse is the response for adding a new master."
+    },
     "v1CreateMBHeadRequest": {
       "type": "object",
       "properties": {
@@ -24314,6 +26209,27 @@
           "type": "number",
           "format": "double",
           "description": "Optional dozing percentage."
+        },
+        "mbhCheckStatus": {
+          "type": "string",
+          "description": "Optional Oracle CMBH_CHECK_STATUS (max 50 chars)."
+        },
+        "mbhStatus": {
+          "type": "string",
+          "description": "Optional Oracle CMBH_STATUS (max 100 chars)."
+        },
+        "mbhLdrPrsn": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMBH_LDR_PRSN (\u2265 0)."
+        },
+        "mbhFinalProduct": {
+          "type": "string",
+          "description": "Optional Oracle CMBH_FINAL_PRODUCT (max 200 chars)."
+        },
+        "mbhCode": {
+          "type": "string",
+          "description": "Optional Oracle CMBH_CODE (max 100 chars)."
         }
       },
       "description": "CreateMBHeadRequest is the request for creating an MB Head record."
@@ -24398,6 +26314,81 @@
         "notes": {
           "type": "string",
           "description": "Optional notes (max 1000 chars)."
+        },
+        "mpPerDay": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional manpower cost per day in USD."
+        },
+        "ohsPerDay": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional overhead per head per day in USD."
+        },
+        "sparesPerDay": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional spares cost per day in USD."
+        },
+        "kgsLostChange": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional change-over quality loss in kgs."
+        },
+        "vb1Qty": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional volume bucket 1 quantity threshold."
+        },
+        "vb2Qty": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional volume bucket 2 quantity threshold."
+        },
+        "vb3Qty": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional volume bucket 3 quantity threshold."
+        },
+        "vb4Qty": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional volume bucket 4 quantity threshold."
+        },
+        "vb5Qty": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional volume bucket 5 quantity threshold."
+        },
+        "mcPoyBobbinWeight": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMM_POY_BOBBIN_WEIGHT (\u2265 0)."
+        },
+        "mcTotFxdCst": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMM_TOT_FXD_CST (\u2265 0)."
+        },
+        "mcBobbinPerTrolly": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMM_BOBBIN_PER_TROLLY (\u2265 0)."
+        },
+        "mcBoxCost": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMM_BOX_COST (\u2265 0)."
+        },
+        "mcCaptivePerBobbin": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMM_CAPTIVE_PER_BOBBIN (\u2265 0)."
+        },
+        "mcWeightage": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMM_WEIGHTAGE (\u2265 0)."
         }
       },
       "description": "CreateMachineRequest is the request for creating a machine."
@@ -24449,6 +26440,34 @@
         "notes": {
           "type": "string",
           "description": "Optional notes (max 1000 chars)."
+        },
+        "pgDetailProduct": {
+          "type": "string",
+          "description": "Pattern match key (max 100 chars)."
+        },
+        "pgGradeLabel": {
+          "type": "string",
+          "description": "Grade label for STD_VALUE_LOSS (max 50 chars)."
+        },
+        "stdSellingPrice": {
+          "type": "number",
+          "format": "double",
+          "description": "BC_SPECIAL_PROD rate (\u2265 0)."
+        },
+        "spValue": {
+          "type": "number",
+          "format": "double",
+          "description": "VALUE_LOSS rate (\u2265 0)."
+        },
+        "lossPct": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional loss factor (\u2265 0)."
+        },
+        "seqNo": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Optional display sequence number (\u2265 0)."
         }
       },
       "description": "CreateProductGradeRequest is the request for creating a Product Grade."
@@ -24496,6 +26515,24 @@
         }
       },
       "description": "DeleteInterminglingResponse is the response for soft-deleting an intermingling record."
+    },
+    "v1DeleteLookupMasterColumnResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      },
+      "description": "DeleteLookupMasterColumnResponse is the response for removing a column."
+    },
+    "v1DeleteLookupMasterResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      },
+      "description": "DeleteLookupMasterResponse is the response for removing a master."
     },
     "v1DeleteMBHeadResponse": {
       "type": "object",
@@ -24689,6 +26726,22 @@
       },
       "description": "ExportInterminglingsResponse is the response for exporting intermingling records."
     },
+    "v1ExportLookupMastersResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte"
+        },
+        "fileName": {
+          "type": "string"
+        }
+      },
+      "description": "ExportLookupMastersResponse carries the Excel workbook bytes."
+    },
     "v1ExportMBHeadsResponse": {
       "type": "object",
       "properties": {
@@ -24792,6 +26845,34 @@
         }
       },
       "description": "GetInterminglingResponse is the response for retrieving an intermingling record."
+    },
+    "v1GetLookupFillValuesResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "numericFills": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "format": "double"
+          },
+          "description": "param_code \u2192 numeric value to fill (e.g., {\"MC_SPEED\": 800.0, \"MC_EFFICIENCY\": 92.0})."
+        },
+        "textFills": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "param_code \u2192 text value to fill (e.g., {\"MB_DYE_NAME\": \"CIBA RED\"})."
+        },
+        "displayLabel": {
+          "type": "string",
+          "description": "Human-readable label for UI toast (e.g., \"Barmag DTY Line D \u2014 504 pos, 800 m/min\")."
+        }
+      },
+      "description": "GetLookupFillValuesResponse returns numeric and text fills to auto-populate CAPP params."
     },
     "v1GetMBHeadResponse": {
       "type": "object",
@@ -24952,6 +27033,46 @@
         }
       },
       "description": "ImportInterminglingsResponse is the response for importing intermingling records."
+    },
+    "v1ImportLookupMastersRequest": {
+      "type": "object",
+      "properties": {
+        "fileContent": {
+          "type": "string",
+          "format": "byte"
+        },
+        "fileName": {
+          "type": "string"
+        }
+      },
+      "description": "ImportLookupMastersRequest carries an Excel workbook to import registry entries."
+    },
+    "v1ImportLookupMastersResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "successCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "skippedCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "failedCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "ImportLookupMastersResponse summarizes the import result."
     },
     "v1ImportMBHeadsRequest": {
       "type": "object",
@@ -25221,6 +27342,38 @@
       },
       "description": "ListInterminglingsResponse is the response for listing intermingling records."
     },
+    "v1ListLookupMasterColumnsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1LookupMasterColumn"
+          }
+        }
+      },
+      "description": "ListLookupMasterColumnsResponse is the response for listing lookup master columns."
+    },
+    "v1ListLookupMastersResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1LookupMaster"
+          }
+        }
+      },
+      "description": "ListLookupMastersResponse is the response for listing lookup masters."
+    },
     "v1ListMBHeadsResponse": {
       "type": "object",
       "properties": {
@@ -25287,6 +27440,22 @@
       },
       "description": "ListMachinesResponse is the response for listing machines."
     },
+    "v1ListMasterOptionsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MasterOption"
+          }
+        }
+      },
+      "description": "ListMasterOptionsResponse is the response for ListMasterOptions."
+    },
     "v1ListProductGradesResponse": {
       "type": "object",
       "properties": {
@@ -25308,6 +27477,76 @@
         }
       },
       "description": "ListProductGradesResponse is the response for listing Product Grades."
+    },
+    "v1ListTableColumnsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1TableColumn"
+          }
+        }
+      },
+      "description": "ListTableColumnsResponse is the response for ListTableColumns."
+    },
+    "v1LookupMaster": {
+      "type": "object",
+      "properties": {
+        "lmCode": {
+          "type": "string"
+        },
+        "lmDisplayName": {
+          "type": "string"
+        },
+        "lmApiPath": {
+          "type": "string"
+        },
+        "lmCodeField": {
+          "type": "string"
+        },
+        "lmLabelField": {
+          "type": "string"
+        },
+        "lmIsActive": {
+          "type": "boolean"
+        },
+        "lmTableName": {
+          "type": "string",
+          "description": "PostgreSQL table name for DB introspection (e.g., \"mst_machine\")."
+        }
+      },
+      "description": "LookupMaster describes a named master table available for MASTER_LOOKUP param dropdowns."
+    },
+    "v1LookupMasterColumn": {
+      "type": "object",
+      "properties": {
+        "lmcMasterCode": {
+          "type": "string"
+        },
+        "lmcColumnName": {
+          "type": "string"
+        },
+        "lmcDisplayName": {
+          "type": "string"
+        },
+        "lmcDataType": {
+          "type": "string"
+        },
+        "lmcSortOrder": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "lmcId": {
+          "type": "string",
+          "description": "UUID primary key \u2014 needed for delete."
+        }
+      },
+      "description": "LookupMasterColumn describes one selectable column from a lookup master table."
     },
     "v1MBHead": {
       "type": "object",
@@ -25346,6 +27585,27 @@
         "mbhIsActive": {
           "type": "boolean",
           "description": "Whether the record is active."
+        },
+        "mbhCheckStatus": {
+          "type": "string",
+          "description": "Optional Oracle CMBH_CHECK_STATUS \u2014 check status (Waiting/Current/Approved)."
+        },
+        "mbhStatus": {
+          "type": "string",
+          "description": "Optional Oracle CMBH_STATUS \u2014 head status (R and D/Spinning/Boughtout)."
+        },
+        "mbhLdrPrsn": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMBH_LDR_PRSN \u2014 LDR person value."
+        },
+        "mbhFinalProduct": {
+          "type": "string",
+          "description": "Optional Oracle CMBH_FINAL_PRODUCT \u2014 final product description."
+        },
+        "mbhCode": {
+          "type": "string",
+          "description": "Optional Oracle CMBH_CODE \u2014 product code."
         },
         "audit": {
           "$ref": "#/definitions/v1AuditInfo",
@@ -25395,6 +27655,28 @@
         "mbsIsActive": {
           "type": "boolean",
           "description": "Whether the record is active."
+        },
+        "mbsCc": {
+          "type": "string",
+          "description": "Optional MB/SP cost code."
+        },
+        "mbsCostRateMkt": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional MB rate MKT in USD/kg."
+        },
+        "mbsStatus": {
+          "type": "string",
+          "description": "Optional Oracle CMBS_STATUS \u2014 spinning status (Spinning/R and D/Boughtout)."
+        },
+        "mbsLdrPrsn": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMBS_LDR_PRSN \u2014 LDR person value."
+        },
+        "mbsFinalProduct": {
+          "type": "string",
+          "description": "Optional Oracle CMBS_FINAL_PRODUCT \u2014 final product description."
         },
         "audit": {
           "$ref": "#/definitions/v1AuditInfo",
@@ -25464,12 +27746,101 @@
           "type": "string",
           "description": "Optional notes."
         },
+        "mpPerDay": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional manpower cost per day in USD."
+        },
+        "ohsPerDay": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional overhead per head per day in USD."
+        },
         "audit": {
           "$ref": "#/definitions/v1AuditInfo",
           "description": "Audit metadata."
+        },
+        "sparesPerDay": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional spares cost per day in USD."
+        },
+        "kgsLostChange": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional change-over quality loss in kgs."
+        },
+        "vb1Qty": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional volume bucket 1 quantity threshold."
+        },
+        "vb2Qty": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional volume bucket 2 quantity threshold."
+        },
+        "vb3Qty": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional volume bucket 3 quantity threshold."
+        },
+        "vb4Qty": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional volume bucket 4 quantity threshold."
+        },
+        "vb5Qty": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional volume bucket 5 quantity threshold."
+        },
+        "mcPoyBobbinWeight": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMM_POY_BOBBIN_WEIGHT \u2014 kg per bobbin."
+        },
+        "mcTotFxdCst": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMM_TOT_FXD_CST \u2014 total fixed cost."
+        },
+        "mcBobbinPerTrolly": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMM_BOBBIN_PER_TROLLY \u2014 bobbins per trolley."
+        },
+        "mcBoxCost": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMM_BOX_COST \u2014 box cost per unit."
+        },
+        "mcCaptivePerBobbin": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMM_CAPTIVE_PER_BOBBIN \u2014 captive cost per bobbin."
+        },
+        "mcWeightage": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional Oracle CMM_WEIGHTAGE \u2014 machine weightage factor."
         }
       },
       "description": "Machine represents a yarn machine master record."
+    },
+    "v1MasterOption": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string",
+          "description": "The \"code\" field value stored as the param's text value."
+        },
+        "label": {
+          "type": "string",
+          "description": "The \"label\" field value displayed to the user."
+        }
+      },
+      "description": "MasterOption is one combobox entry (code + label) for the MasterLookupField dropdown."
     },
     "v1ProductGrade": {
       "type": "object",
@@ -25513,12 +27884,63 @@
           "type": "string",
           "description": "Optional notes."
         },
+        "pgDetailProduct": {
+          "type": "string",
+          "description": "Pattern match key (e.g., \"DBR <=600D\")."
+        },
+        "pgGradeLabel": {
+          "type": "string",
+          "description": "Grade label for STD_VALUE_LOSS."
+        },
+        "stdSellingPrice": {
+          "type": "number",
+          "format": "double",
+          "description": "BC_SPECIAL_PROD rate."
+        },
+        "spValue": {
+          "type": "number",
+          "format": "double",
+          "description": "VALUE_LOSS rate."
+        },
+        "lossPct": {
+          "type": "number",
+          "format": "double",
+          "description": "Optional loss factor (param NON_STD_SPECIAL_PROD, from Oracle CMPG_LOSS)."
+        },
+        "seqNo": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Optional display sequence number (from Oracle CMPG_SEQ_NO)."
+        },
         "audit": {
           "$ref": "#/definitions/v1AuditInfo",
           "description": "Audit metadata."
         }
       },
       "description": "ProductGrade represents a quality-loss configuration preset."
+    },
+    "v1TableColumn": {
+      "type": "object",
+      "properties": {
+        "columnName": {
+          "type": "string",
+          "description": "PostgreSQL column name (e.g., \"mc_speed\")."
+        },
+        "dataType": {
+          "type": "string",
+          "description": "Mapped type: \"NUMBER\" or \"TEXT\"."
+        },
+        "rawType": {
+          "type": "string",
+          "description": "Original PostgreSQL type (e.g., \"numeric\", \"character varying\")."
+        },
+        "ordinalPosition": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Position in the table (from information_schema)."
+        }
+      },
+      "description": "TableColumn is one column from information_schema introspection."
     },
     "v1UpdateBoxBobbinCostResponse": {
       "type": "object",
@@ -25547,6 +27969,18 @@
         }
       },
       "description": "UpdateInterminglingResponse is the response for updating an intermingling record."
+    },
+    "v1UpdateLookupMasterResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1LookupMaster"
+        }
+      },
+      "description": "UpdateLookupMasterResponse is the response for UpdateLookupMaster."
     },
     "v1UpdateMBHeadResponse": {
       "type": "object",
@@ -25731,6 +28165,12 @@
     },
     {
       "name": "MBSpinService"
+    },
+    {
+      "name": "LookupMasterService"
+    },
+    {
+      "name": "YarnLookupFillService"
     }
   ]
 }

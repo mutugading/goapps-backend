@@ -12,7 +12,6 @@ import (
 	domain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductrequest"
 	routeDomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costroute"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/requesthistory"
-	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/iamclient"
 )
 
 // ErrRouteNotLocked is returned by Confirm when the linked route has not been locked yet.
@@ -32,6 +31,7 @@ type CreateCommand struct {
 	NeededByDate          string
 	RequesterUserID       string
 	Spec                  *domain.SpecInput
+	ReferenceProductSysID int64
 }
 
 // CreateHandler creates a draft request.
@@ -64,6 +64,7 @@ func (h *CreateHandler) Handle(ctx context.Context, cmd CreateCommand) (*domain.
 		NeededByDate:          cmd.NeededByDate,
 		RequesterUserID:       cmd.RequesterUserID,
 		Spec:                  cmd.Spec,
+		ReferenceProductSysID: cmd.ReferenceProductSysID,
 	})
 	if err != nil {
 		return nil, err
@@ -127,6 +128,7 @@ type UpdateCommand struct {
 	UrgencyLevel          string
 	NeededByDate          string
 	Spec                  *domain.SpecInput
+	ReferenceProductSysID *int64
 }
 
 // UpdateHandler mutates DRAFT fields.
@@ -152,6 +154,7 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*domain.
 		UrgencyLevel:          cmd.UrgencyLevel,
 		NeededByDate:          cmd.NeededByDate,
 		Spec:                  cmd.Spec,
+		ReferenceProductSysID: cmd.ReferenceProductSysID,
 	}); err != nil {
 		return nil, err
 	}
@@ -309,7 +312,6 @@ type TransitionHandler struct {
 	fillChecker  FillCompletionChecker     // optional; if nil, fill guard is skipped
 	lockChecker  RouteLockChecker          // optional; if nil, lock guard is skipped
 	paramCounter ApplicableParamCounter    // optional; used to set cft_total_params on task creation
-	wflClient    iamclient.WorkflowClient  // optional; if nil, IAM workflow wiring is skipped
 	historyRepo  requesthistory.Repository // optional; if nil, approval trace recording is skipped
 }
 
@@ -369,15 +371,6 @@ func (h *TransitionHandler) WithRouteLockChecker(c RouteLockChecker) *Transition
 // to populate cft_total_params per route level on fill task creation.
 func (h *TransitionHandler) WithParamCounter(c ApplicableParamCounter) *TransitionHandler {
 	h.paramCounter = c
-	return h
-}
-
-// WithWorkflowClient attaches an IAM workflow client used by Submit to start an
-// approval instance after a successful DRAFT → SUBMITTED transition. This is
-// best-effort: if the client returns an error the submit still succeeds.
-// Pass nil (or omit) to disable IAM workflow wiring.
-func (h *TransitionHandler) WithWorkflowClient(c iamclient.WorkflowClient) *TransitionHandler {
-	h.wflClient = c
 	return h
 }
 
@@ -519,29 +512,23 @@ func (h *CreateHandler) emitCPREvent(ctx context.Context, event CPREvent) {
 }
 
 // Submit transitions DRAFT → SUBMITTED.
-// After a successful transition, if a WorkflowClient is configured, it
-// attempts to start an IAM approval instance. This is best-effort: a failure
-// to reach IAM is logged as a warning but does not roll back the transition.
-// If a NotificationEmitter is configured, a STATUS_CHANGE notification is sent
-// to the assigned reviewer (if any); falls back to the requester if unassigned.
+// Emits the surviving consolidated notification pair: CPR_SUBMITTED_REVIEWER
+// (rule-based, to users with review permission) and CPR_SUBMITTED_ACK (to the
+// requester). The old plain STATUS_CHANGE notification and the IAM
+// startWorkflowInstance side effect have both been removed per design.md §3
+// B3 — the IAM workflow instance was dead weight (nothing ever read it back).
 func (h *TransitionHandler) Submit(ctx context.Context, requestID int64, actor, actorName string) (*domain.Request, error) {
 	req, err := h.apply(ctx, requestID, func(r *domain.Request) error { return r.Submit() }, applyOpts{operation: auditOpStatusChange, actorID: actor, actorName: actorName})
 	if err != nil {
 		return nil, err
 	}
-	h.startWorkflowInstance(ctx, req, actor)
-	// Notify reviewer (assigned user) that a new request is awaiting review.
-	// Falls back to the requester themselves if no assignee is set yet.
-	recipient := req.AssignedToUserID()
-	if recipient == "" {
-		recipient = req.RequesterUserID()
-	}
-	h.emitNotification(ctx, NotificationInput{
-		RecipientUserID: recipient,
-		TriggerType:     notifTriggerStatusChange,
-		RequestID:       req.RequestID(),
-		Payload:         `{"status":"SUBMITTED","request_no":"` + req.RequestNo() + `"}`,
-	})
+	h.emitSubmittedNotifications(ctx, req)
+	return req, nil
+}
+
+// emitSubmittedNotifications fires the single consolidated notification pair
+// for a DRAFT → SUBMITTED transition, shared by Submit and SubmitAndDecide.
+func (h *TransitionHandler) emitSubmittedNotifications(ctx context.Context, req *domain.Request) {
 	// Rule-based notification: notify users with review permission that a
 	// submitted request awaits their review.
 	h.emitCPREvent(ctx, CPREvent{
@@ -563,73 +550,79 @@ func (h *TransitionHandler) Submit(ctx context.Context, requestID int64, actor, 
 			{RuleType: "BY_USER_ID", Value: req.RequesterUserID()},
 		},
 	})
-	return req, nil
-}
-
-// startWorkflowInstance fires the IAM workflow engine for the submitted request.
-// It is always best-effort: errors are logged as warnings and never propagated.
-// The instance ID is logged; persistence into cpr_wfl_instance_id will be wired
-// in T18 once the full gRPC delivery layer and repository method are in place.
-func (h *TransitionHandler) startWorkflowInstance(ctx context.Context, req *domain.Request, actor string) {
-	if h.wflClient == nil {
-		return
-	}
-	instanceID, wflErr := h.wflClient.StartInstance(
-		ctx,
-		"CPR_APPROVAL",
-		"COST_PRODUCT_REQUEST",
-		req.RequestNo(),
-		actor,
-	)
-	if wflErr != nil {
-		log.Warn().
-			Err(wflErr).
-			Int64("request_id", req.RequestID()).
-			Str("request_no", req.RequestNo()).
-			Msg("workflow start failed (non-fatal); CPR submit succeeded")
-		return
-	}
-	if instanceID != "" {
-		log.Info().
-			Str("instance_id", instanceID).
-			Int64("request_id", req.RequestID()).
-			Str("request_no", req.RequestNo()).
-			Msg("IAM workflow instance started for CPR submit")
-	}
 }
 
 // StartReview transitions SUBMITTED → UNDER_REVIEW.
-// Emits an ASSIGNED notification to the reviewer (actor) and a STATUS_CHANGE
-// notification to the requester informing them the review has started.
+// Notifications are NOT emitted here — see Submit's comment; the merged
+// SubmitAndDecide flow supersedes StartReview's standalone notification set.
 func (h *TransitionHandler) StartReview(ctx context.Context, requestID int64, actor, actorName string) (*domain.Request, error) {
-	req, err := h.apply(ctx, requestID, func(r *domain.Request) error { return r.StartReview() }, applyOpts{operation: auditOpStatusChange, actorID: actor, actorName: actorName})
+	return h.apply(ctx, requestID, func(r *domain.Request) error { return r.StartReview() }, applyOpts{operation: auditOpStatusChange, actorID: actor, actorName: actorName})
+}
+
+// SubmitAndDecide is the merged Submit + Start-review action (design.md §3 B3).
+// It composes, in order: Submit (DRAFT → SUBMITTED) → StartReview (SUBMITTED →
+// UNDER_REVIEW) → VerifyClassification → DecideFeasibility → (only when the
+// feasibility decision is FEASIBLE and a route head was resolved) LinkRoute.
+// SUBMITTED and UNDER_REVIEW remain real internal states (each recorded in the
+// audit log / approval trace as its own transition) even though the caller
+// only sees a single instantaneous action.
+//
+// Exactly one notification pair is emitted for the whole composition —
+// CPR_SUBMITTED_REVIEWER + CPR_SUBMITTED_ACK — regardless of the feasibility
+// outcome. This intentionally supersedes the per-step notifications that
+// Submit, StartReview, and DecideFeasibility would otherwise each emit when
+// called standalone; SubmitAndDecide never calls those wrapper methods, only
+// the underlying domain methods via apply()/linkRoute(), so none of their
+// notification side effects fire.
+func (h *TransitionHandler) SubmitAndDecide(
+	ctx context.Context,
+	requestID int64,
+	verified, overrideReason string,
+	decision, note string,
+	referenceProductHeadID int64,
+	actor, actorName string,
+) (*domain.Request, error) {
+	_, err := h.apply(ctx, requestID, func(r *domain.Request) error { return r.Submit() }, applyOpts{operation: auditOpStatusChange, actorID: actor, actorName: actorName})
+	if err != nil {
+		return nil, fmt.Errorf("submit: %w", err)
+	}
+	_, err = h.apply(ctx, requestID, func(r *domain.Request) error { return r.StartReview() }, applyOpts{operation: auditOpStatusChange, actorID: actor, actorName: actorName})
+	if err != nil {
+		return nil, fmt.Errorf("start review: %w", err)
+	}
+	_, err = h.apply(ctx, requestID, func(r *domain.Request) error { return r.VerifyClassification(verified, overrideReason) }, applyOpts{operation: auditOpClassificationOverride, actorID: actor, actorName: actorName})
+	if err != nil {
+		return nil, fmt.Errorf("verify classification: %w", err)
+	}
+	req, err := h.apply(ctx, requestID, func(r *domain.Request) error { return r.DecideFeasibility(decision, note, actor) }, applyOpts{operation: auditOpFeasibility, actorID: actor, actorName: actorName})
+	if err != nil {
+		return nil, fmt.Errorf("decide feasibility: %w", err)
+	}
+	if decision == domain.FeasibilityFeasible && referenceProductHeadID > 0 {
+		req, err = h.linkRoute(ctx, requestID, referenceProductHeadID)
+		if err != nil {
+			return nil, fmt.Errorf("link route: %w", err)
+		}
+	}
+	h.emitSubmittedNotifications(ctx, req)
+	return req, nil
+}
+
+// linkRoute attaches a route head to the request without emitting audit/history —
+// mirrors LinkRouteHandler.Handle's mutate-then-save shape but skips the head
+// existence check (SubmitAndDecide's caller is expected to have already
+// resolved a valid head via RoutingResolver before invoking this composition).
+func (h *TransitionHandler) linkRoute(ctx context.Context, requestID, headID int64) (*domain.Request, error) {
+	req, err := h.repo.GetByID(ctx, requestID)
 	if err != nil {
 		return nil, err
 	}
-	// Notify the reviewer (actor) that they own this review.
-	h.emitNotification(ctx, NotificationInput{
-		RecipientUserID: actor,
-		TriggerType:     notifTriggerAssigned,
-		RequestID:       req.RequestID(),
-		Payload:         `{"status":"UNDER_REVIEW","request_no":"` + req.RequestNo() + `"}`,
-	})
-	// Notify the requester that their submission is now under review.
-	h.emitNotification(ctx, NotificationInput{
-		RecipientUserID: req.RequesterUserID(),
-		TriggerType:     notifTriggerStatusChange,
-		RequestID:       req.RequestID(),
-		Payload:         `{"status":"UNDER_REVIEW","request_no":"` + req.RequestNo() + `"}`,
-	})
-	// Rule-based notification: inform the requester that review has started.
-	h.emitCPREvent(ctx, CPREvent{
-		EventType:       "CPR_UNDER_REVIEW",
-		RequestID:       req.RequestID(),
-		RequestNo:       req.RequestNo(),
-		RequesterUserID: req.RequesterUserID(),
-		Rules: []CPRNotifRule{
-			{RuleType: "BY_USER_ID", Value: req.RequesterUserID()},
-		},
-	})
+	if err := req.LinkRoute(headID); err != nil {
+		return nil, err
+	}
+	if err := h.repo.Save(ctx, req); err != nil {
+		return nil, fmt.Errorf("save request after link: %w", err)
+	}
 	return req, nil
 }
 

@@ -311,18 +311,23 @@ func getRequiredPermission(fullMethod string) string {
 		"/finance.v1.CostCalcService/ProcessChunkInternal": "finance.cost.caljob.trigger",
 
 		// CostProductRequestService
-		"/finance.v1.CostProductRequestService/CreateCostProductRequest":                "finance.product.request.create",
-		"/finance.v1.CostProductRequestService/UpdateCostProductRequest":                "finance.product.request.create",
-		"/finance.v1.CostProductRequestService/GetCostProductRequest":                   "finance.product.request.view",
-		"/finance.v1.CostProductRequestService/GetCostProductRequestByNo":               "finance.product.request.view",
-		"/finance.v1.CostProductRequestService/ListCostProductRequests":                 "finance.product.request.view",
-		"/finance.v1.CostProductRequestService/SubmitCostProductRequest":                "finance.product.request.submit",
-		"/finance.v1.CostProductRequestService/CancelCostProductRequest":                "",
-		"/finance.v1.CostProductRequestService/CloseCostProductRequest":                 "",
-		"/finance.v1.CostProductRequestService/ReviseCostProductRequest":                "finance.product.request.create",
-		"/finance.v1.CostProductRequestService/StartCostProductRequestReview":           "finance.product.request.review",
-		"/finance.v1.CostProductRequestService/VerifyCostProductRequestClassification":  "finance.product.request.review",
-		"/finance.v1.CostProductRequestService/DecideCostProductRequestFeasibility":     "finance.product.request.resolve",
+		"/finance.v1.CostProductRequestService/CreateCostProductRequest":               "finance.product.request.create",
+		"/finance.v1.CostProductRequestService/UpdateCostProductRequest":               "finance.product.request.create",
+		"/finance.v1.CostProductRequestService/GetCostProductRequest":                  "finance.product.request.view",
+		"/finance.v1.CostProductRequestService/GetCostProductRequestByNo":              "finance.product.request.view",
+		"/finance.v1.CostProductRequestService/ListCostProductRequests":                "finance.product.request.view",
+		"/finance.v1.CostProductRequestService/SubmitCostProductRequest":               "finance.product.request.submit",
+		"/finance.v1.CostProductRequestService/CancelCostProductRequest":               "",
+		"/finance.v1.CostProductRequestService/CloseCostProductRequest":                "",
+		"/finance.v1.CostProductRequestService/ReviseCostProductRequest":               "finance.product.request.create",
+		"/finance.v1.CostProductRequestService/StartCostProductRequestReview":          "finance.product.request.review",
+		"/finance.v1.CostProductRequestService/VerifyCostProductRequestClassification": "finance.product.request.review",
+		"/finance.v1.CostProductRequestService/DecideCostProductRequestFeasibility":    "finance.product.request.resolve",
+		// SubmitAndDecideCostProductRequest merges Submit+StartReview+VerifyClassification+
+		// DecideFeasibility+LinkRoute (design.md §3 B3) and is gated SOLELY by the
+		// review permission — not also by .submit or .resolve — per the user-approved
+		// permission narrowing (see P3-T7's rollout migration for the access impact).
+		"/finance.v1.CostProductRequestService/SubmitAndDecideCostProductRequest":       "finance.product.request.review",
 		"/finance.v1.CostProductRequestService/UseExistingCostingForCostProductRequest": "finance.product.request.resolve",
 		"/finance.v1.CostProductRequestService/RejectCostProductRequest":                "finance.product.request.reject",
 		"/finance.v1.CostProductRequestService/AssignCostProductRequest":                "finance.product.request.assign",
@@ -334,6 +339,10 @@ func getRequiredPermission(fullMethod string) string {
 		"/finance.v1.CostProductRequestService/GetCostProductRequestHistory":            "finance.product.request.view",
 		"/finance.v1.CostProductRequestService/LinkExistingRoute":                       "finance.product.route.update",
 		"/finance.v1.CostProductRequestService/UnlinkRoute":                             "finance.product.route.update",
+		// D6 import/export (design.md §4 Area D6) — mirrors UOM's Export=view/Import=create pattern.
+		"/finance.v1.CostProductRequestService/ExportCostProductRequests":           "finance.product.request.view",
+		"/finance.v1.CostProductRequestService/ImportCostProductRequests":           "finance.product.request.create",
+		"/finance.v1.CostProductRequestService/GetCostProductRequestImportTemplate": "finance.product.request.view",
 
 		// CostRouteService
 		"/finance.v1.CostRouteService/CreateRouteFromProduct": "finance.product.route.create",

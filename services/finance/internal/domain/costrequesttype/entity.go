@@ -31,4 +31,8 @@ type Filter struct {
 type Repository interface {
 	List(ctx context.Context, f Filter) (items []*CostRequestType, total int64, err error)
 	GetByID(ctx context.Context, id int32) (*CostRequestType, error)
+	// GetIDByCode resolves a request type code to its type ID. Used by the
+	// import handler to translate a human-readable code column into the FK
+	// stored on cost_product_request.
+	GetIDByCode(ctx context.Context, code string) (int32, error)
 }

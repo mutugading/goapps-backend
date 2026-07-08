@@ -291,6 +291,10 @@ func TestFinanceGetRequiredPermission_CPR(t *testing.T) {
 		{"/finance.v1.CostProductRequestService/SubmitCostProductRequest", "finance.product.request.submit"},
 		{"/finance.v1.CostProductRequestService/ReopenCostProductRequest", "finance.product.request.reopen"},
 		{"/finance.v1.CostProductRequestService/StartCostProductRequestReview", "finance.product.request.review"},
+		// SubmitAndDecide merges Submit+StartReview+VerifyClassification+DecideFeasibility+
+		// LinkRoute and is gated SOLELY by the review permission (design.md §3 B3
+		// permission narrowing) -- not also by .submit or .resolve.
+		{"/finance.v1.CostProductRequestService/SubmitAndDecideCostProductRequest", "finance.product.request.review"},
 		{"/finance.v1.CostProductRequestService/RejectCostProductRequest", "finance.product.request.reject"},
 		{"/finance.v1.CostProductRequestService/CreateCostProductRequest", "finance.product.request.create"},
 		// CPR transitions open to any authenticated user (empty string).
@@ -332,6 +336,39 @@ func TestFinancePermissionInterceptor_CPRSubmit_Denied(t *testing.T) {
 	ctx = context.WithValue(ctx, AuthPermissionsKey, []string{"finance.product.request.view"})
 
 	info := &grpc.UnaryServerInfo{FullMethod: "/finance.v1.CostProductRequestService/SubmitCostProductRequest"}
+	_, err := interceptor(ctx, nil, info, financeNoopHandler)
+
+	assert.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.PermissionDenied, st.Code())
+}
+
+// TestFinancePermissionInterceptor_SubmitAndDecide_AllowedWithReviewOnly verifies
+// the merged SubmitAndDecide action is gated solely by finance.product.request.review --
+// holding ONLY that permission (no .submit, no .resolve) is sufficient.
+func TestFinancePermissionInterceptor_SubmitAndDecide_AllowedWithReviewOnly(t *testing.T) {
+	interceptor := PermissionInterceptor()
+
+	ctx := context.WithValue(context.Background(), AuthRolesKey, []string{"CPR_REVIEWER"})
+	ctx = context.WithValue(ctx, AuthPermissionsKey, []string{"finance.product.request.review"})
+
+	info := &grpc.UnaryServerInfo{FullMethod: "/finance.v1.CostProductRequestService/SubmitAndDecideCostProductRequest"}
+	resp, err := interceptor(ctx, nil, info, financeNoopHandler)
+	assert.NoError(t, err)
+	assert.Equal(t, "ok", resp)
+}
+
+// TestFinancePermissionInterceptor_SubmitAndDecide_DeniedWithSubmitOnly verifies that
+// holding ONLY the old .submit permission (and not .review) is NOT sufficient for the
+// merged action -- this is the intentional permission narrowing from design.md §3 B3.
+func TestFinancePermissionInterceptor_SubmitAndDecide_DeniedWithSubmitOnly(t *testing.T) {
+	interceptor := PermissionInterceptor()
+
+	ctx := context.WithValue(context.Background(), AuthRolesKey, []string{"CPR_SUBMITTER"})
+	ctx = context.WithValue(ctx, AuthPermissionsKey, []string{"finance.product.request.submit"})
+
+	info := &grpc.UnaryServerInfo{FullMethod: "/finance.v1.CostProductRequestService/SubmitAndDecideCostProductRequest"}
 	_, err := interceptor(ctx, nil, info, financeNoopHandler)
 
 	assert.Error(t, err)
