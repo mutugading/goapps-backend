@@ -460,6 +460,15 @@
         "lookupSourceColumn": {
           "type": "string",
           "description": "New source column (optional). Set to empty string to clear."
+        },
+        "isApprovalVisible": {
+          "type": "boolean",
+          "description": "New is_approval_visible flag (optional)."
+        },
+        "approvalDisplayOrder": {
+          "type": "integer",
+          "format": "int32",
+          "description": "New approval display order (optional)."
         }
       },
       "description": "UpdateParameterRequest is the request for updating a parameter.\nNote: param_code is immutable and cannot be changed after creation."
@@ -947,6 +956,15 @@
         "lookupSourceColumn": {
           "type": "string",
           "description": "Column name in the master entity to read value from (e.g., \"mc_speed\")."
+        },
+        "isApprovalVisible": {
+          "type": "boolean",
+          "description": "Whether this parameter is shown in the approval review drawer summary."
+        },
+        "approvalDisplayOrder": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Render order within the approval review drawer summary."
         }
       },
       "description": "Parameter represents a master parameter entity for costing calculations."

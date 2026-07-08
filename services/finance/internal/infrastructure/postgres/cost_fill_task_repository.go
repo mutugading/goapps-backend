@@ -297,7 +297,7 @@ func (r *CostFillTaskRepository) ListOverdue(ctx context.Context, reminderGapHou
 		  WHERE t.cft_status IN ('ACTIVE','FILLING','APPROVAL_PENDING')
 		    AND t.cft_activated_at + (t.cft_sla_fill_hours || ' hours')::interval < NOW()
 		    AND (t.cft_last_notified_at IS NULL
-		         OR t.cft_last_notified_at < NOW() - ($1 || ' hours')::interval)`,
+		         OR t.cft_last_notified_at < NOW() - make_interval(hours => $1))`,
 		reminderGapHours)
 	if err != nil {
 		return nil, fmt.Errorf("list overdue tasks: %w", err)

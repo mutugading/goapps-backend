@@ -159,6 +159,107 @@
         ]
       }
     },
+    "/api/v1/finance/cost-product-requests/export": {
+      "get": {
+        "summary": "ExportCostProductRequests exports cost product requests to Excel file.",
+        "operationId": "CostProductRequestService_ExportCostProductRequests",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ExportCostProductRequestsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "requestTypeId",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "CostProductRequestService"
+        ]
+      }
+    },
+    "/api/v1/finance/cost-product-requests/import": {
+      "post": {
+        "summary": "ImportCostProductRequests imports cost product requests from Excel file.\nCreate-only: every row creates a new DRAFT request, no dedup/merge.",
+        "operationId": "CostProductRequestService_ImportCostProductRequests",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ImportCostProductRequestsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "ImportCostProductRequestsRequest is the request for importing cost product\nrequests from Excel. Create-only: every row creates a new DRAFT request\nregardless of duplicate_action — the field is accepted for shape parity\nwith other import RPCs but has no skip/update effect in v1.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ImportCostProductRequestsRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CostProductRequestService"
+        ]
+      }
+    },
+    "/api/v1/finance/cost-product-requests/template": {
+      "get": {
+        "summary": "GetCostProductRequestImportTemplate downloads the Excel import template.",
+        "operationId": "CostProductRequestService_GetCostProductRequestImportTemplate",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetCostProductRequestImportTemplateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "CostProductRequestService"
+        ]
+      }
+    },
     "/api/v1/finance/cost-product-requests/{requestId}": {
       "get": {
         "operationId": "CostProductRequestService_GetCostProductRequest",
@@ -883,6 +984,46 @@
         ]
       }
     },
+    "/api/v1/finance/cost-product-requests/{requestId}/submit-and-decide": {
+      "post": {
+        "summary": "SubmitAndDecideCostProductRequest merges Submit + Start-review + Verify\nclassification + Decide feasibility + (when feasible) Link route into a\nsingle action (design.md §3 B3).",
+        "operationId": "CostProductRequestService_SubmitAndDecideCostProductRequest",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SubmitAndDecideCostProductRequestResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CostProductRequestServiceSubmitAndDecideCostProductRequestBody"
+            }
+          }
+        ],
+        "tags": [
+          "CostProductRequestService"
+        ]
+      }
+    },
     "/api/v1/finance/cost-product-requests/{requestId}/unlink-route": {
       "post": {
         "summary": "UnlinkRoute clears both existing-product and linked-route fields.",
@@ -1090,6 +1231,29 @@
     "CostProductRequestServiceStartCostProductRequestReviewBody": {
       "type": "object"
     },
+    "CostProductRequestServiceSubmitAndDecideCostProductRequestBody": {
+      "type": "object",
+      "properties": {
+        "verifiedClassification": {
+          "type": "string"
+        },
+        "overrideReason": {
+          "type": "string"
+        },
+        "decision": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "referenceProductHeadId": {
+          "type": "string",
+          "format": "int64",
+          "description": "reference_product_head_id is the route head resolved by RoutingResolver\non the client before submitting; only applied when decision is FEASIBLE.\n0 means no route was resolved (e.g. decision is NOT_FEASIBLE)."
+        }
+      },
+      "description": "SubmitAndDecideCostProductRequest merges Submit + Start-review + Verify\nclassification + Decide feasibility + (when feasible) Link route into a\nsingle action (design.md §3 B3). SUBMITTED and UNDER_REVIEW remain real\ninternal states recorded in the audit trail; only one consolidated\nnotification pair is emitted regardless of the feasibility outcome."
+    },
     "CostProductRequestServiceSubmitCostProductRequestBody": {
       "type": "object"
     },
@@ -1128,6 +1292,11 @@
         },
         "spec": {
           "$ref": "#/definitions/v1SpecInput"
+        },
+        "referenceProductSysId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Optional reviewer-facing hint pointing at a similar existing product master.\n0 = unset."
         }
       }
     },
@@ -1389,6 +1558,11 @@
         "wflInstanceId": {
           "type": "string",
           "description": "IAM workflow instance ID linked to this request (empty if no workflow attached)."
+        },
+        "referenceProductSysId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Optional reviewer-facing hint pointing at a similar existing product master,\nused to pre-fill routing resolution during review. 0 = unset."
         }
       }
     },
@@ -1405,7 +1579,7 @@
         },
         "rawMaterialType": {
           "type": "string",
-          "description": "POY_BOUGHTOUT | CHIPS_SD | CHIPS_BRT | CHIPS_RECYCLE."
+          "description": "POY_BOUGHTOUT | CHIPS_SD | CHIPS_BRT | CHIPS_RECYCLE.\nDeprecated for new writes: retained for historical rows, no longer populated by new writes."
         },
         "productDescription": {
           "type": "string"
@@ -1414,12 +1588,14 @@
           "type": "integer",
           "format": "int32"
         },
-        "shadeCustomText": {
-          "type": "string"
+        "shadeCode": {
+          "type": "string",
+          "description": "Free-text or master shade code (e.g. NL, Z114S). Renamed from shade_custom_text — field number unchanged for wire compatibility."
         },
         "paperTubeTypeId": {
           "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "description": "Deprecated: retained for historical rows, no longer populated by new writes. Use tube_type instead."
         },
         "paperTubeLabel": {
           "type": "string",
@@ -1427,17 +1603,25 @@
         },
         "weightPerBobbinKg": {
           "type": "string",
-          "title": "decimal stringified to preserve precision"
+          "description": "Deprecated for new writes: retained for historical rows, no longer populated by new writes.\n\ndecimal stringified to preserve precision"
         },
         "boxType": {
           "type": "string",
-          "description": "JUMBO | NORMAL | PALLET."
+          "description": "JUMBO | NORMAL | PALLET.\nDeprecated for new writes: retained for historical rows, no longer populated by new writes."
         },
         "createdAt": {
           "type": "string"
         },
         "createdBy": {
           "type": "string"
+        },
+        "shadeName": {
+          "type": "string",
+          "description": "Human-readable shade name (e.g. Natural, Jet Black), mirrors cost_product_master's shade_name."
+        },
+        "tubeType": {
+          "$ref": "#/definitions/v1TubeType",
+          "description": "Fixed Paper/Plastic tube classification. Replaces paper_tube_type_id for new writes."
         }
       }
     },
@@ -1477,6 +1661,11 @@
         },
         "spec": {
           "$ref": "#/definitions/v1SpecInput"
+        },
+        "referenceProductSysId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Optional reviewer-facing hint pointing at a similar existing product master.\n0 = unset."
         }
       }
     },
@@ -1501,6 +1690,24 @@
           "$ref": "#/definitions/v1CostProductRequest"
         }
       }
+    },
+    "v1ExportCostProductRequestsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "Excel file content as bytes (.xlsx format)."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Suggested filename."
+        }
+      },
+      "description": "ExportCostProductRequestsResponse is the response containing the Excel file."
     },
     "v1FillLevelSummary": {
       "type": "object",
@@ -1571,6 +1778,24 @@
       },
       "description": "GetCostProductRequestHistoryResponse returns the full status-transition timeline."
     },
+    "v1GetCostProductRequestImportTemplateResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "Excel template file content as bytes (.xlsx format)."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Suggested filename."
+        }
+      },
+      "description": "GetCostProductRequestImportTemplateResponse is the response containing the\ntemplate file."
+    },
     "v1GetCostProductRequestResponse": {
       "type": "object",
       "properties": {
@@ -1604,6 +1829,81 @@
           "format": "int32"
         }
       }
+    },
+    "v1ImportCostProductRequestsRequest": {
+      "type": "object",
+      "properties": {
+        "fileContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "Excel file content as bytes (.xlsx or .xls format)."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Original filename (for format detection).\nMust be a simple filename without path separators."
+        },
+        "duplicateAction": {
+          "type": "string",
+          "description": "Accepted for shape parity with other import RPCs. Create-only: only\n\"error\" semantics apply (unresolvable rows fail with a row-level\nImportError); there is no update/skip behavior in v1."
+        }
+      },
+      "description": "ImportCostProductRequestsRequest is the request for importing cost product\nrequests from Excel. Create-only: every row creates a new DRAFT request\nregardless of duplicate_action — the field is accepted for shape parity\nwith other import RPCs but has no skip/update effect in v1."
+    },
+    "v1ImportCostProductRequestsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "successCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of successfully created DRAFT requests."
+        },
+        "skippedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Always 0 in v1 (create-only import has no skip semantics)."
+        },
+        "updatedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Always 0 in v1 (create-only import has no update semantics)."
+        },
+        "failedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of failed rows."
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ImportError"
+          },
+          "description": "Details of failed rows."
+        }
+      },
+      "description": "ImportCostProductRequestsResponse is the response for importing cost\nproduct requests. updated_count/skipped_count are always 0 in v1 since\nthe import is create-only (kept for shape consistency with other imports)."
+    },
+    "v1ImportError": {
+      "type": "object",
+      "properties": {
+        "rowNumber": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Row number in the Excel file."
+        },
+        "field": {
+          "type": "string",
+          "description": "Field that caused the error."
+        },
+        "message": {
+          "type": "string",
+          "description": "Error message."
+        }
+      },
+      "description": "ImportError represents a single import error."
     },
     "v1LinkExistingRouteResponse": {
       "type": "object",
@@ -1759,6 +2059,13 @@
         },
         "isRequired": {
           "type": "boolean"
+        },
+        "displayGroup": {
+          "type": "string"
+        },
+        "displayOrder": {
+          "type": "integer",
+          "format": "int32"
         }
       },
       "description": "ParamValueEntry is one parameter cell in the summary."
@@ -1834,7 +2141,8 @@
       "type": "object",
       "properties": {
         "rawMaterialType": {
-          "type": "string"
+          "type": "string",
+          "description": "Deprecated for new writes: retained for historical rows, no longer populated by new writes.\nValidation is skipped when empty so new writes (which always send \"\") pass."
         },
         "productDescription": {
           "type": "string"
@@ -1843,18 +2151,30 @@
           "type": "integer",
           "format": "int32"
         },
-        "shadeCustomText": {
-          "type": "string"
+        "shadeCode": {
+          "type": "string",
+          "description": "Free-text or master shade code (e.g. NL, Z114S). Renamed from shade_custom_text — field number unchanged for wire compatibility."
         },
         "paperTubeTypeId": {
           "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "description": "Deprecated: retained for historical rows, no longer populated by new writes. Use tube_type instead.\nValidation is skipped when zero so new writes (which always send 0) pass."
         },
         "weightPerBobbinKg": {
-          "type": "string"
+          "type": "string",
+          "description": "Deprecated for new writes: retained for historical rows, no longer populated by new writes.\nValidation is skipped when empty so new writes (which always send \"\") pass."
         },
         "boxType": {
-          "type": "string"
+          "type": "string",
+          "description": "Deprecated for new writes: retained for historical rows, no longer populated by new writes.\nValidation is skipped when empty so new writes (which always send \"\") pass."
+        },
+        "shadeName": {
+          "type": "string",
+          "description": "Human-readable shade name (e.g. Natural, Jet Black), mirrors cost_product_master's shade_name."
+        },
+        "tubeType": {
+          "$ref": "#/definitions/v1TubeType",
+          "description": "Fixed Paper/Plastic tube classification. Replaces paper_tube_type_id for new writes."
         }
       }
     },
@@ -1901,6 +2221,17 @@
       },
       "description": "StatusHistoryEntry records a single CPR status transition."
     },
+    "v1SubmitAndDecideCostProductRequestResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1CostProductRequest"
+        }
+      }
+    },
     "v1SubmitCostProductRequestResponse": {
       "type": "object",
       "properties": {
@@ -1911,6 +2242,16 @@
           "$ref": "#/definitions/v1CostProductRequest"
         }
       }
+    },
+    "v1TubeType": {
+      "type": "string",
+      "enum": [
+        "TUBE_TYPE_UNSPECIFIED",
+        "TUBE_TYPE_PAPER",
+        "TUBE_TYPE_PLASTIC"
+      ],
+      "default": "TUBE_TYPE_UNSPECIFIED",
+      "description": "TubeType represents the fixed Paper/Plastic tube classification for a\nproduct spec, replacing the old master-data-backed paper_tube_type_id lookup.\n\n - TUBE_TYPE_UNSPECIFIED: Default unspecified value - used when no tube type has been selected.\n - TUBE_TYPE_PAPER: Paper tube.\n - TUBE_TYPE_PLASTIC: Plastic tube."
     },
     "v1UnlinkRouteResponse": {
       "type": "object",

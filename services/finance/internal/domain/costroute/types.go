@@ -36,10 +36,13 @@ type Head struct {
 	PromotedFromDraftID int64
 	CylTypeID           int32
 	Notes               string
-	CreatedAt           time.Time
-	CreatedBy           string
-	UpdatedAt           time.Time
-	UpdatedBy           string
+	// LevelCount / RmCount are read-time aggregates populated by ListHeads.
+	LevelCount int32
+	RmCount    int32
+	CreatedAt  time.Time
+	CreatedBy  string
+	UpdatedAt  time.Time
+	UpdatedBy  string
 	// Lock tracking — populated from DB on read, set by Lock/Unlock methods.
 	LockedBy   string
 	LockedAt   time.Time
@@ -83,6 +86,13 @@ type Rm struct {
 	UomID              int32
 	SubType            string
 	Notes              string
+	// PositionX / PositionY are the persisted free node position on the routing
+	// graph. Zero when never dragged (editor falls back to auto-layout).
+	PositionX float64
+	PositionY float64
+	// RmGroupName is a read-time join on cst_rm_group_head.group_code for label
+	// display; empty for non-GROUP rows or unmatched codes.
+	RmGroupName string
 }
 
 // Graph bundles head + seqs (with rms inline).

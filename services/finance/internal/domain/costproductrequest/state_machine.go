@@ -30,6 +30,7 @@ const (
 const (
 	ClassExisting = "existing"
 	ClassNew      = "new"
+	ClassPending  = "pending"
 
 	FeasibilityFeasible    = "FEASIBLE"
 	FeasibilityNotFeasible = "NOT_FEASIBLE"

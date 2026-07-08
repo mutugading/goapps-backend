@@ -26,4 +26,8 @@ type Repository interface {
 	GetByNo(ctx context.Context, requestNo string) (*Request, error)
 	Save(ctx context.Context, r *Request) error
 	List(ctx context.Context, f Filter) (items []*Request, total int64, err error)
+	// ListAll returns every request matching f (Page/PageSize/SortBy/SortOrder
+	// are ignored — no pagination cap), each with its spec eagerly loaded.
+	// Used by the export handler (design.md §4 Area D6).
+	ListAll(ctx context.Context, f Filter) (items []*Request, err error)
 }

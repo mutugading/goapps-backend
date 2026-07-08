@@ -67,4 +67,7 @@ var (
 
 	// ErrNotesTooLong is returned when notes exceeds 500 chars.
 	ErrNotesTooLong = errors.New("notes must be at most 500 characters")
+
+	// ErrInvalidApprovalDisplayOrder is returned when approval_display_order is negative.
+	ErrInvalidApprovalDisplayOrder = errors.New("approval_display_order must be non-negative")
 )

@@ -32,12 +32,16 @@ const cprCols = `
 	cpr_reject_reason,cpr_cancel_reason,cpr_assigned_to_user_id,cpr_requester_user_id,
 	cpr_created_at,cpr_updated_at,
 	COALESCE(cpr_existing_product_sys_id, 0),
-	COALESCE(cpr_linked_route_head_id, 0)`
+	COALESCE(cpr_linked_route_head_id, 0),
+	COALESCE(cpr_reference_product_sys_id, 0),
+	crt.crt_code AS request_type_code`
+
+const cprJoin = ` LEFT JOIN cost_request_type crt ON crt.crt_type_id = cpr_request_type_id`
 
 const cpsCols = `
 	cps_spec_id,cps_request_id,cps_raw_material_type,cps_product_description,
-	cps_shade_id,cps_shade_custom_text,cps_paper_tube_type_id,
-	cps_weight_per_bobbin_kg,cps_box_type,cps_created_at,cps_created_by`
+	cps_shade_id,cps_shade_code,cps_shade_name,cps_paper_tube_type_id,
+	cps_tube_type,cps_weight_per_bobbin_kg,cps_box_type,cps_created_at,cps_created_by`
 
 // Create inserts request + (optional) spec in one tx. Generates request_no via SQL function.
 func (r *CostProductRequestRepository) Create(ctx context.Context, req *costproductrequest.Request) error {
@@ -57,14 +61,14 @@ func (r *CostProductRequestRepository) Create(ctx context.Context, req *costprod
 			cpr_customer_name,cpr_customer_code,cpr_product_classification,
 			cpr_target_volume,cpr_target_price_range,cpr_urgency_level,
 			cpr_needed_by_date,cpr_status,cpr_requester_user_id,
-			cpr_linked_route_head_id,
+			cpr_linked_route_head_id,cpr_reference_product_sys_id,
 			cpr_created_at,cpr_updated_at
 		) VALUES (
 			generate_cost_request_no($13),
 			$1, $2, NULLIF($3,''), $4, NULLIF($5,''), $6,
 			NULLIF($7,'')::numeric, NULLIF($8,''), $9,
 			NULLIF($10,'')::date, $11, $12,
-			NULLIF($14, 0)::bigint,
+			NULLIF($14, 0)::bigint, NULLIF($15, 0)::bigint,
 			$13, $13
 		)
 		RETURNING cpr_request_id,cpr_request_no`
@@ -77,6 +81,7 @@ func (r *CostProductRequestRepository) Create(ctx context.Context, req *costprod
 		req.NeededByDate(), req.Status(), req.RequesterUserID(),
 		req.CreatedAt(),
 		req.LinkedRouteHeadID(),
+		req.ReferenceProductSysID(),
 	).Scan(&requestID, &requestNo); err != nil {
 		if isCprUniqueViolation(err) {
 			return costproductrequest.ErrAlreadyExists
@@ -126,7 +131,8 @@ func (r *CostProductRequestRepository) Save(ctx context.Context, req *costproduc
 			cpr_assigned_to_user_id=NULLIF($22,''),
 			cpr_existing_product_sys_id=NULLIF($23, 0)::bigint,
 			cpr_linked_route_head_id=NULLIF($24, 0)::bigint,
-			cpr_updated_at=$25
+			cpr_reference_product_sys_id=NULLIF($25, 0)::bigint,
+			cpr_updated_at=$26
 		WHERE cpr_request_id=$1`
 	res, err := tx.ExecContext(ctx, qUpd,
 		req.RequestID(),
@@ -143,6 +149,7 @@ func (r *CostProductRequestRepository) Save(ctx context.Context, req *costproduc
 		req.AssignedToUserID(),
 		req.ExistingProductSysID(),
 		req.LinkedRouteHeadID(),
+		req.ReferenceProductSysID(),
 		req.UpdatedAt(),
 	)
 	if err != nil {
@@ -185,7 +192,7 @@ func (r *CostProductRequestRepository) GetByNo(ctx context.Context, requestNo st
 }
 
 func (r *CostProductRequestRepository) loadOne(ctx context.Context, predicate string, arg any) (*costproductrequest.Request, error) {
-	q := `SELECT ` + cprCols + ` FROM cost_product_request WHERE ` + predicate
+	q := `SELECT ` + cprCols + ` FROM cost_product_request` + cprJoin + ` WHERE ` + predicate
 	row := r.db.QueryRowContext(ctx, q, arg)
 	in, err := scanCprRow(row)
 	if err != nil {
@@ -214,7 +221,7 @@ func (r *CostProductRequestRepository) loadSpec(ctx context.Context, requestID i
 
 // List returns a filtered paginated list (without specs — keep payload light).
 func (r *CostProductRequestRepository) List(ctx context.Context, f costproductrequest.Filter) ([]*costproductrequest.Request, int64, error) { //nolint:gocognit,gocyclo // filter + sort + pagination builder
-	where := "FROM cost_product_request WHERE 1=1"
+	where := "FROM cost_product_request" + cprJoin + " WHERE 1=1"
 	args := []any{}
 	idx := 1
 	if f.Search != "" {
@@ -256,6 +263,16 @@ func (r *CostProductRequestRepository) List(ctx context.Context, f costproductre
 		sortCol = `cpr_updated_at`
 	case sortKeyStatus:
 		sortCol = `cpr_status`
+	case "type":
+		sortCol = `crt_code`
+	case "title":
+		sortCol = `cpr_title`
+	case "customer":
+		sortCol = `cpr_customer_name`
+	case "class":
+		sortCol = `cpr_product_classification`
+	case "urgency":
+		sortCol = `cpr_urgency_level`
 	}
 	dir := sortDESC
 	if strings.EqualFold(f.SortOrder, "asc") {
@@ -295,6 +312,62 @@ func (r *CostProductRequestRepository) List(ctx context.Context, f costproductre
 	return out, total, nil
 }
 
+// ListAll returns every request matching f (no pagination cap), each with its
+// spec eagerly loaded. Used by the export handler (design.md §4 Area D6).
+func (r *CostProductRequestRepository) ListAll(ctx context.Context, f costproductrequest.Filter) ([]*costproductrequest.Request, error) {
+	where := "FROM cost_product_request" + cprJoin + " WHERE 1=1"
+	args := []any{}
+	idx := 1
+	if f.Search != "" {
+		where += fmt.Sprintf(` AND (LOWER(cpr_request_no) LIKE LOWER($%d) OR LOWER(cpr_title) LIKE LOWER($%d) OR LOWER(cpr_customer_name) LIKE LOWER($%d))`, idx, idx, idx)
+		args = append(args, "%"+f.Search+"%")
+		idx++
+	}
+	if f.Status != "" {
+		where += fmt.Sprintf(` AND cpr_status=$%d`, idx)
+		args = append(args, f.Status)
+		idx++
+	}
+	if f.RequestTypeID > 0 {
+		where += fmt.Sprintf(` AND cpr_request_type_id=$%d`, idx)
+		args = append(args, f.RequestTypeID)
+	}
+
+	q := `SELECT ` + cprCols + ` ` + where + ` ORDER BY cpr_created_at ASC`
+	rows, err := r.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list all cost_product_request: %w", err)
+	}
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
+
+	inputs := []costproductrequest.ReconstructInput{}
+	for rows.Next() {
+		in, sErr := scanCprRows(rows)
+		if sErr != nil {
+			return nil, sErr
+		}
+		inputs = append(inputs, in)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate cost_product_request: %w", err)
+	}
+
+	out := make([]*costproductrequest.Request, 0, len(inputs))
+	for i := range inputs {
+		spec, sErr := r.loadSpec(ctx, inputs[i].RequestID)
+		if sErr != nil {
+			return nil, sErr
+		}
+		inputs[i].Spec = spec
+		out = append(out, costproductrequest.Reconstruct(inputs[i]))
+	}
+	return out, nil
+}
+
 // =============================================================================
 // helpers
 // =============================================================================
@@ -303,19 +376,22 @@ func insertSpec(ctx context.Context, tx *sql.Tx, requestID int64, s *costproduct
 	const q = `
 		INSERT INTO cost_product_spec (
 			cps_request_id,cps_raw_material_type,cps_product_description,
-			cps_shade_id,cps_shade_custom_text,cps_paper_tube_type_id,
-			cps_weight_per_bobbin_kg,cps_box_type,cps_created_at,cps_created_by
-		) VALUES ($1,$2,$3,$4,NULLIF($5,''),$6,$7::numeric,$8,$9,$10)
+			cps_shade_id,cps_shade_code,cps_shade_name,cps_paper_tube_type_id,
+			cps_tube_type,cps_weight_per_bobbin_kg,cps_box_type,cps_created_at,cps_created_by
+		) VALUES ($1,NULLIF($2,''),$3,$4,NULLIF($5,''),NULLIF($6,''),$7,NULLIF($8,''),NULLIF($9,'')::numeric,NULLIF($10,''),$11,$12)
 		RETURNING cps_spec_id`
 	var specID int64
-	var shadeID sql.NullInt32
+	var shadeID, paperTubeTypeID sql.NullInt32
 	if s.ShadeID != nil {
 		shadeID = sql.NullInt32{Int32: *s.ShadeID, Valid: true}
 	}
+	if s.PaperTubeTypeID != nil {
+		paperTubeTypeID = sql.NullInt32{Int32: *s.PaperTubeTypeID, Valid: true}
+	}
 	if err := tx.QueryRowContext(ctx, q,
 		requestID, s.RawMaterialType, s.ProductDescription,
-		shadeID, s.ShadeCustomText, s.PaperTubeTypeID,
-		s.WeightPerBobbinKg, s.BoxType, s.CreatedAt, s.CreatedBy,
+		shadeID, s.ShadeCode, s.ShadeName, paperTubeTypeID,
+		s.TubeType, s.WeightPerBobbinKg, s.BoxType, s.CreatedAt, s.CreatedBy,
 	).Scan(&specID); err != nil {
 		return 0, fmt.Errorf("insert cost_product_spec: %w", err)
 	}
@@ -356,6 +432,8 @@ func scanCpr(scan func(...any) error) (costproductrequest.ReconstructInput, erro
 		createdAt, updatedAt                                                            time.Time
 		existingProductSysID                                                            int64
 		linkedRouteHeadID                                                               int64
+		referenceProductSysID                                                           int64
+		requestTypeCode                                                                 sql.NullString
 	)
 	if err := scan(
 		&requestID, &requestNo, &requestTypeID, &title, &description,
@@ -367,6 +445,8 @@ func scanCpr(scan func(...any) error) (costproductrequest.ReconstructInput, erro
 		&createdAt, &updatedAt,
 		&existingProductSysID,
 		&linkedRouteHeadID,
+		&referenceProductSysID,
+		&requestTypeCode,
 	); err != nil {
 		return costproductrequest.ReconstructInput{}, err
 	}
@@ -395,6 +475,8 @@ func scanCpr(scan func(...any) error) (costproductrequest.ReconstructInput, erro
 		RequesterUserID:              requester,
 		ExistingProductSysID:         existingProductSysID,
 		LinkedRouteHeadID:            linkedRouteHeadID,
+		ReferenceProductSysID:        referenceProductSysID,
+		RequestTypeCode:              requestTypeCode.String,
 		CreatedAt:                    createdAt,
 		UpdatedAt:                    updatedAt,
 	}
@@ -411,16 +493,19 @@ func scanCpr(scan func(...any) error) (costproductrequest.ReconstructInput, erro
 func scanCpsRow(row *sql.Row) (*costproductrequest.Spec, error) {
 	var (
 		specID, requestID int64
-		rawMat, desc      string
+		desc              string
+		rawMat            sql.NullString
 		shadeID           sql.NullInt32
-		shadeCustom       sql.NullString
-		paperTubeID       int32
-		weight            string
-		boxType           string
+		shadeCode         sql.NullString
+		shadeName         sql.NullString
+		paperTubeID       sql.NullInt32
+		tubeType          sql.NullString
+		weight            sql.NullString
+		boxType           sql.NullString
 		createdAt         time.Time
 		createdBy         string
 	)
-	if err := row.Scan(&specID, &requestID, &rawMat, &desc, &shadeID, &shadeCustom, &paperTubeID, &weight, &boxType, &createdAt, &createdBy); err != nil {
+	if err := row.Scan(&specID, &requestID, &rawMat, &desc, &shadeID, &shadeCode, &shadeName, &paperTubeID, &tubeType, &weight, &boxType, &createdAt, &createdBy); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, costproductrequest.ErrNotFound
 		}
@@ -428,18 +513,23 @@ func scanCpsRow(row *sql.Row) (*costproductrequest.Spec, error) {
 	}
 	s := &costproductrequest.Spec{
 		SpecID:             specID,
-		RawMaterialType:    rawMat,
+		RawMaterialType:    rawMat.String,
 		ProductDescription: desc,
-		ShadeCustomText:    shadeCustom.String,
-		PaperTubeTypeID:    paperTubeID,
-		WeightPerBobbinKg:  weight,
-		BoxType:            boxType,
+		ShadeCode:          shadeCode.String,
+		ShadeName:          shadeName.String,
+		TubeType:           tubeType.String,
+		WeightPerBobbinKg:  weight.String,
+		BoxType:            boxType.String,
 		CreatedAt:          createdAt,
 		CreatedBy:          createdBy,
 	}
 	if shadeID.Valid {
 		v := shadeID.Int32
 		s.ShadeID = &v
+	}
+	if paperTubeID.Valid {
+		v := paperTubeID.Int32
+		s.PaperTubeTypeID = &v
 	}
 	return s, nil
 }

@@ -12,7 +12,7 @@ var (
 	// ErrInvalidCustomerName is returned for a blank or oversized customer name.
 	ErrInvalidCustomerName = errors.New("invalid customer_name")
 	// ErrInvalidClassification is returned for a bad product_classification.
-	ErrInvalidClassification = errors.New("invalid product_classification (must be existing|new)")
+	ErrInvalidClassification = errors.New("invalid product_classification (must be existing|new|pending)")
 	// ErrInvalidUrgency is returned for a bad urgency_level.
 	ErrInvalidUrgency = errors.New("invalid urgency_level (must be low|medium|high)")
 	// ErrInvalidVerified is returned for a bad verified_classification.
@@ -36,4 +36,11 @@ var (
 	// ErrExistingProductRequired is returned when UseExistingCosting is called
 	// without specifying which product master the request reuses.
 	ErrExistingProductRequired = errors.New("existing product is required to use existing costing")
+	// ErrInvalidReferenceProduct is returned when reference_product_sys_id is
+	// negative. 0 means unset and is always valid.
+	ErrInvalidReferenceProduct = errors.New("invalid reference_product_sys_id (must be zero or positive)")
+	// ErrClassificationNotVerified is returned when a feasibility decision is
+	// attempted on a request whose classification is still "pending" and has
+	// never been resolved via VerifyClassification.
+	ErrClassificationNotVerified = errors.New("classification must be verified (existing|new) before a feasibility decision")
 )

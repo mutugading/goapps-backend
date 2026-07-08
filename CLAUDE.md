@@ -349,6 +349,7 @@ Receives external requests, maps to application commands/queries, returns respon
 - Soft delete: `deleted_at TIMESTAMP WITH TIME ZONE`, `deleted_by VARCHAR`
 - Use partial indexes on `deleted_at IS NULL` for active records
 - Full-text search via `gin(to_tsvector(...))`
+- **Naming consistency across FK/PK columns**: don't use a bare `id` on tables that reference other entities by a descriptive key elsewhere — e.g. prefer `param_id` (matching the referencing convention used in related tables) over a generic `id`, so joins and code stay self-documenting. Apply the same descriptive-suffix pattern to other columns, not just IDs.
 
 ### Migrations
 
@@ -812,3 +813,17 @@ For a new CRUD entity in an existing service:
 | Test file | 500 |
 
 Split by responsibility if exceeded.
+
+---
+
+## 16. Improvement Notes
+
+Known gaps identified during a 2026-07 documentation audit — not blockers, but worth knowing before assuming full coverage:
+
+| Area | Severity | Note |
+|------|----------|------|
+| `deploy/` directory empty | Low | K8s manifests live in `goapps-infra` instead |
+| Config validation | Low | No viper validation schema — only manual checks in code |
+| Token blacklist cleanup | Medium | No documented TTL/expiration policy for Redis DB 1 entries |
+| Circuit breaker pattern | Medium | Mentioned in RULES.md but not implemented |
+| E2E test documentation | Low | E2E tests exist but are not well documented |

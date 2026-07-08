@@ -40,8 +40,9 @@ func (r *ParameterRepository) Create(ctx context.Context, entity *parameter.Para
 			lookup_master_code, display_order, display_group,
 			notes,
 			lookup_fill_group_code, lookup_source_column,
+			is_approval_visible, approval_display_order,
 			created_at, created_by
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
 	`
 
 	_, err := r.db.ExecContext(ctx, query,
@@ -65,6 +66,8 @@ func (r *ParameterRepository) Create(ctx context.Context, entity *parameter.Para
 		nullableString(entity.Notes()),
 		nullableString(entity.LookupFillGroupCode()),
 		nullableString(entity.LookupSourceColumn()),
+		entity.IsApprovalVisible(),
+		entity.ApprovalDisplayOrder(),
 		entity.CreatedAt(),
 		entity.CreatedBy(),
 	)
@@ -93,6 +96,7 @@ func selectWithUOMJoin() string {
 			   p.notes,
 			   COALESCE(p.lookup_fill_group_code, '') AS lookup_fill_group_code,
 			   COALESCE(p.lookup_source_column, '')   AS lookup_source_column,
+			   p.is_approval_visible, COALESCE(p.approval_display_order, 0) AS approval_display_order,
 			   p.created_at, p.created_by,
 			   p.updated_at, p.updated_by, p.deleted_at, p.deleted_by
 		FROM mst_parameter p
@@ -199,6 +203,7 @@ func (r *ParameterRepository) List(ctx context.Context, filter parameter.ListFil
 			   p.notes,
 			   COALESCE(p.lookup_fill_group_code, '') AS lookup_fill_group_code,
 			   COALESCE(p.lookup_source_column, '')   AS lookup_source_column,
+			   p.is_approval_visible, COALESCE(p.approval_display_order, 0) AS approval_display_order,
 			   p.created_at, p.created_by,
 			   p.updated_at, p.updated_by, p.deleted_at, p.deleted_by
 	` + baseQuery + fmt.Sprintf(
@@ -256,8 +261,10 @@ func (r *ParameterRepository) Update(ctx context.Context, entity *parameter.Para
 			notes = $17,
 			lookup_fill_group_code = $18,
 			lookup_source_column = $19,
-			updated_at = $20,
-			updated_by = $21
+			is_approval_visible = $20,
+			approval_display_order = $21,
+			updated_at = $22,
+			updated_by = $23
 		WHERE id = $1 AND deleted_at IS NULL
 	`
 
@@ -281,6 +288,8 @@ func (r *ParameterRepository) Update(ctx context.Context, entity *parameter.Para
 		nullableString(entity.Notes()),
 		nullableString(entity.LookupFillGroupCode()),
 		nullableString(entity.LookupSourceColumn()),
+		entity.IsApprovalVisible(),
+		entity.ApprovalDisplayOrder(),
 		entity.UpdatedAt(),
 		entity.UpdatedBy(),
 	)
@@ -478,6 +487,8 @@ func (r *ParameterRepository) scanParameter(row *sql.Row) (*parameter.Parameter,
 		&dto.Notes,
 		&dto.LookupFillGroupCode,
 		&dto.LookupSourceColumn,
+		&dto.IsApprovalVisible,
+		&dto.ApprovalDisplayOrder,
 		&dto.CreatedAt,
 		&dto.CreatedBy,
 		&dto.UpdatedAt,
@@ -521,6 +532,8 @@ func (r *ParameterRepository) scanParameterFromRows(rows *sql.Rows) (*parameter.
 		&dto.Notes,
 		&dto.LookupFillGroupCode,
 		&dto.LookupSourceColumn,
+		&dto.IsApprovalVisible,
+		&dto.ApprovalDisplayOrder,
 		&dto.CreatedAt,
 		&dto.CreatedBy,
 		&dto.UpdatedAt,
@@ -559,6 +572,8 @@ type parameterDTO struct {
 	Notes                sql.NullString
 	LookupFillGroupCode  string
 	LookupSourceColumn   string
+	IsApprovalVisible    bool
+	ApprovalDisplayOrder int32
 	CreatedAt            time.Time
 	CreatedBy            string
 	UpdatedAt            sql.NullTime
@@ -625,6 +640,8 @@ func (d *parameterDTO) ToEntity() (*parameter.Parameter, error) {
 		DisplayOrder:         d.DisplayOrder,
 		DisplayGroup:         d.DisplayGroup.String,
 		Notes:                d.Notes.String,
+		IsApprovalVisible:    d.IsApprovalVisible,
+		ApprovalDisplayOrder: d.ApprovalDisplayOrder,
 	}
 
 	return parameter.ReconstructParameter(

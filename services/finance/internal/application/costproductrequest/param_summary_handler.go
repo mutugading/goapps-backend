@@ -11,6 +11,8 @@ type ParamValueRow struct {
 	ParamCode    string
 	ParamName    string
 	DataType     string
+	DisplayGroup string
+	DisplayOrder int32
 	HasValue     bool
 	ValueNumeric string
 	ValueText    string

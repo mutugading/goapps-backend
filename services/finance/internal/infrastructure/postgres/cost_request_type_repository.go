@@ -83,6 +83,19 @@ func (r *CostRequestTypeRepository) GetByID(ctx context.Context, id int32) (*cos
 	return t, nil
 }
 
+// GetIDByCode resolves a request type code to its type ID.
+func (r *CostRequestTypeRepository) GetIDByCode(ctx context.Context, code string) (int32, error) {
+	const q = `SELECT crt_type_id FROM cost_request_type WHERE crt_code=$1`
+	var id int32
+	if err := r.db.QueryRowContext(ctx, q, code).Scan(&id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, costrequesttype.ErrNotFound
+		}
+		return 0, fmt.Errorf("get cost_request_type id by code: %w", err)
+	}
+	return id, nil
+}
+
 func scanCrtRow(row *sql.Row) (*costrequesttype.CostRequestType, error) {
 	t := &costrequesttype.CostRequestType{}
 	if err := row.Scan(&t.TypeID, &t.Code, &t.DisplayName, &t.StateMachineVariant, &t.DefaultUrgency, &t.IsActive); err != nil {

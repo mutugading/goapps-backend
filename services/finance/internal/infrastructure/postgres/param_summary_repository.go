@@ -34,6 +34,8 @@ type paramSummaryRow struct {
 	paramCode    string
 	paramName    string
 	dataType     string
+	displayGroup string
+	displayOrder int32
 	uomCode      string
 	isRequired   bool
 	hasValue     bool
@@ -56,6 +58,8 @@ SELECT
     p.param_code,
     p.param_name,
     p.data_type,
+    COALESCE(p.display_group, '')                                        AS display_group,
+    COALESCE(COALESCE(a.capp_display_order, p.display_order), 0)         AS display_order,
     COALESCE(u.uom_code, '')                                             AS uom_code,
     COALESCE(a.capp_is_required, FALSE)                                  AS is_required,
     CASE WHEN cpp.cpp_value_id IS NOT NULL THEN TRUE ELSE FALSE END      AS has_value,
@@ -87,7 +91,7 @@ LEFT JOIN cost_product_parameter cpp
     ON cpp.cpp_product_sys_id = crs.crs_product_sys_id
        AND cpp.cpp_param_id = p.id
 WHERE req.cpr_request_id = $1
-ORDER BY crs.crs_route_level, crs.crs_product_sys_id, p.param_code`
+ORDER BY crs.crs_route_level, crs.crs_product_sys_id, COALESCE(COALESCE(a.capp_display_order, p.display_order), 0), p.param_code`
 
 // GetParamSummary returns the full param summary nested by product → level.
 func (r *ParamSummaryRepository) GetParamSummary(ctx context.Context, requestID int64) ([]cprapp.ProductSummaryRow, error) {
@@ -108,6 +112,7 @@ func (r *ParamSummaryRepository) GetParamSummary(ctx context.Context, requestID 
 			&fr.productSysID, &fr.productCode, &fr.productName,
 			&fr.routeLevel, &fr.taskStatus, &fr.filledByUser, &fr.filledAt,
 			&fr.paramID, &fr.paramCode, &fr.paramName, &fr.dataType,
+			&fr.displayGroup, &fr.displayOrder,
 			&fr.uomCode, &fr.isRequired, &fr.hasValue,
 			&fr.valueNumeric, &fr.valueText, &fr.valueFlag,
 		); scanErr != nil {
@@ -164,6 +169,8 @@ func nestParamSummary(flat []paramSummaryRow) []cprapp.ProductSummaryRow {
 			ParamCode:    fr.paramCode,
 			ParamName:    fr.paramName,
 			DataType:     fr.dataType,
+			DisplayGroup: fr.displayGroup,
+			DisplayOrder: fr.displayOrder,
 			HasValue:     fr.hasValue,
 			ValueNumeric: fr.valueNumeric,
 			ValueText:    fr.valueText,

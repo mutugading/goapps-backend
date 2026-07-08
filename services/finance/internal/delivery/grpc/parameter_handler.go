@@ -181,6 +181,12 @@ func (h *ParameterHandler) UpdateParameter(ctx context.Context, req *financev1.U
 	if req.Notes != nil {
 		cmd.Notes = req.Notes
 	}
+	if req.IsApprovalVisible != nil {
+		cmd.IsApprovalVisible = req.IsApprovalVisible
+	}
+	if req.ApprovalDisplayOrder != nil {
+		cmd.ApprovalDisplayOrder = req.ApprovalDisplayOrder
+	}
 
 	entity, err := h.updateHandler.Handle(ctx, cmd)
 	if err != nil {
@@ -494,6 +500,8 @@ func paramEntityToProto(entity *parameter.Parameter) *financev1.Parameter {
 		DisplayOrder:         entity.DisplayOrder(),
 		DisplayGroup:         entity.DisplayGroup(),
 		Notes:                entity.Notes(),
+		IsApprovalVisible:    entity.IsApprovalVisible(),
+		ApprovalDisplayOrder: entity.ApprovalDisplayOrder(),
 		Audit: &commonv1.AuditInfo{
 			CreatedAt: entity.CreatedAt().Format(time.RFC3339),
 			CreatedBy: entity.CreatedBy(),

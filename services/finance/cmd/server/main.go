@@ -368,7 +368,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	}
 	// Audit emitter — appends CAL_ rows from request state transitions (S7.5).
 	auditEmitter := auditadapter.NewCprEmitter(auditapp.NewEmitter(costAuditLogRepo))
-	costProductRequestHandler, err := grpcdelivery.NewCostProductRequestHandler(costProductRequestRepo, costRouteRepo, auditEmitter)
+	costProductRequestHandler, err := grpcdelivery.NewCostProductRequestHandler(costProductRequestRepo, costRouteRepo, auditEmitter, costRequestTypeRepo, costProductMasterRepo)
 	if err != nil {
 		return err
 	}

@@ -42,9 +42,9 @@ func (s *UOMRepositorySuite) SetupSuite() {
 	// Get connection details from environment or use defaults
 	host := getEnvOrDefault("TEST_DB_HOST", "localhost")
 	port := getEnvOrDefault("TEST_DB_PORT", "5434")
-	user := getEnvOrDefault("TEST_DB_USER", "finance_user")
-	password := getEnvOrDefault("TEST_DB_PASSWORD", "finance_pass")
-	dbname := getEnvOrDefault("TEST_DB_NAME", "finance_db_test")
+	user := getEnvOrDefault("TEST_DB_USER", "finance")
+	password := getEnvOrDefault("TEST_DB_PASSWORD", "finance123")
+	dbname := getEnvOrDefault("TEST_DB_NAME", "finance_db")
 
 	dsn := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
@@ -116,19 +116,14 @@ func (s *UOMRepositorySuite) setupSchema() {
 }
 
 func (s *UOMRepositorySuite) seedTestCategory() uuid.UUID {
-	id := uuid.New()
-	_, err := s.db.ExecContext(s.ctx, `
+	var id uuid.UUID
+	err := s.db.QueryRowContext(s.ctx, `
 		INSERT INTO mst_uom_category (uom_category_id, category_code, category_name, created_by)
 		VALUES ($1, 'TEST_WEIGHT', 'Test Weight', 'test')
 		ON CONFLICT (category_code) DO UPDATE SET category_code = EXCLUDED.category_code
 		RETURNING uom_category_id
-	`, id)
-	if err != nil {
-		// If conflict, fetch existing
-		_ = s.db.QueryRowContext(s.ctx,
-			"SELECT uom_category_id FROM mst_uom_category WHERE category_code = 'TEST_WEIGHT'",
-		).Scan(&id)
-	}
+	`, uuid.New()).Scan(&id)
+	require.NoError(s.T(), err)
 	return id
 }
 

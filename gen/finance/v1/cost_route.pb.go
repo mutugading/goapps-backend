@@ -38,6 +38,10 @@ type CostRouteHead struct {
 	PromotedFromDraftId int64  `protobuf:"varint,7,opt,name=promoted_from_draft_id,json=promotedFromDraftId,proto3" json:"promoted_from_draft_id,omitempty"`
 	CylTypeId           int32  `protobuf:"varint,8,opt,name=cyl_type_id,json=cylTypeId,proto3" json:"cyl_type_id,omitempty"`
 	Notes               string `protobuf:"bytes,9,opt,name=notes,proto3" json:"notes,omitempty"`
+	// Number of distinct route levels in this routing (read-time aggregate).
+	LevelCount int32 `protobuf:"varint,10,opt,name=level_count,json=levelCount,proto3" json:"level_count,omitempty"`
+	// Number of RM inputs across all stages (read-time aggregate).
+	RmCount int32 `protobuf:"varint,11,opt,name=rm_count,json=rmCount,proto3" json:"rm_count,omitempty"`
 	// Lock tracking -- populated when routing_status = "LOCKED".
 	LockedBy      string        `protobuf:"bytes,17,opt,name=locked_by,json=lockedBy,proto3" json:"locked_by,omitempty"`
 	LockedAt      string        `protobuf:"bytes,18,opt,name=locked_at,json=lockedAt,proto3" json:"locked_at,omitempty"`
@@ -139,6 +143,20 @@ func (x *CostRouteHead) GetNotes() string {
 		return x.Notes
 	}
 	return ""
+}
+
+func (x *CostRouteHead) GetLevelCount() int32 {
+	if x != nil {
+		return x.LevelCount
+	}
+	return 0
+}
+
+func (x *CostRouteHead) GetRmCount() int32 {
+	if x != nil {
+		return x.RmCount
+	}
+	return 0
 }
 
 func (x *CostRouteHead) GetLockedBy() string {
@@ -347,8 +365,14 @@ type CostRouteRm struct {
 	UomId            int32   `protobuf:"varint,13,opt,name=uom_id,json=uomId,proto3" json:"uom_id,omitempty"`
 	SubType          string  `protobuf:"bytes,14,opt,name=sub_type,json=subType,proto3" json:"sub_type,omitempty"`
 	Notes            string  `protobuf:"bytes,15,opt,name=notes,proto3" json:"notes,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Persisted node X position on the routing graph.
+	PositionX float64 `protobuf:"fixed64,16,opt,name=position_x,json=positionX,proto3" json:"position_x,omitempty"`
+	// Persisted node Y position on the routing graph.
+	PositionY float64 `protobuf:"fixed64,17,opt,name=position_y,json=positionY,proto3" json:"position_y,omitempty"`
+	// RM group display name (read-time join on rm_group_code).
+	RmGroupName   string `protobuf:"bytes,18,opt,name=rm_group_name,json=rmGroupName,proto3" json:"rm_group_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CostRouteRm) Reset() {
@@ -482,6 +506,27 @@ func (x *CostRouteRm) GetSubType() string {
 func (x *CostRouteRm) GetNotes() string {
 	if x != nil {
 		return x.Notes
+	}
+	return ""
+}
+
+func (x *CostRouteRm) GetPositionX() float64 {
+	if x != nil {
+		return x.PositionX
+	}
+	return 0
+}
+
+func (x *CostRouteRm) GetPositionY() float64 {
+	if x != nil {
+		return x.PositionY
+	}
+	return 0
+}
+
+func (x *CostRouteRm) GetRmGroupName() string {
+	if x != nil {
+		return x.RmGroupName
 	}
 	return ""
 }
@@ -1813,7 +1858,7 @@ var File_finance_v1_cost_route_proto protoreflect.FileDescriptor
 const file_finance_v1_cost_route_proto_rawDesc = "" +
 	"\n" +
 	"\x1bfinance/v1/cost_route.proto\x12\n" +
-	"finance.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16common/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\"\xe8\x03\n" +
+	"finance.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16common/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\"\xa4\x04\n" +
 	"\rCostRouteHead\x12\x17\n" +
 	"\ahead_id\x18\x01 \x01(\x03R\x06headId\x12$\n" +
 	"\x0eproduct_sys_id\x18\x02 \x01(\x03R\fproductSysId\x12!\n" +
@@ -1823,7 +1868,11 @@ const file_finance_v1_cost_route_proto_rawDesc = "" +
 	"\aversion\x18\x06 \x01(\x05R\aversion\x123\n" +
 	"\x16promoted_from_draft_id\x18\a \x01(\x03R\x13promotedFromDraftId\x12\x1e\n" +
 	"\vcyl_type_id\x18\b \x01(\x05R\tcylTypeId\x12\x14\n" +
-	"\x05notes\x18\t \x01(\tR\x05notes\x12\x1b\n" +
+	"\x05notes\x18\t \x01(\tR\x05notes\x12\x1f\n" +
+	"\vlevel_count\x18\n" +
+	" \x01(\x05R\n" +
+	"levelCount\x12\x19\n" +
+	"\brm_count\x18\v \x01(\x05R\armCount\x12\x1b\n" +
 	"\tlocked_by\x18\x11 \x01(\tR\blockedBy\x12\x1b\n" +
 	"\tlocked_at\x18\x12 \x01(\tR\blockedAt\x12\x1f\n" +
 	"\vunlocked_by\x18\x13 \x01(\tR\n" +
@@ -1850,7 +1899,7 @@ const file_finance_v1_cost_route_proto_rawDesc = "" +
 	"position_x\x18\f \x01(\x01R\tpositionX\x12\x1d\n" +
 	"\n" +
 	"position_y\x18\r \x01(\x01R\tpositionY\x12)\n" +
-	"\x03rms\x18\x0e \x03(\v2\x17.finance.v1.CostRouteRmR\x03rms\"\x93\x04\n" +
+	"\x03rms\x18\x0e \x03(\v2\x17.finance.v1.CostRouteRmR\x03rms\"\xf5\x04\n" +
 	"\vCostRouteRm\x12\x13\n" +
 	"\x05rm_id\x18\x01 \x01(\x03R\x04rmId\x12\x15\n" +
 	"\x06seq_id\x18\x02 \x01(\x03R\x05seqId\x121\n" +
@@ -1868,7 +1917,12 @@ const file_finance_v1_cost_route_proto_rawDesc = "" +
 	"\x0eroute_rm_ratio\x18\f \x01(\x01R\frouteRmRatio\x12\x15\n" +
 	"\x06uom_id\x18\r \x01(\x05R\x05uomId\x12\x19\n" +
 	"\bsub_type\x18\x0e \x01(\tR\asubType\x12\x14\n" +
-	"\x05notes\x18\x0f \x01(\tR\x05notes\"i\n" +
+	"\x05notes\x18\x0f \x01(\tR\x05notes\x12\x1d\n" +
+	"\n" +
+	"position_x\x18\x10 \x01(\x01R\tpositionX\x12\x1d\n" +
+	"\n" +
+	"position_y\x18\x11 \x01(\x01R\tpositionY\x12\"\n" +
+	"\rrm_group_name\x18\x12 \x01(\tR\vrmGroupName\"i\n" +
 	"\n" +
 	"RouteGraph\x12-\n" +
 	"\x04head\x18\x01 \x01(\v2\x19.finance.v1.CostRouteHeadR\x04head\x12,\n" +
@@ -1907,14 +1961,14 @@ const file_finance_v1_cost_route_proto_rawDesc = "" +
 	"\x12DeleteRouteRequest\x12 \n" +
 	"\ahead_id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\x06headId\"B\n" +
 	"\x13DeleteRouteResponse\x12+\n" +
-	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\"\xaa\x02\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\"\xd3\x02\n" +
 	"\x11ListRoutesRequest\x12\x1b\n" +
 	"\x04page\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x01R\x04page\x12&\n" +
 	"\tpage_size\x18\x02 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x01R\bpageSize\x12\x1f\n" +
 	"\x06search\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x18dR\x06search\x128\n" +
-	"\x06status\x18\x04 \x01(\tB \xbaH\x1dr\x1bR\x00R\x05DRAFTR\bCOMPLETER\x06LOCKEDR\x06status\x12B\n" +
-	"\asort_by\x18\x05 \x01(\tB)\xbaH&r$R\x00R\n" +
-	"created_atR\fproduct_codeR\x06statusR\x06sortBy\x121\n" +
+	"\x06status\x18\x04 \x01(\tB \xbaH\x1dr\x1bR\x00R\x05DRAFTR\bCOMPLETER\x06LOCKEDR\x06status\x12k\n" +
+	"\asort_by\x18\x05 \x01(\tBR\xbaHOrMR\x00R\n" +
+	"created_atR\fproduct_codeR\x06statusR\ahead_idR\aversionR\vlevel_countR\brm_countR\x06sortBy\x121\n" +
 	"\n" +
 	"sort_order\x18\x06 \x01(\tB\x12\xbaH\x0fr\rR\x00R\x03ascR\x04descR\tsortOrder\"\xaf\x01\n" +
 	"\x12ListRoutesResponse\x12+\n" +
