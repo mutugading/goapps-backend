@@ -1659,6 +1659,11 @@ const (
 	MBHeadService_ExportMBHeads_FullMethodName          = "/finance.v1.MBHeadService/ExportMBHeads"
 	MBHeadService_ImportMBHeads_FullMethodName          = "/finance.v1.MBHeadService/ImportMBHeads"
 	MBHeadService_DownloadMBHeadTemplate_FullMethodName = "/finance.v1.MBHeadService/DownloadMBHeadTemplate"
+	MBHeadService_SubmitMBHead_FullMethodName           = "/finance.v1.MBHeadService/SubmitMBHead"
+	MBHeadService_ApproveMBHead_FullMethodName          = "/finance.v1.MBHeadService/ApproveMBHead"
+	MBHeadService_ValidateMBHead_FullMethodName         = "/finance.v1.MBHeadService/ValidateMBHead"
+	MBHeadService_UnApproveMBHead_FullMethodName        = "/finance.v1.MBHeadService/UnApproveMBHead"
+	MBHeadService_RevokeMBHead_FullMethodName           = "/finance.v1.MBHeadService/RevokeMBHead"
 )
 
 // MBHeadServiceClient is the client API for MBHeadService service.
@@ -1683,6 +1688,16 @@ type MBHeadServiceClient interface {
 	ImportMBHeads(ctx context.Context, in *ImportMBHeadsRequest, opts ...grpc.CallOption) (*ImportMBHeadsResponse, error)
 	// DownloadMBHeadTemplate downloads the Excel import template.
 	DownloadMBHeadTemplate(ctx context.Context, in *DownloadMBHeadTemplateRequest, opts ...grpc.CallOption) (*DownloadMBHeadTemplateResponse, error)
+	// SubmitMBHead submits an MB Head for approval.
+	SubmitMBHead(ctx context.Context, in *SubmitMBHeadRequest, opts ...grpc.CallOption) (*SubmitMBHeadResponse, error)
+	// ApproveMBHead approves a submitted MB Head.
+	ApproveMBHead(ctx context.Context, in *ApproveMBHeadRequest, opts ...grpc.CallOption) (*ApproveMBHeadResponse, error)
+	// ValidateMBHead validates an approved MB Head, freezing its cost and param snapshot.
+	ValidateMBHead(ctx context.Context, in *ValidateMBHeadRequest, opts ...grpc.CallOption) (*ValidateMBHeadResponse, error)
+	// UnApproveMBHead reverts an approved MB Head back to a prior state.
+	UnApproveMBHead(ctx context.Context, in *UnApproveMBHeadRequest, opts ...grpc.CallOption) (*UnApproveMBHeadResponse, error)
+	// RevokeMBHead revokes an MB Head.
+	RevokeMBHead(ctx context.Context, in *RevokeMBHeadRequest, opts ...grpc.CallOption) (*RevokeMBHeadResponse, error)
 }
 
 type mBHeadServiceClient struct {
@@ -1773,6 +1788,56 @@ func (c *mBHeadServiceClient) DownloadMBHeadTemplate(ctx context.Context, in *Do
 	return out, nil
 }
 
+func (c *mBHeadServiceClient) SubmitMBHead(ctx context.Context, in *SubmitMBHeadRequest, opts ...grpc.CallOption) (*SubmitMBHeadResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SubmitMBHeadResponse)
+	err := c.cc.Invoke(ctx, MBHeadService_SubmitMBHead_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mBHeadServiceClient) ApproveMBHead(ctx context.Context, in *ApproveMBHeadRequest, opts ...grpc.CallOption) (*ApproveMBHeadResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ApproveMBHeadResponse)
+	err := c.cc.Invoke(ctx, MBHeadService_ApproveMBHead_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mBHeadServiceClient) ValidateMBHead(ctx context.Context, in *ValidateMBHeadRequest, opts ...grpc.CallOption) (*ValidateMBHeadResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ValidateMBHeadResponse)
+	err := c.cc.Invoke(ctx, MBHeadService_ValidateMBHead_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mBHeadServiceClient) UnApproveMBHead(ctx context.Context, in *UnApproveMBHeadRequest, opts ...grpc.CallOption) (*UnApproveMBHeadResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UnApproveMBHeadResponse)
+	err := c.cc.Invoke(ctx, MBHeadService_UnApproveMBHead_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mBHeadServiceClient) RevokeMBHead(ctx context.Context, in *RevokeMBHeadRequest, opts ...grpc.CallOption) (*RevokeMBHeadResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RevokeMBHeadResponse)
+	err := c.cc.Invoke(ctx, MBHeadService_RevokeMBHead_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MBHeadServiceServer is the server API for MBHeadService service.
 // All implementations must embed UnimplementedMBHeadServiceServer
 // for forward compatibility.
@@ -1795,6 +1860,16 @@ type MBHeadServiceServer interface {
 	ImportMBHeads(context.Context, *ImportMBHeadsRequest) (*ImportMBHeadsResponse, error)
 	// DownloadMBHeadTemplate downloads the Excel import template.
 	DownloadMBHeadTemplate(context.Context, *DownloadMBHeadTemplateRequest) (*DownloadMBHeadTemplateResponse, error)
+	// SubmitMBHead submits an MB Head for approval.
+	SubmitMBHead(context.Context, *SubmitMBHeadRequest) (*SubmitMBHeadResponse, error)
+	// ApproveMBHead approves a submitted MB Head.
+	ApproveMBHead(context.Context, *ApproveMBHeadRequest) (*ApproveMBHeadResponse, error)
+	// ValidateMBHead validates an approved MB Head, freezing its cost and param snapshot.
+	ValidateMBHead(context.Context, *ValidateMBHeadRequest) (*ValidateMBHeadResponse, error)
+	// UnApproveMBHead reverts an approved MB Head back to a prior state.
+	UnApproveMBHead(context.Context, *UnApproveMBHeadRequest) (*UnApproveMBHeadResponse, error)
+	// RevokeMBHead revokes an MB Head.
+	RevokeMBHead(context.Context, *RevokeMBHeadRequest) (*RevokeMBHeadResponse, error)
 	mustEmbedUnimplementedMBHeadServiceServer()
 }
 
@@ -1828,6 +1903,21 @@ func (UnimplementedMBHeadServiceServer) ImportMBHeads(context.Context, *ImportMB
 }
 func (UnimplementedMBHeadServiceServer) DownloadMBHeadTemplate(context.Context, *DownloadMBHeadTemplateRequest) (*DownloadMBHeadTemplateResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DownloadMBHeadTemplate not implemented")
+}
+func (UnimplementedMBHeadServiceServer) SubmitMBHead(context.Context, *SubmitMBHeadRequest) (*SubmitMBHeadResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SubmitMBHead not implemented")
+}
+func (UnimplementedMBHeadServiceServer) ApproveMBHead(context.Context, *ApproveMBHeadRequest) (*ApproveMBHeadResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ApproveMBHead not implemented")
+}
+func (UnimplementedMBHeadServiceServer) ValidateMBHead(context.Context, *ValidateMBHeadRequest) (*ValidateMBHeadResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ValidateMBHead not implemented")
+}
+func (UnimplementedMBHeadServiceServer) UnApproveMBHead(context.Context, *UnApproveMBHeadRequest) (*UnApproveMBHeadResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UnApproveMBHead not implemented")
+}
+func (UnimplementedMBHeadServiceServer) RevokeMBHead(context.Context, *RevokeMBHeadRequest) (*RevokeMBHeadResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RevokeMBHead not implemented")
 }
 func (UnimplementedMBHeadServiceServer) mustEmbedUnimplementedMBHeadServiceServer() {}
 func (UnimplementedMBHeadServiceServer) testEmbeddedByValue()                       {}
@@ -1994,6 +2084,96 @@ func _MBHeadService_DownloadMBHeadTemplate_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MBHeadService_SubmitMBHead_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SubmitMBHeadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MBHeadServiceServer).SubmitMBHead(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MBHeadService_SubmitMBHead_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MBHeadServiceServer).SubmitMBHead(ctx, req.(*SubmitMBHeadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MBHeadService_ApproveMBHead_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApproveMBHeadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MBHeadServiceServer).ApproveMBHead(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MBHeadService_ApproveMBHead_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MBHeadServiceServer).ApproveMBHead(ctx, req.(*ApproveMBHeadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MBHeadService_ValidateMBHead_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ValidateMBHeadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MBHeadServiceServer).ValidateMBHead(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MBHeadService_ValidateMBHead_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MBHeadServiceServer).ValidateMBHead(ctx, req.(*ValidateMBHeadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MBHeadService_UnApproveMBHead_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnApproveMBHeadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MBHeadServiceServer).UnApproveMBHead(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MBHeadService_UnApproveMBHead_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MBHeadServiceServer).UnApproveMBHead(ctx, req.(*UnApproveMBHeadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MBHeadService_RevokeMBHead_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeMBHeadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MBHeadServiceServer).RevokeMBHead(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MBHeadService_RevokeMBHead_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MBHeadServiceServer).RevokeMBHead(ctx, req.(*RevokeMBHeadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MBHeadService_ServiceDesc is the grpc.ServiceDesc for MBHeadService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2032,6 +2212,26 @@ var MBHeadService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DownloadMBHeadTemplate",
 			Handler:    _MBHeadService_DownloadMBHeadTemplate_Handler,
+		},
+		{
+			MethodName: "SubmitMBHead",
+			Handler:    _MBHeadService_SubmitMBHead_Handler,
+		},
+		{
+			MethodName: "ApproveMBHead",
+			Handler:    _MBHeadService_ApproveMBHead_Handler,
+		},
+		{
+			MethodName: "ValidateMBHead",
+			Handler:    _MBHeadService_ValidateMBHead_Handler,
+		},
+		{
+			MethodName: "UnApproveMBHead",
+			Handler:    _MBHeadService_UnApproveMBHead_Handler,
+		},
+		{
+			MethodName: "RevokeMBHead",
+			Handler:    _MBHeadService_RevokeMBHead_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -3040,6 +3240,1534 @@ var YarnLookupFillService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetLookupFillValues",
 			Handler:    _YarnLookupFillService_GetLookupFillValues_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "finance/v1/yarn_master.proto",
+}
+
+const (
+	MbCompositionService_CreateMbComposition_FullMethodName       = "/finance.v1.MbCompositionService/CreateMbComposition"
+	MbCompositionService_UpdateMbComposition_FullMethodName       = "/finance.v1.MbCompositionService/UpdateMbComposition"
+	MbCompositionService_DeleteMbComposition_FullMethodName       = "/finance.v1.MbCompositionService/DeleteMbComposition"
+	MbCompositionService_ListMbCompositions_FullMethodName        = "/finance.v1.MbCompositionService/ListMbCompositions"
+	MbCompositionService_ListMbCompositionVersions_FullMethodName = "/finance.v1.MbCompositionService/ListMbCompositionVersions"
+)
+
+// MbCompositionServiceClient is the client API for MbCompositionService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// MbCompositionService manages MB composition lines and their frozen versions.
+type MbCompositionServiceClient interface {
+	// CreateMbComposition creates a new composition line for an MB Head.
+	CreateMbComposition(ctx context.Context, in *CreateMbCompositionRequest, opts ...grpc.CallOption) (*CreateMbCompositionResponse, error)
+	// UpdateMbComposition updates an existing composition line.
+	UpdateMbComposition(ctx context.Context, in *UpdateMbCompositionRequest, opts ...grpc.CallOption) (*UpdateMbCompositionResponse, error)
+	// DeleteMbComposition deletes a composition line.
+	DeleteMbComposition(ctx context.Context, in *DeleteMbCompositionRequest, opts ...grpc.CallOption) (*DeleteMbCompositionResponse, error)
+	// ListMbCompositions lists composition lines for an MB Head.
+	ListMbCompositions(ctx context.Context, in *ListMbCompositionsRequest, opts ...grpc.CallOption) (*ListMbCompositionsResponse, error)
+	// ListMbCompositionVersions lists frozen composition version snapshots for an MB Head.
+	ListMbCompositionVersions(ctx context.Context, in *ListMbCompositionVersionsRequest, opts ...grpc.CallOption) (*ListMbCompositionVersionsResponse, error)
+}
+
+type mbCompositionServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewMbCompositionServiceClient(cc grpc.ClientConnInterface) MbCompositionServiceClient {
+	return &mbCompositionServiceClient{cc}
+}
+
+func (c *mbCompositionServiceClient) CreateMbComposition(ctx context.Context, in *CreateMbCompositionRequest, opts ...grpc.CallOption) (*CreateMbCompositionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateMbCompositionResponse)
+	err := c.cc.Invoke(ctx, MbCompositionService_CreateMbComposition_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mbCompositionServiceClient) UpdateMbComposition(ctx context.Context, in *UpdateMbCompositionRequest, opts ...grpc.CallOption) (*UpdateMbCompositionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateMbCompositionResponse)
+	err := c.cc.Invoke(ctx, MbCompositionService_UpdateMbComposition_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mbCompositionServiceClient) DeleteMbComposition(ctx context.Context, in *DeleteMbCompositionRequest, opts ...grpc.CallOption) (*DeleteMbCompositionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteMbCompositionResponse)
+	err := c.cc.Invoke(ctx, MbCompositionService_DeleteMbComposition_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mbCompositionServiceClient) ListMbCompositions(ctx context.Context, in *ListMbCompositionsRequest, opts ...grpc.CallOption) (*ListMbCompositionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListMbCompositionsResponse)
+	err := c.cc.Invoke(ctx, MbCompositionService_ListMbCompositions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mbCompositionServiceClient) ListMbCompositionVersions(ctx context.Context, in *ListMbCompositionVersionsRequest, opts ...grpc.CallOption) (*ListMbCompositionVersionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListMbCompositionVersionsResponse)
+	err := c.cc.Invoke(ctx, MbCompositionService_ListMbCompositionVersions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// MbCompositionServiceServer is the server API for MbCompositionService service.
+// All implementations must embed UnimplementedMbCompositionServiceServer
+// for forward compatibility.
+//
+// MbCompositionService manages MB composition lines and their frozen versions.
+type MbCompositionServiceServer interface {
+	// CreateMbComposition creates a new composition line for an MB Head.
+	CreateMbComposition(context.Context, *CreateMbCompositionRequest) (*CreateMbCompositionResponse, error)
+	// UpdateMbComposition updates an existing composition line.
+	UpdateMbComposition(context.Context, *UpdateMbCompositionRequest) (*UpdateMbCompositionResponse, error)
+	// DeleteMbComposition deletes a composition line.
+	DeleteMbComposition(context.Context, *DeleteMbCompositionRequest) (*DeleteMbCompositionResponse, error)
+	// ListMbCompositions lists composition lines for an MB Head.
+	ListMbCompositions(context.Context, *ListMbCompositionsRequest) (*ListMbCompositionsResponse, error)
+	// ListMbCompositionVersions lists frozen composition version snapshots for an MB Head.
+	ListMbCompositionVersions(context.Context, *ListMbCompositionVersionsRequest) (*ListMbCompositionVersionsResponse, error)
+	mustEmbedUnimplementedMbCompositionServiceServer()
+}
+
+// UnimplementedMbCompositionServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedMbCompositionServiceServer struct{}
+
+func (UnimplementedMbCompositionServiceServer) CreateMbComposition(context.Context, *CreateMbCompositionRequest) (*CreateMbCompositionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateMbComposition not implemented")
+}
+func (UnimplementedMbCompositionServiceServer) UpdateMbComposition(context.Context, *UpdateMbCompositionRequest) (*UpdateMbCompositionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateMbComposition not implemented")
+}
+func (UnimplementedMbCompositionServiceServer) DeleteMbComposition(context.Context, *DeleteMbCompositionRequest) (*DeleteMbCompositionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteMbComposition not implemented")
+}
+func (UnimplementedMbCompositionServiceServer) ListMbCompositions(context.Context, *ListMbCompositionsRequest) (*ListMbCompositionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListMbCompositions not implemented")
+}
+func (UnimplementedMbCompositionServiceServer) ListMbCompositionVersions(context.Context, *ListMbCompositionVersionsRequest) (*ListMbCompositionVersionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListMbCompositionVersions not implemented")
+}
+func (UnimplementedMbCompositionServiceServer) mustEmbedUnimplementedMbCompositionServiceServer() {}
+func (UnimplementedMbCompositionServiceServer) testEmbeddedByValue()                              {}
+
+// UnsafeMbCompositionServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to MbCompositionServiceServer will
+// result in compilation errors.
+type UnsafeMbCompositionServiceServer interface {
+	mustEmbedUnimplementedMbCompositionServiceServer()
+}
+
+func RegisterMbCompositionServiceServer(s grpc.ServiceRegistrar, srv MbCompositionServiceServer) {
+	// If the following call panics, it indicates UnimplementedMbCompositionServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&MbCompositionService_ServiceDesc, srv)
+}
+
+func _MbCompositionService_CreateMbComposition_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateMbCompositionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbCompositionServiceServer).CreateMbComposition(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbCompositionService_CreateMbComposition_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbCompositionServiceServer).CreateMbComposition(ctx, req.(*CreateMbCompositionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MbCompositionService_UpdateMbComposition_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateMbCompositionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbCompositionServiceServer).UpdateMbComposition(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbCompositionService_UpdateMbComposition_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbCompositionServiceServer).UpdateMbComposition(ctx, req.(*UpdateMbCompositionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MbCompositionService_DeleteMbComposition_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteMbCompositionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbCompositionServiceServer).DeleteMbComposition(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbCompositionService_DeleteMbComposition_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbCompositionServiceServer).DeleteMbComposition(ctx, req.(*DeleteMbCompositionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MbCompositionService_ListMbCompositions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMbCompositionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbCompositionServiceServer).ListMbCompositions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbCompositionService_ListMbCompositions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbCompositionServiceServer).ListMbCompositions(ctx, req.(*ListMbCompositionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MbCompositionService_ListMbCompositionVersions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMbCompositionVersionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbCompositionServiceServer).ListMbCompositionVersions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbCompositionService_ListMbCompositionVersions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbCompositionServiceServer).ListMbCompositionVersions(ctx, req.(*ListMbCompositionVersionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// MbCompositionService_ServiceDesc is the grpc.ServiceDesc for MbCompositionService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var MbCompositionService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "finance.v1.MbCompositionService",
+	HandlerType: (*MbCompositionServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CreateMbComposition",
+			Handler:    _MbCompositionService_CreateMbComposition_Handler,
+		},
+		{
+			MethodName: "UpdateMbComposition",
+			Handler:    _MbCompositionService_UpdateMbComposition_Handler,
+		},
+		{
+			MethodName: "DeleteMbComposition",
+			Handler:    _MbCompositionService_DeleteMbComposition_Handler,
+		},
+		{
+			MethodName: "ListMbCompositions",
+			Handler:    _MbCompositionService_ListMbCompositions_Handler,
+		},
+		{
+			MethodName: "ListMbCompositionVersions",
+			Handler:    _MbCompositionService_ListMbCompositionVersions_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "finance/v1/yarn_master.proto",
+}
+
+const (
+	MbLustureService_CreateMbLusture_FullMethodName           = "/finance.v1.MbLustureService/CreateMbLusture"
+	MbLustureService_UpdateMbLusture_FullMethodName           = "/finance.v1.MbLustureService/UpdateMbLusture"
+	MbLustureService_DeleteMbLusture_FullMethodName           = "/finance.v1.MbLustureService/DeleteMbLusture"
+	MbLustureService_GetMbLusture_FullMethodName              = "/finance.v1.MbLustureService/GetMbLusture"
+	MbLustureService_ListMbLusture_FullMethodName             = "/finance.v1.MbLustureService/ListMbLusture"
+	MbLustureService_ExportMbLusture_FullMethodName           = "/finance.v1.MbLustureService/ExportMbLusture"
+	MbLustureService_ImportMbLusture_FullMethodName           = "/finance.v1.MbLustureService/ImportMbLusture"
+	MbLustureService_DownloadMbLustureTemplate_FullMethodName = "/finance.v1.MbLustureService/DownloadMbLustureTemplate"
+)
+
+// MbLustureServiceClient is the client API for MbLustureService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// MbLustureService manages MB lusture master data.
+type MbLustureServiceClient interface {
+	// CreateMbLusture creates a new MB lusture master record.
+	CreateMbLusture(ctx context.Context, in *CreateMbLustureRequest, opts ...grpc.CallOption) (*CreateMbLustureResponse, error)
+	// UpdateMbLusture updates an existing MB lusture master record.
+	UpdateMbLusture(ctx context.Context, in *UpdateMbLustureRequest, opts ...grpc.CallOption) (*UpdateMbLustureResponse, error)
+	// DeleteMbLusture deletes an MB lusture master record.
+	DeleteMbLusture(ctx context.Context, in *DeleteMbLustureRequest, opts ...grpc.CallOption) (*DeleteMbLustureResponse, error)
+	// GetMbLusture retrieves an MB lusture master record by ID.
+	GetMbLusture(ctx context.Context, in *GetMbLustureRequest, opts ...grpc.CallOption) (*GetMbLustureResponse, error)
+	// ListMbLusture lists MB lusture master records with search and pagination.
+	ListMbLusture(ctx context.Context, in *ListMbLustureRequest, opts ...grpc.CallOption) (*ListMbLustureResponse, error)
+	// ExportMbLusture exports MB lusture master records to Excel.
+	ExportMbLusture(ctx context.Context, in *ExportMbLustureRequest, opts ...grpc.CallOption) (*ExportMbLustureResponse, error)
+	// ImportMbLusture imports MB lusture master records from Excel.
+	ImportMbLusture(ctx context.Context, in *ImportMbLustureRequest, opts ...grpc.CallOption) (*ImportMbLustureResponse, error)
+	// DownloadMbLustureTemplate downloads the Excel import template.
+	DownloadMbLustureTemplate(ctx context.Context, in *DownloadMbLustureTemplateRequest, opts ...grpc.CallOption) (*DownloadMbLustureTemplateResponse, error)
+}
+
+type mbLustureServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewMbLustureServiceClient(cc grpc.ClientConnInterface) MbLustureServiceClient {
+	return &mbLustureServiceClient{cc}
+}
+
+func (c *mbLustureServiceClient) CreateMbLusture(ctx context.Context, in *CreateMbLustureRequest, opts ...grpc.CallOption) (*CreateMbLustureResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateMbLustureResponse)
+	err := c.cc.Invoke(ctx, MbLustureService_CreateMbLusture_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mbLustureServiceClient) UpdateMbLusture(ctx context.Context, in *UpdateMbLustureRequest, opts ...grpc.CallOption) (*UpdateMbLustureResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateMbLustureResponse)
+	err := c.cc.Invoke(ctx, MbLustureService_UpdateMbLusture_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mbLustureServiceClient) DeleteMbLusture(ctx context.Context, in *DeleteMbLustureRequest, opts ...grpc.CallOption) (*DeleteMbLustureResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteMbLustureResponse)
+	err := c.cc.Invoke(ctx, MbLustureService_DeleteMbLusture_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mbLustureServiceClient) GetMbLusture(ctx context.Context, in *GetMbLustureRequest, opts ...grpc.CallOption) (*GetMbLustureResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetMbLustureResponse)
+	err := c.cc.Invoke(ctx, MbLustureService_GetMbLusture_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mbLustureServiceClient) ListMbLusture(ctx context.Context, in *ListMbLustureRequest, opts ...grpc.CallOption) (*ListMbLustureResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListMbLustureResponse)
+	err := c.cc.Invoke(ctx, MbLustureService_ListMbLusture_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mbLustureServiceClient) ExportMbLusture(ctx context.Context, in *ExportMbLustureRequest, opts ...grpc.CallOption) (*ExportMbLustureResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExportMbLustureResponse)
+	err := c.cc.Invoke(ctx, MbLustureService_ExportMbLusture_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mbLustureServiceClient) ImportMbLusture(ctx context.Context, in *ImportMbLustureRequest, opts ...grpc.CallOption) (*ImportMbLustureResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ImportMbLustureResponse)
+	err := c.cc.Invoke(ctx, MbLustureService_ImportMbLusture_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mbLustureServiceClient) DownloadMbLustureTemplate(ctx context.Context, in *DownloadMbLustureTemplateRequest, opts ...grpc.CallOption) (*DownloadMbLustureTemplateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DownloadMbLustureTemplateResponse)
+	err := c.cc.Invoke(ctx, MbLustureService_DownloadMbLustureTemplate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// MbLustureServiceServer is the server API for MbLustureService service.
+// All implementations must embed UnimplementedMbLustureServiceServer
+// for forward compatibility.
+//
+// MbLustureService manages MB lusture master data.
+type MbLustureServiceServer interface {
+	// CreateMbLusture creates a new MB lusture master record.
+	CreateMbLusture(context.Context, *CreateMbLustureRequest) (*CreateMbLustureResponse, error)
+	// UpdateMbLusture updates an existing MB lusture master record.
+	UpdateMbLusture(context.Context, *UpdateMbLustureRequest) (*UpdateMbLustureResponse, error)
+	// DeleteMbLusture deletes an MB lusture master record.
+	DeleteMbLusture(context.Context, *DeleteMbLustureRequest) (*DeleteMbLustureResponse, error)
+	// GetMbLusture retrieves an MB lusture master record by ID.
+	GetMbLusture(context.Context, *GetMbLustureRequest) (*GetMbLustureResponse, error)
+	// ListMbLusture lists MB lusture master records with search and pagination.
+	ListMbLusture(context.Context, *ListMbLustureRequest) (*ListMbLustureResponse, error)
+	// ExportMbLusture exports MB lusture master records to Excel.
+	ExportMbLusture(context.Context, *ExportMbLustureRequest) (*ExportMbLustureResponse, error)
+	// ImportMbLusture imports MB lusture master records from Excel.
+	ImportMbLusture(context.Context, *ImportMbLustureRequest) (*ImportMbLustureResponse, error)
+	// DownloadMbLustureTemplate downloads the Excel import template.
+	DownloadMbLustureTemplate(context.Context, *DownloadMbLustureTemplateRequest) (*DownloadMbLustureTemplateResponse, error)
+	mustEmbedUnimplementedMbLustureServiceServer()
+}
+
+// UnimplementedMbLustureServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedMbLustureServiceServer struct{}
+
+func (UnimplementedMbLustureServiceServer) CreateMbLusture(context.Context, *CreateMbLustureRequest) (*CreateMbLustureResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateMbLusture not implemented")
+}
+func (UnimplementedMbLustureServiceServer) UpdateMbLusture(context.Context, *UpdateMbLustureRequest) (*UpdateMbLustureResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateMbLusture not implemented")
+}
+func (UnimplementedMbLustureServiceServer) DeleteMbLusture(context.Context, *DeleteMbLustureRequest) (*DeleteMbLustureResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteMbLusture not implemented")
+}
+func (UnimplementedMbLustureServiceServer) GetMbLusture(context.Context, *GetMbLustureRequest) (*GetMbLustureResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetMbLusture not implemented")
+}
+func (UnimplementedMbLustureServiceServer) ListMbLusture(context.Context, *ListMbLustureRequest) (*ListMbLustureResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListMbLusture not implemented")
+}
+func (UnimplementedMbLustureServiceServer) ExportMbLusture(context.Context, *ExportMbLustureRequest) (*ExportMbLustureResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ExportMbLusture not implemented")
+}
+func (UnimplementedMbLustureServiceServer) ImportMbLusture(context.Context, *ImportMbLustureRequest) (*ImportMbLustureResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ImportMbLusture not implemented")
+}
+func (UnimplementedMbLustureServiceServer) DownloadMbLustureTemplate(context.Context, *DownloadMbLustureTemplateRequest) (*DownloadMbLustureTemplateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DownloadMbLustureTemplate not implemented")
+}
+func (UnimplementedMbLustureServiceServer) mustEmbedUnimplementedMbLustureServiceServer() {}
+func (UnimplementedMbLustureServiceServer) testEmbeddedByValue()                          {}
+
+// UnsafeMbLustureServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to MbLustureServiceServer will
+// result in compilation errors.
+type UnsafeMbLustureServiceServer interface {
+	mustEmbedUnimplementedMbLustureServiceServer()
+}
+
+func RegisterMbLustureServiceServer(s grpc.ServiceRegistrar, srv MbLustureServiceServer) {
+	// If the following call panics, it indicates UnimplementedMbLustureServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&MbLustureService_ServiceDesc, srv)
+}
+
+func _MbLustureService_CreateMbLusture_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateMbLustureRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbLustureServiceServer).CreateMbLusture(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbLustureService_CreateMbLusture_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbLustureServiceServer).CreateMbLusture(ctx, req.(*CreateMbLustureRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MbLustureService_UpdateMbLusture_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateMbLustureRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbLustureServiceServer).UpdateMbLusture(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbLustureService_UpdateMbLusture_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbLustureServiceServer).UpdateMbLusture(ctx, req.(*UpdateMbLustureRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MbLustureService_DeleteMbLusture_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteMbLustureRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbLustureServiceServer).DeleteMbLusture(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbLustureService_DeleteMbLusture_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbLustureServiceServer).DeleteMbLusture(ctx, req.(*DeleteMbLustureRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MbLustureService_GetMbLusture_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMbLustureRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbLustureServiceServer).GetMbLusture(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbLustureService_GetMbLusture_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbLustureServiceServer).GetMbLusture(ctx, req.(*GetMbLustureRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MbLustureService_ListMbLusture_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMbLustureRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbLustureServiceServer).ListMbLusture(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbLustureService_ListMbLusture_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbLustureServiceServer).ListMbLusture(ctx, req.(*ListMbLustureRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MbLustureService_ExportMbLusture_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExportMbLustureRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbLustureServiceServer).ExportMbLusture(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbLustureService_ExportMbLusture_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbLustureServiceServer).ExportMbLusture(ctx, req.(*ExportMbLustureRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MbLustureService_ImportMbLusture_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ImportMbLustureRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbLustureServiceServer).ImportMbLusture(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbLustureService_ImportMbLusture_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbLustureServiceServer).ImportMbLusture(ctx, req.(*ImportMbLustureRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MbLustureService_DownloadMbLustureTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DownloadMbLustureTemplateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbLustureServiceServer).DownloadMbLustureTemplate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbLustureService_DownloadMbLustureTemplate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbLustureServiceServer).DownloadMbLustureTemplate(ctx, req.(*DownloadMbLustureTemplateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// MbLustureService_ServiceDesc is the grpc.ServiceDesc for MbLustureService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var MbLustureService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "finance.v1.MbLustureService",
+	HandlerType: (*MbLustureServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CreateMbLusture",
+			Handler:    _MbLustureService_CreateMbLusture_Handler,
+		},
+		{
+			MethodName: "UpdateMbLusture",
+			Handler:    _MbLustureService_UpdateMbLusture_Handler,
+		},
+		{
+			MethodName: "DeleteMbLusture",
+			Handler:    _MbLustureService_DeleteMbLusture_Handler,
+		},
+		{
+			MethodName: "GetMbLusture",
+			Handler:    _MbLustureService_GetMbLusture_Handler,
+		},
+		{
+			MethodName: "ListMbLusture",
+			Handler:    _MbLustureService_ListMbLusture_Handler,
+		},
+		{
+			MethodName: "ExportMbLusture",
+			Handler:    _MbLustureService_ExportMbLusture_Handler,
+		},
+		{
+			MethodName: "ImportMbLusture",
+			Handler:    _MbLustureService_ImportMbLusture_Handler,
+		},
+		{
+			MethodName: "DownloadMbLustureTemplate",
+			Handler:    _MbLustureService_DownloadMbLustureTemplate_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "finance/v1/yarn_master.proto",
+}
+
+const (
+	MbParamService_CreateMbParam_FullMethodName           = "/finance.v1.MbParamService/CreateMbParam"
+	MbParamService_UpdateMbParam_FullMethodName           = "/finance.v1.MbParamService/UpdateMbParam"
+	MbParamService_DeleteMbParam_FullMethodName           = "/finance.v1.MbParamService/DeleteMbParam"
+	MbParamService_ListMbParams_FullMethodName            = "/finance.v1.MbParamService/ListMbParams"
+	MbParamService_CreateMbParamOption_FullMethodName     = "/finance.v1.MbParamService/CreateMbParamOption"
+	MbParamService_UpdateMbParamOption_FullMethodName     = "/finance.v1.MbParamService/UpdateMbParamOption"
+	MbParamService_DeleteMbParamOption_FullMethodName     = "/finance.v1.MbParamService/DeleteMbParamOption"
+	MbParamService_ExportMbParams_FullMethodName          = "/finance.v1.MbParamService/ExportMbParams"
+	MbParamService_ImportMbParams_FullMethodName          = "/finance.v1.MbParamService/ImportMbParams"
+	MbParamService_DownloadMbParamTemplate_FullMethodName = "/finance.v1.MbParamService/DownloadMbParamTemplate"
+)
+
+// MbParamServiceClient is the client API for MbParamService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// MbParamService manages MB costing parameter master data and their picklist options.
+type MbParamServiceClient interface {
+	// CreateMbParam creates a new MB costing parameter.
+	CreateMbParam(ctx context.Context, in *CreateMbParamRequest, opts ...grpc.CallOption) (*CreateMbParamResponse, error)
+	// UpdateMbParam updates an existing MB costing parameter.
+	UpdateMbParam(ctx context.Context, in *UpdateMbParamRequest, opts ...grpc.CallOption) (*UpdateMbParamResponse, error)
+	// DeleteMbParam deletes an MB costing parameter.
+	DeleteMbParam(ctx context.Context, in *DeleteMbParamRequest, opts ...grpc.CallOption) (*DeleteMbParamResponse, error)
+	// ListMbParams lists MB costing parameters with search and pagination.
+	ListMbParams(ctx context.Context, in *ListMbParamsRequest, opts ...grpc.CallOption) (*ListMbParamsResponse, error)
+	// CreateMbParamOption creates a new picklist option for an MB costing parameter.
+	CreateMbParamOption(ctx context.Context, in *CreateMbParamOptionRequest, opts ...grpc.CallOption) (*CreateMbParamOptionResponse, error)
+	// UpdateMbParamOption updates an existing picklist option.
+	UpdateMbParamOption(ctx context.Context, in *UpdateMbParamOptionRequest, opts ...grpc.CallOption) (*UpdateMbParamOptionResponse, error)
+	// DeleteMbParamOption deletes a picklist option.
+	DeleteMbParamOption(ctx context.Context, in *DeleteMbParamOptionRequest, opts ...grpc.CallOption) (*DeleteMbParamOptionResponse, error)
+	// ExportMbParams exports MB costing parameters to Excel.
+	ExportMbParams(ctx context.Context, in *ExportMbParamsRequest, opts ...grpc.CallOption) (*ExportMbParamsResponse, error)
+	// ImportMbParams imports MB costing parameters from Excel.
+	ImportMbParams(ctx context.Context, in *ImportMbParamsRequest, opts ...grpc.CallOption) (*ImportMbParamsResponse, error)
+	// DownloadMbParamTemplate downloads the Excel import template.
+	DownloadMbParamTemplate(ctx context.Context, in *DownloadMbParamTemplateRequest, opts ...grpc.CallOption) (*DownloadMbParamTemplateResponse, error)
+}
+
+type mbParamServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewMbParamServiceClient(cc grpc.ClientConnInterface) MbParamServiceClient {
+	return &mbParamServiceClient{cc}
+}
+
+func (c *mbParamServiceClient) CreateMbParam(ctx context.Context, in *CreateMbParamRequest, opts ...grpc.CallOption) (*CreateMbParamResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateMbParamResponse)
+	err := c.cc.Invoke(ctx, MbParamService_CreateMbParam_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mbParamServiceClient) UpdateMbParam(ctx context.Context, in *UpdateMbParamRequest, opts ...grpc.CallOption) (*UpdateMbParamResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateMbParamResponse)
+	err := c.cc.Invoke(ctx, MbParamService_UpdateMbParam_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mbParamServiceClient) DeleteMbParam(ctx context.Context, in *DeleteMbParamRequest, opts ...grpc.CallOption) (*DeleteMbParamResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteMbParamResponse)
+	err := c.cc.Invoke(ctx, MbParamService_DeleteMbParam_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mbParamServiceClient) ListMbParams(ctx context.Context, in *ListMbParamsRequest, opts ...grpc.CallOption) (*ListMbParamsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListMbParamsResponse)
+	err := c.cc.Invoke(ctx, MbParamService_ListMbParams_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mbParamServiceClient) CreateMbParamOption(ctx context.Context, in *CreateMbParamOptionRequest, opts ...grpc.CallOption) (*CreateMbParamOptionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateMbParamOptionResponse)
+	err := c.cc.Invoke(ctx, MbParamService_CreateMbParamOption_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mbParamServiceClient) UpdateMbParamOption(ctx context.Context, in *UpdateMbParamOptionRequest, opts ...grpc.CallOption) (*UpdateMbParamOptionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateMbParamOptionResponse)
+	err := c.cc.Invoke(ctx, MbParamService_UpdateMbParamOption_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mbParamServiceClient) DeleteMbParamOption(ctx context.Context, in *DeleteMbParamOptionRequest, opts ...grpc.CallOption) (*DeleteMbParamOptionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteMbParamOptionResponse)
+	err := c.cc.Invoke(ctx, MbParamService_DeleteMbParamOption_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mbParamServiceClient) ExportMbParams(ctx context.Context, in *ExportMbParamsRequest, opts ...grpc.CallOption) (*ExportMbParamsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExportMbParamsResponse)
+	err := c.cc.Invoke(ctx, MbParamService_ExportMbParams_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mbParamServiceClient) ImportMbParams(ctx context.Context, in *ImportMbParamsRequest, opts ...grpc.CallOption) (*ImportMbParamsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ImportMbParamsResponse)
+	err := c.cc.Invoke(ctx, MbParamService_ImportMbParams_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mbParamServiceClient) DownloadMbParamTemplate(ctx context.Context, in *DownloadMbParamTemplateRequest, opts ...grpc.CallOption) (*DownloadMbParamTemplateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DownloadMbParamTemplateResponse)
+	err := c.cc.Invoke(ctx, MbParamService_DownloadMbParamTemplate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// MbParamServiceServer is the server API for MbParamService service.
+// All implementations must embed UnimplementedMbParamServiceServer
+// for forward compatibility.
+//
+// MbParamService manages MB costing parameter master data and their picklist options.
+type MbParamServiceServer interface {
+	// CreateMbParam creates a new MB costing parameter.
+	CreateMbParam(context.Context, *CreateMbParamRequest) (*CreateMbParamResponse, error)
+	// UpdateMbParam updates an existing MB costing parameter.
+	UpdateMbParam(context.Context, *UpdateMbParamRequest) (*UpdateMbParamResponse, error)
+	// DeleteMbParam deletes an MB costing parameter.
+	DeleteMbParam(context.Context, *DeleteMbParamRequest) (*DeleteMbParamResponse, error)
+	// ListMbParams lists MB costing parameters with search and pagination.
+	ListMbParams(context.Context, *ListMbParamsRequest) (*ListMbParamsResponse, error)
+	// CreateMbParamOption creates a new picklist option for an MB costing parameter.
+	CreateMbParamOption(context.Context, *CreateMbParamOptionRequest) (*CreateMbParamOptionResponse, error)
+	// UpdateMbParamOption updates an existing picklist option.
+	UpdateMbParamOption(context.Context, *UpdateMbParamOptionRequest) (*UpdateMbParamOptionResponse, error)
+	// DeleteMbParamOption deletes a picklist option.
+	DeleteMbParamOption(context.Context, *DeleteMbParamOptionRequest) (*DeleteMbParamOptionResponse, error)
+	// ExportMbParams exports MB costing parameters to Excel.
+	ExportMbParams(context.Context, *ExportMbParamsRequest) (*ExportMbParamsResponse, error)
+	// ImportMbParams imports MB costing parameters from Excel.
+	ImportMbParams(context.Context, *ImportMbParamsRequest) (*ImportMbParamsResponse, error)
+	// DownloadMbParamTemplate downloads the Excel import template.
+	DownloadMbParamTemplate(context.Context, *DownloadMbParamTemplateRequest) (*DownloadMbParamTemplateResponse, error)
+	mustEmbedUnimplementedMbParamServiceServer()
+}
+
+// UnimplementedMbParamServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedMbParamServiceServer struct{}
+
+func (UnimplementedMbParamServiceServer) CreateMbParam(context.Context, *CreateMbParamRequest) (*CreateMbParamResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateMbParam not implemented")
+}
+func (UnimplementedMbParamServiceServer) UpdateMbParam(context.Context, *UpdateMbParamRequest) (*UpdateMbParamResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateMbParam not implemented")
+}
+func (UnimplementedMbParamServiceServer) DeleteMbParam(context.Context, *DeleteMbParamRequest) (*DeleteMbParamResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteMbParam not implemented")
+}
+func (UnimplementedMbParamServiceServer) ListMbParams(context.Context, *ListMbParamsRequest) (*ListMbParamsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListMbParams not implemented")
+}
+func (UnimplementedMbParamServiceServer) CreateMbParamOption(context.Context, *CreateMbParamOptionRequest) (*CreateMbParamOptionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateMbParamOption not implemented")
+}
+func (UnimplementedMbParamServiceServer) UpdateMbParamOption(context.Context, *UpdateMbParamOptionRequest) (*UpdateMbParamOptionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateMbParamOption not implemented")
+}
+func (UnimplementedMbParamServiceServer) DeleteMbParamOption(context.Context, *DeleteMbParamOptionRequest) (*DeleteMbParamOptionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteMbParamOption not implemented")
+}
+func (UnimplementedMbParamServiceServer) ExportMbParams(context.Context, *ExportMbParamsRequest) (*ExportMbParamsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ExportMbParams not implemented")
+}
+func (UnimplementedMbParamServiceServer) ImportMbParams(context.Context, *ImportMbParamsRequest) (*ImportMbParamsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ImportMbParams not implemented")
+}
+func (UnimplementedMbParamServiceServer) DownloadMbParamTemplate(context.Context, *DownloadMbParamTemplateRequest) (*DownloadMbParamTemplateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DownloadMbParamTemplate not implemented")
+}
+func (UnimplementedMbParamServiceServer) mustEmbedUnimplementedMbParamServiceServer() {}
+func (UnimplementedMbParamServiceServer) testEmbeddedByValue()                        {}
+
+// UnsafeMbParamServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to MbParamServiceServer will
+// result in compilation errors.
+type UnsafeMbParamServiceServer interface {
+	mustEmbedUnimplementedMbParamServiceServer()
+}
+
+func RegisterMbParamServiceServer(s grpc.ServiceRegistrar, srv MbParamServiceServer) {
+	// If the following call panics, it indicates UnimplementedMbParamServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&MbParamService_ServiceDesc, srv)
+}
+
+func _MbParamService_CreateMbParam_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateMbParamRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbParamServiceServer).CreateMbParam(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbParamService_CreateMbParam_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbParamServiceServer).CreateMbParam(ctx, req.(*CreateMbParamRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MbParamService_UpdateMbParam_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateMbParamRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbParamServiceServer).UpdateMbParam(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbParamService_UpdateMbParam_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbParamServiceServer).UpdateMbParam(ctx, req.(*UpdateMbParamRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MbParamService_DeleteMbParam_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteMbParamRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbParamServiceServer).DeleteMbParam(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbParamService_DeleteMbParam_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbParamServiceServer).DeleteMbParam(ctx, req.(*DeleteMbParamRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MbParamService_ListMbParams_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMbParamsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbParamServiceServer).ListMbParams(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbParamService_ListMbParams_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbParamServiceServer).ListMbParams(ctx, req.(*ListMbParamsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MbParamService_CreateMbParamOption_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateMbParamOptionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbParamServiceServer).CreateMbParamOption(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbParamService_CreateMbParamOption_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbParamServiceServer).CreateMbParamOption(ctx, req.(*CreateMbParamOptionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MbParamService_UpdateMbParamOption_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateMbParamOptionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbParamServiceServer).UpdateMbParamOption(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbParamService_UpdateMbParamOption_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbParamServiceServer).UpdateMbParamOption(ctx, req.(*UpdateMbParamOptionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MbParamService_DeleteMbParamOption_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteMbParamOptionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbParamServiceServer).DeleteMbParamOption(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbParamService_DeleteMbParamOption_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbParamServiceServer).DeleteMbParamOption(ctx, req.(*DeleteMbParamOptionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MbParamService_ExportMbParams_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExportMbParamsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbParamServiceServer).ExportMbParams(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbParamService_ExportMbParams_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbParamServiceServer).ExportMbParams(ctx, req.(*ExportMbParamsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MbParamService_ImportMbParams_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ImportMbParamsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbParamServiceServer).ImportMbParams(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbParamService_ImportMbParams_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbParamServiceServer).ImportMbParams(ctx, req.(*ImportMbParamsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MbParamService_DownloadMbParamTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DownloadMbParamTemplateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbParamServiceServer).DownloadMbParamTemplate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbParamService_DownloadMbParamTemplate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbParamServiceServer).DownloadMbParamTemplate(ctx, req.(*DownloadMbParamTemplateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// MbParamService_ServiceDesc is the grpc.ServiceDesc for MbParamService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var MbParamService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "finance.v1.MbParamService",
+	HandlerType: (*MbParamServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CreateMbParam",
+			Handler:    _MbParamService_CreateMbParam_Handler,
+		},
+		{
+			MethodName: "UpdateMbParam",
+			Handler:    _MbParamService_UpdateMbParam_Handler,
+		},
+		{
+			MethodName: "DeleteMbParam",
+			Handler:    _MbParamService_DeleteMbParam_Handler,
+		},
+		{
+			MethodName: "ListMbParams",
+			Handler:    _MbParamService_ListMbParams_Handler,
+		},
+		{
+			MethodName: "CreateMbParamOption",
+			Handler:    _MbParamService_CreateMbParamOption_Handler,
+		},
+		{
+			MethodName: "UpdateMbParamOption",
+			Handler:    _MbParamService_UpdateMbParamOption_Handler,
+		},
+		{
+			MethodName: "DeleteMbParamOption",
+			Handler:    _MbParamService_DeleteMbParamOption_Handler,
+		},
+		{
+			MethodName: "ExportMbParams",
+			Handler:    _MbParamService_ExportMbParams_Handler,
+		},
+		{
+			MethodName: "ImportMbParams",
+			Handler:    _MbParamService_ImportMbParams_Handler,
+		},
+		{
+			MethodName: "DownloadMbParamTemplate",
+			Handler:    _MbParamService_DownloadMbParamTemplate_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "finance/v1/yarn_master.proto",
+}
+
+const (
+	MbPushService_PreviewPushToHead_FullMethodName = "/finance.v1.MbPushService/PreviewPushToHead"
+	MbPushService_ExecutePushToHead_FullMethodName = "/finance.v1.MbPushService/ExecutePushToHead"
+	MbPushService_ListMbPushLogs_FullMethodName    = "/finance.v1.MbPushService/ListMbPushLogs"
+)
+
+// MbPushServiceClient is the client API for MbPushService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// MbPushService previews and executes pushing costed values to MB Heads for a period.
+type MbPushServiceClient interface {
+	// PreviewPushToHead previews which MB Heads are pushable/skipped for a period.
+	PreviewPushToHead(ctx context.Context, in *PreviewPushToHeadRequest, opts ...grpc.CallOption) (*PreviewPushToHeadResponse, error)
+	// ExecutePushToHead executes the push-to-head batch for the given period and heads.
+	ExecutePushToHead(ctx context.Context, in *ExecutePushToHeadRequest, opts ...grpc.CallOption) (*ExecutePushToHeadResponse, error)
+	// ListMbPushLogs lists past push-to-head batch executions.
+	ListMbPushLogs(ctx context.Context, in *ListMbPushLogsRequest, opts ...grpc.CallOption) (*ListMbPushLogsResponse, error)
+}
+
+type mbPushServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewMbPushServiceClient(cc grpc.ClientConnInterface) MbPushServiceClient {
+	return &mbPushServiceClient{cc}
+}
+
+func (c *mbPushServiceClient) PreviewPushToHead(ctx context.Context, in *PreviewPushToHeadRequest, opts ...grpc.CallOption) (*PreviewPushToHeadResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PreviewPushToHeadResponse)
+	err := c.cc.Invoke(ctx, MbPushService_PreviewPushToHead_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mbPushServiceClient) ExecutePushToHead(ctx context.Context, in *ExecutePushToHeadRequest, opts ...grpc.CallOption) (*ExecutePushToHeadResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExecutePushToHeadResponse)
+	err := c.cc.Invoke(ctx, MbPushService_ExecutePushToHead_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mbPushServiceClient) ListMbPushLogs(ctx context.Context, in *ListMbPushLogsRequest, opts ...grpc.CallOption) (*ListMbPushLogsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListMbPushLogsResponse)
+	err := c.cc.Invoke(ctx, MbPushService_ListMbPushLogs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// MbPushServiceServer is the server API for MbPushService service.
+// All implementations must embed UnimplementedMbPushServiceServer
+// for forward compatibility.
+//
+// MbPushService previews and executes pushing costed values to MB Heads for a period.
+type MbPushServiceServer interface {
+	// PreviewPushToHead previews which MB Heads are pushable/skipped for a period.
+	PreviewPushToHead(context.Context, *PreviewPushToHeadRequest) (*PreviewPushToHeadResponse, error)
+	// ExecutePushToHead executes the push-to-head batch for the given period and heads.
+	ExecutePushToHead(context.Context, *ExecutePushToHeadRequest) (*ExecutePushToHeadResponse, error)
+	// ListMbPushLogs lists past push-to-head batch executions.
+	ListMbPushLogs(context.Context, *ListMbPushLogsRequest) (*ListMbPushLogsResponse, error)
+	mustEmbedUnimplementedMbPushServiceServer()
+}
+
+// UnimplementedMbPushServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedMbPushServiceServer struct{}
+
+func (UnimplementedMbPushServiceServer) PreviewPushToHead(context.Context, *PreviewPushToHeadRequest) (*PreviewPushToHeadResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PreviewPushToHead not implemented")
+}
+func (UnimplementedMbPushServiceServer) ExecutePushToHead(context.Context, *ExecutePushToHeadRequest) (*ExecutePushToHeadResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ExecutePushToHead not implemented")
+}
+func (UnimplementedMbPushServiceServer) ListMbPushLogs(context.Context, *ListMbPushLogsRequest) (*ListMbPushLogsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListMbPushLogs not implemented")
+}
+func (UnimplementedMbPushServiceServer) mustEmbedUnimplementedMbPushServiceServer() {}
+func (UnimplementedMbPushServiceServer) testEmbeddedByValue()                       {}
+
+// UnsafeMbPushServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to MbPushServiceServer will
+// result in compilation errors.
+type UnsafeMbPushServiceServer interface {
+	mustEmbedUnimplementedMbPushServiceServer()
+}
+
+func RegisterMbPushServiceServer(s grpc.ServiceRegistrar, srv MbPushServiceServer) {
+	// If the following call panics, it indicates UnimplementedMbPushServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&MbPushService_ServiceDesc, srv)
+}
+
+func _MbPushService_PreviewPushToHead_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PreviewPushToHeadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbPushServiceServer).PreviewPushToHead(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbPushService_PreviewPushToHead_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbPushServiceServer).PreviewPushToHead(ctx, req.(*PreviewPushToHeadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MbPushService_ExecutePushToHead_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExecutePushToHeadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbPushServiceServer).ExecutePushToHead(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbPushService_ExecutePushToHead_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbPushServiceServer).ExecutePushToHead(ctx, req.(*ExecutePushToHeadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MbPushService_ListMbPushLogs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMbPushLogsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbPushServiceServer).ListMbPushLogs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbPushService_ListMbPushLogs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbPushServiceServer).ListMbPushLogs(ctx, req.(*ListMbPushLogsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// MbPushService_ServiceDesc is the grpc.ServiceDesc for MbPushService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var MbPushService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "finance.v1.MbPushService",
+	HandlerType: (*MbPushServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "PreviewPushToHead",
+			Handler:    _MbPushService_PreviewPushToHead_Handler,
+		},
+		{
+			MethodName: "ExecutePushToHead",
+			Handler:    _MbPushService_ExecutePushToHead_Handler,
+		},
+		{
+			MethodName: "ListMbPushLogs",
+			Handler:    _MbPushService_ListMbPushLogs_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "finance/v1/yarn_master.proto",
+}
+
+const (
+	MbWorkflowLogService_ListMbWorkflowLogs_FullMethodName = "/finance.v1.MbWorkflowLogService/ListMbWorkflowLogs"
+)
+
+// MbWorkflowLogServiceClient is the client API for MbWorkflowLogService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// MbWorkflowLogService provides read-only access to MB Head workflow transition history.
+type MbWorkflowLogServiceClient interface {
+	// ListMbWorkflowLogs lists workflow transition log entries for an MB Head.
+	ListMbWorkflowLogs(ctx context.Context, in *ListMbWorkflowLogsRequest, opts ...grpc.CallOption) (*ListMbWorkflowLogsResponse, error)
+}
+
+type mbWorkflowLogServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewMbWorkflowLogServiceClient(cc grpc.ClientConnInterface) MbWorkflowLogServiceClient {
+	return &mbWorkflowLogServiceClient{cc}
+}
+
+func (c *mbWorkflowLogServiceClient) ListMbWorkflowLogs(ctx context.Context, in *ListMbWorkflowLogsRequest, opts ...grpc.CallOption) (*ListMbWorkflowLogsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListMbWorkflowLogsResponse)
+	err := c.cc.Invoke(ctx, MbWorkflowLogService_ListMbWorkflowLogs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// MbWorkflowLogServiceServer is the server API for MbWorkflowLogService service.
+// All implementations must embed UnimplementedMbWorkflowLogServiceServer
+// for forward compatibility.
+//
+// MbWorkflowLogService provides read-only access to MB Head workflow transition history.
+type MbWorkflowLogServiceServer interface {
+	// ListMbWorkflowLogs lists workflow transition log entries for an MB Head.
+	ListMbWorkflowLogs(context.Context, *ListMbWorkflowLogsRequest) (*ListMbWorkflowLogsResponse, error)
+	mustEmbedUnimplementedMbWorkflowLogServiceServer()
+}
+
+// UnimplementedMbWorkflowLogServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedMbWorkflowLogServiceServer struct{}
+
+func (UnimplementedMbWorkflowLogServiceServer) ListMbWorkflowLogs(context.Context, *ListMbWorkflowLogsRequest) (*ListMbWorkflowLogsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListMbWorkflowLogs not implemented")
+}
+func (UnimplementedMbWorkflowLogServiceServer) mustEmbedUnimplementedMbWorkflowLogServiceServer() {}
+func (UnimplementedMbWorkflowLogServiceServer) testEmbeddedByValue()                              {}
+
+// UnsafeMbWorkflowLogServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to MbWorkflowLogServiceServer will
+// result in compilation errors.
+type UnsafeMbWorkflowLogServiceServer interface {
+	mustEmbedUnimplementedMbWorkflowLogServiceServer()
+}
+
+func RegisterMbWorkflowLogServiceServer(s grpc.ServiceRegistrar, srv MbWorkflowLogServiceServer) {
+	// If the following call panics, it indicates UnimplementedMbWorkflowLogServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&MbWorkflowLogService_ServiceDesc, srv)
+}
+
+func _MbWorkflowLogService_ListMbWorkflowLogs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMbWorkflowLogsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbWorkflowLogServiceServer).ListMbWorkflowLogs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbWorkflowLogService_ListMbWorkflowLogs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbWorkflowLogServiceServer).ListMbWorkflowLogs(ctx, req.(*ListMbWorkflowLogsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// MbWorkflowLogService_ServiceDesc is the grpc.ServiceDesc for MbWorkflowLogService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var MbWorkflowLogService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "finance.v1.MbWorkflowLogService",
+	HandlerType: (*MbWorkflowLogServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListMbWorkflowLogs",
+			Handler:    _MbWorkflowLogService_ListMbWorkflowLogs_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "finance/v1/yarn_master.proto",
+}
+
+const (
+	MbBatchService_TriggerMbBatch_FullMethodName = "/finance.v1.MbBatchService/TriggerMbBatch"
+)
+
+// MbBatchServiceClient is the client API for MbBatchService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// MbBatchService triggers the MB_BATCH cost calculation orchestration.
+type MbBatchServiceClient interface {
+	// TriggerMbBatch computes cst_product_cost rows for every VALIDATED MB Head for a period.
+	TriggerMbBatch(ctx context.Context, in *TriggerMbBatchRequest, opts ...grpc.CallOption) (*TriggerMbBatchResponse, error)
+}
+
+type mbBatchServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewMbBatchServiceClient(cc grpc.ClientConnInterface) MbBatchServiceClient {
+	return &mbBatchServiceClient{cc}
+}
+
+func (c *mbBatchServiceClient) TriggerMbBatch(ctx context.Context, in *TriggerMbBatchRequest, opts ...grpc.CallOption) (*TriggerMbBatchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TriggerMbBatchResponse)
+	err := c.cc.Invoke(ctx, MbBatchService_TriggerMbBatch_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// MbBatchServiceServer is the server API for MbBatchService service.
+// All implementations must embed UnimplementedMbBatchServiceServer
+// for forward compatibility.
+//
+// MbBatchService triggers the MB_BATCH cost calculation orchestration.
+type MbBatchServiceServer interface {
+	// TriggerMbBatch computes cst_product_cost rows for every VALIDATED MB Head for a period.
+	TriggerMbBatch(context.Context, *TriggerMbBatchRequest) (*TriggerMbBatchResponse, error)
+	mustEmbedUnimplementedMbBatchServiceServer()
+}
+
+// UnimplementedMbBatchServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedMbBatchServiceServer struct{}
+
+func (UnimplementedMbBatchServiceServer) TriggerMbBatch(context.Context, *TriggerMbBatchRequest) (*TriggerMbBatchResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method TriggerMbBatch not implemented")
+}
+func (UnimplementedMbBatchServiceServer) mustEmbedUnimplementedMbBatchServiceServer() {}
+func (UnimplementedMbBatchServiceServer) testEmbeddedByValue()                        {}
+
+// UnsafeMbBatchServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to MbBatchServiceServer will
+// result in compilation errors.
+type UnsafeMbBatchServiceServer interface {
+	mustEmbedUnimplementedMbBatchServiceServer()
+}
+
+func RegisterMbBatchServiceServer(s grpc.ServiceRegistrar, srv MbBatchServiceServer) {
+	// If the following call panics, it indicates UnimplementedMbBatchServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&MbBatchService_ServiceDesc, srv)
+}
+
+func _MbBatchService_TriggerMbBatch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TriggerMbBatchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MbBatchServiceServer).TriggerMbBatch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MbBatchService_TriggerMbBatch_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MbBatchServiceServer).TriggerMbBatch(ctx, req.(*TriggerMbBatchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// MbBatchService_ServiceDesc is the grpc.ServiceDesc for MbBatchService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var MbBatchService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "finance.v1.MbBatchService",
+	HandlerType: (*MbBatchServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "TriggerMbBatch",
+			Handler:    _MbBatchService_TriggerMbBatch_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

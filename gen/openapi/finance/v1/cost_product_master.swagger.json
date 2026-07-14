@@ -302,6 +302,45 @@
         ]
       }
     },
+    "/api/v1/finance/cost-product-master/{productSysId}/unlock": {
+      "post": {
+        "operationId": "CostProductMasterService_UnlockCostProductMaster",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UnlockCostProductMasterResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "productSysId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CostProductMasterServiceUnlockCostProductMasterBody"
+            }
+          }
+        ],
+        "tags": [
+          "CostProductMasterService"
+        ]
+      }
+    },
     "/api/v1/finance/cost-product-masters/export": {
       "get": {
         "operationId": "CostProductMasterService_ExportCostProductMasters",
@@ -400,6 +439,14 @@
     }
   },
   "definitions": {
+    "CostProductMasterServiceUnlockCostProductMasterBody": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
     "CostProductMasterServiceUpdateCostProductMasterBody": {
       "type": "object",
       "properties": {
@@ -586,6 +633,14 @@
         },
         "flex03": {
           "type": "string"
+        },
+        "source": {
+          "type": "string",
+          "title": "origin marker, e.g. \"MB_RECIPE\" when auto-generated; empty if manually created"
+        },
+        "isLocked": {
+          "type": "boolean",
+          "title": "true blocks manual edits to route/params; escape hatch via UnlockCostProductMaster"
         }
       }
     },
@@ -779,6 +834,17 @@
         }
       },
       "description": "PaginationResponse contains pagination metadata for list responses."
+    },
+    "v1UnlockCostProductMasterResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1CostProductMaster"
+        }
+      }
     },
     "v1UpdateCostProductMasterErpLinkageResponse": {
       "type": "object",

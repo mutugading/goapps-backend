@@ -28,6 +28,24 @@
     },
     {
       "name": "YarnLookupFillService"
+    },
+    {
+      "name": "MbCompositionService"
+    },
+    {
+      "name": "MbLustureService"
+    },
+    {
+      "name": "MbParamService"
+    },
+    {
+      "name": "MbPushService"
+    },
+    {
+      "name": "MbWorkflowLogService"
+    },
+    {
+      "name": "MbBatchService"
     }
   ],
   "consumes": [
@@ -1428,6 +1446,892 @@
         ]
       }
     },
+    "/api/v1/finance/master/mb-lustures": {
+      "get": {
+        "summary": "ListMbLusture lists MB lusture master records with search and pagination.",
+        "operationId": "MbLustureService_ListMbLusture",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListMbLustureResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "description": "Page number (≥ 1).",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pageSize",
+            "description": "Page size (1-100).",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "search",
+            "description": "Full-text search across code and display_name.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sortBy",
+            "description": "Sort field.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sortDir",
+            "description": "Sort direction.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "activeFilter",
+            "description": "Filter by active status.\n\n - ACTIVE_FILTER_UNSPECIFIED: Show all records regardless of active status (default).\n - ACTIVE_FILTER_ACTIVE: Show only active records.\n - ACTIVE_FILTER_INACTIVE: Show only inactive records.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "ACTIVE_FILTER_UNSPECIFIED",
+              "ACTIVE_FILTER_ACTIVE",
+              "ACTIVE_FILTER_INACTIVE"
+            ],
+            "default": "ACTIVE_FILTER_UNSPECIFIED"
+          }
+        ],
+        "tags": [
+          "MbLustureService"
+        ]
+      },
+      "post": {
+        "summary": "CreateMbLusture creates a new MB lusture master record.",
+        "operationId": "MbLustureService_CreateMbLusture",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateMbLustureResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "CreateMbLustureRequest is the request for creating an MB lusture master record.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateMbLustureRequest"
+            }
+          }
+        ],
+        "tags": [
+          "MbLustureService"
+        ]
+      }
+    },
+    "/api/v1/finance/master/mb-lustures/export": {
+      "get": {
+        "summary": "ExportMbLusture exports MB lusture master records to Excel.",
+        "operationId": "MbLustureService_ExportMbLusture",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ExportMbLustureResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "activeFilter",
+            "description": "Filter by active status.\n\n - ACTIVE_FILTER_UNSPECIFIED: Show all records regardless of active status (default).\n - ACTIVE_FILTER_ACTIVE: Show only active records.\n - ACTIVE_FILTER_INACTIVE: Show only inactive records.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "ACTIVE_FILTER_UNSPECIFIED",
+              "ACTIVE_FILTER_ACTIVE",
+              "ACTIVE_FILTER_INACTIVE"
+            ],
+            "default": "ACTIVE_FILTER_UNSPECIFIED"
+          }
+        ],
+        "tags": [
+          "MbLustureService"
+        ]
+      }
+    },
+    "/api/v1/finance/master/mb-lustures/import": {
+      "post": {
+        "summary": "ImportMbLusture imports MB lusture master records from Excel.",
+        "operationId": "MbLustureService_ImportMbLusture",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ImportMbLustureResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "ImportMbLustureRequest is the request for importing MB lusture master records from Excel.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ImportMbLustureRequest"
+            }
+          }
+        ],
+        "tags": [
+          "MbLustureService"
+        ]
+      }
+    },
+    "/api/v1/finance/master/mb-lustures/template": {
+      "get": {
+        "summary": "DownloadMbLustureTemplate downloads the Excel import template.",
+        "operationId": "MbLustureService_DownloadMbLustureTemplate",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DownloadMbLustureTemplateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "MbLustureService"
+        ]
+      }
+    },
+    "/api/v1/finance/master/mb-lustures/{mblId}": {
+      "get": {
+        "summary": "GetMbLusture retrieves an MB lusture master record by ID.",
+        "operationId": "MbLustureService_GetMbLusture",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetMbLustureResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mblId",
+            "description": "Lusture UUID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MbLustureService"
+        ]
+      },
+      "delete": {
+        "summary": "DeleteMbLusture deletes an MB lusture master record.",
+        "operationId": "MbLustureService_DeleteMbLusture",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteMbLustureResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mblId",
+            "description": "Lusture UUID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MbLustureService"
+        ]
+      },
+      "put": {
+        "summary": "UpdateMbLusture updates an existing MB lusture master record.",
+        "operationId": "MbLustureService_UpdateMbLusture",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateMbLustureResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mblId",
+            "description": "Lusture UUID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/MbLustureServiceUpdateMbLustureBody"
+            }
+          }
+        ],
+        "tags": [
+          "MbLustureService"
+        ]
+      }
+    },
+    "/api/v1/finance/master/mb-param-options": {
+      "post": {
+        "summary": "CreateMbParamOption creates a new picklist option for an MB costing parameter.",
+        "operationId": "MbParamService_CreateMbParamOption",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateMbParamOptionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "CreateMbParamOptionRequest is the request for creating an MB param picklist option.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateMbParamOptionRequest"
+            }
+          }
+        ],
+        "tags": [
+          "MbParamService"
+        ]
+      }
+    },
+    "/api/v1/finance/master/mb-param-options/{mbpoId}": {
+      "delete": {
+        "summary": "DeleteMbParamOption deletes a picklist option.",
+        "operationId": "MbParamService_DeleteMbParamOption",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteMbParamOptionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mbpoId",
+            "description": "Option UUID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MbParamService"
+        ]
+      },
+      "put": {
+        "summary": "UpdateMbParamOption updates an existing picklist option.",
+        "operationId": "MbParamService_UpdateMbParamOption",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateMbParamOptionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mbpoId",
+            "description": "Option UUID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/MbParamServiceUpdateMbParamOptionBody"
+            }
+          }
+        ],
+        "tags": [
+          "MbParamService"
+        ]
+      }
+    },
+    "/api/v1/finance/master/mb-params": {
+      "get": {
+        "summary": "ListMbParams lists MB costing parameters with search and pagination.",
+        "operationId": "MbParamService_ListMbParams",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListMbParamsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "description": "Page number (≥ 1).",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pageSize",
+            "description": "Page size (1-100).",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "search",
+            "description": "Full-text search across code and name.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sortBy",
+            "description": "Sort field.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sortDir",
+            "description": "Sort direction.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "activeFilter",
+            "description": "Filter by active status.\n\n - ACTIVE_FILTER_UNSPECIFIED: Show all records regardless of active status (default).\n - ACTIVE_FILTER_ACTIVE: Show only active records.\n - ACTIVE_FILTER_INACTIVE: Show only inactive records.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "ACTIVE_FILTER_UNSPECIFIED",
+              "ACTIVE_FILTER_ACTIVE",
+              "ACTIVE_FILTER_INACTIVE"
+            ],
+            "default": "ACTIVE_FILTER_UNSPECIFIED"
+          }
+        ],
+        "tags": [
+          "MbParamService"
+        ]
+      },
+      "post": {
+        "summary": "CreateMbParam creates a new MB costing parameter.",
+        "operationId": "MbParamService_CreateMbParam",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateMbParamResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "CreateMbParamRequest is the request for creating an MB costing parameter.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateMbParamRequest"
+            }
+          }
+        ],
+        "tags": [
+          "MbParamService"
+        ]
+      }
+    },
+    "/api/v1/finance/master/mb-params/export": {
+      "get": {
+        "summary": "ExportMbParams exports MB costing parameters to Excel.",
+        "operationId": "MbParamService_ExportMbParams",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ExportMbParamsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "activeFilter",
+            "description": "Filter by active status.\n\n - ACTIVE_FILTER_UNSPECIFIED: Show all records regardless of active status (default).\n - ACTIVE_FILTER_ACTIVE: Show only active records.\n - ACTIVE_FILTER_INACTIVE: Show only inactive records.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "ACTIVE_FILTER_UNSPECIFIED",
+              "ACTIVE_FILTER_ACTIVE",
+              "ACTIVE_FILTER_INACTIVE"
+            ],
+            "default": "ACTIVE_FILTER_UNSPECIFIED"
+          }
+        ],
+        "tags": [
+          "MbParamService"
+        ]
+      }
+    },
+    "/api/v1/finance/master/mb-params/import": {
+      "post": {
+        "summary": "ImportMbParams imports MB costing parameters from Excel.",
+        "operationId": "MbParamService_ImportMbParams",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ImportMbParamsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "ImportMbParamsRequest is the request for importing MB costing parameters from Excel.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ImportMbParamsRequest"
+            }
+          }
+        ],
+        "tags": [
+          "MbParamService"
+        ]
+      }
+    },
+    "/api/v1/finance/master/mb-params/template": {
+      "get": {
+        "summary": "DownloadMbParamTemplate downloads the Excel import template.",
+        "operationId": "MbParamService_DownloadMbParamTemplate",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DownloadMbParamTemplateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "MbParamService"
+        ]
+      }
+    },
+    "/api/v1/finance/master/mb-params/{mbpId}": {
+      "delete": {
+        "summary": "DeleteMbParam deletes an MB costing parameter.",
+        "operationId": "MbParamService_DeleteMbParam",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteMbParamResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mbpId",
+            "description": "Parameter UUID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MbParamService"
+        ]
+      },
+      "put": {
+        "summary": "UpdateMbParam updates an existing MB costing parameter.",
+        "operationId": "MbParamService_UpdateMbParam",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateMbParamResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mbpId",
+            "description": "Parameter UUID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/MbParamServiceUpdateMbParamBody"
+            }
+          }
+        ],
+        "tags": [
+          "MbParamService"
+        ]
+      }
+    },
+    "/api/v1/finance/mb-batch/trigger": {
+      "post": {
+        "summary": "TriggerMbBatch computes cst_product_cost rows for every VALIDATED MB Head for a period.",
+        "operationId": "MbBatchService_TriggerMbBatch",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1TriggerMbBatchResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "TriggerMbBatchRequest is the request to compute cst_product_cost rows for every\nVALIDATED MB Head, for the given period, across all 3 calculation types.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1TriggerMbBatchRequest"
+            }
+          }
+        ],
+        "tags": [
+          "MbBatchService"
+        ]
+      }
+    },
+    "/api/v1/finance/mb-composition-versions": {
+      "get": {
+        "summary": "ListMbCompositionVersions lists frozen composition version snapshots for an MB Head.",
+        "operationId": "MbCompositionService_ListMbCompositionVersions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListMbCompositionVersionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mbhId",
+            "description": "Parent MB Head UUID.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "version",
+            "description": "Version number to fetch. 0 means latest.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "MbCompositionService"
+        ]
+      }
+    },
+    "/api/v1/finance/mb-compositions": {
+      "get": {
+        "summary": "ListMbCompositions lists composition lines for an MB Head.",
+        "operationId": "MbCompositionService_ListMbCompositions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListMbCompositionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mbhId",
+            "description": "Parent MB Head UUID.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MbCompositionService"
+        ]
+      },
+      "post": {
+        "summary": "CreateMbComposition creates a new composition line for an MB Head.",
+        "operationId": "MbCompositionService_CreateMbComposition",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateMbCompositionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "CreateMbCompositionRequest is the request for creating an MB composition line.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateMbCompositionRequest"
+            }
+          }
+        ],
+        "tags": [
+          "MbCompositionService"
+        ]
+      }
+    },
+    "/api/v1/finance/mb-compositions/{mbcmId}": {
+      "delete": {
+        "summary": "DeleteMbComposition deletes a composition line.",
+        "operationId": "MbCompositionService_DeleteMbComposition",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteMbCompositionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mbcmId",
+            "description": "Composition line UUID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MbCompositionService"
+        ]
+      },
+      "put": {
+        "summary": "UpdateMbComposition updates an existing composition line.",
+        "operationId": "MbCompositionService_UpdateMbComposition",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateMbCompositionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mbcmId",
+            "description": "Composition line UUID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/MbCompositionServiceUpdateMbCompositionBody"
+            }
+          }
+        ],
+        "tags": [
+          "MbCompositionService"
+        ]
+      }
+    },
     "/api/v1/finance/mb-heads": {
       "get": {
         "summary": "ListMBHeads lists MB Head records with search, filter, and pagination.",
@@ -1722,6 +2626,86 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/MBHeadServiceUpdateMBHeadBody"
+            }
+          }
+        ],
+        "tags": [
+          "MBHeadService"
+        ]
+      }
+    },
+    "/api/v1/finance/mb-heads/{mbhId}/approve": {
+      "post": {
+        "summary": "ApproveMBHead approves a submitted MB Head.",
+        "operationId": "MBHeadService_ApproveMBHead",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ApproveMBHeadResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mbhId",
+            "description": "MB Head UUID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/MBHeadServiceApproveMBHeadBody"
+            }
+          }
+        ],
+        "tags": [
+          "MBHeadService"
+        ]
+      }
+    },
+    "/api/v1/finance/mb-heads/{mbhId}/revoke": {
+      "post": {
+        "summary": "RevokeMBHead revokes an MB Head.",
+        "operationId": "MBHeadService_RevokeMBHead",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RevokeMBHeadResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mbhId",
+            "description": "MB Head UUID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/MBHeadServiceRevokeMBHeadBody"
             }
           }
         ],
@@ -2072,6 +3056,272 @@
         ],
         "tags": [
           "MBSpinService"
+        ]
+      }
+    },
+    "/api/v1/finance/mb-heads/{mbhId}/submit": {
+      "post": {
+        "summary": "SubmitMBHead submits an MB Head for approval.",
+        "operationId": "MBHeadService_SubmitMBHead",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SubmitMBHeadResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mbhId",
+            "description": "MB Head UUID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/MBHeadServiceSubmitMBHeadBody"
+            }
+          }
+        ],
+        "tags": [
+          "MBHeadService"
+        ]
+      }
+    },
+    "/api/v1/finance/mb-heads/{mbhId}/unapprove": {
+      "post": {
+        "summary": "UnApproveMBHead reverts an approved MB Head back to a prior state.",
+        "operationId": "MBHeadService_UnApproveMBHead",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UnApproveMBHeadResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mbhId",
+            "description": "MB Head UUID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/MBHeadServiceUnApproveMBHeadBody"
+            }
+          }
+        ],
+        "tags": [
+          "MBHeadService"
+        ]
+      }
+    },
+    "/api/v1/finance/mb-heads/{mbhId}/validate": {
+      "post": {
+        "summary": "ValidateMBHead validates an approved MB Head, freezing its cost and param snapshot.",
+        "operationId": "MBHeadService_ValidateMBHead",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ValidateMBHeadResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mbhId",
+            "description": "MB Head UUID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/MBHeadServiceValidateMBHeadBody"
+            }
+          }
+        ],
+        "tags": [
+          "MBHeadService"
+        ]
+      }
+    },
+    "/api/v1/finance/mb-heads/{mbhId}/workflow-logs": {
+      "get": {
+        "summary": "ListMbWorkflowLogs lists workflow transition log entries for an MB Head.",
+        "operationId": "MbWorkflowLogService_ListMbWorkflowLogs",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListMbWorkflowLogsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mbhId",
+            "description": "Parent MB Head UUID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MbWorkflowLogService"
+        ]
+      }
+    },
+    "/api/v1/finance/mb-push-to-head/execute": {
+      "post": {
+        "summary": "ExecutePushToHead executes the push-to-head batch for the given period and heads.",
+        "operationId": "MbPushService_ExecutePushToHead",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ExecutePushToHeadResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "ExecutePushToHeadRequest is the request for executing a push-to-head batch for a period.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ExecutePushToHeadRequest"
+            }
+          }
+        ],
+        "tags": [
+          "MbPushService"
+        ]
+      }
+    },
+    "/api/v1/finance/mb-push-to-head/logs": {
+      "get": {
+        "summary": "ListMbPushLogs lists past push-to-head batch executions.",
+        "operationId": "MbPushService_ListMbPushLogs",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListMbPushLogsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "description": "Page number (≥ 1).",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pageSize",
+            "description": "Page size (1-100).",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "period",
+            "description": "Filter by period in YYYYMM format. Optional — omit or send empty for no filter.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MbPushService"
+        ]
+      }
+    },
+    "/api/v1/finance/mb-push-to-head/preview": {
+      "get": {
+        "summary": "PreviewPushToHead previews which MB Heads are pushable/skipped for a period.",
+        "operationId": "MbPushService_PreviewPushToHead",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1PreviewPushToHeadResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "period",
+            "description": "Period in YYYYMM format.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MbPushService"
         ]
       }
     },
@@ -2514,6 +3764,34 @@
       },
       "description": "UpdateLookupMasterRequest updates mutable fields of an existing lookup master."
     },
+    "MBHeadServiceApproveMBHeadBody": {
+      "type": "object",
+      "description": "ApproveMBHeadRequest is the request for approving an MB Head."
+    },
+    "MBHeadServiceRevokeMBHeadBody": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "description": "Reason for revoking. Required."
+        }
+      },
+      "description": "RevokeMBHeadRequest is the request for revoking an MB Head."
+    },
+    "MBHeadServiceSubmitMBHeadBody": {
+      "type": "object",
+      "description": "SubmitMBHeadRequest is the request for submitting an MB Head for approval."
+    },
+    "MBHeadServiceUnApproveMBHeadBody": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "description": "Reason for un-approving."
+        }
+      },
+      "description": "UnApproveMBHeadRequest is the request for reverting an MB Head out of the approved state."
+    },
     "MBHeadServiceUpdateMBHeadBody": {
       "type": "object",
       "properties": {
@@ -2564,9 +3842,33 @@
         "mbhCode": {
           "type": "string",
           "description": "Optional Oracle CMBH_CODE (max 100 chars)."
+        },
+        "mbhDevCode": {
+          "type": "string",
+          "description": "Development code (max 50 chars)."
+        },
+        "mbhShadeCode": {
+          "type": "string",
+          "description": "Shade code (max 20 chars)."
+        },
+        "mbhShadeName": {
+          "type": "string",
+          "description": "Shade name (max 100 chars)."
+        },
+        "mbhCrossSection": {
+          "type": "string",
+          "description": "Cross-section descriptor (max 20 chars)."
+        },
+        "mbhLustureCode": {
+          "type": "string",
+          "description": "Lusture code, references MbLusture.code (max 10 chars)."
         }
       },
       "description": "UpdateMBHeadRequest is the request for updating an MB Head record."
+    },
+    "MBHeadServiceValidateMBHeadBody": {
+      "type": "object",
+      "description": "ValidateMBHeadRequest is the request for validating an MB Head (freezes cost/param snapshot)."
     },
     "MBSpinServiceCreateMBSpinBody": {
       "type": "object",
@@ -2828,6 +4130,117 @@
       },
       "description": "UpdateMachineRequest is the request for updating a machine."
     },
+    "MbCompositionServiceUpdateMbCompositionBody": {
+      "type": "object",
+      "properties": {
+        "compositionPct": {
+          "type": "string",
+          "description": "Updated composition percentage."
+        },
+        "groupHeadId": {
+          "type": "string",
+          "description": "Updated referenced RM group head UUID."
+        },
+        "sourceType": {
+          "type": "string",
+          "description": "Updated source type: GROUP/MB/CARRIER."
+        },
+        "mbRefMbhId": {
+          "type": "string",
+          "description": "Updated referenced MB Head UUID when source_type is MB."
+        },
+        "isCarrier": {
+          "type": "boolean",
+          "description": "Updated carrier flag."
+        }
+      },
+      "description": "UpdateMbCompositionRequest is the request for updating an MB composition line."
+    },
+    "MbLustureServiceUpdateMbLustureBody": {
+      "type": "object",
+      "properties": {
+        "displayName": {
+          "type": "string",
+          "description": "Updated display name."
+        },
+        "fullDescription": {
+          "type": "string",
+          "description": "Updated full description."
+        },
+        "category": {
+          "type": "string",
+          "description": "Updated category grouping."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Updated active status."
+        },
+        "displayOrder": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Updated display ordering hint."
+        }
+      },
+      "description": "UpdateMbLustureRequest is the request for updating an MB lusture master record."
+    },
+    "MbParamServiceUpdateMbParamBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Updated display name."
+        },
+        "description": {
+          "type": "string",
+          "description": "Updated description."
+        },
+        "defaultValue": {
+          "type": "string",
+          "description": "Updated default numeric value."
+        },
+        "defaultOption": {
+          "type": "string",
+          "description": "Updated default option code."
+        },
+        "unit": {
+          "type": "string",
+          "description": "Updated unit of measure label."
+        },
+        "displayOrder": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Updated display ordering hint."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Updated active status."
+        }
+      },
+      "description": "UpdateMbParamRequest is the request for updating an MB costing parameter."
+    },
+    "MbParamServiceUpdateMbParamOptionBody": {
+      "type": "object",
+      "properties": {
+        "numericValue": {
+          "type": "string",
+          "description": "Updated numeric value."
+        },
+        "description": {
+          "type": "string",
+          "description": "Updated description."
+        },
+        "displayOrder": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Updated display ordering hint."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Updated active status."
+        }
+      },
+      "description": "UpdateMbParamOptionRequest is the request for updating an MB param picklist option."
+    },
     "ProductGradeServiceUpdateProductGradeBody": {
       "type": "object",
       "properties": {
@@ -2930,6 +4343,20 @@
       ],
       "default": "ACTIVE_FILTER_UNSPECIFIED",
       "description": "ActiveFilter represents filter options for is_active field.\n\n - ACTIVE_FILTER_UNSPECIFIED: Show all records regardless of active status (default).\n - ACTIVE_FILTER_ACTIVE: Show only active records.\n - ACTIVE_FILTER_INACTIVE: Show only inactive records."
+    },
+    "v1ApproveMBHeadResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1MBHead",
+          "description": "Updated MB Head data."
+        }
+      },
+      "description": "ApproveMBHeadResponse is the response for approving an MB Head."
     },
     "v1AuditInfo": {
       "type": "object",
@@ -3364,6 +4791,30 @@
         "mbhCode": {
           "type": "string",
           "description": "Optional Oracle CMBH_CODE (max 100 chars)."
+        },
+        "mbhIsBoughtout": {
+          "type": "boolean",
+          "description": "Whether this MB is a bought-out item (no internal spinning cost). Immutable after creation."
+        },
+        "mbhDevCode": {
+          "type": "string",
+          "description": "Development code (max 50 chars)."
+        },
+        "mbhShadeCode": {
+          "type": "string",
+          "description": "Shade code (max 20 chars)."
+        },
+        "mbhShadeName": {
+          "type": "string",
+          "description": "Shade name (max 100 chars)."
+        },
+        "mbhCrossSection": {
+          "type": "string",
+          "description": "Cross-section descriptor (max 20 chars)."
+        },
+        "mbhLustureCode": {
+          "type": "string",
+          "description": "Lusture code, references MbLusture.code (max 10 chars)."
         }
       },
       "description": "CreateMBHeadRequest is the request for creating an MB Head record."
@@ -3541,6 +4992,202 @@
       },
       "description": "CreateMachineResponse is the response for creating a machine."
     },
+    "v1CreateMbCompositionRequest": {
+      "type": "object",
+      "properties": {
+        "mbhId": {
+          "type": "string",
+          "description": "Parent MB Head UUID."
+        },
+        "seqNo": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Display sequence number within the head."
+        },
+        "groupHeadId": {
+          "type": "string",
+          "description": "Referenced RM group head UUID."
+        },
+        "compositionPct": {
+          "type": "string",
+          "description": "Composition percentage."
+        },
+        "sourceType": {
+          "type": "string",
+          "description": "Source type: GROUP/MB/CARRIER."
+        },
+        "mbRefMbhId": {
+          "type": "string",
+          "description": "Referenced MB Head UUID when source_type is MB."
+        },
+        "isCarrier": {
+          "type": "boolean",
+          "description": "Whether this line represents the carrier component."
+        }
+      },
+      "description": "CreateMbCompositionRequest is the request for creating an MB composition line."
+    },
+    "v1CreateMbCompositionResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1MbComposition",
+          "description": "Created composition line."
+        }
+      },
+      "description": "CreateMbCompositionResponse is the response for creating an MB composition line."
+    },
+    "v1CreateMbLustureRequest": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "Unique lusture code (1-10 chars)."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name."
+        },
+        "fullDescription": {
+          "type": "string",
+          "description": "Full description."
+        },
+        "category": {
+          "type": "string",
+          "description": "Category grouping."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether the record is active."
+        },
+        "displayOrder": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Display ordering hint."
+        }
+      },
+      "description": "CreateMbLustureRequest is the request for creating an MB lusture master record."
+    },
+    "v1CreateMbLustureResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1MbLusture",
+          "description": "Created lusture record."
+        }
+      },
+      "description": "CreateMbLustureResponse is the response for creating an MB lusture master record."
+    },
+    "v1CreateMbParamOptionRequest": {
+      "type": "object",
+      "properties": {
+        "mbpCode": {
+          "type": "string",
+          "description": "Parent parameter code."
+        },
+        "code": {
+          "type": "string",
+          "description": "Option code (1-10 chars)."
+        },
+        "numericValue": {
+          "type": "string",
+          "description": "Numeric value represented by this option."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description."
+        },
+        "displayOrder": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Display ordering hint."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether the record is active."
+        }
+      },
+      "description": "CreateMbParamOptionRequest is the request for creating an MB param picklist option."
+    },
+    "v1CreateMbParamOptionResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1MbParamOption",
+          "description": "Created option record."
+        }
+      },
+      "description": "CreateMbParamOptionResponse is the response for creating an MB param picklist option."
+    },
+    "v1CreateMbParamRequest": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "Unique parameter code (1-30 chars)."
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description."
+        },
+        "type": {
+          "type": "string",
+          "description": "Parameter type: SCALAR/PICKLIST."
+        },
+        "defaultValue": {
+          "type": "string",
+          "description": "Default numeric value, empty if PICKLIST."
+        },
+        "defaultOption": {
+          "type": "string",
+          "description": "Default option code, empty if SCALAR."
+        },
+        "unit": {
+          "type": "string",
+          "description": "Unit of measure label."
+        },
+        "displayOrder": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Display ordering hint."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether the record is active."
+        }
+      },
+      "description": "CreateMbParamRequest is the request for creating an MB costing parameter."
+    },
+    "v1CreateMbParamResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1MbParam",
+          "description": "Created parameter record."
+        }
+      },
+      "description": "CreateMbParamResponse is the response for creating an MB costing parameter."
+    },
     "v1CreateProductGradeRequest": {
       "type": "object",
       "properties": {
@@ -3698,6 +5345,46 @@
       },
       "description": "DeleteMachineResponse is the response for soft-deleting a machine."
     },
+    "v1DeleteMbCompositionResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        }
+      },
+      "description": "DeleteMbCompositionResponse is the response for deleting an MB composition line."
+    },
+    "v1DeleteMbLustureResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        }
+      },
+      "description": "DeleteMbLustureResponse is the response for deleting an MB lusture master record."
+    },
+    "v1DeleteMbParamOptionResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        }
+      },
+      "description": "DeleteMbParamOptionResponse is the response for deleting an MB param picklist option."
+    },
+    "v1DeleteMbParamResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        }
+      },
+      "description": "DeleteMbParamResponse is the response for deleting an MB costing parameter."
+    },
     "v1DeleteProductGradeResponse": {
       "type": "object",
       "properties": {
@@ -3803,6 +5490,44 @@
       },
       "description": "DownloadMachineTemplateResponse is the response for downloading the import template."
     },
+    "v1DownloadMbLustureTemplateResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "Excel template file content."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Excel file name."
+        }
+      },
+      "description": "DownloadMbLustureTemplateResponse is the response for downloading the import template."
+    },
+    "v1DownloadMbParamTemplateResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "Excel template file content."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Excel file name."
+        }
+      },
+      "description": "DownloadMbParamTemplateResponse is the response for downloading the import template."
+    },
     "v1DownloadProductGradeTemplateResponse": {
       "type": "object",
       "properties": {
@@ -3821,6 +5546,37 @@
         }
       },
       "description": "DownloadProductGradeTemplateResponse is the response for downloading the import template."
+    },
+    "v1ExecutePushToHeadRequest": {
+      "type": "object",
+      "properties": {
+        "period": {
+          "type": "string",
+          "description": "Period in YYYYMM format."
+        },
+        "mbHeadIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "MB Head UUIDs to push."
+        }
+      },
+      "description": "ExecutePushToHeadRequest is the request for executing a push-to-head batch for a period."
+    },
+    "v1ExecutePushToHeadResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1MbPushLog",
+          "description": "Resulting push log record."
+        }
+      },
+      "description": "ExecutePushToHeadResponse is the response for executing a push-to-head batch."
     },
     "v1ExportBoxBobbinCostsResponse": {
       "type": "object",
@@ -3932,6 +5688,44 @@
         }
       },
       "description": "ExportMachinesResponse is the response for exporting machines."
+    },
+    "v1ExportMbLustureResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "Excel file content."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Excel file name."
+        }
+      },
+      "description": "ExportMbLustureResponse is the response for exporting MB lusture master records."
+    },
+    "v1ExportMbParamsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "Excel file content."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Excel file name."
+        }
+      },
+      "description": "ExportMbParamsResponse is the response for exporting MB costing parameters."
     },
     "v1ExportProductGradesResponse": {
       "type": "object",
@@ -4049,6 +5843,20 @@
         }
       },
       "description": "GetMachineResponse is the response for retrieving a machine."
+    },
+    "v1GetMbLustureResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1MbLusture",
+          "description": "Lusture record."
+        }
+      },
+      "description": "GetMbLustureResponse is the response for retrieving an MB lusture master record."
     },
     "v1GetProductGradeResponse": {
       "type": "object",
@@ -4364,6 +6172,110 @@
       },
       "description": "ImportMachinesResponse is the response for importing machines."
     },
+    "v1ImportMbLustureRequest": {
+      "type": "object",
+      "properties": {
+        "fileContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "Excel file content (max 10 MB)."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Excel file name."
+        },
+        "duplicateAction": {
+          "type": "string",
+          "description": "How to handle duplicate codes."
+        }
+      },
+      "description": "ImportMbLustureRequest is the request for importing MB lusture master records from Excel."
+    },
+    "v1ImportMbLustureResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "successCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of successfully created records."
+        },
+        "skippedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of skipped records."
+        },
+        "failedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of failed records."
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ImportError"
+          },
+          "description": "Per-row import errors."
+        }
+      },
+      "description": "ImportMbLustureResponse is the response for importing MB lusture master records."
+    },
+    "v1ImportMbParamsRequest": {
+      "type": "object",
+      "properties": {
+        "fileContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "Excel file content (max 10 MB)."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Excel file name."
+        },
+        "duplicateAction": {
+          "type": "string",
+          "description": "How to handle duplicate codes."
+        }
+      },
+      "description": "ImportMbParamsRequest is the request for importing MB costing parameters from Excel."
+    },
+    "v1ImportMbParamsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "successCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of successfully created records."
+        },
+        "skippedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of skipped records."
+        },
+        "failedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of failed records."
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ImportError"
+          },
+          "description": "Per-row import errors."
+        }
+      },
+      "description": "ImportMbParamsResponse is the response for importing MB costing parameters."
+    },
     "v1ImportProductGradesRequest": {
       "type": "object",
       "properties": {
@@ -4609,6 +6521,126 @@
       },
       "description": "ListMasterOptionsResponse is the response for ListMasterOptions."
     },
+    "v1ListMbCompositionVersionsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MbCompositionVersion"
+          },
+          "description": "Composition version snapshot lines."
+        }
+      },
+      "description": "ListMbCompositionVersionsResponse is the response for listing composition version snapshots."
+    },
+    "v1ListMbCompositionsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MbComposition"
+          },
+          "description": "Composition lines."
+        }
+      },
+      "description": "ListMbCompositionsResponse is the response for listing composition lines."
+    },
+    "v1ListMbLustureResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MbLusture"
+          },
+          "description": "Lusture records."
+        },
+        "pagination": {
+          "$ref": "#/definitions/v1PaginationResponse",
+          "description": "Pagination metadata."
+        }
+      },
+      "description": "ListMbLustureResponse is the response for listing MB lusture master records."
+    },
+    "v1ListMbParamsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MbParam"
+          },
+          "description": "Parameter records."
+        },
+        "pagination": {
+          "$ref": "#/definitions/v1PaginationResponse",
+          "description": "Pagination metadata."
+        }
+      },
+      "description": "ListMbParamsResponse is the response for listing MB costing parameters."
+    },
+    "v1ListMbPushLogsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MbPushLog"
+          },
+          "description": "Push log records."
+        },
+        "pagination": {
+          "$ref": "#/definitions/v1PaginationResponse",
+          "description": "Pagination metadata."
+        }
+      },
+      "description": "ListMbPushLogsResponse is the response for listing push-to-head batch logs."
+    },
+    "v1ListMbWorkflowLogsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MbWorkflowLog"
+          },
+          "description": "Workflow log records."
+        }
+      },
+      "description": "ListMbWorkflowLogsResponse is the response for listing workflow transition logs."
+    },
     "v1ListProductGradesResponse": {
       "type": "object",
       "properties": {
@@ -4760,9 +6792,95 @@
           "type": "string",
           "description": "Optional Oracle CMBH_CODE — product code."
         },
+        "entryStatus": {
+          "type": "string",
+          "description": "MB Costing Suite workflow state (mbh_entry_status). One of DRAFT/SUBMITTED/APPROVED/VALIDATED/UN_APPROVED/REVOKED."
+        },
+        "isBoughtout": {
+          "type": "boolean",
+          "description": "Whether this MB is a bought-out item (no internal spinning cost)."
+        },
         "audit": {
           "$ref": "#/definitions/v1AuditInfo",
           "description": "Audit metadata."
+        },
+        "currentVersion": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Current composition version number (incremented on each validation)."
+        },
+        "machineFixedTotal": {
+          "type": "string",
+          "description": "Total fixed machine cost. NUMERIC(20,6) as string."
+        },
+        "stateReason": {
+          "type": "string",
+          "description": "Free-text reason captured on the most recent state transition."
+        },
+        "devCode": {
+          "type": "string",
+          "description": "Development code."
+        },
+        "shadeCode": {
+          "type": "string",
+          "description": "Shade code."
+        },
+        "shadeName": {
+          "type": "string",
+          "description": "Shade name."
+        },
+        "crossSection": {
+          "type": "string",
+          "description": "Cross-section descriptor."
+        },
+        "lustureCode": {
+          "type": "string",
+          "description": "Lusture code (references MbLusture.code)."
+        },
+        "costProductId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Generated cost-product ID once costing has been produced."
+        },
+        "costGeneratedAt": {
+          "type": "string",
+          "description": "Timestamp when cost was last generated."
+        },
+        "costGeneratedBy": {
+          "type": "string",
+          "description": "User who last generated the cost."
+        },
+        "paramWaste": {
+          "type": "string",
+          "description": "Frozen param snapshot at VALIDATED — waste parameter value (mirrors mst_mb_param)."
+        },
+        "paramQualityLoss": {
+          "type": "string",
+          "description": "Frozen param snapshot at VALIDATED — quality loss parameter value."
+        },
+        "paramEfficiency": {
+          "type": "string",
+          "description": "Frozen param snapshot at VALIDATED — efficiency parameter value."
+        },
+        "paramDevExpense": {
+          "type": "string",
+          "description": "Frozen param snapshot at VALIDATED — development expense parameter value."
+        },
+        "paramPacking": {
+          "type": "string",
+          "description": "Frozen param snapshot at VALIDATED — packing parameter value."
+        },
+        "paramMbProdPerDay": {
+          "type": "string",
+          "description": "Frozen param snapshot at VALIDATED — MB production per day parameter value."
+        },
+        "paramThroughputPerHour": {
+          "type": "string",
+          "description": "Frozen param snapshot at VALIDATED — throughput per hour; stores option code, e.g. \"B\"."
+        },
+        "paramNoOfProcess": {
+          "type": "string",
+          "description": "Frozen param snapshot at VALIDATED — number of process; stores option code, e.g. \"D\"."
         }
       },
       "description": "MBHead represents a Melange Batch head master record (MEL yarn type only)."
@@ -4995,6 +7113,335 @@
       },
       "description": "MasterOption is one combobox entry (code + label) for the MasterLookupField dropdown."
     },
+    "v1MbBatchError": {
+      "type": "object",
+      "properties": {
+        "mbhId": {
+          "type": "string",
+          "description": "MB Head UUID."
+        },
+        "error": {
+          "type": "string",
+          "description": "Failure detail."
+        }
+      },
+      "description": "MbBatchError records one MB Head's compute failure within a batch run."
+    },
+    "v1MbComposition": {
+      "type": "object",
+      "properties": {
+        "mbcmId": {
+          "type": "string",
+          "description": "UUID primary key."
+        },
+        "mbhId": {
+          "type": "string",
+          "description": "Parent MB Head UUID."
+        },
+        "seqNo": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Display sequence number within the head."
+        },
+        "groupHeadId": {
+          "type": "string",
+          "description": "Referenced RM group head UUID."
+        },
+        "compositionPct": {
+          "type": "string",
+          "description": "Composition percentage. NUMERIC(6,3) as string."
+        },
+        "sourceType": {
+          "type": "string",
+          "description": "Source type: GROUP/MB/CARRIER."
+        },
+        "mbRefMbhId": {
+          "type": "string",
+          "description": "Referenced MB Head UUID when source_type is MB. Nullable, empty string if unset."
+        },
+        "isCarrier": {
+          "type": "boolean",
+          "description": "Whether this line represents the carrier component."
+        },
+        "legacySysId": {
+          "type": "string",
+          "description": "Legacy Oracle system ID for reconciliation."
+        },
+        "audit": {
+          "$ref": "#/definitions/v1AuditInfo",
+          "description": "Audit metadata."
+        }
+      },
+      "description": "MbComposition represents a single composition line for an MB Head (editable while DRAFT)."
+    },
+    "v1MbCompositionVersion": {
+      "type": "object",
+      "properties": {
+        "mbcvId": {
+          "type": "string",
+          "description": "UUID primary key."
+        },
+        "mbhId": {
+          "type": "string",
+          "description": "Parent MB Head UUID."
+        },
+        "version": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Version number this snapshot belongs to."
+        },
+        "validatedAt": {
+          "type": "string",
+          "description": "Timestamp when this version was validated."
+        },
+        "validatedBy": {
+          "type": "string",
+          "description": "User who validated this version."
+        },
+        "seqNo": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Display sequence number within the head."
+        },
+        "groupHeadId": {
+          "type": "string",
+          "description": "Referenced RM group head UUID."
+        },
+        "compositionPct": {
+          "type": "string",
+          "description": "Composition percentage. NUMERIC(6,3) as string."
+        },
+        "sourceType": {
+          "type": "string",
+          "description": "Source type: GROUP/MB/CARRIER."
+        },
+        "mbRefMbhId": {
+          "type": "string",
+          "description": "Referenced MB Head UUID when source_type is MB."
+        },
+        "isCarrier": {
+          "type": "boolean",
+          "description": "Whether this line represents the carrier component."
+        }
+      },
+      "description": "MbCompositionVersion is a frozen snapshot of a composition line captured at validation time."
+    },
+    "v1MbLusture": {
+      "type": "object",
+      "properties": {
+        "mblId": {
+          "type": "string",
+          "description": "UUID primary key."
+        },
+        "code": {
+          "type": "string",
+          "description": "Unique lusture code."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name."
+        },
+        "fullDescription": {
+          "type": "string",
+          "description": "Full description."
+        },
+        "category": {
+          "type": "string",
+          "description": "Category grouping."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether the record is active."
+        },
+        "displayOrder": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Display ordering hint."
+        },
+        "audit": {
+          "$ref": "#/definitions/v1AuditInfo",
+          "description": "Audit metadata."
+        }
+      },
+      "description": "MbLusture is a master lookup entry for MB lusture types."
+    },
+    "v1MbParam": {
+      "type": "object",
+      "properties": {
+        "mbpId": {
+          "type": "string",
+          "description": "UUID primary key."
+        },
+        "code": {
+          "type": "string",
+          "description": "Unique parameter code."
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description."
+        },
+        "type": {
+          "type": "string",
+          "description": "Parameter type: SCALAR/PICKLIST."
+        },
+        "defaultValue": {
+          "type": "string",
+          "description": "Default numeric value. NUMERIC as string, empty if PICKLIST."
+        },
+        "defaultOption": {
+          "type": "string",
+          "description": "Default option code, empty if SCALAR."
+        },
+        "unit": {
+          "type": "string",
+          "description": "Unit of measure label."
+        },
+        "displayOrder": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Display ordering hint."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether the record is active."
+        },
+        "audit": {
+          "$ref": "#/definitions/v1AuditInfo",
+          "description": "Audit metadata."
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MbParamOption"
+          },
+          "description": "Picklist options, populated when type is PICKLIST."
+        }
+      },
+      "description": "MbParam is a master costing parameter definition (SCALAR or PICKLIST)."
+    },
+    "v1MbParamOption": {
+      "type": "object",
+      "properties": {
+        "mbpoId": {
+          "type": "string",
+          "description": "UUID primary key."
+        },
+        "mbpCode": {
+          "type": "string",
+          "description": "Parent parameter code."
+        },
+        "code": {
+          "type": "string",
+          "description": "Option code."
+        },
+        "numericValue": {
+          "type": "string",
+          "description": "Numeric value represented by this option."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description."
+        },
+        "displayOrder": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Display ordering hint."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether the record is active."
+        }
+      },
+      "description": "MbParamOption is a single picklist option belonging to an MbParam."
+    },
+    "v1MbPushLog": {
+      "type": "object",
+      "properties": {
+        "mbplId": {
+          "type": "string",
+          "description": "UUID primary key."
+        },
+        "period": {
+          "type": "string",
+          "description": "Period in YYYYMM format."
+        },
+        "pushedAt": {
+          "type": "string",
+          "description": "Timestamp when the push was executed."
+        },
+        "pushedBy": {
+          "type": "string",
+          "description": "User who executed the push."
+        },
+        "mbCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of MB Heads affected."
+        },
+        "rowCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of cost rows written."
+        },
+        "costTypes": {
+          "type": "string",
+          "description": "Comma-separated cost types pushed."
+        },
+        "previousPeriod": {
+          "type": "string",
+          "description": "Previous period, used for carry-forward comparisons."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Free-text notes."
+        }
+      },
+      "description": "MbPushLog records a single push-to-head batch execution."
+    },
+    "v1MbWorkflowLog": {
+      "type": "object",
+      "properties": {
+        "mbwlId": {
+          "type": "string",
+          "description": "UUID primary key."
+        },
+        "mbhId": {
+          "type": "string",
+          "description": "Parent MB Head UUID."
+        },
+        "fromState": {
+          "type": "string",
+          "description": "State transitioned from."
+        },
+        "toState": {
+          "type": "string",
+          "description": "State transitioned to."
+        },
+        "actorUserId": {
+          "type": "string",
+          "description": "User who performed the transition."
+        },
+        "actorAt": {
+          "type": "string",
+          "description": "Timestamp of the transition."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Reason captured for the transition, if any."
+        },
+        "version": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Composition version at the time of the transition."
+        }
+      },
+      "description": "MbWorkflowLog records a single workflow state transition for an MB Head."
+    },
     "v1PaginationResponse": {
       "type": "object",
       "properties": {
@@ -5020,6 +7467,32 @@
         }
       },
       "description": "PaginationResponse contains pagination metadata for list responses."
+    },
+    "v1PreviewPushToHeadResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "pushable": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1PushableMbHead"
+          },
+          "description": "MB Heads eligible for push."
+        },
+        "skipped": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1SkippedMbHead"
+          },
+          "description": "MB Heads excluded from push, with reasons."
+        }
+      },
+      "description": "PreviewPushToHeadResponse is the response listing pushable and skipped MB Heads for a period."
     },
     "v1ProductGrade": {
       "type": "object",
@@ -5098,6 +7571,86 @@
       },
       "description": "ProductGrade represents a quality-loss configuration preset."
     },
+    "v1PushableMbHead": {
+      "type": "object",
+      "properties": {
+        "mbhId": {
+          "type": "string",
+          "description": "MB Head UUID."
+        },
+        "code": {
+          "type": "string",
+          "description": "Batch cost code."
+        },
+        "name": {
+          "type": "string",
+          "description": "Management display name."
+        },
+        "hasActual": {
+          "type": "boolean",
+          "description": "Whether an ACTUAL cost value is available to push."
+        },
+        "hasSelling": {
+          "type": "boolean",
+          "description": "Whether a SELLING cost value is available to push."
+        },
+        "hasForecast": {
+          "type": "boolean",
+          "description": "Whether a FORECAST cost value is available to push."
+        }
+      },
+      "description": "PushableMbHead describes an MB Head eligible to receive pushed costs for the previewed period."
+    },
+    "v1RevokeMBHeadResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1MBHead",
+          "description": "Updated MB Head data."
+        }
+      },
+      "description": "RevokeMBHeadResponse is the response for revoking an MB Head."
+    },
+    "v1SkippedMbHead": {
+      "type": "object",
+      "properties": {
+        "mbhId": {
+          "type": "string",
+          "description": "MB Head UUID."
+        },
+        "code": {
+          "type": "string",
+          "description": "Batch cost code."
+        },
+        "name": {
+          "type": "string",
+          "description": "Management display name."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Reason this head was skipped."
+        }
+      },
+      "description": "SkippedMbHead describes an MB Head excluded from the push, with the reason why."
+    },
+    "v1SubmitMBHeadResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1MBHead",
+          "description": "Updated MB Head data."
+        }
+      },
+      "description": "SubmitMBHeadResponse is the response for submitting an MB Head for approval."
+    },
     "v1TableColumn": {
       "type": "object",
       "properties": {
@@ -5120,6 +7673,77 @@
         }
       },
       "description": "TableColumn is one column from information_schema introspection."
+    },
+    "v1TriggerMbBatchRequest": {
+      "type": "object",
+      "properties": {
+        "period": {
+          "type": "string",
+          "description": "Period in YYYYMM format."
+        }
+      },
+      "description": "TriggerMbBatchRequest is the request to compute cst_product_cost rows for every\nVALIDATED MB Head, for the given period, across all 3 calculation types."
+    },
+    "v1TriggerMbBatchResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "jobId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Underlying cal_job id created for this run."
+        },
+        "period": {
+          "type": "string",
+          "description": "Period computed, in YYYYMM format."
+        },
+        "successCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Count of MB Heads successfully computed."
+        },
+        "failedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Count of MB Heads that failed to compute."
+        },
+        "rowsInserted": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Total cst_product_cost rows inserted (3 per successful MB Head)."
+        },
+        "durationMs": {
+          "type": "string",
+          "format": "int64",
+          "description": "Wall-clock duration of the run, in milliseconds."
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MbBatchError"
+          },
+          "description": "Per-MB failure details, one entry per failed MB Head."
+        }
+      },
+      "description": "TriggerMbBatchResponse summarizes an MB_BATCH run's outcome."
+    },
+    "v1UnApproveMBHeadResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1MBHead",
+          "description": "Updated MB Head data."
+        }
+      },
+      "description": "UnApproveMBHeadResponse is the response for un-approving an MB Head."
     },
     "v1UpdateBoxBobbinCostResponse": {
       "type": "object",
@@ -5203,6 +7827,62 @@
       },
       "description": "UpdateMachineResponse is the response for updating a machine."
     },
+    "v1UpdateMbCompositionResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1MbComposition",
+          "description": "Updated composition line."
+        }
+      },
+      "description": "UpdateMbCompositionResponse is the response for updating an MB composition line."
+    },
+    "v1UpdateMbLustureResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1MbLusture",
+          "description": "Updated lusture record."
+        }
+      },
+      "description": "UpdateMbLustureResponse is the response for updating an MB lusture master record."
+    },
+    "v1UpdateMbParamOptionResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1MbParamOption",
+          "description": "Updated option record."
+        }
+      },
+      "description": "UpdateMbParamOptionResponse is the response for updating an MB param picklist option."
+    },
+    "v1UpdateMbParamResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1MbParam",
+          "description": "Updated parameter record."
+        }
+      },
+      "description": "UpdateMbParamResponse is the response for updating an MB costing parameter."
+    },
     "v1UpdateProductGradeResponse": {
       "type": "object",
       "properties": {
@@ -5216,6 +7896,20 @@
         }
       },
       "description": "UpdateProductGradeResponse is the response for updating a Product Grade."
+    },
+    "v1ValidateMBHeadResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1MBHead",
+          "description": "Updated MB Head data."
+        }
+      },
+      "description": "ValidateMBHeadResponse is the response for validating an MB Head."
     },
     "v1ValidationError": {
       "type": "object",

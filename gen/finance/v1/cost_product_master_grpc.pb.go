@@ -25,6 +25,7 @@ const (
 	CostProductMasterService_UpdateCostProductMaster_FullMethodName           = "/finance.v1.CostProductMasterService/UpdateCostProductMaster"
 	CostProductMasterService_UpdateCostProductMasterErpLinkage_FullMethodName = "/finance.v1.CostProductMasterService/UpdateCostProductMasterErpLinkage"
 	CostProductMasterService_DeactivateCostProductMaster_FullMethodName       = "/finance.v1.CostProductMasterService/DeactivateCostProductMaster"
+	CostProductMasterService_UnlockCostProductMaster_FullMethodName           = "/finance.v1.CostProductMasterService/UnlockCostProductMaster"
 	CostProductMasterService_ListCostProductMasters_FullMethodName            = "/finance.v1.CostProductMasterService/ListCostProductMasters"
 	CostProductMasterService_ExportCostProductMasters_FullMethodName          = "/finance.v1.CostProductMasterService/ExportCostProductMasters"
 	CostProductMasterService_ImportCostProductMasters_FullMethodName          = "/finance.v1.CostProductMasterService/ImportCostProductMasters"
@@ -41,6 +42,7 @@ type CostProductMasterServiceClient interface {
 	UpdateCostProductMaster(ctx context.Context, in *UpdateCostProductMasterRequest, opts ...grpc.CallOption) (*UpdateCostProductMasterResponse, error)
 	UpdateCostProductMasterErpLinkage(ctx context.Context, in *UpdateCostProductMasterErpLinkageRequest, opts ...grpc.CallOption) (*UpdateCostProductMasterErpLinkageResponse, error)
 	DeactivateCostProductMaster(ctx context.Context, in *DeactivateCostProductMasterRequest, opts ...grpc.CallOption) (*DeactivateCostProductMasterResponse, error)
+	UnlockCostProductMaster(ctx context.Context, in *UnlockCostProductMasterRequest, opts ...grpc.CallOption) (*UnlockCostProductMasterResponse, error)
 	ListCostProductMasters(ctx context.Context, in *ListCostProductMastersRequest, opts ...grpc.CallOption) (*ListCostProductMastersResponse, error)
 	ExportCostProductMasters(ctx context.Context, in *ExportCostProductMastersRequest, opts ...grpc.CallOption) (*ExportCostProductMastersResponse, error)
 	ImportCostProductMasters(ctx context.Context, in *ImportCostProductMastersRequest, opts ...grpc.CallOption) (*ImportCostProductMastersResponse, error)
@@ -115,6 +117,16 @@ func (c *costProductMasterServiceClient) DeactivateCostProductMaster(ctx context
 	return out, nil
 }
 
+func (c *costProductMasterServiceClient) UnlockCostProductMaster(ctx context.Context, in *UnlockCostProductMasterRequest, opts ...grpc.CallOption) (*UnlockCostProductMasterResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UnlockCostProductMasterResponse)
+	err := c.cc.Invoke(ctx, CostProductMasterService_UnlockCostProductMaster_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *costProductMasterServiceClient) ListCostProductMasters(ctx context.Context, in *ListCostProductMastersRequest, opts ...grpc.CallOption) (*ListCostProductMastersResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListCostProductMastersResponse)
@@ -165,6 +177,7 @@ type CostProductMasterServiceServer interface {
 	UpdateCostProductMaster(context.Context, *UpdateCostProductMasterRequest) (*UpdateCostProductMasterResponse, error)
 	UpdateCostProductMasterErpLinkage(context.Context, *UpdateCostProductMasterErpLinkageRequest) (*UpdateCostProductMasterErpLinkageResponse, error)
 	DeactivateCostProductMaster(context.Context, *DeactivateCostProductMasterRequest) (*DeactivateCostProductMasterResponse, error)
+	UnlockCostProductMaster(context.Context, *UnlockCostProductMasterRequest) (*UnlockCostProductMasterResponse, error)
 	ListCostProductMasters(context.Context, *ListCostProductMastersRequest) (*ListCostProductMastersResponse, error)
 	ExportCostProductMasters(context.Context, *ExportCostProductMastersRequest) (*ExportCostProductMastersResponse, error)
 	ImportCostProductMasters(context.Context, *ImportCostProductMastersRequest) (*ImportCostProductMastersResponse, error)
@@ -196,6 +209,9 @@ func (UnimplementedCostProductMasterServiceServer) UpdateCostProductMasterErpLin
 }
 func (UnimplementedCostProductMasterServiceServer) DeactivateCostProductMaster(context.Context, *DeactivateCostProductMasterRequest) (*DeactivateCostProductMasterResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeactivateCostProductMaster not implemented")
+}
+func (UnimplementedCostProductMasterServiceServer) UnlockCostProductMaster(context.Context, *UnlockCostProductMasterRequest) (*UnlockCostProductMasterResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UnlockCostProductMaster not implemented")
 }
 func (UnimplementedCostProductMasterServiceServer) ListCostProductMasters(context.Context, *ListCostProductMastersRequest) (*ListCostProductMastersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListCostProductMasters not implemented")
@@ -339,6 +355,24 @@ func _CostProductMasterService_DeactivateCostProductMaster_Handler(srv interface
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CostProductMasterService_UnlockCostProductMaster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnlockCostProductMasterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CostProductMasterServiceServer).UnlockCostProductMaster(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CostProductMasterService_UnlockCostProductMaster_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CostProductMasterServiceServer).UnlockCostProductMaster(ctx, req.(*UnlockCostProductMasterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _CostProductMasterService_ListCostProductMasters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListCostProductMastersRequest)
 	if err := dec(in); err != nil {
@@ -441,6 +475,10 @@ var CostProductMasterService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeactivateCostProductMaster",
 			Handler:    _CostProductMasterService_DeactivateCostProductMaster_Handler,
+		},
+		{
+			MethodName: "UnlockCostProductMaster",
+			Handler:    _CostProductMasterService_UnlockCostProductMaster_Handler,
 		},
 		{
 			MethodName: "ListCostProductMasters",

@@ -46,6 +46,8 @@ type CostProductMaster struct {
 	Flex_01         string                 `protobuf:"bytes,18,opt,name=flex_01,json=flex01,proto3" json:"flex_01,omitempty"`
 	Flex_02         string                 `protobuf:"bytes,19,opt,name=flex_02,json=flex02,proto3" json:"flex_02,omitempty"`
 	Flex_03         string                 `protobuf:"bytes,20,opt,name=flex_03,json=flex03,proto3" json:"flex_03,omitempty"`
+	Source          string                 `protobuf:"bytes,21,opt,name=source,proto3" json:"source,omitempty"`                      // origin marker, e.g. "MB_RECIPE" when auto-generated; empty if manually created
+	IsLocked        bool                   `protobuf:"varint,22,opt,name=is_locked,json=isLocked,proto3" json:"is_locked,omitempty"` // true blocks manual edits to route/params; escape hatch via UnlockCostProductMaster
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -218,6 +220,20 @@ func (x *CostProductMaster) GetFlex_03() string {
 		return x.Flex_03
 	}
 	return ""
+}
+
+func (x *CostProductMaster) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *CostProductMaster) GetIsLocked() bool {
+	if x != nil {
+		return x.IsLocked
+	}
+	return false
 }
 
 type CreateCostProductMasterRequest struct {
@@ -926,6 +942,110 @@ func (x *DeactivateCostProductMasterResponse) GetBase() *v1.BaseResponse {
 	return nil
 }
 
+type UnlockCostProductMasterRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProductSysId  int64                  `protobuf:"varint,1,opt,name=product_sys_id,json=productSysId,proto3" json:"product_sys_id,omitempty"`
+	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnlockCostProductMasterRequest) Reset() {
+	*x = UnlockCostProductMasterRequest{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnlockCostProductMasterRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnlockCostProductMasterRequest) ProtoMessage() {}
+
+func (x *UnlockCostProductMasterRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnlockCostProductMasterRequest.ProtoReflect.Descriptor instead.
+func (*UnlockCostProductMasterRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *UnlockCostProductMasterRequest) GetProductSysId() int64 {
+	if x != nil {
+		return x.ProductSysId
+	}
+	return 0
+}
+
+func (x *UnlockCostProductMasterRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type UnlockCostProductMasterResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Base          *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	Data          *CostProductMaster     `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnlockCostProductMasterResponse) Reset() {
+	*x = UnlockCostProductMasterResponse{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnlockCostProductMasterResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnlockCostProductMasterResponse) ProtoMessage() {}
+
+func (x *UnlockCostProductMasterResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnlockCostProductMasterResponse.ProtoReflect.Descriptor instead.
+func (*UnlockCostProductMasterResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *UnlockCostProductMasterResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *UnlockCostProductMasterResponse) GetData() *CostProductMaster {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
 type ListCostProductMastersRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Search         string                 `protobuf:"bytes,1,opt,name=search,proto3" json:"search,omitempty"` // matches product_code OR product_name OR erp_item_code OR oracle sys id (flex_02)
@@ -942,7 +1062,7 @@ type ListCostProductMastersRequest struct {
 
 func (x *ListCostProductMastersRequest) Reset() {
 	*x = ListCostProductMastersRequest{}
-	mi := &file_finance_v1_cost_product_master_proto_msgTypes[13]
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -954,7 +1074,7 @@ func (x *ListCostProductMastersRequest) String() string {
 func (*ListCostProductMastersRequest) ProtoMessage() {}
 
 func (x *ListCostProductMastersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_master_proto_msgTypes[13]
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -967,7 +1087,7 @@ func (x *ListCostProductMastersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCostProductMastersRequest.ProtoReflect.Descriptor instead.
 func (*ListCostProductMastersRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{13}
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ListCostProductMastersRequest) GetSearch() string {
@@ -1037,7 +1157,7 @@ type ListCostProductMastersResponse struct {
 
 func (x *ListCostProductMastersResponse) Reset() {
 	*x = ListCostProductMastersResponse{}
-	mi := &file_finance_v1_cost_product_master_proto_msgTypes[14]
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1049,7 +1169,7 @@ func (x *ListCostProductMastersResponse) String() string {
 func (*ListCostProductMastersResponse) ProtoMessage() {}
 
 func (x *ListCostProductMastersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_master_proto_msgTypes[14]
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1062,7 +1182,7 @@ func (x *ListCostProductMastersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCostProductMastersResponse.ProtoReflect.Descriptor instead.
 func (*ListCostProductMastersResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{14}
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ListCostProductMastersResponse) GetBase() *v1.BaseResponse {
@@ -1097,7 +1217,7 @@ type ExportCostProductMastersRequest struct {
 
 func (x *ExportCostProductMastersRequest) Reset() {
 	*x = ExportCostProductMastersRequest{}
-	mi := &file_finance_v1_cost_product_master_proto_msgTypes[15]
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1109,7 +1229,7 @@ func (x *ExportCostProductMastersRequest) String() string {
 func (*ExportCostProductMastersRequest) ProtoMessage() {}
 
 func (x *ExportCostProductMastersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_master_proto_msgTypes[15]
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1122,7 +1242,7 @@ func (x *ExportCostProductMastersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExportCostProductMastersRequest.ProtoReflect.Descriptor instead.
 func (*ExportCostProductMastersRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{15}
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ExportCostProductMastersRequest) GetProductTypeCode() string {
@@ -1157,7 +1277,7 @@ type ExportCostProductMastersResponse struct {
 
 func (x *ExportCostProductMastersResponse) Reset() {
 	*x = ExportCostProductMastersResponse{}
-	mi := &file_finance_v1_cost_product_master_proto_msgTypes[16]
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1169,7 +1289,7 @@ func (x *ExportCostProductMastersResponse) String() string {
 func (*ExportCostProductMastersResponse) ProtoMessage() {}
 
 func (x *ExportCostProductMastersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_master_proto_msgTypes[16]
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1182,7 +1302,7 @@ func (x *ExportCostProductMastersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExportCostProductMastersResponse.ProtoReflect.Descriptor instead.
 func (*ExportCostProductMastersResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{16}
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ExportCostProductMastersResponse) GetBase() *v1.BaseResponse {
@@ -1217,7 +1337,7 @@ type ImportCostProductMastersRequest struct {
 
 func (x *ImportCostProductMastersRequest) Reset() {
 	*x = ImportCostProductMastersRequest{}
-	mi := &file_finance_v1_cost_product_master_proto_msgTypes[17]
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1229,7 +1349,7 @@ func (x *ImportCostProductMastersRequest) String() string {
 func (*ImportCostProductMastersRequest) ProtoMessage() {}
 
 func (x *ImportCostProductMastersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_master_proto_msgTypes[17]
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1242,7 +1362,7 @@ func (x *ImportCostProductMastersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportCostProductMastersRequest.ProtoReflect.Descriptor instead.
 func (*ImportCostProductMastersRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{17}
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ImportCostProductMastersRequest) GetFileContent() []byte {
@@ -1276,7 +1396,7 @@ type ImportCostProductMastersResponse struct {
 
 func (x *ImportCostProductMastersResponse) Reset() {
 	*x = ImportCostProductMastersResponse{}
-	mi := &file_finance_v1_cost_product_master_proto_msgTypes[18]
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1288,7 +1408,7 @@ func (x *ImportCostProductMastersResponse) String() string {
 func (*ImportCostProductMastersResponse) ProtoMessage() {}
 
 func (x *ImportCostProductMastersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_master_proto_msgTypes[18]
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1301,7 +1421,7 @@ func (x *ImportCostProductMastersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportCostProductMastersResponse.ProtoReflect.Descriptor instead.
 func (*ImportCostProductMastersResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{18}
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ImportCostProductMastersResponse) GetBase() *v1.BaseResponse {
@@ -1326,7 +1446,7 @@ type DownloadCostProductMasterTemplateRequest struct {
 
 func (x *DownloadCostProductMasterTemplateRequest) Reset() {
 	*x = DownloadCostProductMasterTemplateRequest{}
-	mi := &file_finance_v1_cost_product_master_proto_msgTypes[19]
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1338,7 +1458,7 @@ func (x *DownloadCostProductMasterTemplateRequest) String() string {
 func (*DownloadCostProductMasterTemplateRequest) ProtoMessage() {}
 
 func (x *DownloadCostProductMasterTemplateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_master_proto_msgTypes[19]
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1351,7 +1471,7 @@ func (x *DownloadCostProductMasterTemplateRequest) ProtoReflect() protoreflect.M
 
 // Deprecated: Use DownloadCostProductMasterTemplateRequest.ProtoReflect.Descriptor instead.
 func (*DownloadCostProductMasterTemplateRequest) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{19}
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{21}
 }
 
 type DownloadCostProductMasterTemplateResponse struct {
@@ -1365,7 +1485,7 @@ type DownloadCostProductMasterTemplateResponse struct {
 
 func (x *DownloadCostProductMasterTemplateResponse) Reset() {
 	*x = DownloadCostProductMasterTemplateResponse{}
-	mi := &file_finance_v1_cost_product_master_proto_msgTypes[20]
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1377,7 +1497,7 @@ func (x *DownloadCostProductMasterTemplateResponse) String() string {
 func (*DownloadCostProductMasterTemplateResponse) ProtoMessage() {}
 
 func (x *DownloadCostProductMasterTemplateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_v1_cost_product_master_proto_msgTypes[20]
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1390,7 +1510,7 @@ func (x *DownloadCostProductMasterTemplateResponse) ProtoReflect() protoreflect.
 
 // Deprecated: Use DownloadCostProductMasterTemplateResponse.ProtoReflect.Descriptor instead.
 func (*DownloadCostProductMasterTemplateResponse) Descriptor() ([]byte, []int) {
-	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{20}
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *DownloadCostProductMasterTemplateResponse) GetBase() *v1.BaseResponse {
@@ -1419,7 +1539,7 @@ var File_finance_v1_cost_product_master_proto protoreflect.FileDescriptor
 const file_finance_v1_cost_product_master_proto_rawDesc = "" +
 	"\n" +
 	"$finance/v1/cost_product_master.proto\x12\n" +
-	"finance.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16common/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\"\xd0\x05\n" +
+	"finance.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16common/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\"\x85\x06\n" +
 	"\x11CostProductMaster\x12$\n" +
 	"\x0eproduct_sys_id\x18\x01 \x01(\x03R\fproductSysId\x12!\n" +
 	"\fproduct_code\x18\x02 \x01(\tR\vproductCode\x12&\n" +
@@ -1444,7 +1564,9 @@ const file_finance_v1_cost_product_master_proto_rawDesc = "" +
 	"shade_name\x18\x11 \x01(\tR\tshadeName\x12\x17\n" +
 	"\aflex_01\x18\x12 \x01(\tR\x06flex01\x12\x17\n" +
 	"\aflex_02\x18\x13 \x01(\tR\x06flex02\x12\x17\n" +
-	"\aflex_03\x18\x14 \x01(\tR\x06flex03\"\xe5\x02\n" +
+	"\aflex_03\x18\x14 \x01(\tR\x06flex03\x12\x16\n" +
+	"\x06source\x18\x15 \x01(\tR\x06source\x12\x1b\n" +
+	"\tis_locked\x18\x16 \x01(\bR\bisLocked\"\xe5\x02\n" +
 	"\x1eCreateCostProductMasterRequest\x12/\n" +
 	"\x0fproduct_type_id\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x01R\rproductTypeId\x12-\n" +
 	"\fproduct_name\x18\x02 \x01(\tB\n" +
@@ -1496,7 +1618,14 @@ const file_finance_v1_cost_product_master_proto_rawDesc = "" +
 	"\"DeactivateCostProductMasterRequest\x12-\n" +
 	"\x0eproduct_sys_id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02(\x01R\fproductSysId\"R\n" +
 	"#DeactivateCostProductMasterResponse\x12+\n" +
-	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\"\xab\x04\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\"s\n" +
+	"\x1eUnlockCostProductMasterRequest\x12-\n" +
+	"\x0eproduct_sys_id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02(\x01R\fproductSysId\x12\"\n" +
+	"\x06reason\x18\x02 \x01(\tB\n" +
+	"\xbaH\ar\x05\x10\x01\x18\xf4\x03R\x06reason\"\x81\x01\n" +
+	"\x1fUnlockCostProductMasterResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x121\n" +
+	"\x04data\x18\x02 \x01(\v2\x1d.finance.v1.CostProductMasterR\x04data\"\xab\x04\n" +
 	"\x1dListCostProductMastersRequest\x12 \n" +
 	"\x06search\x18\x01 \x01(\tB\b\xbaH\x05r\x03\x18\xc8\x01R\x06search\x12&\n" +
 	"\x0fproduct_type_id\x18\x02 \x01(\x05R\rproductTypeId\x12&\n" +
@@ -1540,14 +1669,15 @@ const file_finance_v1_cost_product_master_proto_rawDesc = "" +
 	")DownloadCostProductMasterTemplateResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12!\n" +
 	"\ffile_content\x18\x02 \x01(\fR\vfileContent\x12\x1b\n" +
-	"\tfile_name\x18\x03 \x01(\tR\bfileName2\xc6\x0e\n" +
+	"\tfile_name\x18\x03 \x01(\tR\bfileName2\x83\x10\n" +
 	"\x18CostProductMasterService\x12\xa2\x01\n" +
 	"\x17CreateCostProductMaster\x12*.finance.v1.CreateCostProductMasterRequest\x1a+.finance.v1.CreateCostProductMasterResponse\".\x82\xd3\xe4\x93\x02(:\x01*\"#/api/v1/finance/cost-product-master\x12\xa7\x01\n" +
 	"\x14GetCostProductMaster\x12'.finance.v1.GetCostProductMasterRequest\x1a(.finance.v1.GetCostProductMasterResponse\"<\x82\xd3\xe4\x93\x026\x124/api/v1/finance/cost-product-master/{product_sys_id}\x12\xbf\x01\n" +
 	"\x1aGetCostProductMasterByCode\x12-.finance.v1.GetCostProductMasterByCodeRequest\x1a..finance.v1.GetCostProductMasterByCodeResponse\"B\x82\xd3\xe4\x93\x02<\x12:/api/v1/finance/cost-product-master/by-code/{product_code}\x12\xb3\x01\n" +
 	"\x17UpdateCostProductMaster\x12*.finance.v1.UpdateCostProductMasterRequest\x1a+.finance.v1.UpdateCostProductMasterResponse\"?\x82\xd3\xe4\x93\x029:\x01*\x1a4/api/v1/finance/cost-product-master/{product_sys_id}\x12\xdd\x01\n" +
 	"!UpdateCostProductMasterErpLinkage\x124.finance.v1.UpdateCostProductMasterErpLinkageRequest\x1a5.finance.v1.UpdateCostProductMasterErpLinkageResponse\"K\x82\xd3\xe4\x93\x02E:\x01*\x1a@/api/v1/finance/cost-product-master/{product_sys_id}/erp-linkage\x12\xbc\x01\n" +
-	"\x1bDeactivateCostProductMaster\x12..finance.v1.DeactivateCostProductMasterRequest\x1a/.finance.v1.DeactivateCostProductMasterResponse\"<\x82\xd3\xe4\x93\x026*4/api/v1/finance/cost-product-master/{product_sys_id}\x12\x9c\x01\n" +
+	"\x1bDeactivateCostProductMaster\x12..finance.v1.DeactivateCostProductMasterRequest\x1a/.finance.v1.DeactivateCostProductMasterResponse\"<\x82\xd3\xe4\x93\x026*4/api/v1/finance/cost-product-master/{product_sys_id}\x12\xba\x01\n" +
+	"\x17UnlockCostProductMaster\x12*.finance.v1.UnlockCostProductMasterRequest\x1a+.finance.v1.UnlockCostProductMasterResponse\"F\x82\xd3\xe4\x93\x02@:\x01*\";/api/v1/finance/cost-product-master/{product_sys_id}/unlock\x12\x9c\x01\n" +
 	"\x16ListCostProductMasters\x12).finance.v1.ListCostProductMastersRequest\x1a*.finance.v1.ListCostProductMastersResponse\"+\x82\xd3\xe4\x93\x02%\x12#/api/v1/finance/cost-product-master\x12\xaa\x01\n" +
 	"\x18ExportCostProductMasters\x12+.finance.v1.ExportCostProductMastersRequest\x1a,.finance.v1.ExportCostProductMastersResponse\"3\x82\xd3\xe4\x93\x02-\x12+/api/v1/finance/cost-product-masters/export\x12\xad\x01\n" +
 	"\x18ImportCostProductMasters\x12+.finance.v1.ImportCostProductMastersRequest\x1a,.finance.v1.ImportCostProductMastersResponse\"6\x82\xd3\xe4\x93\x020:\x01*\"+/api/v1/finance/cost-product-masters/import\x12\xc7\x01\n" +
@@ -1568,7 +1698,7 @@ func file_finance_v1_cost_product_master_proto_rawDescGZIP() []byte {
 	return file_finance_v1_cost_product_master_proto_rawDescData
 }
 
-var file_finance_v1_cost_product_master_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_finance_v1_cost_product_master_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_finance_v1_cost_product_master_proto_goTypes = []any{
 	(*CostProductMaster)(nil),                         // 0: finance.v1.CostProductMaster
 	(*CreateCostProductMasterRequest)(nil),            // 1: finance.v1.CreateCostProductMasterRequest
@@ -1583,64 +1713,70 @@ var file_finance_v1_cost_product_master_proto_goTypes = []any{
 	(*UpdateCostProductMasterErpLinkageResponse)(nil), // 10: finance.v1.UpdateCostProductMasterErpLinkageResponse
 	(*DeactivateCostProductMasterRequest)(nil),        // 11: finance.v1.DeactivateCostProductMasterRequest
 	(*DeactivateCostProductMasterResponse)(nil),       // 12: finance.v1.DeactivateCostProductMasterResponse
-	(*ListCostProductMastersRequest)(nil),             // 13: finance.v1.ListCostProductMastersRequest
-	(*ListCostProductMastersResponse)(nil),            // 14: finance.v1.ListCostProductMastersResponse
-	(*ExportCostProductMastersRequest)(nil),           // 15: finance.v1.ExportCostProductMastersRequest
-	(*ExportCostProductMastersResponse)(nil),          // 16: finance.v1.ExportCostProductMastersResponse
-	(*ImportCostProductMastersRequest)(nil),           // 17: finance.v1.ImportCostProductMastersRequest
-	(*ImportCostProductMastersResponse)(nil),          // 18: finance.v1.ImportCostProductMastersResponse
-	(*DownloadCostProductMasterTemplateRequest)(nil),  // 19: finance.v1.DownloadCostProductMasterTemplateRequest
-	(*DownloadCostProductMasterTemplateResponse)(nil), // 20: finance.v1.DownloadCostProductMasterTemplateResponse
-	(*v1.AuditInfo)(nil),                              // 21: common.v1.AuditInfo
-	(*v1.BaseResponse)(nil),                           // 22: common.v1.BaseResponse
-	(*v1.PaginationRequest)(nil),                      // 23: common.v1.PaginationRequest
-	(*v1.PaginationResponse)(nil),                     // 24: common.v1.PaginationResponse
+	(*UnlockCostProductMasterRequest)(nil),            // 13: finance.v1.UnlockCostProductMasterRequest
+	(*UnlockCostProductMasterResponse)(nil),           // 14: finance.v1.UnlockCostProductMasterResponse
+	(*ListCostProductMastersRequest)(nil),             // 15: finance.v1.ListCostProductMastersRequest
+	(*ListCostProductMastersResponse)(nil),            // 16: finance.v1.ListCostProductMastersResponse
+	(*ExportCostProductMastersRequest)(nil),           // 17: finance.v1.ExportCostProductMastersRequest
+	(*ExportCostProductMastersResponse)(nil),          // 18: finance.v1.ExportCostProductMastersResponse
+	(*ImportCostProductMastersRequest)(nil),           // 19: finance.v1.ImportCostProductMastersRequest
+	(*ImportCostProductMastersResponse)(nil),          // 20: finance.v1.ImportCostProductMastersResponse
+	(*DownloadCostProductMasterTemplateRequest)(nil),  // 21: finance.v1.DownloadCostProductMasterTemplateRequest
+	(*DownloadCostProductMasterTemplateResponse)(nil), // 22: finance.v1.DownloadCostProductMasterTemplateResponse
+	(*v1.AuditInfo)(nil),                              // 23: common.v1.AuditInfo
+	(*v1.BaseResponse)(nil),                           // 24: common.v1.BaseResponse
+	(*v1.PaginationRequest)(nil),                      // 25: common.v1.PaginationRequest
+	(*v1.PaginationResponse)(nil),                     // 26: common.v1.PaginationResponse
 }
 var file_finance_v1_cost_product_master_proto_depIdxs = []int32{
-	21, // 0: finance.v1.CostProductMaster.audit:type_name -> common.v1.AuditInfo
-	22, // 1: finance.v1.CreateCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
+	23, // 0: finance.v1.CostProductMaster.audit:type_name -> common.v1.AuditInfo
+	24, // 1: finance.v1.CreateCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 2: finance.v1.CreateCostProductMasterResponse.data:type_name -> finance.v1.CostProductMaster
-	22, // 3: finance.v1.GetCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
+	24, // 3: finance.v1.GetCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 4: finance.v1.GetCostProductMasterResponse.data:type_name -> finance.v1.CostProductMaster
-	22, // 5: finance.v1.GetCostProductMasterByCodeResponse.base:type_name -> common.v1.BaseResponse
+	24, // 5: finance.v1.GetCostProductMasterByCodeResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 6: finance.v1.GetCostProductMasterByCodeResponse.data:type_name -> finance.v1.CostProductMaster
-	22, // 7: finance.v1.UpdateCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
+	24, // 7: finance.v1.UpdateCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 8: finance.v1.UpdateCostProductMasterResponse.data:type_name -> finance.v1.CostProductMaster
-	22, // 9: finance.v1.UpdateCostProductMasterErpLinkageResponse.base:type_name -> common.v1.BaseResponse
+	24, // 9: finance.v1.UpdateCostProductMasterErpLinkageResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 10: finance.v1.UpdateCostProductMasterErpLinkageResponse.data:type_name -> finance.v1.CostProductMaster
-	22, // 11: finance.v1.DeactivateCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
-	23, // 12: finance.v1.ListCostProductMastersRequest.pagination:type_name -> common.v1.PaginationRequest
-	22, // 13: finance.v1.ListCostProductMastersResponse.base:type_name -> common.v1.BaseResponse
-	0,  // 14: finance.v1.ListCostProductMastersResponse.data:type_name -> finance.v1.CostProductMaster
-	24, // 15: finance.v1.ListCostProductMastersResponse.pagination:type_name -> common.v1.PaginationResponse
-	22, // 16: finance.v1.ExportCostProductMastersResponse.base:type_name -> common.v1.BaseResponse
-	22, // 17: finance.v1.ImportCostProductMastersResponse.base:type_name -> common.v1.BaseResponse
-	22, // 18: finance.v1.DownloadCostProductMasterTemplateResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 19: finance.v1.CostProductMasterService.CreateCostProductMaster:input_type -> finance.v1.CreateCostProductMasterRequest
-	3,  // 20: finance.v1.CostProductMasterService.GetCostProductMaster:input_type -> finance.v1.GetCostProductMasterRequest
-	5,  // 21: finance.v1.CostProductMasterService.GetCostProductMasterByCode:input_type -> finance.v1.GetCostProductMasterByCodeRequest
-	7,  // 22: finance.v1.CostProductMasterService.UpdateCostProductMaster:input_type -> finance.v1.UpdateCostProductMasterRequest
-	9,  // 23: finance.v1.CostProductMasterService.UpdateCostProductMasterErpLinkage:input_type -> finance.v1.UpdateCostProductMasterErpLinkageRequest
-	11, // 24: finance.v1.CostProductMasterService.DeactivateCostProductMaster:input_type -> finance.v1.DeactivateCostProductMasterRequest
-	13, // 25: finance.v1.CostProductMasterService.ListCostProductMasters:input_type -> finance.v1.ListCostProductMastersRequest
-	15, // 26: finance.v1.CostProductMasterService.ExportCostProductMasters:input_type -> finance.v1.ExportCostProductMastersRequest
-	17, // 27: finance.v1.CostProductMasterService.ImportCostProductMasters:input_type -> finance.v1.ImportCostProductMastersRequest
-	19, // 28: finance.v1.CostProductMasterService.DownloadCostProductMasterTemplate:input_type -> finance.v1.DownloadCostProductMasterTemplateRequest
-	2,  // 29: finance.v1.CostProductMasterService.CreateCostProductMaster:output_type -> finance.v1.CreateCostProductMasterResponse
-	4,  // 30: finance.v1.CostProductMasterService.GetCostProductMaster:output_type -> finance.v1.GetCostProductMasterResponse
-	6,  // 31: finance.v1.CostProductMasterService.GetCostProductMasterByCode:output_type -> finance.v1.GetCostProductMasterByCodeResponse
-	8,  // 32: finance.v1.CostProductMasterService.UpdateCostProductMaster:output_type -> finance.v1.UpdateCostProductMasterResponse
-	10, // 33: finance.v1.CostProductMasterService.UpdateCostProductMasterErpLinkage:output_type -> finance.v1.UpdateCostProductMasterErpLinkageResponse
-	12, // 34: finance.v1.CostProductMasterService.DeactivateCostProductMaster:output_type -> finance.v1.DeactivateCostProductMasterResponse
-	14, // 35: finance.v1.CostProductMasterService.ListCostProductMasters:output_type -> finance.v1.ListCostProductMastersResponse
-	16, // 36: finance.v1.CostProductMasterService.ExportCostProductMasters:output_type -> finance.v1.ExportCostProductMastersResponse
-	18, // 37: finance.v1.CostProductMasterService.ImportCostProductMasters:output_type -> finance.v1.ImportCostProductMastersResponse
-	20, // 38: finance.v1.CostProductMasterService.DownloadCostProductMasterTemplate:output_type -> finance.v1.DownloadCostProductMasterTemplateResponse
-	29, // [29:39] is the sub-list for method output_type
-	19, // [19:29] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	24, // 11: finance.v1.DeactivateCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
+	24, // 12: finance.v1.UnlockCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
+	0,  // 13: finance.v1.UnlockCostProductMasterResponse.data:type_name -> finance.v1.CostProductMaster
+	25, // 14: finance.v1.ListCostProductMastersRequest.pagination:type_name -> common.v1.PaginationRequest
+	24, // 15: finance.v1.ListCostProductMastersResponse.base:type_name -> common.v1.BaseResponse
+	0,  // 16: finance.v1.ListCostProductMastersResponse.data:type_name -> finance.v1.CostProductMaster
+	26, // 17: finance.v1.ListCostProductMastersResponse.pagination:type_name -> common.v1.PaginationResponse
+	24, // 18: finance.v1.ExportCostProductMastersResponse.base:type_name -> common.v1.BaseResponse
+	24, // 19: finance.v1.ImportCostProductMastersResponse.base:type_name -> common.v1.BaseResponse
+	24, // 20: finance.v1.DownloadCostProductMasterTemplateResponse.base:type_name -> common.v1.BaseResponse
+	1,  // 21: finance.v1.CostProductMasterService.CreateCostProductMaster:input_type -> finance.v1.CreateCostProductMasterRequest
+	3,  // 22: finance.v1.CostProductMasterService.GetCostProductMaster:input_type -> finance.v1.GetCostProductMasterRequest
+	5,  // 23: finance.v1.CostProductMasterService.GetCostProductMasterByCode:input_type -> finance.v1.GetCostProductMasterByCodeRequest
+	7,  // 24: finance.v1.CostProductMasterService.UpdateCostProductMaster:input_type -> finance.v1.UpdateCostProductMasterRequest
+	9,  // 25: finance.v1.CostProductMasterService.UpdateCostProductMasterErpLinkage:input_type -> finance.v1.UpdateCostProductMasterErpLinkageRequest
+	11, // 26: finance.v1.CostProductMasterService.DeactivateCostProductMaster:input_type -> finance.v1.DeactivateCostProductMasterRequest
+	13, // 27: finance.v1.CostProductMasterService.UnlockCostProductMaster:input_type -> finance.v1.UnlockCostProductMasterRequest
+	15, // 28: finance.v1.CostProductMasterService.ListCostProductMasters:input_type -> finance.v1.ListCostProductMastersRequest
+	17, // 29: finance.v1.CostProductMasterService.ExportCostProductMasters:input_type -> finance.v1.ExportCostProductMastersRequest
+	19, // 30: finance.v1.CostProductMasterService.ImportCostProductMasters:input_type -> finance.v1.ImportCostProductMastersRequest
+	21, // 31: finance.v1.CostProductMasterService.DownloadCostProductMasterTemplate:input_type -> finance.v1.DownloadCostProductMasterTemplateRequest
+	2,  // 32: finance.v1.CostProductMasterService.CreateCostProductMaster:output_type -> finance.v1.CreateCostProductMasterResponse
+	4,  // 33: finance.v1.CostProductMasterService.GetCostProductMaster:output_type -> finance.v1.GetCostProductMasterResponse
+	6,  // 34: finance.v1.CostProductMasterService.GetCostProductMasterByCode:output_type -> finance.v1.GetCostProductMasterByCodeResponse
+	8,  // 35: finance.v1.CostProductMasterService.UpdateCostProductMaster:output_type -> finance.v1.UpdateCostProductMasterResponse
+	10, // 36: finance.v1.CostProductMasterService.UpdateCostProductMasterErpLinkage:output_type -> finance.v1.UpdateCostProductMasterErpLinkageResponse
+	12, // 37: finance.v1.CostProductMasterService.DeactivateCostProductMaster:output_type -> finance.v1.DeactivateCostProductMasterResponse
+	14, // 38: finance.v1.CostProductMasterService.UnlockCostProductMaster:output_type -> finance.v1.UnlockCostProductMasterResponse
+	16, // 39: finance.v1.CostProductMasterService.ListCostProductMasters:output_type -> finance.v1.ListCostProductMastersResponse
+	18, // 40: finance.v1.CostProductMasterService.ExportCostProductMasters:output_type -> finance.v1.ExportCostProductMastersResponse
+	20, // 41: finance.v1.CostProductMasterService.ImportCostProductMasters:output_type -> finance.v1.ImportCostProductMastersResponse
+	22, // 42: finance.v1.CostProductMasterService.DownloadCostProductMasterTemplate:output_type -> finance.v1.DownloadCostProductMasterTemplateResponse
+	32, // [32:43] is the sub-list for method output_type
+	21, // [21:32] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_finance_v1_cost_product_master_proto_init() }
@@ -1654,7 +1790,7 @@ func file_finance_v1_cost_product_master_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_finance_v1_cost_product_master_proto_rawDesc), len(file_finance_v1_cost_product_master_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   21,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
