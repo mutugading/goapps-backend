@@ -1,0 +1,2 @@
+DELETE FROM mst_parameter WHERE created_by = 'SYSTEM' AND param_code IN
+    ('IS_BOUGHTOUT','MACHINE_MB_FIXED_TOTAL','MB_COMPOSITION_VERSION');

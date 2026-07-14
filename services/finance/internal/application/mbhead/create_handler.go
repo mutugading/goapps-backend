@@ -21,6 +21,12 @@ type CreateCommand struct {
 	MBHFinalProduct *string
 	MBHCode         *string
 	CreatedBy       string
+	IsBoughtout     bool
+	DevCode         string
+	ShadeCode       string
+	ShadeName       string
+	CrossSection    string
+	LustureCode     string
 }
 
 // CreateHandler handles the CreateMBHead command.
@@ -47,7 +53,8 @@ func (h *CreateHandler) Handle(ctx context.Context, cmd CreateCommand) (*mbhead.
 		cmd.MBCosting, cmd.OracleSysID, cmd.MgtName,
 		cmd.Denier, cmd.Filament, cmd.Dozing,
 		cmd.MBHCheckStatus, cmd.MBHStatus, cmd.MBHLdrPrsn, cmd.MBHFinalProduct, cmd.MBHCode,
-		cmd.CreatedBy,
+		cmd.CreatedBy, cmd.IsBoughtout, cmd.DevCode, cmd.ShadeCode, cmd.ShadeName,
+		cmd.CrossSection, cmd.LustureCode,
 	)
 	if err != nil {
 		return nil, err

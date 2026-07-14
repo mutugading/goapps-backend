@@ -110,6 +110,54 @@ var (
 		[]string{"operation", "status"},
 	)
 
+	mbCompositionOperationsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "mb_composition_operations_total",
+			Help: "Total number of MB Composition operations.",
+		},
+		[]string{"operation", "status"},
+	)
+
+	mbLustureOperationsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "mb_lusture_operations_total",
+			Help: "Total number of MB Lusture operations.",
+		},
+		[]string{"operation", "status"},
+	)
+
+	mbParamOperationsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "mb_param_operations_total",
+			Help: "Total number of MB Param operations.",
+		},
+		[]string{"operation", "status"},
+	)
+
+	mbPushOperationsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "mb_push_operations_total",
+			Help: "Total number of MB Push operations.",
+		},
+		[]string{"operation", "status"},
+	)
+
+	mbWorkflowLogOperationsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "mb_workflow_log_operations_total",
+			Help: "Total number of MB Workflow Log operations.",
+		},
+		[]string{"operation", "status"},
+	)
+
+	mbBatchOperationsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "mb_batch_operations_total",
+			Help: "Total number of MB Batch operations.",
+		},
+		[]string{"operation", "status"},
+	)
+
 	machineOperationsTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "machine_operations_total",
@@ -234,6 +282,36 @@ func RecordMBHeadOperation(operation string, success bool) {
 // RecordMBSpinOperation records an MB Spin operation metric.
 func RecordMBSpinOperation(operation string, success bool) {
 	mbSpinOperationsTotal.WithLabelValues(operation, metricStatus(success)).Inc()
+}
+
+// RecordMBCompositionOperation records an MB Composition operation metric.
+func RecordMBCompositionOperation(operation string, success bool) {
+	mbCompositionOperationsTotal.WithLabelValues(operation, metricStatus(success)).Inc()
+}
+
+// RecordMBLustureOperation records an MB Lusture operation metric.
+func RecordMBLustureOperation(operation string, success bool) {
+	mbLustureOperationsTotal.WithLabelValues(operation, metricStatus(success)).Inc()
+}
+
+// RecordMBParamOperation records an MB Param operation metric.
+func RecordMBParamOperation(operation string, success bool) {
+	mbParamOperationsTotal.WithLabelValues(operation, metricStatus(success)).Inc()
+}
+
+// RecordMBPushOperation records an MB Push operation metric.
+func RecordMBPushOperation(operation string, success bool) {
+	mbPushOperationsTotal.WithLabelValues(operation, metricStatus(success)).Inc()
+}
+
+// RecordMBWorkflowLogOperation records an MB Workflow Log operation metric.
+func RecordMBWorkflowLogOperation(operation string, success bool) {
+	mbWorkflowLogOperationsTotal.WithLabelValues(operation, metricStatus(success)).Inc()
+}
+
+// RecordMBBatchOperation records an MB Batch operation metric.
+func RecordMBBatchOperation(operation string, success bool) {
+	mbBatchOperationsTotal.WithLabelValues(operation, metricStatus(success)).Inc()
 }
 
 // RecordBoxBobbinCostOperation records a Box Bobbin Cost operation metric.

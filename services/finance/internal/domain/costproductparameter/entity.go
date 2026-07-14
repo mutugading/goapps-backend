@@ -30,6 +30,7 @@ var (
 	ErrParamNotFound      = errors.New("parameter not found")
 	ErrPeriodDependent    = errors.New("parameter is period-dependent and cannot be stored in CPP")
 	ErrParamNotApplicable = errors.New("parameter not in product's applicable list — add it first")
+	ErrProductLocked      = errors.New("product is locked — route and parameters cannot be edited")
 )
 
 // Applicability is the per-product CAPP row metadata (no value).

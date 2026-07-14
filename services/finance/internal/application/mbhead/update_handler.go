@@ -23,6 +23,11 @@ type UpdateCommand struct {
 	MBHFinalProduct *string
 	MBHCode         *string
 	IsActive        *bool
+	DevCode         *string
+	ShadeCode       *string
+	ShadeName       *string
+	CrossSection    *string
+	LustureCode     *string
 	UpdatedBy       string
 }
 
@@ -55,6 +60,11 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*mbhead.
 		MBHFinalProduct: cmd.MBHFinalProduct,
 		MBHCode:         cmd.MBHCode,
 		IsActive:        cmd.IsActive,
+		DevCode:         cmd.DevCode,
+		ShadeCode:       cmd.ShadeCode,
+		ShadeName:       cmd.ShadeName,
+		CrossSection:    cmd.CrossSection,
+		LustureCode:     cmd.LustureCode,
 	}, cmd.UpdatedBy); err != nil {
 		return nil, err
 	}

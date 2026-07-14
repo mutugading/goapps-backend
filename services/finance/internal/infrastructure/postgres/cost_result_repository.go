@@ -84,6 +84,31 @@ func (r *CostResultRepository) UpsertWithSupersede(
 	return newCostID, prevVersion, prevTotal, prevCostID, nil
 }
 
+// UpsertWithSupersedeTx is the transaction-scoped variant of UpsertWithSupersede, used by
+// mbbatch.RunMBBatch so that superseding + inserting all 3 calc-type rows for one MB share a
+// single commit/rollback boundary (design addendum §10.3 step 7) instead of each type's write
+// committing independently. Caller owns the transaction lifecycle (begin/commit/rollback).
+func (r *CostResultRepository) UpsertWithSupersedeTx(
+	ctx context.Context, tx *sql.Tx, res *costcalc.Result,
+) (newCostID int64, prevVersion int, prevTotal float64, prevCostID int64, err error) {
+	if res == nil {
+		return 0, 0, 0, 0, fmt.Errorf("upsert result tx: nil result")
+	}
+	prevVersion, prevTotal, prevCostID, err = supersedePrevious(ctx, tx, res.ProductSysID(), res.Period(), res.CalcType())
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	newCostID, err = insertNewResult(ctx, tx, res, prevVersion+1)
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	res.AssignID(newCostID)
+	if prevVersion > 0 {
+		metrics.RecomputeTotal.Inc()
+	}
+	return newCostID, prevVersion, prevTotal, prevCostID, nil
+}
+
 // supersedePrevious marks the previous active row (if any) as SUPERSEDED.
 func supersedePrevious(
 	ctx context.Context, tx *sql.Tx, productSysID int64, period string, calcType costcalc.CalculationType,
@@ -156,6 +181,23 @@ func (r *CostResultRepository) GetActive(ctx context.Context, productSysID int64
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get active cost: %w", err)
+	}
+	return res, nil
+}
+
+// GetActiveTx is the transaction-scoped variant of GetActive, used by MB Push-to-Head execute so
+// the read participates in the same transaction as the subsequent status-flip write.
+func (r *CostResultRepository) GetActiveTx(ctx context.Context, tx *sql.Tx, productSysID int64, period string, calcType costcalc.CalculationType) (*costcalc.Result, error) {
+	q := `SELECT ` + resultColumns + ` FROM cst_product_cost
+		   WHERE cpc_product_sys_id = $1 AND cpc_period = $2
+		     AND cpc_calculation_type = $3 AND cpc_status != 'SUPERSEDED'
+		   LIMIT 1`
+	res, err := scanResult(tx.QueryRowContext(ctx, q, productSysID, period, string(calcType)))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, costcalc.ErrCostNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get active cost tx: %w", err)
 	}
 	return res, nil
 }
@@ -338,6 +380,31 @@ func (r *CostResultRepository) MarkVerified(ctx context.Context, costID int64, b
 // MarkApproved transitions a VERIFIED row to APPROVED.
 func (r *CostResultRepository) MarkApproved(ctx context.Context, costID int64, by string) error {
 	return r.transitionStatus(ctx, costID, by, "VERIFIED", "APPROVED")
+}
+
+// MarkApprovedFromCalculatedTx transitions a CALCULATED row directly to APPROVED, inside the
+// caller's transaction, used by MB Push-to-Head execute (which does not go through the standalone
+// two-step CALCULATED->VERIFIED->APPROVED verify/approve workflow) so the cst_mb_cost upsert and
+// this status flip commit or roll back together.
+func (r *CostResultRepository) MarkApprovedFromCalculatedTx(ctx context.Context, tx *sql.Tx, costID int64, by string) error {
+	const q = `
+		UPDATE cst_product_cost
+		   SET cpc_status = 'APPROVED',
+		       cpc_verified_at = now(),
+		       cpc_verified_by = $2
+		 WHERE cpc_cost_id = $1 AND cpc_status = 'CALCULATED'`
+	res, err := tx.ExecContext(ctx, q, costID, by)
+	if err != nil {
+		return fmt.Errorf("transition cost status tx: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("transition cost status tx rows: %w", err)
+	}
+	if n == 0 {
+		return costcalc.ErrCostInvalidStatus
+	}
+	return nil
 }
 
 // transitionStatus guards the state machine and updates the verifier columns.

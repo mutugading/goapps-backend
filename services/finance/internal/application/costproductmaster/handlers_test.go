@@ -58,6 +58,8 @@ func (f *fakeRepo) ListAllLegacyIDs(_ context.Context) (map[string]int64, error)
 
 func (f *fakeRepo) RollbackImport(_ context.Context, _ []int64) error { return nil }
 
+func (f *fakeRepo) UnlockWithLog(_ context.Context, _ domain.LockLogInput) error { return nil }
+
 var _ domain.Repository = (*fakeRepo)(nil)
 
 // =============================================================================

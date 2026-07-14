@@ -57,6 +57,10 @@ var (
 	TypeSnapshot      = Type{value: "SNAPSHOT"}
 	TypePending       = Type{value: "PENDING"}
 	TypeInitialValue  = Type{value: "INITIAL_VALUE"}
+	// TypeMBCostLookup identifies downstream POY-consumer formulas reading cst_mb_cost
+	// (migration 000451). Not used by the 7 F_MB_* formulas themselves — those are
+	// RM_LOOKUP/CALCULATION.
+	TypeMBCostLookup = Type{value: "MB_COST_LOOKUP"}
 )
 
 // NewType creates a Type from a string.
@@ -85,6 +89,8 @@ func NewType(s string) (Type, error) {
 		return TypePending, nil
 	case "INITIAL_VALUE":
 		return TypeInitialValue, nil
+	case "MB_COST_LOOKUP":
+		return TypeMBCostLookup, nil
 	default:
 		return Type{}, ErrInvalidFormulaType
 	}

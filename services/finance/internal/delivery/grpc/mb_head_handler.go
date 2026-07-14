@@ -6,40 +6,55 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	commonv1 "github.com/mutugading/goapps-backend/gen/common/v1"
 	financev1 "github.com/mutugading/goapps-backend/gen/finance/v1"
 	appmbhead "github.com/mutugading/goapps-backend/services/finance/internal/application/mbhead"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbhead"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbparam"
 	"github.com/mutugading/goapps-backend/services/finance/pkg/safeconv"
 )
 
 // MBHeadHandler implements financev1.MBHeadServiceServer.
 type MBHeadHandler struct {
 	financev1.UnimplementedMBHeadServiceServer
-	createHandler *appmbhead.CreateHandler
-	getHandler    *appmbhead.GetHandler
-	listHandler   *appmbhead.ListHandler
-	updateHandler *appmbhead.UpdateHandler
-	deleteHandler *appmbhead.DeleteHandler
-	validation    *ValidationHelper
+	createHandler    *appmbhead.CreateHandler
+	getHandler       *appmbhead.GetHandler
+	listHandler      *appmbhead.ListHandler
+	updateHandler    *appmbhead.UpdateHandler
+	deleteHandler    *appmbhead.DeleteHandler
+	submitHandler    *appmbhead.SubmitHandler
+	approveHandler   *appmbhead.ApproveHandler
+	validateHandler  *appmbhead.ValidateHandler
+	unApproveHandler *appmbhead.UnApproveHandler
+	revokeHandler    *appmbhead.RevokeHandler
+	exportHandler    *appmbhead.ExportHandler
+	importHandler    *appmbhead.ImportHandler
+	templateHandler  *appmbhead.TemplateHandler
+	validation       *ValidationHelper
 }
 
 // NewMBHeadHandler constructs an MBHeadHandler.
-func NewMBHeadHandler(repo mbhead.Repository) (*MBHeadHandler, error) {
+func NewMBHeadHandler(repo mbhead.Repository, paramRepo mbparam.Repository) (*MBHeadHandler, error) {
 	v, err := NewValidationHelper()
 	if err != nil {
 		return nil, err
 	}
 	return &MBHeadHandler{
-		createHandler: appmbhead.NewCreateHandler(repo),
-		getHandler:    appmbhead.NewGetHandler(repo),
-		listHandler:   appmbhead.NewListHandler(repo),
-		updateHandler: appmbhead.NewUpdateHandler(repo),
-		deleteHandler: appmbhead.NewDeleteHandler(repo),
-		validation:    v,
+		createHandler:    appmbhead.NewCreateHandler(repo),
+		getHandler:       appmbhead.NewGetHandler(repo),
+		listHandler:      appmbhead.NewListHandler(repo),
+		updateHandler:    appmbhead.NewUpdateHandler(repo),
+		deleteHandler:    appmbhead.NewDeleteHandler(repo),
+		submitHandler:    appmbhead.NewSubmitHandler(repo),
+		approveHandler:   appmbhead.NewApproveHandler(repo),
+		validateHandler:  appmbhead.NewValidateHandler(repo, paramRepo),
+		unApproveHandler: appmbhead.NewUnApproveHandler(repo),
+		revokeHandler:    appmbhead.NewRevokeHandler(repo),
+		exportHandler:    appmbhead.NewExportHandler(repo),
+		importHandler:    appmbhead.NewImportHandler(repo),
+		templateHandler:  appmbhead.NewTemplateHandler(),
+		validation:       v,
 	}, nil
 }
 
@@ -69,6 +84,12 @@ func (h *MBHeadHandler) CreateMBHead(ctx context.Context, req *financev1.CreateM
 		MBHFinalProduct: req.MbhFinalProduct,
 		MBHCode:         req.MbhCode,
 		CreatedBy:       getUserFromContext(ctx),
+		IsBoughtout:     req.MbhIsBoughtout,
+		DevCode:         req.GetMbhDevCode(),
+		ShadeCode:       req.GetMbhShadeCode(),
+		ShadeName:       req.GetMbhShadeName(),
+		CrossSection:    req.GetMbhCrossSection(),
+		LustureCode:     req.GetMbhLustureCode(),
 	})
 	if err != nil {
 		RecordMBHeadOperation("create", false)
@@ -140,6 +161,11 @@ func (h *MBHeadHandler) UpdateMBHead(ctx context.Context, req *financev1.UpdateM
 		MBHFinalProduct: req.MbhFinalProduct,
 		MBHCode:         req.MbhCode,
 		IsActive:        req.MbhIsActive,
+		DevCode:         req.MbhDevCode,
+		ShadeCode:       req.MbhShadeCode,
+		ShadeName:       req.MbhShadeName,
+		CrossSection:    req.MbhCrossSection,
+		LustureCode:     req.MbhLustureCode,
 		UpdatedBy:       getUserFromContext(ctx),
 	})
 	if err != nil {
@@ -174,6 +200,137 @@ func (h *MBHeadHandler) DeleteMBHead(ctx context.Context, req *financev1.DeleteM
 
 	RecordMBHeadOperation("delete", true)
 	return &financev1.DeleteMBHeadResponse{Base: successResponse("MB head deleted successfully")}, nil
+}
+
+// SubmitMBHead submits an MB Head for approval (DRAFT -> SUBMITTED).
+func (h *MBHeadHandler) SubmitMBHead(ctx context.Context, req *financev1.SubmitMBHeadRequest) (*financev1.SubmitMBHeadResponse, error) {
+	if baseResp := h.validation.ValidateRequest(req); baseResp != nil {
+		RecordMBHeadOperation("submit", false)
+		return &financev1.SubmitMBHeadResponse{Base: baseResp}, nil
+	}
+
+	id, err := uuid.Parse(req.MbhId)
+	if err != nil {
+		RecordMBHeadOperation("submit", false)
+		return &financev1.SubmitMBHeadResponse{Base: invalidIDResponse("mbh_id")}, nil //nolint:nilerr // BaseResponse pattern: error returned in response body
+	}
+
+	entity, err := h.submitHandler.Handle(ctx, appmbhead.SubmitCommand{MbhID: id, ActorUserID: getUserFromContext(ctx)})
+	if err != nil {
+		RecordMBHeadOperation("submit", false)
+		return &financev1.SubmitMBHeadResponse{Base: domainErrorToBaseResponse(err)}, nil
+	}
+
+	RecordMBHeadOperation("submit", true)
+	return &financev1.SubmitMBHeadResponse{
+		Base: successResponse("MB head submitted successfully"),
+		Data: mbHeadEntityToProto(entity),
+	}, nil
+}
+
+// ApproveMBHead approves a submitted MB Head (SUBMITTED -> APPROVED).
+func (h *MBHeadHandler) ApproveMBHead(ctx context.Context, req *financev1.ApproveMBHeadRequest) (*financev1.ApproveMBHeadResponse, error) {
+	if baseResp := h.validation.ValidateRequest(req); baseResp != nil {
+		RecordMBHeadOperation("approve", false)
+		return &financev1.ApproveMBHeadResponse{Base: baseResp}, nil
+	}
+
+	id, err := uuid.Parse(req.MbhId)
+	if err != nil {
+		RecordMBHeadOperation("approve", false)
+		return &financev1.ApproveMBHeadResponse{Base: invalidIDResponse("mbh_id")}, nil //nolint:nilerr // BaseResponse pattern: error returned in response body
+	}
+
+	entity, err := h.approveHandler.Handle(ctx, appmbhead.ApproveCommand{MbhID: id, ActorUserID: getUserFromContext(ctx)})
+	if err != nil {
+		RecordMBHeadOperation("approve", false)
+		return &financev1.ApproveMBHeadResponse{Base: domainErrorToBaseResponse(err)}, nil
+	}
+
+	RecordMBHeadOperation("approve", true)
+	return &financev1.ApproveMBHeadResponse{
+		Base: successResponse("MB head approved successfully"),
+		Data: mbHeadEntityToProto(entity),
+	}, nil
+}
+
+// ValidateMBHead validates an approved MB Head, freezing its param snapshot and auto-generating
+// its product (APPROVED -> VALIDATED, or DRAFT -> VALIDATED for boughtout MBs).
+func (h *MBHeadHandler) ValidateMBHead(ctx context.Context, req *financev1.ValidateMBHeadRequest) (*financev1.ValidateMBHeadResponse, error) {
+	if baseResp := h.validation.ValidateRequest(req); baseResp != nil {
+		RecordMBHeadOperation("validate", false)
+		return &financev1.ValidateMBHeadResponse{Base: baseResp}, nil
+	}
+
+	id, err := uuid.Parse(req.MbhId)
+	if err != nil {
+		RecordMBHeadOperation("validate", false)
+		return &financev1.ValidateMBHeadResponse{Base: invalidIDResponse("mbh_id")}, nil //nolint:nilerr // BaseResponse pattern: error returned in response body
+	}
+
+	entity, err := h.validateHandler.Handle(ctx, appmbhead.ValidateCommand{MbhID: id, ActorUserID: getUserFromContext(ctx)})
+	if err != nil {
+		RecordMBHeadOperation("validate", false)
+		return &financev1.ValidateMBHeadResponse{Base: domainErrorToBaseResponse(err)}, nil
+	}
+
+	RecordMBHeadOperation("validate", true)
+	return &financev1.ValidateMBHeadResponse{
+		Base: successResponse("MB head validated successfully"),
+		Data: mbHeadEntityToProto(entity),
+	}, nil
+}
+
+// UnApproveMBHead reverts an approved MB Head back to a prior state (APPROVED -> UN_APPROVED).
+func (h *MBHeadHandler) UnApproveMBHead(ctx context.Context, req *financev1.UnApproveMBHeadRequest) (*financev1.UnApproveMBHeadResponse, error) {
+	if baseResp := h.validation.ValidateRequest(req); baseResp != nil {
+		RecordMBHeadOperation("unapprove", false)
+		return &financev1.UnApproveMBHeadResponse{Base: baseResp}, nil
+	}
+
+	id, err := uuid.Parse(req.MbhId)
+	if err != nil {
+		RecordMBHeadOperation("unapprove", false)
+		return &financev1.UnApproveMBHeadResponse{Base: invalidIDResponse("mbh_id")}, nil //nolint:nilerr // BaseResponse pattern: error returned in response body
+	}
+
+	entity, err := h.unApproveHandler.Handle(ctx, appmbhead.UnApproveCommand{MbhID: id, Reason: req.Reason, ActorUserID: getUserFromContext(ctx)})
+	if err != nil {
+		RecordMBHeadOperation("unapprove", false)
+		return &financev1.UnApproveMBHeadResponse{Base: domainErrorToBaseResponse(err)}, nil
+	}
+
+	RecordMBHeadOperation("unapprove", true)
+	return &financev1.UnApproveMBHeadResponse{
+		Base: successResponse("MB head un-approved successfully"),
+		Data: mbHeadEntityToProto(entity),
+	}, nil
+}
+
+// RevokeMBHead revokes an MB Head, moving it to the terminal REVOKED state.
+func (h *MBHeadHandler) RevokeMBHead(ctx context.Context, req *financev1.RevokeMBHeadRequest) (*financev1.RevokeMBHeadResponse, error) {
+	if baseResp := h.validation.ValidateRequest(req); baseResp != nil {
+		RecordMBHeadOperation("revoke", false)
+		return &financev1.RevokeMBHeadResponse{Base: baseResp}, nil
+	}
+
+	id, err := uuid.Parse(req.MbhId)
+	if err != nil {
+		RecordMBHeadOperation("revoke", false)
+		return &financev1.RevokeMBHeadResponse{Base: invalidIDResponse("mbh_id")}, nil //nolint:nilerr // BaseResponse pattern: error returned in response body
+	}
+
+	entity, err := h.revokeHandler.Handle(ctx, appmbhead.RevokeCommand{MbhID: id, Reason: req.Reason, ActorUserID: getUserFromContext(ctx)})
+	if err != nil {
+		RecordMBHeadOperation("revoke", false)
+		return &financev1.RevokeMBHeadResponse{Base: domainErrorToBaseResponse(err)}, nil
+	}
+
+	RecordMBHeadOperation("revoke", true)
+	return &financev1.RevokeMBHeadResponse{
+		Base: successResponse("MB head revoked successfully"),
+		Data: mbHeadEntityToProto(entity),
+	}, nil
 }
 
 // ListMBHeads lists MB head records with search, filter, and pagination.
@@ -230,19 +387,88 @@ func (h *MBHeadHandler) ListMBHeads(ctx context.Context, req *financev1.ListMBHe
 	}, nil
 }
 
-// ExportMBHeads is not yet implemented.
-func (h *MBHeadHandler) ExportMBHeads(_ context.Context, _ *financev1.ExportMBHeadsRequest) (*financev1.ExportMBHeadsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "ExportMBHeads not implemented")
+// ExportMBHeads exports MB Heads to an Excel file.
+func (h *MBHeadHandler) ExportMBHeads(ctx context.Context, req *financev1.ExportMBHeadsRequest) (*financev1.ExportMBHeadsResponse, error) {
+	query := appmbhead.ExportQuery{}
+
+	switch req.ActiveFilter {
+	case financev1.ActiveFilter_ACTIVE_FILTER_ACTIVE:
+		active := true
+		query.IsActive = &active
+	case financev1.ActiveFilter_ACTIVE_FILTER_INACTIVE:
+		active := false
+		query.IsActive = &active
+	case financev1.ActiveFilter_ACTIVE_FILTER_UNSPECIFIED:
+		// Export all - no filter
+	}
+
+	result, err := h.exportHandler.Handle(ctx, query)
+	if err != nil {
+		RecordMBHeadOperation("export", false)
+		return &financev1.ExportMBHeadsResponse{Base: domainErrorToBaseResponse(err)}, nil
+	}
+
+	RecordMBHeadOperation("export", true)
+
+	return &financev1.ExportMBHeadsResponse{
+		Base:        successResponse("MB Heads exported successfully"),
+		FileContent: result.FileContent,
+		FileName:    result.FileName,
+	}, nil
 }
 
-// ImportMBHeads is not yet implemented.
-func (h *MBHeadHandler) ImportMBHeads(_ context.Context, _ *financev1.ImportMBHeadsRequest) (*financev1.ImportMBHeadsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "ImportMBHeads not implemented")
+// ImportMBHeads imports MB Heads from an Excel file.
+func (h *MBHeadHandler) ImportMBHeads(ctx context.Context, req *financev1.ImportMBHeadsRequest) (*financev1.ImportMBHeadsResponse, error) {
+	if baseResp := h.validation.ValidateRequest(req); baseResp != nil {
+		RecordMBHeadOperation("import", false)
+		return &financev1.ImportMBHeadsResponse{Base: baseResp}, nil
+	}
+
+	cmd := appmbhead.ImportCommand{
+		FileContent:     req.FileContent,
+		FileName:        req.FileName,
+		DuplicateAction: req.DuplicateAction,
+		CreatedBy:       getUserFromContext(ctx),
+	}
+
+	result, err := h.importHandler.Handle(ctx, cmd)
+	if err != nil {
+		RecordMBHeadOperation("import", false)
+		return &financev1.ImportMBHeadsResponse{Base: domainErrorToBaseResponse(err)}, nil
+	}
+
+	RecordMBHeadOperation("import", true)
+
+	importErrors := make([]*financev1.ImportError, len(result.Errors))
+	for i, e := range result.Errors {
+		importErrors[i] = &financev1.ImportError{
+			RowNumber: e.RowNumber,
+			Field:     e.Field,
+			Message:   e.Message,
+		}
+	}
+
+	return &financev1.ImportMBHeadsResponse{
+		Base:         successResponse("Import completed"),
+		SuccessCount: result.SuccessCount,
+		SkippedCount: result.SkippedCount,
+		FailedCount:  result.FailedCount,
+		Errors:       importErrors,
+	}, nil
 }
 
-// DownloadMBHeadTemplate is not yet implemented.
+// DownloadMBHeadTemplate downloads the Excel import template for MB Heads.
 func (h *MBHeadHandler) DownloadMBHeadTemplate(_ context.Context, _ *financev1.DownloadMBHeadTemplateRequest) (*financev1.DownloadMBHeadTemplateResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "DownloadMBHeadTemplate not implemented")
+	result, err := h.templateHandler.Handle()
+	if err != nil {
+		return &financev1.DownloadMBHeadTemplateResponse{Base: InternalErrorResponse(err.Error())}, nil
+	}
+
+	return &financev1.DownloadMBHeadTemplateResponse{
+		Base:        successResponse("Template generated successfully"),
+		FileContent: result.FileContent,
+		FileName:    result.FileName,
+	}, nil
 }
 
 // mbHeadEntityToProto converts a domain MBHead entity to its proto representation.
@@ -273,6 +499,43 @@ func mbHeadEntityToProto(e *mbhead.Entity) *financev1.MBHead {
 	p.MbhLdrPrsn = e.MBHLdrPrsn()
 	p.MbhFinalProduct = e.MBHFinalProduct()
 	p.MbhCode = e.MBHCode()
+	p.IsBoughtout = e.IsBoughtout()
+	p.DevCode = e.DevCode()
+	p.ShadeCode = e.ShadeCode()
+	p.ShadeName = e.ShadeName()
+	p.CrossSection = e.CrossSection()
+	p.LustureCode = e.LustureCode()
+	p.EntryStatus = e.EntryStatus()
+	p.CurrentVersion = e.CurrentVersion()
+	if e.MachineFixedTotal() != nil {
+		p.MachineFixedTotal = *e.MachineFixedTotal()
+	}
+	p.StateReason = e.StateReason()
+	p.CostProductId = e.CostProductID()
+	if e.CostGeneratedAt() != nil {
+		p.CostGeneratedAt = *e.CostGeneratedAt()
+	}
+	p.CostGeneratedBy = e.CostGeneratedBy()
+	if e.ParamWaste() != nil {
+		p.ParamWaste = *e.ParamWaste()
+	}
+	if e.ParamQualityLoss() != nil {
+		p.ParamQualityLoss = *e.ParamQualityLoss()
+	}
+	if e.ParamEfficiency() != nil {
+		p.ParamEfficiency = *e.ParamEfficiency()
+	}
+	if e.ParamDevExpense() != nil {
+		p.ParamDevExpense = *e.ParamDevExpense()
+	}
+	if e.ParamPacking() != nil {
+		p.ParamPacking = *e.ParamPacking()
+	}
+	if e.ParamMBProdPerDay() != nil {
+		p.ParamMbProdPerDay = *e.ParamMBProdPerDay()
+	}
+	p.ParamThroughputPerHour = e.ParamThroughputPerHour()
+	p.ParamNoOfProcess = e.ParamNoOfProcess()
 	if e.UpdatedAt() != nil {
 		p.Audit.UpdatedAt = e.UpdatedAt().Format(time.RFC3339)
 	}

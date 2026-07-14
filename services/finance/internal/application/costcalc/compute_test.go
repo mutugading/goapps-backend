@@ -164,6 +164,53 @@ func TestComputeProduct_MissingRMCost(t *testing.T) {
 	require.ErrorIs(t, err, costcalcdom.ErrMissingRMCost)
 }
 
+func TestComputeProduct_MBCostLookup_ResolvesFromPreFetchedMap(t *testing.T) {
+	in := ComputeInput{
+		ProductSysID: 1,
+		CalcType:     costcalcdom.CalcTypeActual,
+		Route:        buildOneStageRoute(1, costroute.RmTypeItem, "RM001", 0), // no RM contribution
+		Formulas: []Formula{
+			{
+				FormulaCode:     "F_MB_LOOKUP",
+				FormulaType:     FormulaTypeMBCostLookup,
+				ResultParamCode: ScopeKeyFinalCost,
+			},
+		},
+		RMCosts:   map[string]float64{"RM001|": 0},
+		MBCosts:   map[string]float64{"ACTUAL": 42.5, "SELLING": 43.0},
+		EvalCache: evaluator.NewCache(),
+	}
+
+	out, err := ComputeProduct(context.Background(), in)
+	require.NoError(t, err)
+	require.NotNil(t, out)
+	assert.InDelta(t, 42.5, out.CostPerUnit, 1e-9)
+	require.Len(t, out.FormulaTrace, 1)
+	assert.Equal(t, "F_MB_LOOKUP", out.FormulaTrace[0].FormulaCode)
+}
+
+func TestComputeProduct_MBCostLookup_MissingCostType_ReturnsErrMissingMBCost(t *testing.T) {
+	in := ComputeInput{
+		ProductSysID: 1,
+		CalcType:     costcalcdom.CalcTypeForecast,
+		Route:        buildOneStageRoute(1, costroute.RmTypeItem, "RM001", 0),
+		Formulas: []Formula{
+			{
+				FormulaCode:     "F_MB_LOOKUP",
+				FormulaType:     FormulaTypeMBCostLookup,
+				ResultParamCode: ScopeKeyFinalCost,
+			},
+		},
+		RMCosts:   map[string]float64{"RM001|": 0},
+		MBCosts:   map[string]float64{"ACTUAL": 42.5}, // no FORECAST entry
+		EvalCache: evaluator.NewCache(),
+	}
+
+	_, err := ComputeProduct(context.Background(), in)
+	require.Error(t, err)
+	require.ErrorIs(t, err, costcalcdom.ErrMissingMBCost)
+}
+
 func TestComputeProduct_MissingUpstream(t *testing.T) {
 	in := ComputeInput{
 		ProductSysID:  10,

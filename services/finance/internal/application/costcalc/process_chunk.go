@@ -25,6 +25,7 @@ const (
 	blockReasonMissingCAPP     = "MISSING_CAPP_VALUE"
 	blockReasonMissingRMCost   = "MISSING_RM_COST"
 	blockReasonMissingUpstream = "MISSING_UPSTREAM_COST"
+	blockReasonMissingMBCost   = "MISSING_MB_COST"
 	blockReasonFormulaError    = "FORMULA_ERROR"
 )
 
@@ -237,6 +238,13 @@ func (s *Service) recordComputeError(ctx context.Context, in ProcessChunkInput, 
 		}
 		s.emitProductBlocked(ctx, in, pid, blockReasonMissingUpstream, err)
 		metrics.ProductsTotal.WithLabelValues(productStatusBlocked, blockReasonMissingUpstream).Inc()
+		return productOutcomeBlocked
+	case errors.Is(err, costcalcdom.ErrMissingMBCost):
+		if e := s.productRepo.MarkBlocked(ctx, in.JobID, pid, blockReasonMissingMBCost, logBytes(err)); e != nil {
+			_ = e
+		}
+		s.emitProductBlocked(ctx, in, pid, blockReasonMissingMBCost, err)
+		metrics.ProductsTotal.WithLabelValues(productStatusBlocked, blockReasonMissingMBCost).Inc()
 		return productOutcomeBlocked
 	case errors.Is(err, costcalcdom.ErrFormulaEval):
 		if e := s.productRepo.MarkBlocked(ctx, in.JobID, pid, blockReasonFormulaError, logBytes(err)); e != nil {

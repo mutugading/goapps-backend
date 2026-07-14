@@ -9,4 +9,5 @@ const (
 	ScopeFiltered      JobScope = "FILTERED"
 	ScopeSingleProduct JobScope = "SINGLE_PRODUCT"
 	ScopeSingleRoute   JobScope = "SINGLE_ROUTE"
+	ScopeMBBatch       JobScope = "MB_BATCH"
 )

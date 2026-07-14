@@ -30,7 +30,8 @@ const cpmColumns = `
 	cpm_erp_linked_at,cpm_erp_linked_by,
 	cpm_is_active,
 	cpm_created_at,cpm_created_by,cpm_updated_at,cpm_updated_by,
-	COALESCE(cpm_shade_name,''),COALESCE(cpm_flex_01,''),COALESCE(cpm_flex_02,''),COALESCE(cpm_flex_03,'')`
+	COALESCE(cpm_shade_name,''),COALESCE(cpm_flex_01,''),COALESCE(cpm_flex_02,''),COALESCE(cpm_flex_03,''),
+	COALESCE(cpm_source,''),cpm_is_locked`
 
 // Create inserts the product. product_code is generated atomically via generate_cost_product_code()
 // inside the same INSERT, returning the new sys_id and code.
@@ -114,6 +115,47 @@ func (r *CostProductMasterRepository) Update(ctx context.Context, p *costproduct
 	}
 	if n == 0 {
 		return costproductmaster.ErrNotFound
+	}
+	return nil
+}
+
+// UnlockWithLog clears cpm_is_locked and inserts the mst_mb_lock_log audit row in a single
+// transaction — either both succeed or neither does, so a failed audit insert never leaves
+// the product silently unlocked with no trail.
+func (r *CostProductMasterRepository) UnlockWithLog(ctx context.Context, in costproductmaster.LockLogInput) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("cost_product_master_repository: begin unlock tx: %w", err)
+	}
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			_ = rbErr
+		}
+	}()
+
+	const updateQ = `UPDATE cost_product_master SET cpm_is_locked = FALSE WHERE cpm_product_sys_id = $1`
+	res, err := tx.ExecContext(ctx, updateQ, in.ProductSysID)
+	if err != nil {
+		return fmt.Errorf("cost_product_master_repository: set lock: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("cost_product_master_repository: rows affected: %w", err)
+	}
+	if rows == 0 {
+		return costproductmaster.ErrNotFound
+	}
+
+	const logQ = `
+		INSERT INTO mst_mb_lock_log (
+			mbll_cost_product_id, mbll_unlocked_by, mbll_reason, mbll_auto_relock_at
+		) VALUES ($1, $2, $3, $4)`
+	if _, err := tx.ExecContext(ctx, logQ, in.ProductSysID, in.UnlockedBy, in.Reason, in.AutoRelockAt); err != nil {
+		return fmt.Errorf("cost_product_master_repository: insert lock log: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("cost_product_master_repository: commit unlock tx: %w", err)
 	}
 	return nil
 }
@@ -508,6 +550,8 @@ type cpmRow struct {
 	flex01       string
 	flex02       string
 	flex03       string
+	source       string
+	locked       bool
 }
 
 func (r *CostProductMasterRepository) scanRow(row *sql.Row) (*costproductmaster.CostProductMaster, error) {
@@ -520,6 +564,7 @@ func (r *CostProductMasterRepository) scanRow(row *sql.Row) (*costproductmaster.
 		&d.active,
 		&d.createdAt, &d.createdBy, &d.updatedAt, &d.updatedBy,
 		&d.shadeName, &d.flex01, &d.flex02, &d.flex03,
+		&d.source, &d.locked,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, costproductmaster.ErrNotFound
@@ -539,6 +584,7 @@ func (r *CostProductMasterRepository) scanRows(rows *sql.Rows) (*costproductmast
 		&d.active,
 		&d.createdAt, &d.createdBy, &d.updatedAt, &d.updatedBy,
 		&d.shadeName, &d.flex01, &d.flex02, &d.flex03,
+		&d.source, &d.locked,
 	); err != nil {
 		return nil, fmt.Errorf("scan cost_product_master row: %w", err)
 	}
@@ -563,6 +609,7 @@ func cpmFromRow(d cpmRow) *costproductmaster.CostProductMaster {
 		d.active,
 		d.createdAt, d.createdBy, d.updatedAt, d.updatedBy,
 		d.shadeName, d.flex01, d.flex02, d.flex03,
+		d.source, d.locked,
 	)
 }
 

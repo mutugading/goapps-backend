@@ -58,6 +58,11 @@ type ComputeInput struct {
 	// SellingSnapshot holds param values from the SELLING session for this product+period.
 	// Used to implement marketing_result() built-in. Empty map when no SELLING result exists.
 	SellingSnapshot map[string]float64
+	// MBCosts holds this product's pre-resolved cst_mb_cost values, keyed by cost_type
+	// (ACTUAL/SELLING/FORECAST), for MB_COST_LOOKUP formulas. Resolving which mbh_id a
+	// product refers to is the caller's responsibility (not yet wired into bulkLoad —
+	// see Task 21b/PRD §13 Phase 5); nil is valid for products with no such formulas.
+	MBCosts map[string]float64
 }
 
 // RMCostDetail records one RM line's contribution to the total RM cost.
@@ -143,7 +148,7 @@ func ComputeProduct(ctx context.Context, in ComputeInput) (*ComputeOutput, error
 	scope[ScopeKeyCostRMTotal] = totalRM
 
 	// 3. Evaluate formulas in topo order (loader pre-sorted).
-	formulaTrace, err := evalFormulaChain(ctx, in.EvalCache, scope, totalRM, in.Formulas, in.ProductSysID)
+	formulaTrace, err := evalFormulaChain(ctx, in.EvalCache, scope, totalRM, in.Formulas, in.ProductSysID, in.MBCosts, in.CalcType)
 	if err != nil {
 		recordProductSpanError(span, err)
 		return nil, err
@@ -254,6 +259,9 @@ func injectMarketingResult(scope map[string]any, sellingSnap map[string]float64)
 // evalFormulaChain evaluates all formulas in topological order and updates scope in place.
 // RM_LOOKUP formulas use a custom Oracle DSL; they are approximated as totalRM aliases.
 // SNAPSHOT formulas capture a param value at evaluation time.
+// MB_COST_LOOKUP formulas resolve from mbCosts (pre-fetched cst_mb_cost values), keyed
+// by calcType — see Task 21 (design addendum §10.3): mbh_id resolution into a chunk's
+// products is not yet wired, so mbCosts is nil for any product without one resolved.
 // CALCULATION formulas are evaluated by the expr-lang evaluator.
 func evalFormulaChain(
 	ctx context.Context,
@@ -262,10 +270,12 @@ func evalFormulaChain(
 	totalRM float64,
 	formulas []Formula,
 	productSysID int64,
+	mbCosts map[string]float64,
+	calcType costcalcdom.CalculationType,
 ) ([]FormulaEvalTrace, error) {
 	trace := make([]FormulaEvalTrace, 0, len(formulas))
 	for _, f := range formulas {
-		t, err := evalSingleFormulaStep(ctx, cache, scope, totalRM, f, productSysID)
+		t, err := evalSingleFormulaStep(ctx, cache, scope, totalRM, f, productSysID, mbCosts, calcType)
 		if err != nil {
 			return nil, err
 		}
@@ -283,6 +293,8 @@ func evalSingleFormulaStep(
 	totalRM float64,
 	f Formula,
 	productSysID int64,
+	mbCosts map[string]float64,
+	calcType costcalcdom.CalculationType,
 ) (FormulaEvalTrace, error) {
 	switch f.FormulaType {
 	case "SNAPSHOT":
@@ -296,6 +308,18 @@ func evalSingleFormulaStep(
 			ResultParamCode: f.ResultParamCode,
 			Output:          totalRM,
 			Inputs:          map[string]float64{"COST_RM_TOTAL": totalRM},
+		}, nil
+	case FormulaTypeMBCostLookup:
+		val, ok := mbCosts[string(calcType)]
+		if !ok {
+			return FormulaEvalTrace{}, fmt.Errorf("%w: %s for product %d (calc_type=%s)",
+				costcalcdom.ErrMissingMBCost, f.FormulaCode, productSysID, calcType)
+		}
+		return FormulaEvalTrace{
+			FormulaCode:     f.FormulaCode,
+			Expression:      f.Expression,
+			ResultParamCode: f.ResultParamCode,
+			Output:          val,
 		}, nil
 	default:
 		result, evalErr := evalOneFormula(ctx, cache, f, scope)

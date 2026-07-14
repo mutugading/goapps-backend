@@ -54,6 +54,8 @@ func (f *fakeCPMRepo) ListAllLegacyIDs(_ context.Context) (map[string]int64, err
 
 func (f *fakeCPMRepo) RollbackImport(_ context.Context, _ []int64) error { return nil }
 
+func (f *fakeCPMRepo) UnlockWithLog(_ context.Context, _ domain.LockLogInput) error { return nil }
+
 var _ domain.Repository = (*fakeCPMRepo)(nil)
 
 func newCPMHandlerForTest(t *testing.T) (*CostProductMasterHandler, *fakeCPMRepo) {

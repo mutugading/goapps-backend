@@ -25,6 +25,7 @@ const (
 	loaderKindRMCosts         = "rmcosts"
 	loaderKindUpstream        = "upstream"
 	loaderKindSellingSnapshot = "selling_snapshot"
+	loaderKindMBCosts         = "mb_costs"
 )
 
 // observeLoad observes bulk loader latency under the given kind label.
@@ -46,6 +47,11 @@ type ProductLoader interface {
 	// calc result for each product+period. Returns empty inner map if no SELLING
 	// result exists for a product. Never returns an error for missing data.
 	LoadSellingSnapshots(ctx context.Context, productSysIDs []int64, period string) (map[int64]map[string]float64, error)
+	// LoadMBCosts bulk-loads the latest active cst_mb_cost value per (mbh_id, cost_type)
+	// for MB_COST_LOOKUP formulas. Keyed by mbh_id (lowercase UUID string), then by
+	// cost_type (ACTUAL/SELLING/FORECAST). Missing (mbh_id, cost_type) pairs are simply
+	// absent from the inner map — callers must check presence, not assume zero-value.
+	LoadMBCosts(ctx context.Context, mbhIDs []string) (map[string]map[string]float64, error)
 }
 
 type productLoader struct {
@@ -75,7 +81,8 @@ func (l *productLoader) LoadProducts(ctx context.Context, ids []int64) (map[int6
 		       cpm_erp_linked_at, COALESCE(cpm_erp_linked_by, ''),
 		       cpm_is_active,
 		       cpm_created_at, cpm_created_by, cpm_updated_at, COALESCE(cpm_updated_by, ''),
-		       COALESCE(cpm_shade_name,''), COALESCE(cpm_flex_01,''), COALESCE(cpm_flex_02,''), COALESCE(cpm_flex_03,'')
+		       COALESCE(cpm_shade_name,''), COALESCE(cpm_flex_01,''), COALESCE(cpm_flex_02,''), COALESCE(cpm_flex_03,''),
+		       COALESCE(cpm_source,''), cpm_is_locked
 		FROM cost_product_master
 		WHERE cpm_product_sys_id = ANY($1)`
 	rows, err := l.db.QueryContext(ctx, q, pq.Array(ids))
@@ -108,12 +115,15 @@ func (l *productLoader) LoadProducts(ctx context.Context, ids []int64) (map[int6
 			flex01       string
 			flex02       string
 			flex03       string
+			source       string
+			locked       bool
 		)
 		if scanErr := rows.Scan(
 			&sysID, &code, &typeID, &name, &shade, &grade, &desc,
 			&erpItem, &erpG1, &erpG2, &erpAt, &erpBy,
 			&active, &createdAt, &createdBy, &updatedAt, &updatedBy,
 			&shadeName, &flex01, &flex02, &flex03,
+			&source, &locked,
 		); scanErr != nil {
 			return nil, fmt.Errorf("scan product row: %w", scanErr)
 		}
@@ -127,6 +137,7 @@ func (l *productLoader) LoadProducts(ctx context.Context, ids []int64) (map[int6
 			erpItem, erpG1, erpG2, erpAtPtr, erpBy,
 			active, createdAt, createdBy, updatedAt, updatedBy,
 			shadeName, flex01, flex02, flex03,
+			source, locked,
 		)
 	}
 	if err := rows.Err(); err != nil {
@@ -370,9 +381,14 @@ func (l *productLoader) loadRmsForHeads(ctx context.Context, headIDs []int64, se
 // =============================================================================
 
 // LoadCAPP returns the per-product map of paramCode → numeric value for every
-// applicable parameter that has a NUMBER-typed value persisted in
-// cost_product_parameter. Missing params simply don't appear in the inner map;
-// computeProduct surfaces ErrMissingCAPPValue if a formula references one.
+// applicable parameter that has a persisted value in cost_product_parameter.
+// NUMBER-typed params read cpp_value_numeric directly; BOOLEAN-typed params
+// (e.g. IS_BOUGHTOUT, frozen via cpp_value_flag not cpp_value_numeric — see
+// mb_autogen_repository.go's mbBuildParamValues) are coalesced to 1.0/0.0 so
+// expr-lang's ternary operator sees a real truthy/falsy value instead of the
+// zero-fill buildInitialScope applies to variables absent from the scope
+// entirely. Missing params simply don't appear in the inner map; computeProduct
+// surfaces ErrMissingCAPPValue if a formula references one.
 func (l *productLoader) LoadCAPP(ctx context.Context, productSysIDs []int64) (map[int64]map[string]float64, error) {
 	defer observeLoad(loaderKindCAPP, time.Now())
 	out := map[int64]map[string]float64{}
@@ -380,14 +396,16 @@ func (l *productLoader) LoadCAPP(ctx context.Context, productSysIDs []int64) (ma
 		return out, nil
 	}
 	const q = `
-		SELECT capp.capp_product_sys_id, mp.param_code, cpp.cpp_value_numeric
+		SELECT capp.capp_product_sys_id, mp.param_code,
+		       COALESCE(cpp.cpp_value_numeric,
+		                 CASE WHEN cpp.cpp_value_flag THEN 1.0 ELSE 0.0 END)
 		FROM cost_product_applicable_param capp
 		JOIN mst_parameter mp ON mp.id = capp.capp_param_id
 		JOIN cost_product_parameter cpp
 		     ON cpp.cpp_product_sys_id = capp.capp_product_sys_id
 		    AND cpp.cpp_param_id = capp.capp_param_id
 		WHERE capp.capp_product_sys_id = ANY($1)
-		  AND cpp.cpp_value_numeric IS NOT NULL
+		  AND (cpp.cpp_value_numeric IS NOT NULL OR cpp.cpp_value_flag IS NOT NULL)
 		  AND mp.deleted_at IS NULL`
 	rows, err := l.db.QueryContext(ctx, q, pq.Array(productSysIDs))
 	if err != nil {
@@ -809,6 +827,59 @@ func (l *productLoader) LoadUpstreamCosts(ctx context.Context, productSysIDs []i
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate upstream cost rows: %w", err)
+	}
+	return out, nil
+}
+
+// =============================================================================
+// LoadMBCosts
+// =============================================================================
+
+// LoadMBCosts bulk-loads the latest active mbc_cost_value per (mbh_id, cost_type)
+// from cst_mb_cost — the only table downstream MB-cost consumers (POY, etc.) ever
+// read from. Mirrors LoadRMCosts/LoadUpstreamCosts's inline-SQL-against-l.db style
+// rather than delegating to postgres.CstMBCostRepository (which takes a *postgres.DB
+// wrapper, not the raw *sql.DB this loader holds).
+func (l *productLoader) LoadMBCosts(ctx context.Context, mbhIDs []string) (map[string]map[string]float64, error) {
+	defer observeLoad(loaderKindMBCosts, time.Now())
+	out := map[string]map[string]float64{}
+	if len(mbhIDs) == 0 {
+		return out, nil
+	}
+	const q = `
+		SELECT DISTINCT ON (mbc_mbh_id, mbc_cost_type)
+		       mbc_mbh_id, mbc_cost_type, mbc_cost_value
+		FROM cst_mb_cost
+		WHERE mbc_mbh_id = ANY($1)
+		  AND mbc_is_active = TRUE
+		ORDER BY mbc_mbh_id, mbc_cost_type, mbc_period DESC`
+	rows, err := l.db.QueryContext(ctx, q, pq.Array(mbhIDs))
+	if err != nil {
+		return nil, fmt.Errorf("load MB costs: %w", err)
+	}
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
+	for rows.Next() {
+		var (
+			mbhID    string
+			costType string
+			val      float64
+		)
+		if err := rows.Scan(&mbhID, &costType, &val); err != nil {
+			return nil, fmt.Errorf("scan MB cost row: %w", err)
+		}
+		inner, ok := out[mbhID]
+		if !ok {
+			inner = map[string]float64{}
+			out[mbhID] = inner
+		}
+		inner[costType] = val
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate MB cost rows: %w", err)
 	}
 	return out, nil
 }

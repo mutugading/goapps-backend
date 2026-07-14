@@ -5,6 +5,11 @@ package costcalc
 // route-aware RM aggregator rather than the expr-lang evaluator.
 const FormulaTypeRMLookup = "RM_LOOKUP"
 
+// FormulaTypeMBCostLookup identifies MB_COST_LOOKUP formulas — downstream POY-consumer
+// formulas that resolve their result directly from a pre-fetched cst_mb_cost value
+// (see ComputeInput.MBCosts) rather than any expr-lang evaluation.
+const FormulaTypeMBCostLookup = "MB_COST_LOOKUP"
+
 // Formula is the application-level representation of a single computed parameter
 // (mst_formula + mst_formula_param). Loaded in topologically-sorted order so that
 // evaluation can simply iterate without further dependency analysis.

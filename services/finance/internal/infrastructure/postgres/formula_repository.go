@@ -137,6 +137,22 @@ func (r *FormulaRepository) GetByCode(ctx context.Context, code formula.Code) (*
 	return r.reconstructWithParams(entity, params), nil
 }
 
+// GetByResultParamID retrieves the Formula whose result_param_id matches the given param ID.
+func (r *FormulaRepository) GetByResultParamID(ctx context.Context, resultParamID uuid.UUID) (*formula.Formula, error) {
+	query := formulaSelectQuery() + ` WHERE f.result_param_id = $1 AND f.deleted_at IS NULL`
+	entity, err := r.scanFormula(r.db.QueryRowContext(ctx, query, resultParamID))
+	if err != nil {
+		return nil, err
+	}
+
+	params, err := r.loadFormulaParams(ctx, entity.ID())
+	if err != nil {
+		return nil, err
+	}
+
+	return r.reconstructWithParams(entity, params), nil
+}
+
 // List retrieves Formulas with filtering, searching, and pagination.
 func (r *FormulaRepository) List(ctx context.Context, filter formula.ListFilter) ([]*formula.Formula, int64, error) {
 	filter.Validate()

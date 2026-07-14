@@ -17,4 +17,8 @@ var (
 	ErrEmptyCreatedBy = errors.New("created_by cannot be empty")
 	// ErrAlreadyDeleted is returned when attempting to modify an already deleted MB head.
 	ErrAlreadyDeleted = errors.New("mb head is already deleted")
+	// ErrInvalidTransition is returned when a workflow state transition is not allowed.
+	ErrInvalidTransition = errors.New("mbhead: invalid state transition")
+	// ErrReasonRequired is returned when a transition requires a reason but none was given.
+	ErrReasonRequired = errors.New("mbhead: reason is required for this transition")
 )

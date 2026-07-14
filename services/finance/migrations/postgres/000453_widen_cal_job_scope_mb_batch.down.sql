@@ -1,0 +1,3 @@
+ALTER TABLE cal_job DROP CONSTRAINT IF EXISTS chk_cj_scope;
+ALTER TABLE cal_job ADD CONSTRAINT chk_cj_scope
+    CHECK (cj_scope IN ('ALL','FILTERED','SINGLE_PRODUCT','SINGLE_ROUTE'));

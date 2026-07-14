@@ -13,6 +13,7 @@ var (
 	ErrMissingCAPPValue    = errors.New("missing CAPP value")
 	ErrMissingRMCost       = errors.New("missing RM cost for item")
 	ErrMissingUpstreamCost = errors.New("missing upstream product cost")
+	ErrMissingMBCost       = errors.New("missing MB cost lookup value")
 	ErrFormulaEval         = errors.New("formula evaluation failed")
 	ErrCycleDetected       = errors.New("dependency cycle detected")
 	ErrChunkRetryExhausted = errors.New("chunk retry attempts exhausted")

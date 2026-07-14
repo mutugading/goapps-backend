@@ -51,6 +51,13 @@ func (h *Handlers) Upsert(ctx context.Context, cmd UpsertCommand) (*cpp.Value, e
 	if !exists {
 		return nil, cpp.ErrProductNotFound
 	}
+	locked, err := h.repo.IsProductLocked(ctx, cmd.ProductSysID)
+	if err != nil {
+		return nil, err
+	}
+	if locked {
+		return nil, cpp.ErrProductLocked
+	}
 
 	meta, err := h.repo.GetMeta(ctx, cmd.ParamID)
 	if err != nil {
@@ -110,6 +117,13 @@ func (h *Handlers) UpsertBatch(ctx context.Context, productSysID int64, cmds []U
 
 // Delete clears a value.
 func (h *Handlers) Delete(ctx context.Context, productSysID int64, paramID uuid.UUID) error {
+	locked, err := h.repo.IsProductLocked(ctx, productSysID)
+	if err != nil {
+		return err
+	}
+	if locked {
+		return cpp.ErrProductLocked
+	}
 	return h.repo.Delete(ctx, productSysID, paramID)
 }
 
@@ -126,6 +140,13 @@ func (h *Handlers) AddApplicable(ctx context.Context, productSysID int64, paramI
 	}
 	if !exists {
 		return cpp.ErrProductNotFound
+	}
+	locked, err := h.repo.IsProductLocked(ctx, productSysID)
+	if err != nil {
+		return err
+	}
+	if locked {
+		return cpp.ErrProductLocked
 	}
 	meta, err := h.repo.GetMeta(ctx, paramID)
 	if err != nil {
@@ -147,11 +168,25 @@ func (h *Handlers) AddApplicable(ctx context.Context, productSysID int64, paramI
 
 // RemoveApplicable removes a param from a product (and its stored value).
 func (h *Handlers) RemoveApplicable(ctx context.Context, productSysID int64, paramID uuid.UUID) error {
+	locked, err := h.repo.IsProductLocked(ctx, productSysID)
+	if err != nil {
+		return err
+	}
+	if locked {
+		return cpp.ErrProductLocked
+	}
 	return h.repo.RemoveApplicable(ctx, productSysID, paramID)
 }
 
 // UpdateApplicable patches per-product override fields.
 func (h *Handlers) UpdateApplicable(ctx context.Context, productSysID int64, paramID uuid.UUID, isRequired *bool, displayOrder *int32, actor string) error {
+	locked, err := h.repo.IsProductLocked(ctx, productSysID)
+	if err != nil {
+		return err
+	}
+	if locked {
+		return cpp.ErrProductLocked
+	}
 	return h.repo.UpdateApplicable(ctx, productSysID, paramID, isRequired, displayOrder, actor)
 }
 
@@ -179,10 +214,12 @@ func (h *Handlers) CheckMissing(ctx context.Context, productSysID int64) ([]cpp.
 	return h.repo.MissingRequired(ctx, productSysID)
 }
 
-// AddApplicableWithChildren adds a MASTER_LOOKUP param and all its fill-group children atomically.
-// fillGroupChildren should be the result of parameter.Repository.GetByFillGroup for MASTER_LOOKUP params;
-// pass nil or empty slice for non-MASTER_LOOKUP params.
-func (h *Handlers) AddApplicableWithChildren(ctx context.Context, productSysID int64, triggerParamID uuid.UUID, createdBy string, fillGroupChildren []uuid.UUID) error {
+// AddApplicableWithChildren adds a MASTER_LOOKUP or CALCULATED param and all its children
+// (fill-group or formula inputs) atomically. fillGroupChildren should be the result of
+// parameter.Repository.GetByFillGroup for MASTER_LOOKUP params, or the formula's InputParams
+// for CALCULATED params; pass nil or empty slice otherwise. isRequired applies only to the
+// trigger param.
+func (h *Handlers) AddApplicableWithChildren(ctx context.Context, productSysID int64, triggerParamID uuid.UUID, isRequired bool, createdBy string, fillGroupChildren []uuid.UUID) error {
 	exists, err := h.repo.ProductExists(ctx, productSysID)
 	if err != nil {
 		return err
@@ -190,7 +227,14 @@ func (h *Handlers) AddApplicableWithChildren(ctx context.Context, productSysID i
 	if !exists {
 		return cpp.ErrProductNotFound
 	}
-	return h.repo.AddApplicableWithChildren(ctx, productSysID, triggerParamID, createdBy, fillGroupChildren)
+	locked, err := h.repo.IsProductLocked(ctx, productSysID)
+	if err != nil {
+		return err
+	}
+	if locked {
+		return cpp.ErrProductLocked
+	}
+	return h.repo.AddApplicableWithChildren(ctx, productSysID, triggerParamID, isRequired, createdBy, fillGroupChildren)
 }
 
 // GetRemovePreview returns trigger + child param info for the confirm dialog.
@@ -200,5 +244,12 @@ func (h *Handlers) GetRemovePreview(ctx context.Context, productSysID int64, par
 
 // RemoveApplicableWithChildren removes a MASTER_LOOKUP param + all children + their CPP values atomically.
 func (h *Handlers) RemoveApplicableWithChildren(ctx context.Context, productSysID int64, triggerParamID uuid.UUID, deletedBy string) error {
+	locked, err := h.repo.IsProductLocked(ctx, productSysID)
+	if err != nil {
+		return err
+	}
+	if locked {
+		return cpp.ErrProductLocked
+	}
 	return h.repo.RemoveApplicableWithChildren(ctx, productSysID, triggerParamID, deletedBy)
 }

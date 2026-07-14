@@ -1,6 +1,9 @@
 package costproductmaster
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // ProductUpsertInput is a single row for BulkUpsertByLegacyID.
 type ProductUpsertInput struct {
@@ -63,4 +66,15 @@ type Repository interface {
 	// order) then deletes the products themselves; cost_product_parameter and
 	// cost_product_applicable_param are cleaned up via ON DELETE CASCADE.
 	RollbackImport(ctx context.Context, insertedProductSysIDs []int64) error
+	// UnlockWithLog clears cpm_is_locked and inserts the mst_mb_lock_log audit row in a single
+	// transaction, so a failure writing the audit trail rolls back the lock change too.
+	UnlockWithLog(ctx context.Context, in LockLogInput) error
+}
+
+// LockLogInput is a single mst_mb_lock_log row for an escape-hatch unlock.
+type LockLogInput struct {
+	ProductSysID int64
+	UnlockedBy   string
+	Reason       string
+	AutoRelockAt time.Time
 }

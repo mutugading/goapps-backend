@@ -202,6 +202,19 @@ func (r *CostProductParameterRepository) ProductExists(ctx context.Context, prod
 	return ok, nil
 }
 
+// IsProductLocked checks cost_product_master.cpm_is_locked for the product.
+func (r *CostProductParameterRepository) IsProductLocked(ctx context.Context, productSysID int64) (bool, error) {
+	const q = `SELECT COALESCE(cpm_is_locked, FALSE) FROM cost_product_master WHERE cpm_product_sys_id = $1`
+	var locked bool
+	if err := r.db.QueryRowContext(ctx, q, productSysID).Scan(&locked); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, fmt.Errorf("check product locked: %w", err)
+	}
+	return locked, nil
+}
+
 // Upsert inserts or updates a single CPP_ row. The param must first be marked
 // applicable in cost_product_applicable_param (CAPP) — otherwise this returns
 // ErrParamNotApplicable so the UI can guide the user to add it first.
@@ -658,8 +671,10 @@ ORDER BY m.cpm_product_code, p.param_code
 }
 
 // AddApplicableWithChildren inserts trigger + all child CAPP rows in a single transaction.
+// The trigger row gets the caller-supplied isRequired; children are always inserted as
+// not-required (they are auto-filled/computed, mirroring mbFreezeCostParams's pattern).
 // ON CONFLICT DO NOTHING ensures idempotency.
-func (r *CostProductParameterRepository) AddApplicableWithChildren(ctx context.Context, productSysID int64, triggerParamID uuid.UUID, createdBy string, fillGroupChildren []uuid.UUID) error {
+func (r *CostProductParameterRepository) AddApplicableWithChildren(ctx context.Context, productSysID int64, triggerParamID uuid.UUID, isRequired bool, createdBy string, fillGroupChildren []uuid.UUID) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
@@ -673,16 +688,15 @@ func (r *CostProductParameterRepository) AddApplicableWithChildren(ctx context.C
 		}
 	}()
 
-	allIDs := make([]uuid.UUID, 0, 1+len(fillGroupChildren))
-	allIDs = append(allIDs, triggerParamID)
-	allIDs = append(allIDs, fillGroupChildren...)
-
 	const q = `INSERT INTO cost_product_applicable_param
-	               (capp_product_sys_id, capp_param_id, capp_created_by)
-	           VALUES ($1, $2, $3)
+	               (capp_product_sys_id, capp_param_id, capp_is_required, capp_created_by)
+	           VALUES ($1, $2, $3, $4)
 	           ON CONFLICT (capp_product_sys_id, capp_param_id) DO NOTHING`
-	for _, paramID := range allIDs {
-		if _, execErr := tx.ExecContext(ctx, q, productSysID, paramID, createdBy); execErr != nil {
+	if _, execErr := tx.ExecContext(ctx, q, productSysID, triggerParamID, isRequired, createdBy); execErr != nil {
+		return fmt.Errorf("insert capp %s: %w", triggerParamID, execErr)
+	}
+	for _, paramID := range fillGroupChildren {
+		if _, execErr := tx.ExecContext(ctx, q, productSysID, paramID, false, createdBy); execErr != nil {
 			return fmt.Errorf("insert capp %s: %w", paramID, execErr)
 		}
 	}

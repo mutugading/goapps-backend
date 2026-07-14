@@ -75,6 +75,10 @@ func (r *fakeExportProductMasterRepo) ListAllLegacyIDs(_ context.Context) (map[s
 }
 func (r *fakeExportProductMasterRepo) RollbackImport(_ context.Context, _ []int64) error { return nil }
 
+func (r *fakeExportProductMasterRepo) UnlockWithLog(_ context.Context, _ pmDomain.LockLogInput) error {
+	return nil
+}
+
 func newTestRequest(t *testing.T, referenceProductSysID int64) *domain.Request {
 	t.Helper()
 	req, err := domain.New(domain.NewInput{
@@ -136,7 +140,7 @@ func TestExportHandler_Handle(t *testing.T) {
 		repo := &fakeExportRequestRepo{requests: []*domain.Request{req}}
 		pmRepo := &fakeExportProductMasterRepo{
 			bySysID: map[int64]*pmDomain.CostProductMaster{
-				42: pmDomain.Reconstruct(42, "FG-042", 1, "Product Forty Two", "SH-001", "AX", "", "", "", "", nil, "", true, req.CreatedAt(), "user-1", req.CreatedAt(), "user-1", "", "", "", ""),
+				42: pmDomain.Reconstruct(42, "FG-042", 1, "Product Forty Two", "SH-001", "AX", "", "", "", "", nil, "", true, req.CreatedAt(), "user-1", req.CreatedAt(), "user-1", "", "", "", "", "", false),
 			},
 		}
 		h := app.NewExportHandler(repo, pmRepo)
