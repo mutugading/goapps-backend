@@ -19,6 +19,9 @@ type Repository interface {
 	// ProductExists checks cost_product_master existence.
 	ProductExists(ctx context.Context, productSysID int64) (bool, error)
 
+	// IsProductLocked checks cost_product_master.cpm_is_locked for the product.
+	IsProductLocked(ctx context.Context, productSysID int64) (bool, error)
+
 	// Upsert performs an INSERT … ON CONFLICT (product_sys_id, param_id) DO UPDATE.
 	Upsert(ctx context.Context, v *Value) error
 
@@ -68,9 +71,11 @@ type Repository interface {
 	// formatted as a human-readable string. Returns empty string when no value exists.
 	GetCurrentValueAsText(ctx context.Context, productSysID int64, paramID uuid.UUID) (string, error)
 
-	// AddApplicableWithChildren adds a MASTER_LOOKUP param and all its fill-group children atomically.
-	// fillGroupChildren contains the IDs of child params (may be empty for non-MASTER_LOOKUP params).
-	AddApplicableWithChildren(ctx context.Context, productSysID int64, triggerParamID uuid.UUID, createdBy string, fillGroupChildren []uuid.UUID) error
+	// AddApplicableWithChildren adds a MASTER_LOOKUP or CALCULATED param and all its
+	// children (fill-group or formula inputs) atomically. isRequired applies only to the
+	// trigger param; children are always inserted as not-required.
+	// fillGroupChildren contains the IDs of child params (may be empty).
+	AddApplicableWithChildren(ctx context.Context, productSysID int64, triggerParamID uuid.UUID, isRequired bool, createdBy string, fillGroupChildren []uuid.UUID) error
 
 	// GetRemovePreview returns trigger + child param info for the confirm dialog.
 	GetRemovePreview(ctx context.Context, productSysID int64, paramID uuid.UUID) (RemovePreview, error)

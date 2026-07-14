@@ -26,6 +26,7 @@ type CostProductMasterHandler struct {
 	updateHandler     *app.UpdateHandler
 	linkErpHandler    *app.LinkErpHandler
 	deactivateHandler *app.DeactivateHandler
+	unlockHandler     *app.UnlockHandler
 	listHandler       *app.ListHandler
 	exportHandler     *app.ExportHandler
 	templateHandler   *costbulkimport.TemplateHandler
@@ -48,6 +49,7 @@ func NewCostProductMasterHandler(repo domain.Repository) (*CostProductMasterHand
 		updateHandler:     app.NewUpdateHandler(repo),
 		linkErpHandler:    app.NewLinkErpHandler(repo),
 		deactivateHandler: app.NewDeactivateHandler(repo),
+		unlockHandler:     app.NewUnlockHandler(repo),
 		listHandler:       app.NewListHandler(repo),
 		exportHandler:     app.NewExportHandler(repo),
 		templateHandler:   costbulkimport.NewTemplateHandler(),
@@ -212,6 +214,27 @@ func (h *CostProductMasterHandler) DeactivateCostProductMaster(ctx context.Conte
 	}, nil
 }
 
+// UnlockCostProductMaster clears the MB-recipe escape-hatch lock for a 24h window.
+func (h *CostProductMasterHandler) UnlockCostProductMaster(ctx context.Context, req *financev1.UnlockCostProductMasterRequest) (*financev1.UnlockCostProductMasterResponse, error) {
+	if baseResp := h.validation.ValidateRequest(req); baseResp != nil {
+		return &financev1.UnlockCostProductMasterResponse{Base: baseResp}, nil
+	}
+	actor, _ := GetUserIDFromCtx(ctx)
+	p, err := h.unlockHandler.Handle(ctx, app.UnlockCommand{
+		ProductSysID: req.GetProductSysId(),
+		Reason:       req.GetReason(),
+		ActorUserID:  actor,
+	})
+	if err != nil {
+		return &financev1.UnlockCostProductMasterResponse{Base: productMasterErrToBase(err)}, nil
+	}
+	h.emitAudit(ctx, costauditlog.OpStatusChange, p.ProductSysID(), actor)
+	return &financev1.UnlockCostProductMasterResponse{
+		Base: successResponse("Cost product master unlocked"),
+		Data: costProductMasterToProto(p),
+	}, nil
+}
+
 // ListCostProductMasters paginates product masters.
 func (h *CostProductMasterHandler) ListCostProductMasters(ctx context.Context, req *financev1.ListCostProductMastersRequest) (*financev1.ListCostProductMastersResponse, error) {
 	if baseResp := h.validation.ValidateRequest(req); baseResp != nil {
@@ -334,6 +357,8 @@ func costProductMasterToProto(p *domain.CostProductMaster) *financev1.CostProduc
 		ErpLinkedAt:    erpLinkedAt,
 		ErpLinkedBy:    p.ErpLinkedBy(),
 		IsActive:       p.IsActive(),
+		Source:         p.Source(),
+		IsLocked:       p.IsLocked(),
 		Audit: &commonv1.AuditInfo{
 			CreatedAt: p.CreatedAt().Format(time.RFC3339),
 			CreatedBy: p.CreatedBy(),

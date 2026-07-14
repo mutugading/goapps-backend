@@ -106,6 +106,10 @@ func (r *fakeImportProductMasterRepo) ListAllLegacyIDs(_ context.Context) (map[s
 }
 func (r *fakeImportProductMasterRepo) RollbackImport(_ context.Context, _ []int64) error { return nil }
 
+func (r *fakeImportProductMasterRepo) UnlockWithLog(_ context.Context, _ pmDomain.LockLogInput) error {
+	return nil
+}
+
 // buildXlsxRows builds an .xlsx file's bytes from a header row + data rows,
 // in exportHeaders column order. Returns file content ready to feed into
 // ImportCommand.FileContent.
@@ -142,7 +146,7 @@ func TestImportHandler_Handle(t *testing.T) {
 	t.Run("resolves valid request type and reference product codes and creates a draft", func(t *testing.T) {
 		reqTypeRepo := &fakeImportRequestTypeRepo{idsByCode: map[string]int32{"STANDARD": 1}}
 		pmRepo := &fakeImportProductMasterRepo{byCode: map[string]*pmDomain.CostProductMaster{
-			"FG-001": pmDomain.Reconstruct(101, "FG-001", 1, "Product One", "SH-001", "AX", "", "", "", "", nil, "", true, timeNow(), "seed", timeNow(), "seed", "", "", "", ""),
+			"FG-001": pmDomain.Reconstruct(101, "FG-001", 1, "Product One", "SH-001", "AX", "", "", "", "", nil, "", true, timeNow(), "seed", timeNow(), "seed", "", "", "", "", "", false),
 		}}
 		reqRepo := &fakeImportRequestRepo{}
 		h := newImportHandler(reqTypeRepo, pmRepo, reqRepo)

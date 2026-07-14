@@ -17,12 +17,14 @@ import (
 
 // MBHeadRepository implements mbhead.Repository using PostgreSQL.
 type MBHeadRepository struct {
-	db *DB
+	db              *DB
+	compositionRepo *MBCompositionRepository
 }
 
-// NewMBHeadRepository creates a new MBHeadRepository instance.
-func NewMBHeadRepository(db *DB) *MBHeadRepository {
-	return &MBHeadRepository{db: db}
+// NewMBHeadRepository creates a new MBHeadRepository instance. compositionRepo is used by
+// Transition to snapshot the composition version atomically on a VALIDATE transition.
+func NewMBHeadRepository(db *DB, compositionRepo *MBCompositionRepository) *MBHeadRepository {
+	return &MBHeadRepository{db: db, compositionRepo: compositionRepo}
 }
 
 // Verify interface implementation at compile time.
@@ -35,8 +37,10 @@ func (r *MBHeadRepository) Create(ctx context.Context, entity *mbhead.Entity) er
 			mbh_id, mbh_oracle_sys_id, mbh_mb_costing, mbh_mgt_name,
 			mbh_denier, mbh_filament, mbh_dozing,
 			mbh_check_status, mbh_status, mbh_ldr_prsn, mbh_final_product, mbh_code,
-			mbh_is_active, created_at, created_by
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+			mbh_is_active, created_at, created_by,
+			mbh_is_boughtout, mbh_dev_code, mbh_shade_code, mbh_shade_name,
+			mbh_cross_section, mbh_lusture_code
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
 	`,
 		entity.ID(),
 		entity.OracleSysID(),
@@ -53,6 +57,12 @@ func (r *MBHeadRepository) Create(ctx context.Context, entity *mbhead.Entity) er
 		entity.IsActive(),
 		entity.CreatedAt(),
 		entity.CreatedBy(),
+		entity.IsBoughtout(),
+		entity.DevCode(),
+		entity.ShadeCode(),
+		entity.ShadeName(),
+		entity.CrossSection(),
+		entity.LustureCode(),
 	)
 	if err != nil {
 		if isMBHeadUniqueViolation(err) {
@@ -82,7 +92,10 @@ func (r *MBHeadRepository) List(ctx context.Context, filter mbhead.ListFilter) (
 	idx := 1
 
 	if filter.Search != "" {
-		base += fmt.Sprintf(` AND (mbh_mb_costing ILIKE $%d OR mbh_mgt_name ILIKE $%d)`, idx, idx)
+		base += fmt.Sprintf(
+			` AND (mbh_mb_costing ILIKE $%d OR mbh_mgt_name ILIKE $%d OR mbh_dev_code ILIKE $%d OR mbh_shade_code ILIKE $%d OR mbh_shade_name ILIKE $%d)`,
+			idx, idx, idx, idx, idx,
+		)
 		args = append(args, "%"+filter.Search+"%")
 		idx++
 	}
@@ -142,7 +155,12 @@ func (r *MBHeadRepository) Update(ctx context.Context, entity *mbhead.Entity) er
 			mbh_code          = $11,
 			mbh_is_active     = $12,
 			updated_at        = $13,
-			updated_by        = $14
+			updated_by        = $14,
+			mbh_dev_code      = $15,
+			mbh_shade_code    = $16,
+			mbh_shade_name    = $17,
+			mbh_cross_section = $18,
+			mbh_lusture_code  = $19
 		WHERE mbh_id = $1 AND deleted_at IS NULL
 	`,
 		entity.ID(),
@@ -159,6 +177,11 @@ func (r *MBHeadRepository) Update(ctx context.Context, entity *mbhead.Entity) er
 		entity.IsActive(),
 		entity.UpdatedAt(),
 		entity.UpdatedBy(),
+		entity.DevCode(),
+		entity.ShadeCode(),
+		entity.ShadeName(),
+		entity.CrossSection(),
+		entity.LustureCode(),
 	)
 	if err != nil {
 		return fmt.Errorf("update mb head: %w", err)
@@ -216,6 +239,99 @@ func (r *MBHeadRepository) ExistsByID(ctx context.Context, id uuid.UUID) (bool, 
 	return exists, nil
 }
 
+// MBHeadCandidate is the minimal MB Head projection needed by MB Push-to-Head preview/execute.
+// Kept postgres-native (not the mbpush application package's type) so this package never imports
+// internal/application/mbpush — callers in mbpush adapt this into their own port type.
+type MBHeadCandidate struct {
+	MBHID          string
+	Code           string
+	Name           string
+	CostProductID  int64
+	IsBoughtout    bool
+	CurrentVersion int32
+}
+
+// ListValidated returns all VALIDATED MB Heads, the candidate set for a push-to-head
+// preview/execute pass (PR-01/PR-02), and — via CurrentVersion — for the mbbatch DAG
+// builder's per-mbh_id version resolution (Task 21b) without a separate GetByID call.
+func (r *MBHeadRepository) ListValidated(ctx context.Context) ([]MBHeadCandidate, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT mbh_id, mbh_mb_costing, COALESCE(mbh_mgt_name, ''),
+		       COALESCE(mbh_cost_product_id, 0), mbh_is_boughtout, mbh_current_version
+		FROM mst_mb_head
+		WHERE mbh_entry_status = 'VALIDATED' AND deleted_at IS NULL
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("list validated mb heads: %w", err)
+	}
+	defer closeRows(rows)
+
+	var out []MBHeadCandidate
+	for rows.Next() {
+		var c MBHeadCandidate
+		if err := rows.Scan(&c.MBHID, &c.Code, &c.Name, &c.CostProductID, &c.IsBoughtout, &c.CurrentVersion); err != nil {
+			return nil, fmt.Errorf("scan validated mb head: %w", err)
+		}
+		out = append(out, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate validated mb heads: %w", err)
+	}
+	return out, nil
+}
+
+// ListAll retrieves all non-deleted MB Heads matching filter, unpaginated (for export).
+func (r *MBHeadRepository) ListAll(ctx context.Context, filter mbhead.ExportFilter) ([]*mbhead.Entity, error) {
+	query := r.selectCols() + whereNotDeleted
+	args := make([]interface{}, 0)
+	if filter.IsActive != nil {
+		query += fmt.Sprintf(` AND mbh_is_active = $%d`, len(args)+1)
+		args = append(args, *filter.IsActive)
+	}
+	query += ` ORDER BY mbh_mb_costing ASC`
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list all mb heads: %w", err)
+	}
+	defer closeRows(rows)
+
+	var items []*mbhead.Entity
+	for rows.Next() {
+		e, scanErr := r.scanRow(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		items = append(items, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate all mb heads: %w", err)
+	}
+	return items, nil
+}
+
+// UpdateEntryStatus persists a state-machine transition (entry_status + optional
+// current_version bump + optional state_reason), used by Submit/Approve/Validate/
+// UnApprove/Revoke application handlers after the domain entity mutates in memory.
+func (r *MBHeadRepository) UpdateEntryStatus(ctx context.Context, id uuid.UUID, entryStatus string, currentVersion int32, stateReason string) error {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE mst_mb_head
+		SET mbh_entry_status = $2, mbh_current_version = $3, mbh_state_reason = $4, updated_at = NOW()
+		WHERE mbh_id = $1 AND deleted_at IS NULL
+	`, id, entryStatus, currentVersion, stateReason)
+	if err != nil {
+		return fmt.Errorf("update mb head entry status: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return mbhead.ErrNotFound
+	}
+	return nil
+}
+
 // =============================================================================
 // Helpers
 // =============================================================================
@@ -226,7 +342,13 @@ func (r *MBHeadRepository) selectCols() string {
 		       mbh_denier, mbh_filament, mbh_dozing,
 		       mbh_check_status, mbh_status, mbh_ldr_prsn, mbh_final_product, mbh_code,
 		       mbh_is_active,
-		       created_at, created_by, updated_at, updated_by, deleted_at, deleted_by
+		       created_at, created_by, updated_at, updated_by, deleted_at, deleted_by,
+		       mbh_entry_status, mbh_is_boughtout, mbh_current_version, mbh_machine_fixed_total,
+		       mbh_state_reason, mbh_dev_code, mbh_shade_code, mbh_shade_name, mbh_cross_section,
+		       mbh_lusture_code, mbh_cost_product_id, mbh_cost_generated_at, mbh_cost_generated_by,
+		       mbh_param_waste, mbh_param_quality_loss, mbh_param_efficiency, mbh_param_dev_expense,
+		       mbh_param_packing, mbh_param_mb_prod_per_day, mbh_param_throughput_per_hour,
+		       mbh_param_no_of_process
 		FROM mst_mb_head
 	`
 }
@@ -262,6 +384,36 @@ type mbHeadDTO struct {
 	UpdatedBy       sql.NullString
 	DeletedAt       sql.NullTime
 	DeletedBy       sql.NullString
+
+	EntryStatus            string
+	IsBoughtout            bool
+	CurrentVersion         int32
+	MachineFixedTotal      sql.NullString
+	StateReason            sql.NullString
+	DevCode                sql.NullString
+	ShadeCode              sql.NullString
+	ShadeName              sql.NullString
+	CrossSection           sql.NullString
+	LustureCode            sql.NullString
+	CostProductID          sql.NullInt64
+	CostGeneratedAt        sql.NullTime
+	CostGeneratedBy        sql.NullString
+	ParamWaste             sql.NullString
+	ParamQualityLoss       sql.NullString
+	ParamEfficiency        sql.NullString
+	ParamDevExpense        sql.NullString
+	ParamPacking           sql.NullString
+	ParamMBProdPerDay      sql.NullString
+	ParamThroughputPerHour sql.NullString
+	ParamNoOfProcess       sql.NullString
+}
+
+func nullTimeToStringPtr(n sql.NullTime) *string {
+	if !n.Valid {
+		return nil
+	}
+	v := n.Time.Format(time.RFC3339)
+	return &v
 }
 
 func (d *mbHeadDTO) toEntity() *mbhead.Entity {
@@ -282,6 +434,14 @@ func (d *mbHeadDTO) toEntity() *mbhead.Entity {
 		d.CreatedAt, d.CreatedBy,
 		nullableTimePtr(d.UpdatedAt), nullableStringPtr(d.UpdatedBy),
 		nullableTimePtr(d.DeletedAt), nullableStringPtr(d.DeletedBy),
+		d.EntryStatus, d.IsBoughtout, d.CurrentVersion, nullableStringPtr(d.MachineFixedTotal),
+		d.StateReason.String, d.DevCode.String, d.ShadeCode.String, d.ShadeName.String,
+		d.CrossSection.String, d.LustureCode.String,
+		d.CostProductID.Int64, nullTimeToStringPtr(d.CostGeneratedAt), d.CostGeneratedBy.String,
+		nullableStringPtr(d.ParamWaste), nullableStringPtr(d.ParamQualityLoss),
+		nullableStringPtr(d.ParamEfficiency), nullableStringPtr(d.ParamDevExpense),
+		nullableStringPtr(d.ParamPacking), nullableStringPtr(d.ParamMBProdPerDay),
+		d.ParamThroughputPerHour.String, d.ParamNoOfProcess.String,
 	)
 }
 
@@ -293,6 +453,11 @@ func (r *MBHeadRepository) scanOne(row *sql.Row) (*mbhead.Entity, error) {
 		&d.MBHCheckStatus, &d.MBHStatus, &d.MBHLdrPrsn, &d.MBHFinalProduct, &d.MBHCode,
 		&d.IsActive,
 		&d.CreatedAt, &d.CreatedBy, &d.UpdatedAt, &d.UpdatedBy, &d.DeletedAt, &d.DeletedBy,
+		&d.EntryStatus, &d.IsBoughtout, &d.CurrentVersion, &d.MachineFixedTotal,
+		&d.StateReason, &d.DevCode, &d.ShadeCode, &d.ShadeName, &d.CrossSection,
+		&d.LustureCode, &d.CostProductID, &d.CostGeneratedAt, &d.CostGeneratedBy,
+		&d.ParamWaste, &d.ParamQualityLoss, &d.ParamEfficiency, &d.ParamDevExpense,
+		&d.ParamPacking, &d.ParamMBProdPerDay, &d.ParamThroughputPerHour, &d.ParamNoOfProcess,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, mbhead.ErrNotFound
@@ -311,6 +476,11 @@ func (r *MBHeadRepository) scanRow(rows *sql.Rows) (*mbhead.Entity, error) {
 		&d.MBHCheckStatus, &d.MBHStatus, &d.MBHLdrPrsn, &d.MBHFinalProduct, &d.MBHCode,
 		&d.IsActive,
 		&d.CreatedAt, &d.CreatedBy, &d.UpdatedAt, &d.UpdatedBy, &d.DeletedAt, &d.DeletedBy,
+		&d.EntryStatus, &d.IsBoughtout, &d.CurrentVersion, &d.MachineFixedTotal,
+		&d.StateReason, &d.DevCode, &d.ShadeCode, &d.ShadeName, &d.CrossSection,
+		&d.LustureCode, &d.CostProductID, &d.CostGeneratedAt, &d.CostGeneratedBy,
+		&d.ParamWaste, &d.ParamQualityLoss, &d.ParamEfficiency, &d.ParamDevExpense,
+		&d.ParamPacking, &d.ParamMBProdPerDay, &d.ParamThroughputPerHour, &d.ParamNoOfProcess,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("scan mb head row: %w", err)

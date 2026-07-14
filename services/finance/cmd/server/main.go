@@ -34,6 +34,8 @@ import (
 	cpmapp "github.com/mutugading/goapps-backend/services/finance/internal/application/costproductmaster"
 	cppapp "github.com/mutugading/goapps-backend/services/finance/internal/application/costproductparameter"
 	cprapp "github.com/mutugading/goapps-backend/services/finance/internal/application/costproductrequest"
+	"github.com/mutugading/goapps-backend/services/finance/internal/application/mbbatch"
+	"github.com/mutugading/goapps-backend/services/finance/internal/application/mbpush"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/oraclesync"
 	apprmcost "github.com/mutugading/goapps-backend/services/finance/internal/application/rmcost"
 	grpcdelivery "github.com/mutugading/goapps-backend/services/finance/internal/delivery/grpc"
@@ -146,8 +148,14 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	rmCostDetailRepo := postgres.NewRMCostDetailRepository(db)
 	rmCostInputsRepo := postgres.NewRMCostInputsRepository(db)
 	boxBobbinCostRepo := postgres.NewBoxBobbinCostRepository(db)
-	mbHeadRepo := postgres.NewMBHeadRepository(db)
+	mbCompositionRepo := postgres.NewMBCompositionRepository(db)
+	mbHeadRepo := postgres.NewMBHeadRepository(db, mbCompositionRepo)
+	mbParamRepo := postgres.NewMBParamRepository(db)
 	mbSpinRepo := postgres.NewMBSpinRepository(db)
+	mbLustureRepo := postgres.NewMBLustureRepository(db)
+	mbPushLogRepo := postgres.NewMBPushLogRepository(db)
+	mbWorkflowLogRepo := postgres.NewMBWorkflowLogRepository(db)
+	cstMBCostRepo := postgres.NewCstMBCostRepository(db)
 	machineRepo := postgres.NewMachineRepository(db)
 	interminglingRepo := postgres.NewInterminglingRepository(db)
 	productGradeRepo := postgres.NewProductGradeRepository(db)
@@ -204,12 +212,32 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		return err
 	}
 
-	mbHeadHandler, err := grpcdelivery.NewMBHeadHandler(mbHeadRepo)
+	mbHeadHandler, err := grpcdelivery.NewMBHeadHandler(mbHeadRepo, mbParamRepo)
 	if err != nil {
 		return err
 	}
 
 	mbSpinHandler, err := grpcdelivery.NewMBSpinHandler(mbSpinRepo)
+	if err != nil {
+		return err
+	}
+
+	mbCompositionHandler, err := grpcdelivery.NewMBCompositionHandler(mbCompositionRepo)
+	if err != nil {
+		return err
+	}
+
+	mbParamHandler, err := grpcdelivery.NewMBParamHandler(mbParamRepo)
+	if err != nil {
+		return err
+	}
+
+	mbLustureHandler, err := grpcdelivery.NewMBLustureHandler(mbLustureRepo)
+	if err != nil {
+		return err
+	}
+
+	mbWorkflowLogHandler, err := grpcdelivery.NewMBWorkflowLogHandler(mbWorkflowLogRepo)
 	if err != nil {
 		return err
 	}
@@ -420,6 +448,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	costProductParameterApp := cppapp.New(costProductParameterRepo)
 	costProductParameterHandler := grpcdelivery.NewCostProductParameterHandler(costProductParameterApp).
 		WithParamRepo(parameterRepo).
+		WithFormulaRepo(formulaRepo).
 		WithAuditSupport(costAuditLogRepo)
 
 	// Fill-assignment repositories + handlers.
@@ -529,6 +558,31 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		costcalc.NewApproveCostHandler(calcSvc),
 	)
 
+	// MB Push-to-Head: adapts MBHeadRepository/CostResultRepository to mbpush's ports.
+	mbPushHeadReader := mbpush.NewMBHeadReaderAdapter(mbHeadRepo)
+	mbPushCostReader := mbpush.NewCostReaderAdapter(costResultRepo)
+	mbPushPreviewHandler := mbpush.NewPreviewHandler(mbPushHeadReader, mbPushCostReader)
+	mbPushExecuteHandler := mbpush.NewExecuteHandler(db, mbPushHeadReader, mbPushCostReader, cstMBCostRepo, mbPushLogRepo)
+	mbPushHandler, err := grpcdelivery.NewMBPushHandler(mbPushPreviewHandler, mbPushExecuteHandler, mbPushLogRepo)
+	if err != nil {
+		return err
+	}
+
+	// MB_BATCH: computes cst_product_cost rows for every VALIDATED MB Head, reusing the
+	// costcalc calc engine + cal_job tracking (design doc §10.3, §10 addendum).
+	mbBatchSvc := mbbatch.NewService(
+		db,
+		mbbatch.NewMBHeadReaderAdapter(mbHeadRepo),
+		mbbatch.NewMBEdgeReaderAdapter(mbCompositionRepo),
+		mbbatch.NewResultWriterAdapter(costResultRepo),
+		calcLoader, calcEvalCache,
+	)
+	mbBatchTriggerHandler := mbbatch.NewTriggerHandler(mbBatchSvc, calcJobRepo)
+	mbBatchHandler, err := grpcdelivery.NewMBBatchHandler(mbBatchTriggerHandler)
+	if err != nil {
+		return err
+	}
+
 	// BI (Executive Dashboard) gRPC handlers.
 	biDashboardHandler, err := grpcdelivery.NewBIDashboardHandler(
 		dashboardapp.NewCreateHandler(biDashboardRepo),
@@ -622,6 +676,8 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		uomHandler, rmCategoryHandler, parameterHandler, formulaHandler, uomCategoryHandler,
 		boxBobbinCostHandler,
 		mbHeadHandler, mbSpinHandler,
+		mbCompositionHandler, mbParamHandler, mbLustureHandler, mbWorkflowLogHandler, mbPushHandler,
+		mbBatchHandler,
 		machineHandler, interminglingHandler, productGradeHandler, lookupMasterHandler, yarnLookupFillHandler,
 		oracleSyncHandler, rmGroupHandler, rmCostHandler,
 		costProductTypeHandler, costRmTypeHandler, costErpHandler, costProductMasterHandler, costRouteHandler,
@@ -739,6 +795,12 @@ func startServers(ctx context.Context, cfg *config.Config,
 	boxBobbinCostHandler *grpcdelivery.BoxBobbinCostHandler,
 	mbHeadHandler *grpcdelivery.MBHeadHandler,
 	mbSpinHandler *grpcdelivery.MBSpinHandler,
+	mbCompositionHandler *grpcdelivery.MBCompositionHandler,
+	mbParamHandler *grpcdelivery.MBParamHandler,
+	mbLustureHandler *grpcdelivery.MBLustureHandler,
+	mbWorkflowLogHandler *grpcdelivery.MBWorkflowLogHandler,
+	mbPushHandler *grpcdelivery.MBPushHandler,
+	mbBatchHandler *grpcdelivery.MBBatchHandler,
 	machineHandler *grpcdelivery.MachineHandler,
 	interminglingHandler *grpcdelivery.InterminglingHandler,
 	productGradeHandler *grpcdelivery.ProductGradeHandler,
@@ -787,6 +849,12 @@ func startServers(ctx context.Context, cfg *config.Config,
 	financev1.RegisterBoxBobbinCostServiceServer(grpcServer.GRPCServer(), boxBobbinCostHandler)
 	financev1.RegisterMBHeadServiceServer(grpcServer.GRPCServer(), mbHeadHandler)
 	financev1.RegisterMBSpinServiceServer(grpcServer.GRPCServer(), mbSpinHandler)
+	financev1.RegisterMbCompositionServiceServer(grpcServer.GRPCServer(), mbCompositionHandler)
+	financev1.RegisterMbParamServiceServer(grpcServer.GRPCServer(), mbParamHandler)
+	financev1.RegisterMbLustureServiceServer(grpcServer.GRPCServer(), mbLustureHandler)
+	financev1.RegisterMbWorkflowLogServiceServer(grpcServer.GRPCServer(), mbWorkflowLogHandler)
+	financev1.RegisterMbPushServiceServer(grpcServer.GRPCServer(), mbPushHandler)
+	financev1.RegisterMbBatchServiceServer(grpcServer.GRPCServer(), mbBatchHandler)
 	// Yarn master services.
 	financev1.RegisterMachineServiceServer(grpcServer.GRPCServer(), machineHandler)
 	financev1.RegisterInterminglingServiceServer(grpcServer.GRPCServer(), interminglingHandler)

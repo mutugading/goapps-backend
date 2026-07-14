@@ -32,6 +32,7 @@ const (
 	ScopeFiltered      = sharedcc.ScopeFiltered
 	ScopeSingleProduct = sharedcc.ScopeSingleProduct
 	ScopeSingleRoute   = sharedcc.ScopeSingleRoute
+	ScopeMBBatch       = sharedcc.ScopeMBBatch
 
 	CalcTypeActual   = sharedcc.CalcTypeActual
 	CalcTypeForecast = sharedcc.CalcTypeForecast

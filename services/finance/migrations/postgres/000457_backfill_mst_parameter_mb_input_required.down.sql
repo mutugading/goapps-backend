@@ -1,0 +1,9 @@
+UPDATE mst_parameter
+SET is_required_for_costing = FALSE
+WHERE param_category = 'INPUT'
+  AND param_code IN (
+    'MB_WASTE','MB_QUALITY_LOSS','MB_EFFICIENCY','MB_DEV_EXPENSE','MB_PACKING',
+    'MB_PROD_PER_DAY','MB_THROUGHPUT','MB_NO_PROCESS','IS_BOUGHTOUT',
+    'MACHINE_MB_FIXED_TOTAL','MB_COMPOSITION_VERSION'
+  )
+  AND deleted_at IS NULL;

@@ -310,6 +310,65 @@ func getRequiredPermission(fullMethod string) string {
 		// Service-to-service: invoked by finance-cost-worker. Same scope as triggering a job.
 		"/finance.v1.CostCalcService/ProcessChunkInternal": "finance.cost.caljob.trigger",
 
+		// MBHeadService
+		"/finance.v1.MBHeadService/CreateMBHead":           "finance.mb.head.create",
+		"/finance.v1.MBHeadService/GetMBHead":              "finance.mb.head.view",
+		"/finance.v1.MBHeadService/ListMBHeads":            "finance.mb.head.view",
+		"/finance.v1.MBHeadService/UpdateMBHead":           "finance.mb.head.update",
+		"/finance.v1.MBHeadService/DeleteMBHead":           "finance.mb.head.delete",
+		"/finance.v1.MBHeadService/ExportMBHeads":          "finance.mb.head.view",
+		"/finance.v1.MBHeadService/ImportMBHeads":          "finance.mb.head.create",
+		"/finance.v1.MBHeadService/DownloadMBHeadTemplate": "finance.mb.head.view",
+		"/finance.v1.MBHeadService/SubmitMBHead":           "finance.mb.head.submit",
+		"/finance.v1.MBHeadService/ApproveMBHead":          "finance.mb.head.approve",
+		"/finance.v1.MBHeadService/ValidateMBHead":         "finance.mb.head.validate",
+		"/finance.v1.MBHeadService/UnApproveMBHead":        "finance.mb.head.unapprove",
+		"/finance.v1.MBHeadService/RevokeMBHead":           "finance.mb.head.revoke",
+
+		// MBSpinService (reuses finance.yarnmaster.mbspin.* seeded in iam mig 000057)
+		"/finance.v1.MBSpinService/CreateMBSpin":           "finance.yarnmaster.mbspin.create",
+		"/finance.v1.MBSpinService/GetMBSpin":              "finance.yarnmaster.mbspin.view",
+		"/finance.v1.MBSpinService/ListMBSpins":            "finance.yarnmaster.mbspin.view",
+		"/finance.v1.MBSpinService/UpdateMBSpin":           "finance.yarnmaster.mbspin.update",
+		"/finance.v1.MBSpinService/DeleteMBSpin":           "finance.yarnmaster.mbspin.delete",
+		"/finance.v1.MBSpinService/ExportMBSpins":          "finance.yarnmaster.mbspin.view",
+		"/finance.v1.MBSpinService/ImportMBSpins":          "finance.yarnmaster.mbspin.create",
+		"/finance.v1.MBSpinService/DownloadMBSpinTemplate": "finance.yarnmaster.mbspin.view",
+
+		// MbCompositionService — composition rows are part of the MB head recipe, reuse its permissions.
+		"/finance.v1.MbCompositionService/CreateMbComposition":       "finance.mb.head.update",
+		"/finance.v1.MbCompositionService/UpdateMbComposition":       "finance.mb.head.update",
+		"/finance.v1.MbCompositionService/DeleteMbComposition":       "finance.mb.head.update",
+		"/finance.v1.MbCompositionService/ListMbCompositions":        "finance.mb.head.view",
+		"/finance.v1.MbCompositionService/ListMbCompositionVersions": "finance.mb.head.view",
+
+		// MbLustureService (master data)
+		"/finance.v1.MbLustureService/CreateMbLusture": "finance.master.mblusture.create",
+		"/finance.v1.MbLustureService/UpdateMbLusture": "finance.master.mblusture.update",
+		"/finance.v1.MbLustureService/DeleteMbLusture": "finance.master.mblusture.delete",
+		"/finance.v1.MbLustureService/GetMbLusture":    "finance.master.mblusture.view",
+		"/finance.v1.MbLustureService/ListMbLusture":   "finance.master.mblusture.view",
+
+		// MbParamService (master data)
+		"/finance.v1.MbParamService/CreateMbParam":       "finance.master.mbparam.create",
+		"/finance.v1.MbParamService/UpdateMbParam":       "finance.master.mbparam.update",
+		"/finance.v1.MbParamService/DeleteMbParam":       "finance.master.mbparam.delete",
+		"/finance.v1.MbParamService/ListMbParams":        "finance.master.mbparam.view",
+		"/finance.v1.MbParamService/CreateMbParamOption": "finance.master.mbparam.create",
+		"/finance.v1.MbParamService/UpdateMbParamOption": "finance.master.mbparam.update",
+		"/finance.v1.MbParamService/DeleteMbParamOption": "finance.master.mbparam.delete",
+
+		// MbPushService (reuses finance.mb.pushtohead.* seeded in iam mig 000068)
+		"/finance.v1.MbPushService/PreviewPushToHead": "finance.mb.pushtohead.preview",
+		"/finance.v1.MbPushService/ExecutePushToHead": "finance.mb.pushtohead.execute",
+		"/finance.v1.MbPushService/ListMbPushLogs":    "finance.mb.pushtohead.preview",
+
+		// MbWorkflowLogService — read-only, reuse MB Head view permission (no dedicated log-view code seeded).
+		"/finance.v1.MbWorkflowLogService/ListMbWorkflowLogs": "finance.mb.head.view",
+
+		// MbBatchService
+		"/finance.v1.MbBatchService/TriggerMbBatch": "finance.mb.batch.trigger",
+
 		// CostProductRequestService
 		"/finance.v1.CostProductRequestService/CreateCostProductRequest":               "finance.product.request.create",
 		"/finance.v1.CostProductRequestService/UpdateCostProductRequest":               "finance.product.request.create",
@@ -365,6 +424,7 @@ func getRequiredPermission(fullMethod string) string {
 		"/finance.v1.CostProductMasterService/ListCostProductMasters":            "finance.product.route.view",
 		"/finance.v1.CostProductMasterService/UpdateCostProductMasterErpLinkage": "finance.product.route.create",
 		"/finance.v1.CostProductMasterService/DeactivateCostProductMaster":       "finance.product.route.update",
+		"/finance.v1.CostProductMasterService/UnlockCostProductMaster":           "finance.product.route.update",
 
 		// CostFillTaskService — authenticated-only (access controlled by fill config domain)
 		"/finance.v1.CostFillTaskService/ListFillTasks":   "",

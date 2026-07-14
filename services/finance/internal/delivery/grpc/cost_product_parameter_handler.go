@@ -13,6 +13,7 @@ import (
 	cprapp "github.com/mutugading/goapps-backend/services/finance/internal/application/costproductrequest"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costauditlog"
 	cpp "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductparameter"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/formula"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/parameter"
 )
 
@@ -23,6 +24,7 @@ type CostProductParameterHandler struct {
 	override    *cppapp.OverrideParamValuesHandler
 	editLogRepo cprapp.ParamEditLogByLevelReader
 	paramRepo   parameter.Repository
+	formulaRepo formula.Repository
 	auditRepo   costauditlog.Repository // optional; nil = no audit
 }
 
@@ -46,6 +48,12 @@ func (h *CostProductParameterHandler) WithEditLogRepo(r cprapp.ParamEditLogByLev
 // WithParamRepo attaches the parameter repository used by the MASTER_LOOKUP child-aware RPCs.
 func (h *CostProductParameterHandler) WithParamRepo(r parameter.Repository) *CostProductParameterHandler {
 	h.paramRepo = r
+	return h
+}
+
+// WithFormulaRepo attaches the formula repository used by the CALCULATED child-aware RPCs.
+func (h *CostProductParameterHandler) WithFormulaRepo(r formula.Repository) *CostProductParameterHandler {
+	h.formulaRepo = r
 	return h
 }
 
@@ -290,8 +298,10 @@ func (h *CostProductParameterHandler) OverrideParamValues(ctx context.Context, r
 	}, nil
 }
 
-// resolveChildIDs returns the UUIDs of all fill-group children for a MASTER_LOOKUP param.
-// Returns an empty slice for non-MASTER_LOOKUP params or when paramRepo is not wired.
+// resolveChildIDs returns the UUIDs of all children auto-added alongside paramID:
+// fill-group children for a MASTER_LOOKUP param, or formula INPUT params for a
+// CALCULATED formula-output param. Returns nil for other categories or when the
+// relevant repository is not wired.
 func (h *CostProductParameterHandler) resolveChildIDs(ctx context.Context, paramID uuid.UUID) ([]uuid.UUID, error) {
 	if h.paramRepo == nil {
 		return nil, nil
@@ -300,9 +310,18 @@ func (h *CostProductParameterHandler) resolveChildIDs(ctx context.Context, param
 	if err != nil {
 		return nil, err
 	}
-	if entity.ParamCategory() != parameter.ParamCategoryMasterLookup {
+
+	switch entity.ParamCategory() {
+	case parameter.ParamCategoryMasterLookup:
+		return h.resolveLookupChildIDs(ctx, entity)
+	case parameter.ParamCategoryCalculated:
+		return h.resolveFormulaChildIDs(ctx, paramID)
+	default:
 		return nil, nil
 	}
+}
+
+func (h *CostProductParameterHandler) resolveLookupChildIDs(ctx context.Context, entity *parameter.Parameter) ([]uuid.UUID, error) {
 	children, err := h.paramRepo.GetByFillGroup(ctx, entity.Code().String())
 	if err != nil {
 		return nil, err
@@ -314,7 +333,28 @@ func (h *CostProductParameterHandler) resolveChildIDs(ctx context.Context, param
 	return ids, nil
 }
 
-// AddApplicableParamWithChildren adds a MASTER_LOOKUP param + all its child params atomically.
+// resolveFormulaChildIDs auto-adds a CALCULATED formula-output param's declared INPUT
+// params as children, mirroring the MASTER_LOOKUP fill-group behavior above.
+func (h *CostProductParameterHandler) resolveFormulaChildIDs(ctx context.Context, paramID uuid.UUID) ([]uuid.UUID, error) {
+	if h.formulaRepo == nil {
+		return nil, nil
+	}
+	f, err := h.formulaRepo.GetByResultParamID(ctx, paramID)
+	if errors.Is(err, formula.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	inputs := f.InputParams()
+	ids := make([]uuid.UUID, 0, len(inputs))
+	for _, p := range inputs {
+		ids = append(ids, p.ParamID())
+	}
+	return ids, nil
+}
+
+// AddApplicableParamWithChildren adds a MASTER_LOOKUP or CALCULATED param + all its child params atomically.
 func (h *CostProductParameterHandler) AddApplicableParamWithChildren(ctx context.Context, req *financev1.AddApplicableParamWithChildrenRequest) (*financev1.AddApplicableParamWithChildrenResponse, error) {
 	paramID, err := uuid.Parse(req.GetParamId())
 	if err != nil {
@@ -327,7 +367,7 @@ func (h *CostProductParameterHandler) AddApplicableParamWithChildren(ctx context
 	}
 
 	actor := getUserFromContext(ctx)
-	if err = h.app.AddApplicableWithChildren(ctx, req.GetProductSysId(), paramID, actor, childIDs); err != nil {
+	if err = h.app.AddApplicableWithChildren(ctx, req.GetProductSysId(), paramID, req.GetIsRequired(), actor, childIDs); err != nil {
 		return &financev1.AddApplicableParamWithChildrenResponse{Base: cppDomainError(err)}, nil //nolint:nilerr // BaseResponse pattern
 	}
 	h.emitParamAudit(ctx, costauditlog.OpInsert, req.GetProductSysId())
@@ -492,6 +532,8 @@ func cppDomainError(err error) *commonv1.BaseResponse {
 		return NotFoundResponse(err.Error())
 	case errors.Is(err, cpp.ErrInvalidValueShape), errors.Is(err, cpp.ErrInvalidDataType), errors.Is(err, cpp.ErrPeriodDependent), errors.Is(err, cpp.ErrParamNotApplicable):
 		return BadRequestResponse(err.Error())
+	case errors.Is(err, cpp.ErrProductLocked):
+		return ConflictResponse(err.Error())
 	default:
 		return InternalErrorResponse(err.Error())
 	}

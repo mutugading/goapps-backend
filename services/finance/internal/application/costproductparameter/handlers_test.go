@@ -16,11 +16,12 @@ import (
 // lets each test program targeted error returns via overrides.
 // =============================================================================
 type fakeRepo struct {
-	productExists bool
-	getMetaErr    error
-	getMeta       cpp.ParamMeta
-	upsertErr     error
-	deleteErr     error
+	productExists   bool
+	isProductLocked bool
+	getMetaErr      error
+	getMeta         cpp.ParamMeta
+	upsertErr       error
+	deleteErr       error
 
 	upsertedValues []*cpp.Value
 	addedCapps     []*cpp.Applicability
@@ -48,6 +49,10 @@ func (f *fakeRepo) GetMeta(_ context.Context, _ uuid.UUID) (*cpp.ParamMeta, erro
 
 func (f *fakeRepo) ProductExists(_ context.Context, _ int64) (bool, error) {
 	return f.productExists, nil
+}
+
+func (f *fakeRepo) IsProductLocked(_ context.Context, _ int64) (bool, error) {
+	return f.isProductLocked, nil
 }
 
 func (f *fakeRepo) Upsert(_ context.Context, v *cpp.Value) error {
@@ -120,7 +125,7 @@ func (f *fakeRepo) GetCurrentValueAsText(_ context.Context, _ int64, _ uuid.UUID
 	return "", nil
 }
 
-func (f *fakeRepo) AddApplicableWithChildren(_ context.Context, _ int64, _ uuid.UUID, _ string, _ []uuid.UUID) error {
+func (f *fakeRepo) AddApplicableWithChildren(_ context.Context, _ int64, _ uuid.UUID, _ bool, _ string, _ []uuid.UUID) error {
 	return nil
 }
 

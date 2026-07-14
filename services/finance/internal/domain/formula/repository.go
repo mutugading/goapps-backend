@@ -18,6 +18,10 @@ type Repository interface {
 	// GetByCode retrieves a Formula by its code (with joins).
 	GetByCode(ctx context.Context, code Code) (*Formula, error)
 
+	// GetByResultParamID retrieves the Formula whose result_param_id matches the given param ID.
+	// Returns ErrNotFound if no active formula produces that param.
+	GetByResultParamID(ctx context.Context, resultParamID uuid.UUID) (*Formula, error)
+
 	// List retrieves Formulas with filtering, searching, and pagination.
 	List(ctx context.Context, filter ListFilter) ([]*Formula, int64, error)
 

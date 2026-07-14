@@ -3,9 +3,13 @@ package costproductmaster
 
 import (
 	"context"
+	"time"
 
 	domain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductmaster"
 )
+
+// mbLockWindow is the escape-hatch auto-relock window (PRD Phase B §7.4.1).
+const mbLockWindow = 24 * time.Hour
 
 // CreateCommand input.
 type CreateCommand struct {
@@ -150,6 +154,37 @@ func (h *DeactivateHandler) Handle(ctx context.Context, cmd DeactivateCommand) (
 	}
 	p.Deactivate(cmd.ActorUserID)
 	if err := h.repo.Update(ctx, p); err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+// UnlockCommand input.
+type UnlockCommand struct {
+	ProductSysID int64
+	Reason       string
+	ActorUserID  string
+}
+
+// UnlockHandler clears the MB-recipe escape-hatch lock and records the audit trail.
+type UnlockHandler struct{ repo domain.Repository }
+
+// NewUnlockHandler constructs an UnlockHandler.
+func NewUnlockHandler(r domain.Repository) *UnlockHandler { return &UnlockHandler{repo: r} }
+
+// Handle clears cpm_is_locked, records an mst_mb_lock_log row, and schedules the 24h auto-relock.
+func (h *UnlockHandler) Handle(ctx context.Context, cmd UnlockCommand) (*domain.CostProductMaster, error) {
+	p, err := h.repo.GetBySysID(ctx, cmd.ProductSysID)
+	if err != nil {
+		return nil, err
+	}
+	p.Unlock()
+	if err := h.repo.UnlockWithLog(ctx, domain.LockLogInput{
+		ProductSysID: cmd.ProductSysID,
+		UnlockedBy:   cmd.ActorUserID,
+		Reason:       cmd.Reason,
+		AutoRelockAt: time.Now().UTC().Add(mbLockWindow),
+	}); err != nil {
 		return nil, err
 	}
 	return p, nil
