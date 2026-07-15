@@ -65,10 +65,12 @@ type RabbitMQConfig struct {
 
 // OrchestratorConfig holds orchestrator-specific tuning knobs.
 type OrchestratorConfig struct {
-	ChunkSize    int    `mapstructure:"chunk_size"`
-	MaxChunkSize int    `mapstructure:"max_chunk_size"`
-	CronSchedule string `mapstructure:"cron_schedule"`
-	CronTimezone string `mapstructure:"cron_timezone"`
+	ChunkSize         int           `mapstructure:"chunk_size"`
+	MaxChunkSize      int           `mapstructure:"max_chunk_size"`
+	CronSchedule      string        `mapstructure:"cron_schedule"`
+	CronTimezone      string        `mapstructure:"cron_timezone"`
+	StuckChunkTimeout time.Duration `mapstructure:"stuck_chunk_timeout"`
+	StuckSweepInterval time.Duration `mapstructure:"stuck_sweep_interval"`
 }
 
 // TracingConfig holds Jaeger/OpenTelemetry configuration.
@@ -144,6 +146,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("orchestrator.max_chunk_size", 100)
 	v.SetDefault("orchestrator.cron_schedule", "0 0 2 5 * *")
 	v.SetDefault("orchestrator.cron_timezone", "Asia/Jakarta")
+	v.SetDefault("orchestrator.stuck_chunk_timeout", 10*time.Minute)
+	v.SetDefault("orchestrator.stuck_sweep_interval", 2*time.Minute)
 
 	v.SetDefault("tracing.enabled", false)
 	v.SetDefault("tracing.service_name", "finance-cost-orchestrator")

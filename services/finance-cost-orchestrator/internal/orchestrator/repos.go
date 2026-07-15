@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/lib/pq"
 
@@ -292,6 +293,61 @@ func (r *ChunkRepo) CountByJobWave(ctx context.Context, jobID int64, wave int) (
 		err = fmt.Errorf("count chunks by wave: %w", scanErr)
 	}
 	return
+}
+
+// StuckChunkRow is a minimal struct returned by FindStuckChunks.
+type StuckChunkRow struct {
+	ChunkID      int64
+	JobID        int64
+	WaveNo       int
+	ProductCount int
+}
+
+// FindStuckChunks returns DISPATCHED chunks whose dispatched_at is older than
+// the given threshold. These chunks likely died (worker OOM / crash) without
+// publishing a ChunkCompletedEvent.
+func (r *ChunkRepo) FindStuckChunks(ctx context.Context, olderThan time.Duration) ([]*StuckChunkRow, error) {
+	const q = `
+		SELECT cjc_chunk_id, cjc_job_id, cjc_wave_no, cjc_product_count
+		FROM cal_job_chunk
+		WHERE cjc_status = $1
+		  AND cjc_dispatched_at < now() - $2::interval
+		ORDER BY cjc_dispatched_at ASC
+	`
+	rows, err := r.db.QueryContext(ctx, q, statusDispatched, fmt.Sprintf("%d seconds", int(olderThan.Seconds())))
+	if err != nil {
+		return nil, fmt.Errorf("find stuck chunks: %w", err)
+	}
+	defer func() {
+		if e := rows.Close(); e != nil {
+			_ = e
+		}
+	}()
+	var out []*StuckChunkRow
+	for rows.Next() {
+		var c StuckChunkRow
+		if err := rows.Scan(&c.ChunkID, &c.JobID, &c.WaveNo, &c.ProductCount); err != nil {
+			return nil, fmt.Errorf("scan stuck chunk: %w", err)
+		}
+		out = append(out, &c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate stuck chunks: %w", err)
+	}
+	return out, nil
+}
+
+// MarkChunkFailed transitions a single chunk to FAILED with an error message.
+func (r *ChunkRepo) MarkChunkFailed(ctx context.Context, chunkID int64, errMsg string) error {
+	const q = `
+		UPDATE cal_job_chunk
+		SET cjc_status = $1, cjc_completed_at = now(), cjc_error_message = $2
+		WHERE cjc_chunk_id = $3 AND cjc_status = $4
+	`
+	if _, err := r.db.ExecContext(ctx, q, statusFailed, errMsg, chunkID, statusDispatched); err != nil {
+		return fmt.Errorf("mark chunk %d failed: %w", chunkID, err)
+	}
+	return nil
 }
 
 // ListChunksOfWave returns the rows needed to re-publish ChunkSpec messages.

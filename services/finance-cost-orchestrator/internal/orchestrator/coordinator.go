@@ -60,6 +60,7 @@ func (c *Coordinator) Run(ctx context.Context) error {
 	chunkConsumer := rmq.NewConsumer(c.rmqConn, rmq.QueueChunkDone, "orchestrator-chunk-completed")
 
 	go c.scrapeQueueDepth(ctx)
+	go c.sweepStuckChunks(ctx)
 
 	errCh := make(chan error, 2)
 	go func() { errCh <- jobConsumer.Consume(ctx, c.handleJobTriggered) }()
@@ -364,6 +365,76 @@ func (c *Coordinator) scrapeQueueDepth(ctx context.Context) {
 			}
 			metrics.JobQueueDepth.Set(float64(q.Messages))
 		}
+	}
+}
+
+// sweepStuckChunks periodically finds DISPATCHED chunks that have been sitting
+// longer than the configured timeout (default 10m) — these are chunks whose
+// worker crashed (OOM, node eviction) without publishing ChunkCompletedEvent.
+// For each stuck chunk it marks FAILED and publishes a synthetic completion
+// event so advanceAfterChunk can progress the wave.
+func (c *Coordinator) sweepStuckChunks(ctx context.Context) {
+	interval := c.cfg.Orchestrator.StuckSweepInterval
+	if interval <= 0 {
+		interval = 2 * time.Minute
+	}
+	timeout := c.cfg.Orchestrator.StuckChunkTimeout
+	if timeout <= 0 {
+		timeout = 10 * time.Minute
+	}
+	log.Info().
+		Dur("interval", interval).
+		Dur("timeout", timeout).
+		Msg("stuck chunk sweeper started")
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			c.doSweep(ctx, timeout)
+		}
+	}
+}
+
+func (c *Coordinator) doSweep(ctx context.Context, timeout time.Duration) {
+	stuck, err := c.chunkRepo.FindStuckChunks(ctx, timeout)
+	if err != nil {
+		log.Error().Err(err).Msg("stuck chunk sweep: query failed")
+		return
+	}
+	if len(stuck) == 0 {
+		return
+	}
+	log.Warn().Int("count", len(stuck)).Msg("stuck chunk sweep: found stuck chunks")
+
+	for _, sc := range stuck {
+		if err := c.chunkRepo.MarkChunkFailed(ctx, sc.ChunkID, "stuck chunk timeout: worker likely crashed"); err != nil {
+			log.Error().Err(err).Int64("chunk_id", sc.ChunkID).Msg("stuck chunk sweep: mark failed")
+			continue
+		}
+		metrics.ChunksTotal.WithLabelValues(statusFailed).Inc()
+
+		ev := ChunkCompletedEvent{
+			ChunkID:      sc.ChunkID,
+			JobID:        sc.JobID,
+			WaveNo:       sc.WaveNo,
+			Status:       statusFailed,
+			SuccessCount: 0,
+			FailedCount:  sc.ProductCount,
+			BlockedCount: 0,
+		}
+		if pubErr := c.pub.Publish(ctx, rmq.RoutingKeyChunkDone, ev); pubErr != nil {
+			log.Error().Err(pubErr).Int64("chunk_id", sc.ChunkID).Msg("stuck chunk sweep: publish completion failed")
+			continue
+		}
+		log.Info().
+			Int64("chunk_id", sc.ChunkID).
+			Int64("job_id", sc.JobID).
+			Int("wave_no", sc.WaveNo).
+			Msg("stuck chunk sweep: marked failed + published completion")
 	}
 }
 
