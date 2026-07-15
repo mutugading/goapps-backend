@@ -3,11 +3,15 @@ package chat
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 
+	appnotif "github.com/mutugading/goapps-backend/services/iam/internal/application/notification"
 	"github.com/mutugading/goapps-backend/services/iam/internal/domain/chat"
+	"github.com/mutugading/goapps-backend/services/iam/internal/domain/notification"
 	chatinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/chat"
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/crypto"
 )
@@ -19,6 +23,9 @@ type SendMessageHandler struct {
 	receiptRepo chat.ReadReceiptRepository
 	enc         *crypto.Encryptor
 	broadcaster *chatinfra.Broadcaster
+	presence    *chatinfra.PresenceService
+	notifCreate *appnotif.CreateHandler
+	rdb         *redis.Client
 }
 
 // NewSendMessageHandler constructs the handler.
@@ -30,6 +37,14 @@ func NewSendMessageHandler(
 	broadcaster *chatinfra.Broadcaster,
 ) *SendMessageHandler {
 	return &SendMessageHandler{convRepo: convRepo, msgRepo: msgRepo, receiptRepo: receiptRepo, enc: enc, broadcaster: broadcaster}
+}
+
+// WithOfflineNotification enables email notifications for offline users.
+func (h *SendMessageHandler) WithOfflineNotification(presence *chatinfra.PresenceService, notifCreate *appnotif.CreateHandler, rdb *redis.Client) *SendMessageHandler {
+	h.presence = presence
+	h.notifCreate = notifCreate
+	h.rdb = rdb
+	return h
 }
 
 // Handle validates participation, encrypts body, saves, and broadcasts.
@@ -68,5 +83,67 @@ func (h *SendMessageHandler) Handle(ctx context.Context, senderID, convID uuid.U
 	}
 
 	broadcastMessageEvent(h.broadcaster, conv, msg, body, "message_received")
+
+	h.notifyOfflineParticipants(ctx, conv, msg, senderID, body)
 	return msg, nil
+}
+
+const emailDebounceTTL = 5 * time.Minute
+
+func (h *SendMessageHandler) notifyOfflineParticipants(ctx context.Context, conv *chat.Conversation, msg *chat.Message, senderID uuid.UUID, body string) {
+	if h.presence == nil || h.notifCreate == nil {
+		return
+	}
+	truncatedBody := body
+	if len(truncatedBody) > 100 {
+		truncatedBody = truncatedBody[:100] + "..."
+	}
+	for _, p := range conv.Participants() {
+		if !p.IsActive() || p.UserID() == senderID {
+			continue
+		}
+		h.notifyIfOffline(ctx, p.UserID(), msg, senderID, truncatedBody)
+	}
+}
+
+func (h *SendMessageHandler) notifyIfOffline(ctx context.Context, recipientID uuid.UUID, msg *chat.Message, senderID uuid.UUID, truncatedBody string) {
+	online, err := h.presence.IsOnline(ctx, recipientID)
+	if err != nil {
+		log.Warn().Err(err).Str("user", recipientID.String()).Msg("send message: check online status")
+		return
+	}
+	if online {
+		return
+	}
+	if h.isDebounced(ctx, msg.ConversationID(), recipientID) {
+		return
+	}
+	_, err = h.notifCreate.Handle(ctx, appnotif.CreateCommand{
+		RecipientUserID: recipientID,
+		Type:            notification.TypeChat,
+		Severity:        notification.SeverityInfo,
+		Title:           "New chat message",
+		Body:            truncatedBody,
+		ActionType:      notification.ActionNavigate,
+		ActionPayload:   `{"url":"/chat"}`,
+		SourceType:      "chat_message",
+		SourceID:        msg.MessageID().String(),
+		CreatedBy:       senderID.String(),
+	})
+	if err != nil {
+		log.Warn().Err(err).Msg("send message: create offline notification")
+	}
+}
+
+func (h *SendMessageHandler) isDebounced(ctx context.Context, convID, userID uuid.UUID) bool {
+	if h.rdb == nil {
+		return false
+	}
+	key := fmt.Sprintf("chat:email-debounce:%s:%s", convID, userID)
+	set, err := h.rdb.SetNX(ctx, key, "1", emailDebounceTTL).Result()
+	if err != nil {
+		log.Warn().Err(err).Msg("send message: debounce check")
+		return false
+	}
+	return !set
 }
