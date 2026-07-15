@@ -31,7 +31,7 @@ func (r *MBCompositionRepository) Create(ctx context.Context, e *mbcomposition.E
 		INSERT INTO mst_mb_composition
 			(mbcm_mbh_id, mbcm_seq_no, mbcm_group_head_id, mbcm_composition_pct,
 			 mbcm_source_type, mbcm_mb_ref_mbh_id, mbcm_is_carrier, mbcm_created_by)
-		VALUES ($1, $2, $3, $4, $5, NULLIF($6, '')::uuid, $7, $8)
+		VALUES ($1, $2, NULLIF($3, '')::uuid, $4, $5, NULLIF($6, '')::uuid, $7, $8)
 		RETURNING mbcm_id`
 	var id string
 	err := r.db.QueryRowContext(ctx, q,
@@ -48,7 +48,7 @@ func (r *MBCompositionRepository) Create(ctx context.Context, e *mbcomposition.E
 func (r *MBCompositionRepository) Update(ctx context.Context, e *mbcomposition.Entity) error {
 	const q = `
 		UPDATE mst_mb_composition
-		SET mbcm_group_head_id = $2, mbcm_composition_pct = $3, mbcm_source_type = $4,
+		SET mbcm_group_head_id = NULLIF($2, '')::uuid, mbcm_composition_pct = $3, mbcm_source_type = $4,
 		    mbcm_mb_ref_mbh_id = NULLIF($5, '')::uuid, mbcm_is_carrier = $6,
 		    mbcm_updated_at = NOW(), mbcm_updated_by = $7
 		WHERE mbcm_id = $1 AND deleted_at IS NULL`
@@ -201,11 +201,16 @@ type VersionRow struct {
 // transaction as the snapshot write (called immediately after SnapshotVersion within
 // Task 20b's auto-gen sequence).
 func (r *MBCompositionRepository) ListVersionByMbhIDAndVersion(ctx context.Context, tx *sql.Tx, mbhID string, version int32) ([]VersionRow, error) {
+	// LEFT JOIN so MB/CARRIER snapshot rows (NULL group_head_id) are NOT dropped — the
+	// auto-gen route builder (mbInsertRouteRMs) needs every row, resolving MB rows by
+	// mb_ref instead of group_code. group_head_id/group_code are COALESCE'd to '' for the
+	// plain-string VersionRow scan targets.
 	const q = `
-		SELECT v.mbcv_seq_no, v.mbcv_group_head_id, g.group_code, v.mbcv_composition_pct,
+		SELECT v.mbcv_seq_no, COALESCE(v.mbcv_group_head_id::text, ''), COALESCE(g.group_code, ''),
+		       v.mbcv_composition_pct,
 		       v.mbcv_source_type, COALESCE(v.mbcv_mb_ref_mbh_id::text, ''), v.mbcv_is_carrier
 		FROM mst_mb_composition_version v
-		JOIN cst_rm_group_head g ON g.group_head_id = v.mbcv_group_head_id
+		LEFT JOIN cst_rm_group_head g ON g.group_head_id = v.mbcv_group_head_id
 		WHERE v.mbcv_mbh_id = $1 AND v.mbcv_version = $2
 		ORDER BY v.mbcv_seq_no ASC`
 	rows, err := tx.QueryContext(ctx, q, mbhID, version)
