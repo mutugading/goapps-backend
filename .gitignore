@@ -4,6 +4,7 @@
 bin/
 services/*/server
 services/*/worker
+services/*/backfill-*
 *.exe
 *.exe~
 *.dll
