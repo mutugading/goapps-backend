@@ -3,6 +3,8 @@ package postgres
 import (
 	"database/sql"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // nullableFloat64Ptr converts sql.NullFloat64 to *float64.
@@ -47,5 +49,17 @@ func nullableInt32Ptr(n sql.NullInt32) *int32 {
 		return nil
 	}
 	v := n.Int32
+	return &v
+}
+
+// nullableUUIDPtr parses a nullable UUID string column into a *uuid.UUID, nil when NULL or invalid.
+func nullableUUIDPtr(n sql.NullString) *uuid.UUID {
+	if !n.Valid || n.String == "" {
+		return nil
+	}
+	v, err := uuid.Parse(n.String)
+	if err != nil {
+		return nil
+	}
 	return &v
 }

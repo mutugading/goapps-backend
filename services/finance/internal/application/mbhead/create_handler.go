@@ -4,6 +4,8 @@ package mbhead
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbhead"
 )
 
@@ -27,6 +29,7 @@ type CreateCommand struct {
 	ShadeName       string
 	CrossSection    string
 	LustureCode     string
+	MachineID       *uuid.UUID
 }
 
 // CreateHandler handles the CreateMBHead command.
@@ -54,7 +57,7 @@ func (h *CreateHandler) Handle(ctx context.Context, cmd CreateCommand) (*mbhead.
 		cmd.Denier, cmd.Filament, cmd.Dozing,
 		cmd.MBHCheckStatus, cmd.MBHStatus, cmd.MBHLdrPrsn, cmd.MBHFinalProduct, cmd.MBHCode,
 		cmd.CreatedBy, cmd.IsBoughtout, cmd.DevCode, cmd.ShadeCode, cmd.ShadeName,
-		cmd.CrossSection, cmd.LustureCode,
+		cmd.CrossSection, cmd.LustureCode, cmd.MachineID,
 	)
 	if err != nil {
 		return nil, err

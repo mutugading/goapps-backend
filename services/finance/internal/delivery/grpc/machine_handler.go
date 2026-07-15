@@ -227,6 +227,7 @@ func (h *MachineHandler) ListMachines(ctx context.Context, req *financev1.ListMa
 		Search:    req.Search,
 		SortBy:    req.SortBy,
 		SortOrder: req.SortOrder,
+		MCType:    req.McTypeFilter,
 	}
 
 	switch req.ActiveFilter {

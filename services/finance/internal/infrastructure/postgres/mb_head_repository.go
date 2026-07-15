@@ -39,8 +39,8 @@ func (r *MBHeadRepository) Create(ctx context.Context, entity *mbhead.Entity) er
 			mbh_check_status, mbh_status, mbh_ldr_prsn, mbh_final_product, mbh_code,
 			mbh_is_active, created_at, created_by,
 			mbh_is_boughtout, mbh_dev_code, mbh_shade_code, mbh_shade_name,
-			mbh_cross_section, mbh_lusture_code
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+			mbh_cross_section, mbh_lusture_code, mbh_machine_id
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
 	`,
 		entity.ID(),
 		entity.OracleSysID(),
@@ -63,6 +63,7 @@ func (r *MBHeadRepository) Create(ctx context.Context, entity *mbhead.Entity) er
 		entity.ShadeName(),
 		entity.CrossSection(),
 		entity.LustureCode(),
+		entity.MachineID(),
 	)
 	if err != nil {
 		if isMBHeadUniqueViolation(err) {
@@ -160,7 +161,8 @@ func (r *MBHeadRepository) Update(ctx context.Context, entity *mbhead.Entity) er
 			mbh_shade_code    = $16,
 			mbh_shade_name    = $17,
 			mbh_cross_section = $18,
-			mbh_lusture_code  = $19
+			mbh_lusture_code  = $19,
+			mbh_machine_id    = $20
 		WHERE mbh_id = $1 AND deleted_at IS NULL
 	`,
 		entity.ID(),
@@ -182,6 +184,7 @@ func (r *MBHeadRepository) Update(ctx context.Context, entity *mbhead.Entity) er
 		entity.ShadeName(),
 		entity.CrossSection(),
 		entity.LustureCode(),
+		entity.MachineID(),
 	)
 	if err != nil {
 		return fmt.Errorf("update mb head: %w", err)
@@ -348,7 +351,7 @@ func (r *MBHeadRepository) selectCols() string {
 		       mbh_lusture_code, mbh_cost_product_id, mbh_cost_generated_at, mbh_cost_generated_by,
 		       mbh_param_waste, mbh_param_quality_loss, mbh_param_efficiency, mbh_param_dev_expense,
 		       mbh_param_packing, mbh_param_mb_prod_per_day, mbh_param_throughput_per_hour,
-		       mbh_param_no_of_process
+		       mbh_param_no_of_process, mbh_machine_id
 		FROM mst_mb_head
 	`
 }
@@ -406,6 +409,7 @@ type mbHeadDTO struct {
 	ParamMBProdPerDay      sql.NullString
 	ParamThroughputPerHour sql.NullString
 	ParamNoOfProcess       sql.NullString
+	MachineID              sql.NullString
 }
 
 func nullTimeToStringPtr(n sql.NullTime) *string {
@@ -442,6 +446,7 @@ func (d *mbHeadDTO) toEntity() *mbhead.Entity {
 		nullableStringPtr(d.ParamEfficiency), nullableStringPtr(d.ParamDevExpense),
 		nullableStringPtr(d.ParamPacking), nullableStringPtr(d.ParamMBProdPerDay),
 		d.ParamThroughputPerHour.String, d.ParamNoOfProcess.String,
+		nullableUUIDPtr(d.MachineID),
 	)
 }
 
@@ -458,6 +463,7 @@ func (r *MBHeadRepository) scanOne(row *sql.Row) (*mbhead.Entity, error) {
 		&d.LustureCode, &d.CostProductID, &d.CostGeneratedAt, &d.CostGeneratedBy,
 		&d.ParamWaste, &d.ParamQualityLoss, &d.ParamEfficiency, &d.ParamDevExpense,
 		&d.ParamPacking, &d.ParamMBProdPerDay, &d.ParamThroughputPerHour, &d.ParamNoOfProcess,
+		&d.MachineID,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, mbhead.ErrNotFound
@@ -481,6 +487,7 @@ func (r *MBHeadRepository) scanRow(rows *sql.Rows) (*mbhead.Entity, error) {
 		&d.LustureCode, &d.CostProductID, &d.CostGeneratedAt, &d.CostGeneratedBy,
 		&d.ParamWaste, &d.ParamQualityLoss, &d.ParamEfficiency, &d.ParamDevExpense,
 		&d.ParamPacking, &d.ParamMBProdPerDay, &d.ParamThroughputPerHour, &d.ParamNoOfProcess,
+		&d.MachineID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("scan mb head row: %w", err)

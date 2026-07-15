@@ -28,6 +28,7 @@ type UpdateCommand struct {
 	ShadeName       *string
 	CrossSection    *string
 	LustureCode     *string
+	MachineID       *uuid.UUID
 	UpdatedBy       string
 }
 
@@ -65,6 +66,7 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*mbhead.
 		ShadeName:       cmd.ShadeName,
 		CrossSection:    cmd.CrossSection,
 		LustureCode:     cmd.LustureCode,
+		MachineID:       cmd.MachineID,
 	}, cmd.UpdatedBy); err != nil {
 		return nil, err
 	}
