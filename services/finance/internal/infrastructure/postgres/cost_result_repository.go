@@ -35,10 +35,19 @@ const resultColumns = `cpc_cost_id, cpc_product_sys_id, cpc_period, cpc_calculat
 		       COALESCE(cpc_job_id, 0), cpc_calculated_at, cpc_calculated_by,
 		       cpc_verified_at, COALESCE(cpc_verified_by, '')`
 
+// upsertMaxRetries caps the retry loop when a concurrent transaction inserts a
+// conflicting active row between our supersede and insert.
+const upsertMaxRetries = 3
+
 // UpsertWithSupersede atomically SUPERSEDEs any existing active row for the
 // (product, period, calc_type) tuple, then inserts the new row with version
 // = prev+1. Returns the new cost id plus the previous (if any) version, total,
 // and id so the caller can write an audit-history row outside the transaction.
+//
+// When two concurrent jobs compute the same product+period+calc_type and no
+// prior active row exists, the second INSERT hits uk_cpc_active. The retry
+// loop rolls back, re-opens a fresh transaction (where the winner's row is now
+// visible), supersedes it, and inserts again.
 func (r *CostResultRepository) UpsertWithSupersede(
 	ctx context.Context, res *costcalc.Result,
 ) (newCostID int64, prevVersion int, prevTotal float64, prevCostID int64, err error) {
@@ -49,6 +58,25 @@ func (r *CostResultRepository) UpsertWithSupersede(
 	if res == nil {
 		return 0, 0, 0, 0, fmt.Errorf("upsert result: nil result")
 	}
+
+	for attempt := range upsertMaxRetries {
+		newCostID, prevVersion, prevTotal, prevCostID, err = r.tryUpsert(ctx, res)
+		if err == nil {
+			return newCostID, prevVersion, prevTotal, prevCostID, nil
+		}
+		if !isUniqueViolation(err) {
+			return 0, 0, 0, 0, err
+		}
+		metrics.UpsertRetryTotal.Inc()
+		if attempt < upsertMaxRetries-1 {
+			continue
+		}
+	}
+	return 0, 0, 0, 0, fmt.Errorf("upsert result: unique violation after %d retries: %w", upsertMaxRetries, err)
+}
+
+// tryUpsert runs one supersede+insert attempt inside a single transaction.
+func (r *CostResultRepository) tryUpsert(ctx context.Context, res *costcalc.Result) (int64, int, float64, int64, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, 0, 0, 0, fmt.Errorf("begin upsert tx: %w", err)
@@ -63,12 +91,12 @@ func (r *CostResultRepository) UpsertWithSupersede(
 		}
 	}()
 
-	prevVersion, prevTotal, prevCostID, err = supersedePrevious(ctx, tx, res.ProductSysID(), res.Period(), res.CalcType())
+	prevVersion, prevTotal, prevCostID, err := supersedePrevious(ctx, tx, res.ProductSysID(), res.Period(), res.CalcType())
 	if err != nil {
 		return 0, 0, 0, 0, err
 	}
 
-	newCostID, err = insertNewResult(ctx, tx, res, prevVersion+1)
+	newCostID, err := insertNewResult(ctx, tx, res, prevVersion+1)
 	if err != nil {
 		return 0, 0, 0, 0, err
 	}
