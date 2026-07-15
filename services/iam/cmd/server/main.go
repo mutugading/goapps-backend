@@ -11,12 +11,17 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"encoding/hex"
+
 	iamv1 "github.com/mutugading/goapps-backend/gen/iam/v1"
 	authapp "github.com/mutugading/goapps-backend/services/iam/internal/application/auth"
+	appChat "github.com/mutugading/goapps-backend/services/iam/internal/application/chat"
 	appnotif "github.com/mutugading/goapps-backend/services/iam/internal/application/notification"
 	grpcdelivery "github.com/mutugading/goapps-backend/services/iam/internal/delivery/grpc"
 	httpdelivery "github.com/mutugading/goapps-backend/services/iam/internal/delivery/httpdelivery"
+	chatinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/chat"
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/config"
+	iamcrypto "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/crypto"
 	emailinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/email"
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/jwt"
 	notifinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/notification"
@@ -204,6 +209,54 @@ func run() error {
 		notifStream, validationHelper,
 	).WithRequestHandler(notifRequestHandler)
 
+	// ── Chat + Presence ────────────────────────────────────────────────────
+	chatMasterKeyHex := os.Getenv("CHAT_MASTER_KEY")
+	var chatHandler *grpcdelivery.ChatHandler
+	var presenceGRPCHandler *grpcdelivery.PresenceHandler
+	if chatMasterKeyHex != "" {
+		chatMasterKey, hexErr := hex.DecodeString(chatMasterKeyHex)
+		if hexErr != nil || len(chatMasterKey) != 32 {
+			log.Fatal().Msg("CHAT_MASTER_KEY must be a 64-char hex string (32 bytes)")
+		}
+		chatEnc, encErr := iamcrypto.NewEncryptor(chatMasterKey)
+		if encErr != nil {
+			log.Fatal().Err(encErr).Msg("Failed to init chat encryptor")
+		}
+		var chatBroadcaster *chatinfra.Broadcaster
+		if redisClient != nil {
+			chatBroadcaster = chatinfra.NewRedisBroadcaster(redisClient.Client)
+		} else {
+			chatBroadcaster = chatinfra.NewBroadcaster()
+		}
+		var presenceSvc *chatinfra.PresenceService
+		if redisClient != nil {
+			presenceSvc = chatinfra.NewPresenceService(redisClient.Client)
+		}
+		chatConvRepo := postgres.NewChatConversationRepository(db)
+		chatMsgRepo := postgres.NewChatMessageRepository(db)
+		chatReceiptRepo := postgres.NewChatReadReceiptRepository(db)
+		chatHandler = grpcdelivery.NewChatHandler(
+			appChat.NewCreateDirectHandler(chatConvRepo, chatEnc),
+			appChat.NewCreateGroupHandler(chatConvRepo, chatEnc),
+			appChat.NewGetConversationHandler(chatConvRepo),
+			appChat.NewListConversationsHandler(chatConvRepo),
+			appChat.NewLeaveConversationHandler(chatConvRepo),
+			appChat.NewSendMessageHandler(chatConvRepo, chatMsgRepo, chatReceiptRepo, chatEnc, chatBroadcaster),
+			appChat.NewEditMessageHandler(chatConvRepo, chatMsgRepo, chatEnc, chatBroadcaster),
+			appChat.NewDeleteMessageHandler(chatConvRepo, chatMsgRepo, chatBroadcaster),
+			appChat.NewListMessagesHandler(chatConvRepo, chatMsgRepo, chatEnc),
+			appChat.NewMarkReadHandler(chatConvRepo, chatMsgRepo, chatReceiptRepo, chatBroadcaster),
+			appChat.NewSetTypingHandler(chatConvRepo, presenceSvc, chatBroadcaster),
+			appChat.NewStreamHandler(chatBroadcaster),
+		)
+		if presenceSvc != nil {
+			presenceGRPCHandler = grpcdelivery.NewPresenceHandler(presenceSvc)
+		}
+		log.Info().Msg("Chat + Presence services initialized")
+	} else {
+		log.Warn().Msg("CHAT_MASTER_KEY not set — chat services disabled")
+	}
+
 	// Setup gRPC server with interceptor chain (pass JWT + session cache + session repo for auth & activity tracking)
 	grpcServer, err := grpcdelivery.NewServer(&cfg.Server, db, jwtService, sessionCache, sessionRepo, cfg.Security.InternalServiceToken)
 	if err != nil {
@@ -232,6 +285,12 @@ func run() error {
 	iamv1.RegisterNotificationServiceServer(gs, notificationHandler)
 	iamv1.RegisterWorkflowTemplateServiceServer(gs, workflowTemplateHandler)
 	iamv1.RegisterWorkflowInstanceServiceServer(gs, workflowInstanceHandler)
+	if chatHandler != nil {
+		iamv1.RegisterChatServiceServer(gs, chatHandler)
+	}
+	if presenceGRPCHandler != nil {
+		iamv1.RegisterPresenceServiceServer(gs, presenceGRPCHandler)
+	}
 
 	// Start gRPC server
 	go func() {
