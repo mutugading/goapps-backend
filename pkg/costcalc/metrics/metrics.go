@@ -57,6 +57,13 @@ var (
 		Help: "Cost results that superseded a previous version.",
 	})
 
+	// UpsertRetryTotal increments when UpsertWithSupersede retries after a
+	// concurrent insert caused a uk_cpc_active unique violation.
+	UpsertRetryTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "finance_cost_upsert_retry_total",
+		Help: "UpsertWithSupersede retries due to concurrent unique violation.",
+	})
+
 	// AuditWritesTotal increments per aud_cost_history row written.
 	AuditWritesTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "finance_cost_audit_writes_total",
