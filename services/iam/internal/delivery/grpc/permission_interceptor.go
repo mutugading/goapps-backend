@@ -217,6 +217,28 @@ var methodPermissions = map[string]PermissionRequirement{
 	// RequestNotification is for internal service-to-service use only;
 	// auth is enforced via x-internal-token bypass in the auth interceptor.
 	"/iam.v1.NotificationService/RequestNotification": {Permission: ""},
+
+	// Chat Service — authenticated only; participant checks are at handler level.
+	"/iam.v1.ChatService/CreateDirectConversation": {Permission: ""},
+	"/iam.v1.ChatService/CreateGroupConversation":  {Permission: ""},
+	"/iam.v1.ChatService/GetConversation":          {Permission: ""},
+	"/iam.v1.ChatService/ListConversations":        {Permission: ""},
+	"/iam.v1.ChatService/UpdateGroupConversation":  {Permission: ""},
+	"/iam.v1.ChatService/AddParticipants":          {Permission: ""},
+	"/iam.v1.ChatService/RemoveParticipant":        {Permission: ""},
+	"/iam.v1.ChatService/LeaveConversation":        {Permission: ""},
+	"/iam.v1.ChatService/SendMessage":              {Permission: ""},
+	"/iam.v1.ChatService/EditMessage":              {Permission: ""},
+	"/iam.v1.ChatService/DeleteMessage":            {Permission: ""},
+	"/iam.v1.ChatService/ListMessages":             {Permission: ""},
+	"/iam.v1.ChatService/StreamChatEvents":         {Permission: ""},
+	"/iam.v1.ChatService/MarkConversationRead":     {Permission: ""},
+	"/iam.v1.ChatService/SetTyping":                {Permission: ""},
+	"/iam.v1.ChatService/GetMessageEditHistory":    {Permission: ""},
+
+	// Presence Service — authenticated only.
+	"/iam.v1.PresenceService/Heartbeat":      {Permission: ""},
+	"/iam.v1.PresenceService/GetOnlineUsers": {Permission: ""},
 }
 
 // PermissionInterceptor creates a unary interceptor that checks if the
