@@ -229,7 +229,11 @@ func mbFreezeCostParams(ctx context.Context, tx *sql.Tx, productSysID int64, ent
 	if err != nil {
 		return err
 	}
-	values := mbBuildParamValues(entity, throughputNumeric, noProcessNumeric)
+	machineFixedTotal, err := mbResolveMachineFixedTotal(ctx, tx, entity.MachineID())
+	if err != nil {
+		return err
+	}
+	values := mbBuildParamValues(entity, throughputNumeric, noProcessNumeric, machineFixedTotal)
 
 	capp := make([]costproductparameter.CAPPUpsertInput, 0, len(values)+len(mbOutputParamCodes))
 	cpp := make([]costproductparameter.CPPUpsertInput, 0, len(values))
@@ -278,16 +282,9 @@ type mbParamValue struct {
 	valueFlag       *bool
 }
 
-func mbBuildParamValues(entity *mbhead.Entity, throughputNumeric, noProcessNumeric *string) []mbParamValue {
+func mbBuildParamValues(entity *mbhead.Entity, throughputNumeric, noProcessNumeric, machineFixedTotal *string) []mbParamValue {
 	isBoughtout := entity.IsBoughtout()
 	compositionVersion := strconv.FormatInt(int64(entity.CurrentVersion()), 10)
-	machineFixedTotal := entity.MachineFixedTotal()
-	if machineFixedTotal == nil {
-		// No mbh_machine_id FK / machine picker exists yet (PRD Pattern C not wired) — 0 is the
-		// placeholder snapshot until machine selection lands, not a validation failure.
-		zero := "0"
-		machineFixedTotal = &zero
-	}
 
 	return []mbParamValue{
 		{code: paramMBWaste, dataType: string(costproductparameter.DataTypeNumber), valueNumericStr: entity.ParamWaste()},
@@ -320,6 +317,26 @@ func mbResolveOptionNumericValue(ctx context.Context, tx *sql.Tx, paramCode, opt
 	}
 	v := strconv.FormatFloat(numeric, 'f', -1, 64)
 	return &v, nil
+}
+
+// mbResolveMachineFixedTotal resolves MACHINE_MB_FIXED_TOTAL from the head's assigned machine
+// (mst_machine.mc_tot_fxd_cst). Returns nil if no machine is assigned yet or the machine has no
+// fixed-cost figure set — CAPP's IsRequired:true then correctly blocks VALIDATE until a machine
+// with a fixed cost is picked, rather than silently freezing a fake 0.
+func mbResolveMachineFixedTotal(ctx context.Context, tx *sql.Tx, machineID *uuid.UUID) (*string, error) {
+	if machineID == nil {
+		return nil, nil //nolint:nilnil // no machine assigned yet — legitimate "not set"
+	}
+	const q = `SELECT mc_tot_fxd_cst FROM mst_machine WHERE mc_id = $1 AND deleted_at IS NULL`
+	var v sql.NullFloat64
+	if err := tx.QueryRowContext(ctx, q, *machineID).Scan(&v); err != nil {
+		return nil, fmt.Errorf("mb_autogen: resolve mst_machine %s: %w", *machineID, err)
+	}
+	if !v.Valid {
+		return nil, nil //nolint:nilnil // machine has no fixed-cost figure set
+	}
+	s := strconv.FormatFloat(v.Float64, 'f', -1, 64)
+	return &s, nil
 }
 
 func mbParseOptionalFloat(s *string) (*float64, error) {

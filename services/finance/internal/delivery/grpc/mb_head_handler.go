@@ -71,6 +71,12 @@ func (h *MBHeadHandler) CreateMBHead(ctx context.Context, req *financev1.CreateM
 		filament = &v
 	}
 
+	machineID, badResp := parseOptionalMachineID(req.MbhMachineId)
+	if badResp != nil {
+		RecordMBHeadOperation("create", false)
+		return &financev1.CreateMBHeadResponse{Base: badResp}, nil
+	}
+
 	entity, err := h.createHandler.Handle(ctx, appmbhead.CreateCommand{
 		MBCosting:       req.MbhMbCosting,
 		OracleSysID:     req.MbhOracleSysId,
@@ -90,6 +96,7 @@ func (h *MBHeadHandler) CreateMBHead(ctx context.Context, req *financev1.CreateM
 		ShadeName:       req.GetMbhShadeName(),
 		CrossSection:    req.GetMbhCrossSection(),
 		LustureCode:     req.GetMbhLustureCode(),
+		MachineID:       machineID,
 	})
 	if err != nil {
 		RecordMBHeadOperation("create", false)
@@ -148,6 +155,12 @@ func (h *MBHeadHandler) UpdateMBHead(ctx context.Context, req *financev1.UpdateM
 		filament = &v
 	}
 
+	machineID, badResp := parseOptionalMachineID(req.MbhMachineId)
+	if badResp != nil {
+		RecordMBHeadOperation("update", false)
+		return &financev1.UpdateMBHeadResponse{Base: badResp}, nil
+	}
+
 	entity, err := h.updateHandler.Handle(ctx, appmbhead.UpdateCommand{
 		ID:              id,
 		MBCosting:       req.MbhMbCosting,
@@ -166,6 +179,7 @@ func (h *MBHeadHandler) UpdateMBHead(ctx context.Context, req *financev1.UpdateM
 		ShadeName:       req.MbhShadeName,
 		CrossSection:    req.MbhCrossSection,
 		LustureCode:     req.MbhLustureCode,
+		MachineID:       machineID,
 		UpdatedBy:       getUserFromContext(ctx),
 	})
 	if err != nil {
@@ -510,6 +524,10 @@ func mbHeadEntityToProto(e *mbhead.Entity) *financev1.MBHead {
 	if e.MachineFixedTotal() != nil {
 		p.MachineFixedTotal = *e.MachineFixedTotal()
 	}
+	if e.MachineID() != nil {
+		id := e.MachineID().String()
+		p.MachineId = &id
+	}
 	p.StateReason = e.StateReason()
 	p.CostProductId = e.CostProductID()
 	if e.CostGeneratedAt() != nil {
@@ -543,4 +561,18 @@ func mbHeadEntityToProto(e *mbhead.Entity) *financev1.MBHead {
 		p.Audit.UpdatedBy = *e.UpdatedBy()
 	}
 	return p
+}
+
+// parseOptionalMachineID parses an optional *string mbh_machine_id into a *uuid.UUID.
+// Returns (nil, nil) when the input is nil or empty. Returns (nil, baseResponse) when
+// the input is non-empty but invalid.
+func parseOptionalMachineID(raw *string) (*uuid.UUID, *commonv1.BaseResponse) {
+	if raw == nil || *raw == "" {
+		return nil, nil
+	}
+	id, err := uuid.Parse(*raw)
+	if err != nil {
+		return nil, ErrorResponse("400", "invalid mbh_machine_id: "+err.Error())
+	}
+	return &id, nil
 }

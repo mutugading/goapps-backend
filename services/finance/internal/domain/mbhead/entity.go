@@ -32,6 +32,7 @@ type Entity struct {
 	isBoughtout            bool
 	currentVersion         int32
 	machineFixedTotal      *string
+	machineID              *uuid.UUID
 	stateReason            string
 	devCode                string
 	shadeCode              string
@@ -54,7 +55,7 @@ type Entity struct {
 // New creates a new MB Head entity with validation.
 //
 //nolint:revive // Many parameters required for construction.
-func New(mbCosting string, oracleSysID, mgtName *string, denier *float64, filament *int, dozing *float64, mbhCheckStatus, mbhStatus *string, mbhLdrPrsn *float64, mbhFinalProduct, mbhCode *string, createdBy string, isBoughtout bool, devCode, shadeCode, shadeName, crossSection, lustureCode string) (*Entity, error) {
+func New(mbCosting string, oracleSysID, mgtName *string, denier *float64, filament *int, dozing *float64, mbhCheckStatus, mbhStatus *string, mbhLdrPrsn *float64, mbhFinalProduct, mbhCode *string, createdBy string, isBoughtout bool, devCode, shadeCode, shadeName, crossSection, lustureCode string, machineID *uuid.UUID) (*Entity, error) {
 	if mbCosting == "" {
 		return nil, ErrEmptyMBCosting
 	}
@@ -72,6 +73,7 @@ func New(mbCosting string, oracleSysID, mgtName *string, denier *float64, filame
 		isActive: true, createdAt: time.Now(), createdBy: createdBy,
 		isBoughtout: isBoughtout, devCode: devCode, shadeCode: shadeCode,
 		shadeName: shadeName, crossSection: crossSection, lustureCode: lustureCode,
+		machineID: machineID,
 	}, nil
 }
 
@@ -88,6 +90,7 @@ func Reconstruct(
 	costProductID int64, costGeneratedAt *string, costGeneratedBy string,
 	paramWaste, paramQualityLoss, paramEfficiency, paramDevExpense, paramPacking,
 	paramMBProdPerDay *string, paramThroughputPerHour, paramNoOfProcess string,
+	machineID *uuid.UUID,
 ) *Entity {
 	return &Entity{
 		id: id, oracleSysID: oracleSysID, mbCosting: mbCosting, mgtName: mgtName,
@@ -106,6 +109,7 @@ func Reconstruct(
 		paramEfficiency: paramEfficiency, paramDevExpense: paramDevExpense,
 		paramPacking: paramPacking, paramMBProdPerDay: paramMBProdPerDay,
 		paramThroughputPerHour: paramThroughputPerHour, paramNoOfProcess: paramNoOfProcess,
+		machineID: machineID,
 	}
 }
 
@@ -181,6 +185,9 @@ func (e *Entity) CurrentVersion() int32 { return e.currentVersion }
 // MachineFixedTotal returns the fixed machine cost total, nil if not yet calculated.
 func (e *Entity) MachineFixedTotal() *string { return e.machineFixedTotal }
 
+// MachineID returns the assigned machine (mst_machine.mc_id), nil if not yet assigned.
+func (e *Entity) MachineID() *uuid.UUID { return e.machineID }
+
 // StateReason returns the reason recorded for the current UnApprove/Revoke transition, empty otherwise.
 func (e *Entity) StateReason() string { return e.stateReason }
 
@@ -250,6 +257,7 @@ type UpdateInput struct {
 	ShadeName       *string
 	CrossSection    *string
 	LustureCode     *string
+	MachineID       *uuid.UUID
 }
 
 // Update applies optional field changes to the entity.
@@ -421,5 +429,8 @@ func (e *Entity) applyRecipeIdentityFields(in UpdateInput) {
 	}
 	if in.LustureCode != nil {
 		e.lustureCode = *in.LustureCode
+	}
+	if in.MachineID != nil {
+		e.machineID = in.MachineID
 	}
 }

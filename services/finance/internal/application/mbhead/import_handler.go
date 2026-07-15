@@ -303,7 +303,7 @@ func (h *ImportHandler) createMBHead(
 		denier, filament, dozing,
 		nil, nil, nil, nil, nil,
 		createdBy, isBoughtout, data.devCode, data.shadeCode, data.shadeName,
-		data.crossSection, data.lustureCode,
+		data.crossSection, data.lustureCode, nil,
 	)
 	if err != nil {
 		result.FailedCount++

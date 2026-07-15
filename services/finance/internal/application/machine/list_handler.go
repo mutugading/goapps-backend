@@ -16,6 +16,7 @@ type ListQuery struct {
 	IsActive  *bool
 	SortBy    string
 	SortOrder string
+	MCType    string
 }
 
 // ListResult contains the paged list of machines.
@@ -46,6 +47,7 @@ func (h *ListHandler) Handle(ctx context.Context, query ListQuery) (*ListResult,
 		SortBy:    query.SortBy,
 		SortOrder: query.SortOrder,
 		IsActive:  query.IsActive,
+		MCType:    query.MCType,
 	}
 	filter.Validate()
 

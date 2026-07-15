@@ -3862,6 +3862,10 @@
         "mbhLustureCode": {
           "type": "string",
           "description": "Lusture code, references MbLusture.code (max 10 chars)."
+        },
+        "mbhMachineId": {
+          "type": "string",
+          "description": "Machine assigned for MACHINE_MB_FIXED_TOTAL cost resolution (references mst_machine.mc_id)."
         }
       },
       "description": "UpdateMBHeadRequest is the request for updating an MB Head record."
@@ -4815,6 +4819,10 @@
         "mbhLustureCode": {
           "type": "string",
           "description": "Lusture code, references MbLusture.code (max 10 chars)."
+        },
+        "mbhMachineId": {
+          "type": "string",
+          "description": "Machine assigned for MACHINE_MB_FIXED_TOTAL cost resolution (references mst_machine.mc_id)."
         }
       },
       "description": "CreateMBHeadRequest is the request for creating an MB Head record."
@@ -6881,6 +6889,10 @@
         "paramNoOfProcess": {
           "type": "string",
           "description": "Frozen param snapshot at VALIDATED — number of process; stores option code, e.g. \"D\"."
+        },
+        "machineId": {
+          "type": "string",
+          "description": "Machine assigned for MACHINE_MB_FIXED_TOTAL cost resolution (references mst_machine.mc_id). Optional."
         }
       },
       "description": "MBHead represents a Melange Batch head master record (MEL yarn type only)."
