@@ -65,18 +65,35 @@ func RequestIDInterceptor() grpc.UnaryServerInterceptor {
 	}
 }
 
-// TimeoutInterceptor enforces request timeout.
+// longRunningMethods maps gRPC method suffixes to extended timeouts for RPCs
+// that routinely exceed the default 60s (batch compute, bulk import/export).
+var longRunningMethods = map[string]time.Duration{
+	"TriggerMbBatch":              5 * time.Minute,
+	"ExecutePushToHead":           5 * time.Minute,
+	"ProcessChunkInternal":        5 * time.Minute,
+	"ImportCostApplicableParams":  3 * time.Minute,
+	"ImportCostProductParameters": 3 * time.Minute,
+}
+
+// TimeoutInterceptor enforces request timeout. RPCs listed in
+// longRunningMethods get an extended deadline; all others use the default.
 func TimeoutInterceptor(timeout time.Duration) grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
 		req interface{},
-		_ *grpc.UnaryServerInfo,
+		info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
 	) (interface{}, error) {
-		// Check if context already has deadline
 		if _, ok := ctx.Deadline(); !ok {
+			effective := timeout
+			for suffix, dur := range longRunningMethods {
+				if strings.HasSuffix(info.FullMethod, "/"+suffix) {
+					effective = dur
+					break
+				}
+			}
 			var cancel context.CancelFunc
-			ctx, cancel = context.WithTimeout(ctx, timeout)
+			ctx, cancel = context.WithTimeout(ctx, effective)
 			defer cancel()
 		}
 
