@@ -2,12 +2,11 @@ package chat
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/rs/zerolog/log"
 
+	iamv1 "github.com/mutugading/goapps-backend/gen/iam/v1"
 	"github.com/mutugading/goapps-backend/services/iam/internal/domain/chat"
 	chatinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/chat"
 )
@@ -38,26 +37,26 @@ func (h *SetTypingHandler) Handle(ctx context.Context, callerID, convID uuid.UUI
 		return fmt.Errorf("set typing: %w", err)
 	}
 
-	payload, err := json.Marshal(map[string]any{
-		"type":            "typing",
-		"conversation_id": convID.String(),
-		"user_id":         callerID.String(),
-		"user_name":       callerName,
-		"is_typing":       isTyping,
-	})
-	if err != nil {
-		log.Warn().Err(err).Msg("set typing: marshal broadcast")
-		return nil
-	}
 	eventID := fmt.Sprintf("typing-%s-%s", convID, callerID)
+	resp := &iamv1.StreamChatEventsResponse{
+		EventId: eventID,
+		Payload: &iamv1.StreamChatEventsResponse_Typing{
+			Typing: &iamv1.TypingEvent{
+				ConversationId: convID.String(),
+				UserId:         callerID.String(),
+				UserName:       callerName,
+				IsTyping:       isTyping,
+			},
+		},
+	}
 	for _, part := range conv.Participants() {
 		if !part.IsActive() || part.UserID() == callerID {
-			continue // don't echo back to sender
+			continue
 		}
 		h.broadcaster.Publish(&chatinfra.Event{
-			EventID: fmt.Sprintf("%s-%s", eventID, part.UserID()),
-			UserID:  part.UserID(),
-			Payload: payload,
+			EventID:  fmt.Sprintf("%s-%s", eventID, part.UserID()),
+			UserID:   part.UserID(),
+			Response: resp,
 		})
 	}
 	return nil

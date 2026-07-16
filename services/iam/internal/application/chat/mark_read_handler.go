@@ -2,13 +2,13 @@ package chat
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
+	iamv1 "github.com/mutugading/goapps-backend/gen/iam/v1"
 	"github.com/mutugading/goapps-backend/services/iam/internal/domain/chat"
 	chatinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/chat"
 )
@@ -69,25 +69,25 @@ func (h *MarkReadHandler) Handle(ctx context.Context, callerID, convID uuid.UUID
 }
 
 func (h *MarkReadHandler) broadcastRead(conv *chat.Conversation, readerID uuid.UUID, readAt time.Time) {
-	payload, err := json.Marshal(map[string]string{
-		"type":            "read_receipt",
-		"conversation_id": conv.ID().String(),
-		"user_id":         readerID.String(),
-		"read_at":         readAt.Format(time.RFC3339Nano),
-	})
-	if err != nil {
-		log.Warn().Err(err).Msg("mark read: marshal broadcast")
-		return
-	}
 	eventID := fmt.Sprintf("read-%s-%s", conv.ID(), readerID)
+	resp := &iamv1.StreamChatEventsResponse{
+		EventId: eventID,
+		Payload: &iamv1.StreamChatEventsResponse_ReadReceipt{
+			ReadReceipt: &iamv1.ReadEvent{
+				ConversationId: conv.ID().String(),
+				UserId:         readerID.String(),
+				ReadAt:         readAt.Format(time.RFC3339Nano),
+			},
+		},
+	}
 	for _, p := range conv.Participants() {
 		if !p.IsActive() {
 			continue
 		}
 		h.broadcaster.Publish(&chatinfra.Event{
-			EventID: fmt.Sprintf("%s-%s", eventID, p.UserID()),
-			UserID:  p.UserID(),
-			Payload: payload,
+			EventID:  fmt.Sprintf("%s-%s", eventID, p.UserID()),
+			UserID:   p.UserID(),
+			Response: resp,
 		})
 	}
 }

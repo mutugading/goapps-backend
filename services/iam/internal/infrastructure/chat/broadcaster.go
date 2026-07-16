@@ -13,7 +13,6 @@ package chat
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"sync"
@@ -21,17 +20,19 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
+	"google.golang.org/protobuf/proto"
+
+	iamv1 "github.com/mutugading/goapps-backend/gen/iam/v1"
 )
 
 const chatChannelPrefix = "iam:chat:"
 
-// Event is a chat event fanned out to subscribers. Payload carries the
-// JSON-encoded ChatEvent proto so the broadcaster stays decoupled from the
-// chat domain model.
+// Event is a chat event fanned out to subscribers. Response carries the
+// typed proto response for zero-copy forwarding to gRPC streams.
 type Event struct {
-	EventID string
-	UserID  uuid.UUID
-	Payload []byte
+	EventID  string
+	UserID   uuid.UUID
+	Response *iamv1.StreamChatEventsResponse
 }
 
 // Broadcaster is the in-memory event bus.
@@ -135,15 +136,13 @@ func (b *Broadcaster) Publish(e *Event) {
 	}
 }
 
-// PublishToConversation fans out the same event payload to every participant
-// of a conversation. eventID and payload are shared; only the recipient
-// differs per participant.
-func (b *Broadcaster) PublishToConversation(participantIDs []uuid.UUID, eventID string, payload []byte) {
+// PublishToConversation fans out the same event to every participant.
+func (b *Broadcaster) PublishToConversation(participantIDs []uuid.UUID, eventID string, resp *iamv1.StreamChatEventsResponse) {
 	for _, userID := range participantIDs {
 		b.Publish(&Event{
-			EventID: eventID,
-			UserID:  userID,
-			Payload: payload,
+			EventID:  fmt.Sprintf("%s-%s", eventID, userID),
+			UserID:   userID,
+			Response: resp,
 		})
 	}
 }
@@ -230,41 +229,46 @@ func (b *Broadcaster) SubscriberCount(recipient uuid.UUID) int {
 	return len(b.subs[recipient])
 }
 
-// redisMsg is the JSON wire format used for Redis pub/sub cross-pod fan-out.
-type redisMsg struct {
-	PodID   string `json:"pod"`
-	EventID string `json:"eid"`
-	UserID  string `json:"uid"`
-	Payload []byte `json:"p"`
-}
-
 func serializeEvent(e *Event, podID string) (string, error) {
-	msg := redisMsg{
-		PodID:   podID,
-		EventID: e.EventID,
-		UserID:  e.UserID.String(),
-		Payload: e.Payload,
-	}
-	b, err := json.Marshal(msg)
+	protoBytes, err := proto.Marshal(e.Response)
 	if err != nil {
-		return "", fmt.Errorf("marshal chat event: %w", err)
+		return "", fmt.Errorf("marshal proto event: %w", err)
 	}
-	return string(b), nil
+	envelope := fmt.Sprintf("%s\x00%s\x00%s\x00", podID, e.EventID, e.UserID.String())
+	return envelope + string(protoBytes), nil
 }
 
 func deserializeEvent(payload string) (*Event, string, error) {
-	var msg redisMsg
-	if err := json.Unmarshal([]byte(payload), &msg); err != nil {
-		return nil, "", fmt.Errorf("unmarshal chat event: %w", err)
+	parts := splitNullSep(payload, 4)
+	if parts == nil {
+		return nil, "", fmt.Errorf("invalid redis envelope")
 	}
-	userID, err := uuid.Parse(msg.UserID)
+	podID, eventID, userIDStr, protoBytes := parts[0], parts[1], parts[2], []byte(parts[3])
+	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		return nil, "", fmt.Errorf("parse user id: %w", err)
 	}
-	e := &Event{
-		EventID: msg.EventID,
-		UserID:  userID,
-		Payload: msg.Payload,
+	resp := &iamv1.StreamChatEventsResponse{}
+	if err := proto.Unmarshal(protoBytes, resp); err != nil {
+		return nil, "", fmt.Errorf("unmarshal proto event: %w", err)
 	}
-	return e, msg.PodID, nil
+	resp.EventId = eventID
+	return &Event{EventID: eventID, UserID: userID, Response: resp}, podID, nil
+}
+
+func splitNullSep(s string, n int) []string {
+	result := make([]string, 0, n)
+	for i := 0; i < n-1; i++ {
+		idx := 0
+		for idx < len(s) && s[idx] != 0 {
+			idx++
+		}
+		if idx >= len(s) {
+			return nil
+		}
+		result = append(result, s[:idx])
+		s = s[idx+1:]
+	}
+	result = append(result, s)
+	return result
 }

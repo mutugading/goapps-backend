@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	iamv1 "github.com/mutugading/goapps-backend/gen/iam/v1"
 	chatinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/chat"
 )
 
@@ -18,10 +19,11 @@ func TestBroadcaster_PublishReceive(t *testing.T) {
 	ch, unsub := b.Subscribe(user)
 	defer unsub()
 
+	resp := &iamv1.StreamChatEventsResponse{EventId: "test-event"}
 	ev := &chatinfra.Event{
-		EventID: uuid.New().String(),
-		UserID:  user,
-		Payload: []byte(`{"type":"message.created"}`),
+		EventID:  uuid.New().String(),
+		UserID:   user,
+		Response: resp,
 	}
 	b.Publish(ev)
 
@@ -29,7 +31,7 @@ func TestBroadcaster_PublishReceive(t *testing.T) {
 	case got := <-ch:
 		assert.Equal(t, ev.EventID, got.EventID)
 		assert.Equal(t, ev.UserID, got.UserID)
-		assert.Equal(t, ev.Payload, got.Payload)
+		assert.Equal(t, "test-event", got.Response.GetEventId())
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("timed out waiting for chat event")
 	}
@@ -48,9 +50,9 @@ func TestBroadcaster_MultipleSubscribers(t *testing.T) {
 	assert.Equal(t, 2, b.SubscriberCount(user))
 
 	ev := &chatinfra.Event{
-		EventID: uuid.New().String(),
-		UserID:  user,
-		Payload: []byte(`{"type":"message.created"}`),
+		EventID:  uuid.New().String(),
+		UserID:   user,
+		Response: &iamv1.StreamChatEventsResponse{EventId: "multi-test"},
 	}
 	b.Publish(ev)
 

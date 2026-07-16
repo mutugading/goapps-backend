@@ -2,12 +2,11 @@ package chat
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/rs/zerolog/log"
 
+	iamv1 "github.com/mutugading/goapps-backend/gen/iam/v1"
 	"github.com/mutugading/goapps-backend/services/iam/internal/domain/chat"
 	chatinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/chat"
 )
@@ -48,24 +47,24 @@ func (h *DeleteMessageHandler) Handle(ctx context.Context, callerID, convID, msg
 }
 
 func (h *DeleteMessageHandler) broadcastDelete(conv *chat.Conversation, convID, msgID uuid.UUID) {
-	payload, err := json.Marshal(map[string]string{
-		"type":            "message_deleted",
-		"conversation_id": convID.String(),
-		"message_id":      msgID.String(),
-	})
-	if err != nil {
-		log.Warn().Err(err).Msg("delete message: marshal broadcast")
-		return
-	}
 	eventID := fmt.Sprintf("del-%s", msgID)
+	resp := &iamv1.StreamChatEventsResponse{
+		EventId: eventID,
+		Payload: &iamv1.StreamChatEventsResponse_MessageDeleted{
+			MessageDeleted: &iamv1.DeleteEvent{
+				ConversationId: convID.String(),
+				MessageId:      msgID.String(),
+			},
+		},
+	}
 	for _, p := range conv.Participants() {
 		if !p.IsActive() {
 			continue
 		}
 		h.broadcaster.Publish(&chatinfra.Event{
-			EventID: fmt.Sprintf("%s-%s", eventID, p.UserID()),
-			UserID:  p.UserID(),
-			Payload: payload,
+			EventID:  fmt.Sprintf("%s-%s", eventID, p.UserID()),
+			UserID:   p.UserID(),
+			Response: resp,
 		})
 	}
 }

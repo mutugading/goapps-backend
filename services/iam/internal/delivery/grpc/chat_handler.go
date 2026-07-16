@@ -2,7 +2,6 @@ package grpc
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"time"
 
@@ -14,7 +13,6 @@ import (
 	iamv1 "github.com/mutugading/goapps-backend/gen/iam/v1"
 	appChat "github.com/mutugading/goapps-backend/services/iam/internal/application/chat"
 	"github.com/mutugading/goapps-backend/services/iam/internal/domain/chat"
-	chatinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/chat"
 )
 
 // ChatHandler implements iamv1.ChatServiceServer.
@@ -307,8 +305,7 @@ func (h *ChatHandler) StreamChatEvents(_ *iamv1.StreamChatEventsRequest, stream 
 			if !ok {
 				return nil
 			}
-			resp := buildStreamResponse(evt)
-			if sendErr := stream.Send(resp); sendErr != nil {
+			if sendErr := stream.Send(evt.Response); sendErr != nil {
 				return sendErr
 			}
 		}
@@ -363,68 +360,6 @@ func msgToProto(msg *chat.Message, plainBody string, receipts []*chat.ReadReceip
 
 func chatSuccessBase() *commonv1.BaseResponse {
 	return &commonv1.BaseResponse{IsSuccess: true, Message: "success", StatusCode: "200"}
-}
-
-type broadcastPayload struct {
-	Type           string `json:"type"`
-	ConversationID string `json:"conversation_id"`
-	MessageID      string `json:"message_id"`
-	SenderUserID   string `json:"sender_user_id"`
-	Body           string `json:"body"`
-	IsEdited       bool   `json:"is_edited"`
-	IsDeleted      bool   `json:"is_deleted"`
-	CreatedAt      string `json:"created_at"`
-	UpdatedAt      string `json:"updated_at"`
-	UserID         string `json:"user_id"`
-	UserName       string `json:"user_name"`
-	IsTyping       bool   `json:"is_typing"`
-	ReadAt         string `json:"read_at"`
-	IsOnline       bool   `json:"is_online"`
-}
-
-func buildStreamResponse(evt *chatinfra.Event) *iamv1.StreamChatEventsResponse {
-	resp := &iamv1.StreamChatEventsResponse{EventId: evt.EventID}
-	var p broadcastPayload
-	if err := json.Unmarshal(evt.Payload, &p); err != nil {
-		return resp
-	}
-	msg := &iamv1.MessageProto{
-		MessageId:      p.MessageID,
-		ConversationId: p.ConversationID,
-		SenderUserId:   p.SenderUserID,
-		Body:           p.Body,
-		IsEdited:       p.IsEdited,
-		IsDeleted:      p.IsDeleted,
-		CreatedAt:      p.CreatedAt,
-		UpdatedAt:      p.UpdatedAt,
-	}
-	switch p.Type {
-	case "message_received":
-		resp.Payload = &iamv1.StreamChatEventsResponse_MessageReceived{
-			MessageReceived: &iamv1.MessageEvent{ConversationId: p.ConversationID, Message: msg},
-		}
-	case "message_edited":
-		resp.Payload = &iamv1.StreamChatEventsResponse_MessageEdited{
-			MessageEdited: &iamv1.MessageEvent{ConversationId: p.ConversationID, Message: msg},
-		}
-	case "message_deleted":
-		resp.Payload = &iamv1.StreamChatEventsResponse_MessageDeleted{
-			MessageDeleted: &iamv1.DeleteEvent{ConversationId: p.ConversationID, MessageId: p.MessageID},
-		}
-	case "typing":
-		resp.Payload = &iamv1.StreamChatEventsResponse_Typing{
-			Typing: &iamv1.TypingEvent{ConversationId: p.ConversationID, UserId: p.UserID, UserName: p.UserName, IsTyping: p.IsTyping},
-		}
-	case "read_receipt":
-		resp.Payload = &iamv1.StreamChatEventsResponse_ReadReceipt{
-			ReadReceipt: &iamv1.ReadEvent{ConversationId: p.ConversationID, UserId: p.UserID, ReadAt: p.ReadAt},
-		}
-	case "presence":
-		resp.Payload = &iamv1.StreamChatEventsResponse_Presence{
-			Presence: &iamv1.PresenceEvent{UserId: p.UserID, IsOnline: p.IsOnline},
-		}
-	}
-	return resp
 }
 
 func mapChatError(err error) error {
