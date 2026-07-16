@@ -13,6 +13,7 @@ import (
 	iamv1 "github.com/mutugading/goapps-backend/gen/iam/v1"
 	appChat "github.com/mutugading/goapps-backend/services/iam/internal/application/chat"
 	"github.com/mutugading/goapps-backend/services/iam/internal/domain/chat"
+	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/postgres"
 )
 
 // ChatHandler implements iamv1.ChatServiceServer.
@@ -30,6 +31,7 @@ type ChatHandler struct {
 	markRead     *appChat.MarkReadHandler
 	setTyping    *appChat.SetTypingHandler
 	stream       *appChat.StreamHandler
+	userResolver *postgres.ChatUserResolver
 }
 
 // NewChatHandler constructs the handler.
@@ -46,13 +48,14 @@ func NewChatHandler(
 	markRead *appChat.MarkReadHandler,
 	setTyping *appChat.SetTypingHandler,
 	stream *appChat.StreamHandler,
+	userResolver *postgres.ChatUserResolver,
 ) *ChatHandler {
 	return &ChatHandler{
 		createDirect: createDirect, createGroup: createGroup,
 		getConv: getConv, listConvs: listConvs, leaveConv: leaveConv,
 		sendMsg: sendMsg, editMsg: editMsg, deleteMsg: deleteMsg,
 		listMsgs: listMsgs, markRead: markRead, setTyping: setTyping,
-		stream: stream,
+		stream: stream, userResolver: userResolver,
 	}
 }
 
@@ -70,7 +73,7 @@ func (h *ChatHandler) CreateDirectConversation(ctx context.Context, req *iamv1.C
 	if err != nil {
 		return nil, mapChatError(err)
 	}
-	return &iamv1.CreateDirectConversationResponse{Base: chatSuccessBase(), Data: convToProto(conv)}, nil
+	return &iamv1.CreateDirectConversationResponse{Base: chatSuccessBase(), Data: h.convToProto(ctx, conv)}, nil
 }
 
 // CreateGroupConversation creates a group conversation.
@@ -91,7 +94,7 @@ func (h *ChatHandler) CreateGroupConversation(ctx context.Context, req *iamv1.Cr
 	if err != nil {
 		return nil, mapChatError(err)
 	}
-	return &iamv1.CreateGroupConversationResponse{Base: chatSuccessBase(), Data: convToProto(conv)}, nil
+	return &iamv1.CreateGroupConversationResponse{Base: chatSuccessBase(), Data: h.convToProto(ctx, conv)}, nil
 }
 
 // GetConversation returns a single conversation.
@@ -108,7 +111,7 @@ func (h *ChatHandler) GetConversation(ctx context.Context, req *iamv1.GetConvers
 	if err != nil {
 		return nil, mapChatError(err)
 	}
-	return &iamv1.GetConversationResponse{Base: chatSuccessBase(), Data: convToProto(conv)}, nil
+	return &iamv1.GetConversationResponse{Base: chatSuccessBase(), Data: h.convToProto(ctx, conv)}, nil
 }
 
 // ListConversations returns paginated conversations.
@@ -130,7 +133,7 @@ func (h *ChatHandler) ListConversations(ctx context.Context, req *iamv1.ListConv
 	}
 	protos := make([]*iamv1.ConversationProto, 0, len(result.Conversations))
 	for _, c := range result.Conversations {
-		protos = append(protos, convToProto(c))
+		protos = append(protos, h.convToProto(ctx, c))
 	}
 	totalPages := int32((result.Total + int64(pageSize) - 1) / int64(pageSize)) //nolint:gosec // bounded by page count
 	return &iamv1.ListConversationsResponse{
@@ -312,14 +315,26 @@ func (h *ChatHandler) StreamChatEvents(_ *iamv1.StreamChatEventsRequest, stream 
 	}
 }
 
-func convToProto(conv *chat.Conversation) *iamv1.ConversationProto {
+func (h *ChatHandler) convToProto(ctx context.Context, conv *chat.Conversation) *iamv1.ConversationProto {
+	userIDs := make([]uuid.UUID, 0, len(conv.Participants()))
+	for _, p := range conv.Participants() {
+		userIDs = append(userIDs, p.UserID())
+	}
+	userMap, _ := h.userResolver.ResolveUsers(ctx, userIDs)
+
 	parts := make([]*iamv1.ParticipantProto, 0, len(conv.Participants()))
 	for _, p := range conv.Participants() {
-		parts = append(parts, &iamv1.ParticipantProto{
+		pp := &iamv1.ParticipantProto{
 			UserId:   p.UserID().String(),
 			Role:     p.Role().String(),
 			JoinedAt: p.JoinedAt().UTC().Format(time.RFC3339Nano),
-		})
+		}
+		if info := userMap[p.UserID()]; info != nil {
+			pp.Username = info.Username
+			pp.FullName = info.FullName
+			pp.AvatarUrl = info.AvatarURL
+		}
+		parts = append(parts, pp)
 	}
 	return &iamv1.ConversationProto{
 		ConversationId: conv.ID().String(),
