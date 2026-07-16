@@ -282,25 +282,33 @@ func (r *ChatMessageRepository) GetEditHistory(ctx context.Context, messageID uu
 
 // GetLastMessages returns, for each conversation ID, its most recent
 // non-deleted message. Single query via DISTINCT ON — avoids N+1.
-func (r *ChatMessageRepository) GetLastMessages(ctx context.Context, convIDs []uuid.UUID) (map[uuid.UUID]*chat.Message, error) {
+func (r *ChatMessageRepository) GetLastMessages(ctx context.Context, convIDs []uuid.UUID, viewerID uuid.UUID) (map[uuid.UUID]*chat.Message, error) {
 	if len(convIDs) == 0 {
 		return map[uuid.UUID]*chat.Message{}, nil
 	}
 	placeholders := make([]string, len(convIDs))
-	args := make([]any, len(convIDs))
+	args := make([]any, 0, len(convIDs)+1)
 	for i, id := range convIDs {
 		placeholders[i] = fmt.Sprintf("$%d", i+1)
-		args[i] = id
+		args = append(args, id)
 	}
+	viewerParam := len(convIDs) + 1
+	args = append(args, viewerID)
 
+	// Join the viewer's participant row so a cleared history hides messages
+	// created at or before their history_cleared_at, matching the thread view.
 	q := fmt.Sprintf(`
-		SELECT DISTINCT ON (conversation_id)
-		       message_id, conversation_id, sender_user_id,
-		       body_encrypted, body_plain_encrypted,
-		       is_edited, is_deleted, reply_to_id, created_at, updated_at
-		FROM chat_message
-		WHERE conversation_id IN (%s) AND is_deleted = FALSE
-		ORDER BY conversation_id, created_at DESC, message_id DESC`, strings.Join(placeholders, ","))
+		SELECT DISTINCT ON (cm.conversation_id)
+		       cm.message_id, cm.conversation_id, cm.sender_user_id,
+		       cm.body_encrypted, cm.body_plain_encrypted,
+		       cm.is_edited, cm.is_deleted, cm.reply_to_id, cm.created_at, cm.updated_at
+		FROM chat_message cm
+		JOIN chat_participant cp
+		  ON cp.conversation_id = cm.conversation_id AND cp.user_id = $%d
+		WHERE cm.conversation_id IN (%s) AND cm.is_deleted = FALSE
+		  AND (cp.history_cleared_at IS NULL OR cm.created_at > cp.history_cleared_at)
+		ORDER BY cm.conversation_id, cm.created_at DESC, cm.message_id DESC`,
+		viewerParam, strings.Join(placeholders, ","))
 
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {

@@ -51,7 +51,7 @@ func (h *ListConversationsHandler) Handle(ctx context.Context, callerID uuid.UUI
 		convIDs[i] = c.ID()
 	}
 
-	lastMsgs, err := h.msgRepo.GetLastMessages(ctx, convIDs)
+	lastMsgs, err := h.msgRepo.GetLastMessages(ctx, convIDs, callerID)
 	if err != nil {
 		return nil, fmt.Errorf("list conversations: last messages: %w", err)
 	}

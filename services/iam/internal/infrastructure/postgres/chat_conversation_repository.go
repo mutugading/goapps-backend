@@ -228,6 +228,7 @@ func (r *ChatConversationRepository) GetUnreadCounts(ctx context.Context, convID
 		  AND cm.is_deleted = FALSE
 		  AND cm.sender_user_id != $%d
 		  AND (cp.last_read_at IS NULL OR cm.created_at > cp.last_read_at)
+		  AND (cp.history_cleared_at IS NULL OR cm.created_at > cp.history_cleared_at)
 		GROUP BY cm.conversation_id`, userParam, strings.Join(placeholders, ","), userParam)
 
 	rows, err := r.db.QueryContext(ctx, q, args...)

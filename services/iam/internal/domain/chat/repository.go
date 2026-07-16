@@ -68,9 +68,12 @@ type MessageRepository interface {
 	// GetEditHistory returns all edit history for a message, newest first.
 	GetEditHistory(ctx context.Context, messageID uuid.UUID) ([]*EditHistoryEntry, error)
 
-	// GetLastMessages returns, for each conversation ID, its most recent
-	// non-deleted message (one query, not N+1).
-	GetLastMessages(ctx context.Context, conversationIDs []uuid.UUID) (map[uuid.UUID]*Message, error)
+	// GetLastMessages returns, for each conversation ID, viewerID's most recent
+	// visible non-deleted message (one query, not N+1). Messages the viewer has
+	// cleared from their own history (created at or before their
+	// history_cleared_at) are excluded so the conversation preview matches the
+	// thread view.
+	GetLastMessages(ctx context.Context, conversationIDs []uuid.UUID, viewerID uuid.UUID) (map[uuid.UUID]*Message, error)
 }
 
 // AttachmentRepository handles persistence for chat attachments.
