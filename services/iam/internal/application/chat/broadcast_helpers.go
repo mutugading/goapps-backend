@@ -1,20 +1,46 @@
 package chat
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 
 	iamv1 "github.com/mutugading/goapps-backend/gen/iam/v1"
 	domainChat "github.com/mutugading/goapps-backend/services/iam/internal/domain/chat"
 	chatinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/chat"
+	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/postgres"
 )
+
+// resolveSenderName looks up a display name for senderID via userResolver,
+// falling back to username, then an empty string if the resolver is nil or
+// the lookup fails.
+func resolveSenderName(ctx context.Context, userResolver *postgres.ChatUserResolver, senderID uuid.UUID) string {
+	if userResolver == nil {
+		return ""
+	}
+	infos, err := userResolver.ResolveUsers(ctx, []uuid.UUID{senderID})
+	if err != nil {
+		log.Warn().Err(err).Str("user", senderID.String()).Msg("chat: resolve sender name")
+		return ""
+	}
+	info := infos[senderID]
+	if info == nil {
+		return ""
+	}
+	if info.FullName != "" {
+		return info.FullName
+	}
+	return info.Username
+}
 
 // broadcastMessageEvent publishes a message-related event (created, edited) to
 // every active participant of conv via the given broadcaster.
-func broadcastMessageEvent(broadcaster *chatinfra.Broadcaster, conv *domainChat.Conversation, msg *domainChat.Message, plainBody, eventType string) {
+func broadcastMessageEvent(broadcaster *chatinfra.Broadcaster, conv *domainChat.Conversation, msg *domainChat.Message, plainBody, eventType, senderName string) {
 	msgProto := domainMsgToProto(msg, plainBody)
+	msgProto.SenderName = senderName
 	eventID := fmt.Sprintf("msg-%s", msg.MessageID())
 
 	var resp iamv1.StreamChatEventsResponse

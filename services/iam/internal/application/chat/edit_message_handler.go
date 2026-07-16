@@ -11,19 +11,21 @@ import (
 	"github.com/mutugading/goapps-backend/services/iam/internal/domain/chat"
 	chatinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/chat"
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/crypto"
+	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/postgres"
 )
 
 // EditMessageHandler handles message edits.
 type EditMessageHandler struct {
-	convRepo    chat.ConversationRepository
-	msgRepo     chat.MessageRepository
-	enc         *crypto.Encryptor
-	broadcaster *chatinfra.Broadcaster
+	convRepo     chat.ConversationRepository
+	msgRepo      chat.MessageRepository
+	enc          *crypto.Encryptor
+	broadcaster  *chatinfra.Broadcaster
+	userResolver *postgres.ChatUserResolver
 }
 
 // NewEditMessageHandler constructs the handler.
-func NewEditMessageHandler(convRepo chat.ConversationRepository, msgRepo chat.MessageRepository, enc *crypto.Encryptor, broadcaster *chatinfra.Broadcaster) *EditMessageHandler {
-	return &EditMessageHandler{convRepo: convRepo, msgRepo: msgRepo, enc: enc, broadcaster: broadcaster}
+func NewEditMessageHandler(convRepo chat.ConversationRepository, msgRepo chat.MessageRepository, enc *crypto.Encryptor, broadcaster *chatinfra.Broadcaster, userResolver *postgres.ChatUserResolver) *EditMessageHandler {
+	return &EditMessageHandler{convRepo: convRepo, msgRepo: msgRepo, enc: enc, broadcaster: broadcaster, userResolver: userResolver}
 }
 
 // Handle edits a message. Only the author can edit; saves edit history.
@@ -70,6 +72,7 @@ func (h *EditMessageHandler) Handle(ctx context.Context, callerID, convID, msgID
 	if err := h.msgRepo.UpdateBody(ctx, msg); err != nil {
 		return nil, fmt.Errorf("edit message: update: %w", err)
 	}
-	broadcastMessageEvent(h.broadcaster, conv, msg, newBody, "message_edited")
+	senderName := resolveSenderName(ctx, h.userResolver, msg.SenderUserID())
+	broadcastMessageEvent(h.broadcaster, conv, msg, newBody, "message_edited", senderName)
 	return msg, nil
 }

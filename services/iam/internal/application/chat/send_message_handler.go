@@ -14,19 +14,21 @@ import (
 	"github.com/mutugading/goapps-backend/services/iam/internal/domain/notification"
 	chatinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/chat"
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/crypto"
+	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/postgres"
 )
 
 // SendMessageHandler sends a new message to a conversation.
 type SendMessageHandler struct {
-	convRepo    chat.ConversationRepository
-	msgRepo     chat.MessageRepository
-	receiptRepo chat.ReadReceiptRepository
-	enc         *crypto.Encryptor
-	broadcaster *chatinfra.Broadcaster
-	presence       *chatinfra.PresenceService
-	notifCreate    *appnotif.CreateHandler
-	emailDispatch  appnotif.EmailDispatcher
-	rdb            *redis.Client
+	convRepo      chat.ConversationRepository
+	msgRepo       chat.MessageRepository
+	receiptRepo   chat.ReadReceiptRepository
+	enc           *crypto.Encryptor
+	broadcaster   *chatinfra.Broadcaster
+	presence      *chatinfra.PresenceService
+	notifCreate   *appnotif.CreateHandler
+	emailDispatch appnotif.EmailDispatcher
+	rdb           *redis.Client
+	userResolver  *postgres.ChatUserResolver
 }
 
 // NewSendMessageHandler constructs the handler.
@@ -41,11 +43,12 @@ func NewSendMessageHandler(
 }
 
 // WithOfflineNotification enables email notifications for offline users.
-func (h *SendMessageHandler) WithOfflineNotification(presence *chatinfra.PresenceService, notifCreate *appnotif.CreateHandler, emailDispatch appnotif.EmailDispatcher, rdb *redis.Client) *SendMessageHandler {
+func (h *SendMessageHandler) WithOfflineNotification(presence *chatinfra.PresenceService, notifCreate *appnotif.CreateHandler, emailDispatch appnotif.EmailDispatcher, rdb *redis.Client, userResolver *postgres.ChatUserResolver) *SendMessageHandler {
 	h.presence = presence
 	h.notifCreate = notifCreate
 	h.emailDispatch = emailDispatch
 	h.rdb = rdb
+	h.userResolver = userResolver
 	return h
 }
 
@@ -84,15 +87,16 @@ func (h *SendMessageHandler) Handle(ctx context.Context, senderID, convID uuid.U
 		log.Warn().Err(err).Msg("send message: auto read receipt failed")
 	}
 
-	broadcastMessageEvent(h.broadcaster, conv, msg, body, "message_received")
+	senderName := resolveSenderName(ctx, h.userResolver, senderID)
+	broadcastMessageEvent(h.broadcaster, conv, msg, body, "message_received", senderName)
 
-	h.notifyOfflineParticipants(ctx, conv, msg, senderID, body)
+	h.notifyOfflineParticipants(ctx, conv, msg, senderID, senderName, body)
 	return msg, nil
 }
 
 const emailDebounceTTL = 5 * time.Minute
 
-func (h *SendMessageHandler) notifyOfflineParticipants(ctx context.Context, conv *chat.Conversation, msg *chat.Message, senderID uuid.UUID, body string) {
+func (h *SendMessageHandler) notifyOfflineParticipants(ctx context.Context, conv *chat.Conversation, msg *chat.Message, senderID uuid.UUID, senderName, body string) {
 	if h.presence == nil || h.notifCreate == nil {
 		return
 	}
@@ -104,11 +108,11 @@ func (h *SendMessageHandler) notifyOfflineParticipants(ctx context.Context, conv
 		if !p.IsActive() || p.UserID() == senderID {
 			continue
 		}
-		h.notifyIfOffline(ctx, p.UserID(), msg, senderID, truncatedBody)
+		h.notifyIfOffline(ctx, p.UserID(), msg, senderID, senderName, truncatedBody)
 	}
 }
 
-func (h *SendMessageHandler) notifyIfOffline(ctx context.Context, recipientID uuid.UUID, msg *chat.Message, senderID uuid.UUID, truncatedBody string) {
+func (h *SendMessageHandler) notifyIfOffline(ctx context.Context, recipientID uuid.UUID, msg *chat.Message, senderID uuid.UUID, senderName, truncatedBody string) {
 	online, err := h.presence.IsOnline(ctx, recipientID)
 	if err != nil {
 		log.Warn().Err(err).Str("user", recipientID.String()).Msg("send message: check online status")
@@ -120,14 +124,20 @@ func (h *SendMessageHandler) notifyIfOffline(ctx context.Context, recipientID uu
 	if h.isDebounced(ctx, msg.ConversationID(), recipientID) {
 		return
 	}
+	title := "New chat message"
+	body := truncatedBody
+	if senderName != "" {
+		title = fmt.Sprintf("%s sent you a message", senderName)
+		body = fmt.Sprintf("%s: %s", senderName, truncatedBody)
+	}
 	n, err := h.notifCreate.Handle(ctx, appnotif.CreateCommand{
 		RecipientUserID: recipientID,
 		Type:            notification.TypeChat,
 		Severity:        notification.SeverityInfo,
-		Title:           "New chat message",
-		Body:            truncatedBody,
+		Title:           title,
+		Body:            body,
 		ActionType:      notification.ActionNavigate,
-		ActionPayload:   `{"url":"/chat"}`,
+		ActionPayload:   `{"url":"/chat","label":"Reply"}`,
 		SourceType:      "chat_message",
 		SourceID:        msg.MessageID().String(),
 		CreatedBy:       senderID.String(),
