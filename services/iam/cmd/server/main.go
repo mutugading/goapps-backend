@@ -210,7 +210,7 @@ func run() error {
 	).WithRequestHandler(notifRequestHandler)
 
 	// ── Chat + Presence ────────────────────────────────────────────────────
-	chatMasterKeyHex := os.Getenv("CHAT_MASTER_KEY")
+	chatMasterKeyHex := cfg.Chat.MasterKey
 	var chatHandler *grpcdelivery.ChatHandler
 	var presenceGRPCHandler *grpcdelivery.PresenceHandler
 	if chatMasterKeyHex != "" {
