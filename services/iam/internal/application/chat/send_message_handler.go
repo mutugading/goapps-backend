@@ -23,9 +23,10 @@ type SendMessageHandler struct {
 	receiptRepo chat.ReadReceiptRepository
 	enc         *crypto.Encryptor
 	broadcaster *chatinfra.Broadcaster
-	presence    *chatinfra.PresenceService
-	notifCreate *appnotif.CreateHandler
-	rdb         *redis.Client
+	presence       *chatinfra.PresenceService
+	notifCreate    *appnotif.CreateHandler
+	emailDispatch  appnotif.EmailDispatcher
+	rdb            *redis.Client
 }
 
 // NewSendMessageHandler constructs the handler.
@@ -40,9 +41,10 @@ func NewSendMessageHandler(
 }
 
 // WithOfflineNotification enables email notifications for offline users.
-func (h *SendMessageHandler) WithOfflineNotification(presence *chatinfra.PresenceService, notifCreate *appnotif.CreateHandler, rdb *redis.Client) *SendMessageHandler {
+func (h *SendMessageHandler) WithOfflineNotification(presence *chatinfra.PresenceService, notifCreate *appnotif.CreateHandler, emailDispatch appnotif.EmailDispatcher, rdb *redis.Client) *SendMessageHandler {
 	h.presence = presence
 	h.notifCreate = notifCreate
+	h.emailDispatch = emailDispatch
 	h.rdb = rdb
 	return h
 }
@@ -118,7 +120,7 @@ func (h *SendMessageHandler) notifyIfOffline(ctx context.Context, recipientID uu
 	if h.isDebounced(ctx, msg.ConversationID(), recipientID) {
 		return
 	}
-	_, err = h.notifCreate.Handle(ctx, appnotif.CreateCommand{
+	n, err := h.notifCreate.Handle(ctx, appnotif.CreateCommand{
 		RecipientUserID: recipientID,
 		Type:            notification.TypeChat,
 		Severity:        notification.SeverityInfo,
@@ -132,6 +134,10 @@ func (h *SendMessageHandler) notifyIfOffline(ctx context.Context, recipientID uu
 	})
 	if err != nil {
 		log.Warn().Err(err).Msg("send message: create offline notification")
+		return
+	}
+	if h.emailDispatch != nil && n != nil {
+		go h.emailDispatch.Dispatch(context.Background(), n)
 	}
 }
 

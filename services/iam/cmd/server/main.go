@@ -238,7 +238,7 @@ func run() error {
 		chatUserResolver := postgres.NewChatUserResolver(db)
 		sendMsgHandler := appChat.NewSendMessageHandler(chatConvRepo, chatMsgRepo, chatReceiptRepo, chatEnc, chatBroadcaster)
 		if presenceSvc != nil && redisClient != nil {
-			sendMsgHandler.WithOfflineNotification(presenceSvc, notifCreate, redisClient.Client)
+			sendMsgHandler.WithOfflineNotification(presenceSvc, notifCreate, notifEmailDispatcher, redisClient.Client)
 		}
 		chatHandler = grpcdelivery.NewChatHandler(
 			appChat.NewCreateDirectHandler(chatConvRepo, chatEnc),
