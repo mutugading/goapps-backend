@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -386,6 +387,7 @@ func mapChatError(err error) error {
 	case errors.Is(err, chat.ErrDirectConversationFull), errors.Is(err, chat.ErrAlreadyParticipant):
 		return status.Errorf(codes.FailedPrecondition, "%v", err)
 	default:
+		log.Error().Err(err).Msg("chat handler: unhandled error")
 		return status.Errorf(codes.Internal, "internal error")
 	}
 }

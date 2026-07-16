@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 
 	"github.com/mutugading/goapps-backend/services/iam/internal/domain/chat"
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/crypto"
@@ -48,7 +49,8 @@ func (h *ListMessagesHandler) Handle(ctx context.Context, callerID, convID uuid.
 
 	convKeyPlain, err := h.enc.DecryptConversationKey(conv.EncryptionKey())
 	if err != nil {
-		return nil, fmt.Errorf("list messages: decrypt conv key: %w", err)
+		log.Warn().Err(err).Str("conv", convID.String()).Msg("list messages: decrypt conv key failed (master key may have changed)")
+		return &MessagesResult{Messages: []*DecryptedMessage{}, NextCursor: "", HasMore: false}, nil
 	}
 
 	msgs, nextCursor, hasMore, err := h.msgRepo.ListByConversation(ctx, convID, pageSize, beforeCursor)
