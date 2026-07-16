@@ -235,8 +235,10 @@ func run() error {
 		chatConvRepo := postgres.NewChatConversationRepository(db)
 		chatMsgRepo := postgres.NewChatMessageRepository(db)
 		chatReceiptRepo := postgres.NewChatReadReceiptRepository(db)
+		chatAttRepo := postgres.NewChatAttachmentRepository(db)
 		chatUserResolver := postgres.NewChatUserResolver(db)
 		sendMsgHandler := appChat.NewSendMessageHandler(chatConvRepo, chatMsgRepo, chatReceiptRepo, chatEnc, chatBroadcaster)
+		sendMsgHandler.WithAttachments(chatAttRepo)
 		if presenceSvc != nil && redisClient != nil {
 			sendMsgHandler.WithOfflineNotification(presenceSvc, notifCreate, notifEmailDispatcher, redisClient.Client, chatUserResolver)
 		}
@@ -254,6 +256,9 @@ func run() error {
 			appChat.NewSetTypingHandler(chatConvRepo, presenceSvc, chatBroadcaster),
 			appChat.NewStreamHandler(chatBroadcaster),
 			appChat.NewGetEditHistoryHandler(chatConvRepo, chatMsgRepo, chatEnc),
+			appChat.NewClearHistoryHandler(chatConvRepo),
+			appChat.NewUploadAttachmentHandler(chatConvRepo, chatAttRepo, storageSvc),
+			chatAttRepo,
 			chatUserResolver,
 		)
 		if presenceSvc != nil {

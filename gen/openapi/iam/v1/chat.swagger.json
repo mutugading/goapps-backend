@@ -200,6 +200,76 @@
         ]
       }
     },
+    "/api/v1/iam/chat/conversations/{conversationId}/attachments": {
+      "post": {
+        "summary": "UploadChatAttachment uploads a file to a conversation and returns its\nattachment metadata. The returned attachment_id is passed to SendMessage.",
+        "operationId": "ChatService_UploadChatAttachment",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UploadChatAttachmentResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ChatServiceUploadChatAttachmentBody"
+            }
+          }
+        ],
+        "tags": [
+          "ChatService"
+        ]
+      }
+    },
+    "/api/v1/iam/chat/conversations/{conversationId}/history": {
+      "delete": {
+        "summary": "ClearConversationHistory clears the calling user's own view of a conversation's\nmessage history. Messages remain visible to other participants.",
+        "operationId": "ChatService_ClearConversationHistory",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ClearConversationHistoryResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ChatService"
+        ]
+      }
+    },
     "/api/v1/iam/chat/conversations/{conversationId}/leave": {
       "post": {
         "summary": "LeaveConversation allows the current user to leave a group conversation.",
@@ -742,6 +812,13 @@
         "replyToId": {
           "type": "string",
           "description": "ID of the message being replied to (optional, empty = no reply)."
+        },
+        "attachmentIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Pre-uploaded attachment IDs to associate with this message (optional)."
         }
       },
       "description": "SendMessageRequest sends a message to a conversation."
@@ -766,6 +843,23 @@
         }
       },
       "description": "UpdateGroupConversationRequest updates a group conversation."
+    },
+    "ChatServiceUploadChatAttachmentBody": {
+      "type": "object",
+      "properties": {
+        "fileName": {
+          "type": "string"
+        },
+        "contentType": {
+          "type": "string"
+        },
+        "fileData": {
+          "type": "string",
+          "format": "byte",
+          "description": "Raw file bytes (max 25MB)."
+        }
+      },
+      "description": "UploadChatAttachmentRequest uploads a single file to a conversation."
     },
     "protobufAny": {
       "type": "object",
@@ -804,6 +898,31 @@
       },
       "description": "AddParticipantsResponse confirms participants were added."
     },
+    "v1AttachmentProto": {
+      "type": "object",
+      "properties": {
+        "attachmentId": {
+          "type": "string"
+        },
+        "fileName": {
+          "type": "string"
+        },
+        "fileUrl": {
+          "type": "string"
+        },
+        "contentType": {
+          "type": "string"
+        },
+        "fileSize": {
+          "type": "string",
+          "format": "int64"
+        },
+        "thumbnailUrl": {
+          "type": "string"
+        }
+      },
+      "description": "AttachmentProto represents a file or image attached to a chat message."
+    },
     "v1BaseResponse": {
       "type": "object",
       "properties": {
@@ -829,6 +948,15 @@
         }
       },
       "description": "BaseResponse is the standard response wrapper for all API responses."
+    },
+    "v1ClearConversationHistoryResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      },
+      "description": "ClearConversationHistoryResponse confirms the caller's history was cleared."
     },
     "v1ConversationProto": {
       "type": "object",
@@ -1134,6 +1262,13 @@
         },
         "updatedAt": {
           "type": "string"
+        },
+        "attachments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1AttachmentProto"
+          }
         }
       },
       "description": "MessageProto represents a single chat message with decrypted body."
@@ -1319,6 +1454,18 @@
         }
       },
       "description": "UpdateGroupConversationResponse returns the updated group conversation."
+    },
+    "v1UploadChatAttachmentResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1AttachmentProto"
+        }
+      },
+      "description": "UploadChatAttachmentResponse returns the uploaded attachment metadata."
     },
     "v1ValidationError": {
       "type": "object",

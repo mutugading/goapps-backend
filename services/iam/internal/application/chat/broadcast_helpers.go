@@ -42,9 +42,10 @@ func resolveSenderName(ctx context.Context, userResolver *postgres.ChatUserResol
 
 // broadcastMessageEvent publishes a message-related event (created, edited) to
 // every active participant of conv via the given broadcaster.
-func broadcastMessageEvent(broadcaster *chatinfra.Broadcaster, conv *domainChat.Conversation, msg *domainChat.Message, plainBody, eventType, senderName string) {
+func broadcastMessageEvent(broadcaster *chatinfra.Broadcaster, conv *domainChat.Conversation, msg *domainChat.Message, plainBody, eventType, senderName string, attachments []*iamv1.AttachmentProto) {
 	msgProto := domainMsgToProto(msg, plainBody)
 	msgProto.SenderName = senderName
+	msgProto.Attachments = attachments
 	eventID := fmt.Sprintf("msg-%s", msg.MessageID())
 
 	var resp iamv1.StreamChatEventsResponse
@@ -69,6 +70,18 @@ func broadcastMessageEvent(broadcaster *chatinfra.Broadcaster, conv *domainChat.
 			UserID:   part.UserID(),
 			Response: &resp,
 		})
+	}
+}
+
+// attachmentToProto maps a domain attachment to its proto representation.
+func attachmentToProto(a *domainChat.Attachment) *iamv1.AttachmentProto {
+	return &iamv1.AttachmentProto{
+		AttachmentId: a.AttachmentID().String(),
+		FileName:     a.FileName(),
+		FileUrl:      a.FileURL(),
+		ContentType:  a.ContentType(),
+		FileSize:     a.FileSize(),
+		ThumbnailUrl: a.ThumbnailURL(),
 	}
 }
 

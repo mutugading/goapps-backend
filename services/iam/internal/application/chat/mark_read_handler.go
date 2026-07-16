@@ -42,8 +42,10 @@ func (h *MarkReadHandler) Handle(ctx context.Context, callerID, convID uuid.UUID
 		return fmt.Errorf("mark read: %w", chat.ErrNotParticipant)
 	}
 
-	// Fetch recent messages (up to last 100) and upsert receipts.
-	msgs, _, _, err := h.msgRepo.ListByConversation(ctx, convID, 100, "")
+	// Fetch recent messages (up to last 100) and upsert receipts. Messages the
+	// caller has cleared from their own view are excluded — no point marking
+	// hidden history as read.
+	msgs, _, _, err := h.msgRepo.ListByConversation(ctx, convID, 100, "", p.HistoryClearedAt())
 	if err != nil {
 		return fmt.Errorf("mark read: list: %w", err)
 	}

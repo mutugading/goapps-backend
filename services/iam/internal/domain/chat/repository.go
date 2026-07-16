@@ -36,6 +36,11 @@ type ConversationRepository interface {
 	// GetUnreadCounts returns, for each conversation ID, the count of messages
 	// created after userID's last_read_at (excluding userID's own messages).
 	GetUnreadCounts(ctx context.Context, conversationIDs []uuid.UUID, userID uuid.UUID) (map[uuid.UUID]int32, error)
+
+	// ClearHistory sets history_cleared_at = NOW() for userID's participant row,
+	// hiding all prior messages from that user's view only. Other participants
+	// are unaffected.
+	ClearHistory(ctx context.Context, conversationID, userID uuid.UUID) error
 }
 
 // MessageRepository handles persistence for Message aggregates.
@@ -47,7 +52,9 @@ type MessageRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*Message, error)
 
 	// ListByConversation returns messages using cursor-based pagination (newest first).
-	ListByConversation(ctx context.Context, conversationID uuid.UUID, pageSize int, beforeCursor string) ([]*Message, string, bool, error)
+	// If afterTime is non-nil, only messages created strictly after it are returned —
+	// used to hide history a participant has cleared from their own view.
+	ListByConversation(ctx context.Context, conversationID uuid.UUID, pageSize int, beforeCursor string, afterTime *time.Time) ([]*Message, string, bool, error)
 
 	// UpdateBody persists body changes after an edit.
 	UpdateBody(ctx context.Context, msg *Message) error
@@ -64,6 +71,21 @@ type MessageRepository interface {
 	// GetLastMessages returns, for each conversation ID, its most recent
 	// non-deleted message (one query, not N+1).
 	GetLastMessages(ctx context.Context, conversationIDs []uuid.UUID) (map[uuid.UUID]*Message, error)
+}
+
+// AttachmentRepository handles persistence for chat attachments.
+type AttachmentRepository interface {
+	// Create inserts a new attachment.
+	Create(ctx context.Context, a *Attachment) error
+
+	// GetByIDs returns attachments matching the given IDs (order not guaranteed).
+	GetByIDs(ctx context.Context, ids []uuid.UUID) ([]*Attachment, error)
+
+	// LinkToMessage sets message_id for the given attachment IDs.
+	LinkToMessage(ctx context.Context, messageID uuid.UUID, attachmentIDs []uuid.UUID) error
+
+	// ListByMessageIDs returns, for each message ID, its attachments (one query, not N+1).
+	ListByMessageIDs(ctx context.Context, messageIDs []uuid.UUID) (map[uuid.UUID][]*Attachment, error)
 }
 
 // ReadReceiptRepository handles read receipts.

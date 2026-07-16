@@ -8,19 +8,21 @@ import (
 
 // Participant is a member of a conversation.
 type Participant struct {
-	conversationID uuid.UUID
-	userID         uuid.UUID
-	role           Role
-	joinedAt       time.Time
-	leftAt         *time.Time
-	lastReadAt     *time.Time
+	conversationID   uuid.UUID
+	userID           uuid.UUID
+	role             Role
+	joinedAt         time.Time
+	leftAt           *time.Time
+	lastReadAt       *time.Time
+	historyClearedAt *time.Time
 }
 
 // ReconstructParticipant rebuilds a Participant from persistence.
-func ReconstructParticipant(conversationID, userID uuid.UUID, role Role, joinedAt time.Time, leftAt, lastReadAt *time.Time) *Participant {
+func ReconstructParticipant(conversationID, userID uuid.UUID, role Role, joinedAt time.Time, leftAt, lastReadAt, historyClearedAt *time.Time) *Participant {
 	return &Participant{
 		conversationID: conversationID, userID: userID, role: role,
 		joinedAt: joinedAt, leftAt: leftAt, lastReadAt: lastReadAt,
+		historyClearedAt: historyClearedAt,
 	}
 }
 
@@ -38,6 +40,10 @@ func (p *Participant) LeftAt() *time.Time { return p.leftAt }
 
 // LastReadAt returns the last read timestamp, or nil.
 func (p *Participant) LastReadAt() *time.Time { return p.lastReadAt }
+
+// HistoryClearedAt returns the timestamp at which this participant last
+// cleared their own view of the conversation history, or nil if never cleared.
+func (p *Participant) HistoryClearedAt() *time.Time { return p.historyClearedAt }
 
 // IsActive returns true if the participant has not left.
 func (p *Participant) IsActive() bool { return p.leftAt == nil }

@@ -33,8 +33,10 @@ const (
 	ChatService_ListMessages_FullMethodName             = "/iam.v1.ChatService/ListMessages"
 	ChatService_StreamChatEvents_FullMethodName         = "/iam.v1.ChatService/StreamChatEvents"
 	ChatService_MarkConversationRead_FullMethodName     = "/iam.v1.ChatService/MarkConversationRead"
+	ChatService_ClearConversationHistory_FullMethodName = "/iam.v1.ChatService/ClearConversationHistory"
 	ChatService_SetTyping_FullMethodName                = "/iam.v1.ChatService/SetTyping"
 	ChatService_GetMessageEditHistory_FullMethodName    = "/iam.v1.ChatService/GetMessageEditHistory"
+	ChatService_UploadChatAttachment_FullMethodName     = "/iam.v1.ChatService/UploadChatAttachment"
 )
 
 // ChatServiceClient is the client API for ChatService service.
@@ -71,10 +73,16 @@ type ChatServiceClient interface {
 	StreamChatEvents(ctx context.Context, in *StreamChatEventsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamChatEventsResponse], error)
 	// MarkConversationRead marks all messages in a conversation as read by the current user.
 	MarkConversationRead(ctx context.Context, in *MarkConversationReadRequest, opts ...grpc.CallOption) (*MarkConversationReadResponse, error)
+	// ClearConversationHistory clears the calling user's own view of a conversation's
+	// message history. Messages remain visible to other participants.
+	ClearConversationHistory(ctx context.Context, in *ClearConversationHistoryRequest, opts ...grpc.CallOption) (*ClearConversationHistoryResponse, error)
 	// SetTyping sets the typing indicator for the current user in a conversation.
 	SetTyping(ctx context.Context, in *SetTypingRequest, opts ...grpc.CallOption) (*SetTypingResponse, error)
 	// GetMessageEditHistory returns the edit history for a specific message.
 	GetMessageEditHistory(ctx context.Context, in *GetMessageEditHistoryRequest, opts ...grpc.CallOption) (*GetMessageEditHistoryResponse, error)
+	// UploadChatAttachment uploads a file to a conversation and returns its
+	// attachment metadata. The returned attachment_id is passed to SendMessage.
+	UploadChatAttachment(ctx context.Context, in *UploadChatAttachmentRequest, opts ...grpc.CallOption) (*UploadChatAttachmentResponse, error)
 }
 
 type chatServiceClient struct {
@@ -234,6 +242,16 @@ func (c *chatServiceClient) MarkConversationRead(ctx context.Context, in *MarkCo
 	return out, nil
 }
 
+func (c *chatServiceClient) ClearConversationHistory(ctx context.Context, in *ClearConversationHistoryRequest, opts ...grpc.CallOption) (*ClearConversationHistoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClearConversationHistoryResponse)
+	err := c.cc.Invoke(ctx, ChatService_ClearConversationHistory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *chatServiceClient) SetTyping(ctx context.Context, in *SetTypingRequest, opts ...grpc.CallOption) (*SetTypingResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SetTypingResponse)
@@ -248,6 +266,16 @@ func (c *chatServiceClient) GetMessageEditHistory(ctx context.Context, in *GetMe
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetMessageEditHistoryResponse)
 	err := c.cc.Invoke(ctx, ChatService_GetMessageEditHistory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *chatServiceClient) UploadChatAttachment(ctx context.Context, in *UploadChatAttachmentRequest, opts ...grpc.CallOption) (*UploadChatAttachmentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UploadChatAttachmentResponse)
+	err := c.cc.Invoke(ctx, ChatService_UploadChatAttachment_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -288,10 +316,16 @@ type ChatServiceServer interface {
 	StreamChatEvents(*StreamChatEventsRequest, grpc.ServerStreamingServer[StreamChatEventsResponse]) error
 	// MarkConversationRead marks all messages in a conversation as read by the current user.
 	MarkConversationRead(context.Context, *MarkConversationReadRequest) (*MarkConversationReadResponse, error)
+	// ClearConversationHistory clears the calling user's own view of a conversation's
+	// message history. Messages remain visible to other participants.
+	ClearConversationHistory(context.Context, *ClearConversationHistoryRequest) (*ClearConversationHistoryResponse, error)
 	// SetTyping sets the typing indicator for the current user in a conversation.
 	SetTyping(context.Context, *SetTypingRequest) (*SetTypingResponse, error)
 	// GetMessageEditHistory returns the edit history for a specific message.
 	GetMessageEditHistory(context.Context, *GetMessageEditHistoryRequest) (*GetMessageEditHistoryResponse, error)
+	// UploadChatAttachment uploads a file to a conversation and returns its
+	// attachment metadata. The returned attachment_id is passed to SendMessage.
+	UploadChatAttachment(context.Context, *UploadChatAttachmentRequest) (*UploadChatAttachmentResponse, error)
 	mustEmbedUnimplementedChatServiceServer()
 }
 
@@ -344,11 +378,17 @@ func (UnimplementedChatServiceServer) StreamChatEvents(*StreamChatEventsRequest,
 func (UnimplementedChatServiceServer) MarkConversationRead(context.Context, *MarkConversationReadRequest) (*MarkConversationReadResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method MarkConversationRead not implemented")
 }
+func (UnimplementedChatServiceServer) ClearConversationHistory(context.Context, *ClearConversationHistoryRequest) (*ClearConversationHistoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ClearConversationHistory not implemented")
+}
 func (UnimplementedChatServiceServer) SetTyping(context.Context, *SetTypingRequest) (*SetTypingResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetTyping not implemented")
 }
 func (UnimplementedChatServiceServer) GetMessageEditHistory(context.Context, *GetMessageEditHistoryRequest) (*GetMessageEditHistoryResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetMessageEditHistory not implemented")
+}
+func (UnimplementedChatServiceServer) UploadChatAttachment(context.Context, *UploadChatAttachmentRequest) (*UploadChatAttachmentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UploadChatAttachment not implemented")
 }
 func (UnimplementedChatServiceServer) mustEmbedUnimplementedChatServiceServer() {}
 func (UnimplementedChatServiceServer) testEmbeddedByValue()                     {}
@@ -616,6 +656,24 @@ func _ChatService_MarkConversationRead_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ChatService_ClearConversationHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClearConversationHistoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ChatServiceServer).ClearConversationHistory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ChatService_ClearConversationHistory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ChatServiceServer).ClearConversationHistory(ctx, req.(*ClearConversationHistoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ChatService_SetTyping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SetTypingRequest)
 	if err := dec(in); err != nil {
@@ -648,6 +706,24 @@ func _ChatService_GetMessageEditHistory_Handler(srv interface{}, ctx context.Con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ChatServiceServer).GetMessageEditHistory(ctx, req.(*GetMessageEditHistoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ChatService_UploadChatAttachment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UploadChatAttachmentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ChatServiceServer).UploadChatAttachment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ChatService_UploadChatAttachment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ChatServiceServer).UploadChatAttachment(ctx, req.(*UploadChatAttachmentRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -712,12 +788,20 @@ var ChatService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ChatService_MarkConversationRead_Handler,
 		},
 		{
+			MethodName: "ClearConversationHistory",
+			Handler:    _ChatService_ClearConversationHistory_Handler,
+		},
+		{
 			MethodName: "SetTyping",
 			Handler:    _ChatService_SetTyping_Handler,
 		},
 		{
 			MethodName: "GetMessageEditHistory",
 			Handler:    _ChatService_GetMessageEditHistory_Handler,
+		},
+		{
+			MethodName: "UploadChatAttachment",
+			Handler:    _ChatService_UploadChatAttachment_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

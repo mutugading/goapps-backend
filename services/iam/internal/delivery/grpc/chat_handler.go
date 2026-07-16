@@ -33,6 +33,9 @@ type ChatHandler struct {
 	setTyping    *appChat.SetTypingHandler
 	stream       *appChat.StreamHandler
 	editHistory  *appChat.GetEditHistoryHandler
+	clearHistory *appChat.ClearHistoryHandler
+	uploadAttach *appChat.UploadAttachmentHandler
+	attRepo      chat.AttachmentRepository
 	userResolver *postgres.ChatUserResolver
 }
 
@@ -51,6 +54,9 @@ func NewChatHandler(
 	setTyping *appChat.SetTypingHandler,
 	stream *appChat.StreamHandler,
 	editHistory *appChat.GetEditHistoryHandler,
+	clearHistory *appChat.ClearHistoryHandler,
+	uploadAttach *appChat.UploadAttachmentHandler,
+	attRepo chat.AttachmentRepository,
 	userResolver *postgres.ChatUserResolver,
 ) *ChatHandler {
 	return &ChatHandler{
@@ -58,7 +64,9 @@ func NewChatHandler(
 		getConv: getConv, listConvs: listConvs, leaveConv: leaveConv,
 		sendMsg: sendMsg, editMsg: editMsg, deleteMsg: deleteMsg,
 		listMsgs: listMsgs, markRead: markRead, setTyping: setTyping,
-		stream: stream, editHistory: editHistory, userResolver: userResolver,
+		stream: stream, editHistory: editHistory, clearHistory: clearHistory,
+		uploadAttach: uploadAttach, attRepo: attRepo,
+		userResolver: userResolver,
 	}
 }
 
@@ -184,11 +192,21 @@ func (h *ChatHandler) SendMessage(ctx context.Context, req *iamv1.SendMessageReq
 			return nil, status.Errorf(codes.InvalidArgument, "invalid reply_to_id: %v", err)
 		}
 	}
-	msg, err := h.sendMsg.Handle(ctx, callerID, convID, req.GetBody(), replyToID)
+	attachmentIDs := make([]uuid.UUID, 0, len(req.GetAttachmentIds()))
+	for _, idStr := range req.GetAttachmentIds() {
+		aid, parseErr := uuid.Parse(idStr)
+		if parseErr != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid attachment_id: %v", parseErr)
+		}
+		attachmentIDs = append(attachmentIDs, aid)
+	}
+	msg, attProtos, err := h.sendMsg.Handle(ctx, callerID, convID, req.GetBody(), replyToID, attachmentIDs)
 	if err != nil {
 		return nil, mapChatError(err)
 	}
-	return &iamv1.SendMessageResponse{Base: chatSuccessBase(), Data: msgToProto(msg, req.GetBody(), nil)}, nil
+	mp := msgToProto(msg, req.GetBody(), nil)
+	mp.Attachments = attProtos
+	return &iamv1.SendMessageResponse{Base: chatSuccessBase(), Data: mp}, nil
 }
 
 // EditMessage edits an existing message.
@@ -256,6 +274,19 @@ func (h *ChatHandler) ListMessages(ctx context.Context, req *iamv1.ListMessagesR
 	}
 	senderMap, _ := h.userResolver.ResolveUsers(ctx, senderIDs)
 
+	msgIDs := make([]uuid.UUID, 0, len(result.Messages))
+	for _, dm := range result.Messages {
+		msgIDs = append(msgIDs, dm.MessageID())
+	}
+	attByMsg := map[uuid.UUID][]*chat.Attachment{}
+	if h.attRepo != nil {
+		if loaded, attErr := h.attRepo.ListByMessageIDs(ctx, msgIDs); attErr != nil {
+			log.Warn().Err(attErr).Msg("chat handler: load attachments for list messages")
+		} else {
+			attByMsg = loaded
+		}
+	}
+
 	protos := make([]*iamv1.MessageProto, 0, len(result.Messages))
 	for _, dm := range result.Messages {
 		mp := msgToProto(dm.Message, dm.PlainBody, dm.ReadReceipts())
@@ -265,6 +296,9 @@ func (h *ChatHandler) ListMessages(ctx context.Context, req *iamv1.ListMessagesR
 			} else {
 				mp.SenderName = info.Username
 			}
+		}
+		for _, att := range attByMsg[dm.MessageID()] {
+			mp.Attachments = append(mp.Attachments, attachmentToProto(att))
 		}
 		protos = append(protos, mp)
 	}
@@ -320,6 +354,41 @@ func (h *ChatHandler) MarkConversationRead(ctx context.Context, req *iamv1.MarkC
 		return nil, mapChatError(err)
 	}
 	return &iamv1.MarkConversationReadResponse{Base: chatSuccessBase()}, nil
+}
+
+// ClearConversationHistory clears the calling user's own view of a
+// conversation's message history. Other participants are unaffected.
+func (h *ChatHandler) ClearConversationHistory(ctx context.Context, req *iamv1.ClearConversationHistoryRequest) (*iamv1.ClearConversationHistoryResponse, error) {
+	callerID, err := getUserIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	convID, err := uuid.Parse(req.GetConversationId())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid conversation_id: %v", err)
+	}
+	if err := h.clearHistory.Handle(ctx, callerID, convID); err != nil {
+		return nil, mapChatError(err)
+	}
+	return &iamv1.ClearConversationHistoryResponse{Base: chatSuccessBase()}, nil
+}
+
+// UploadChatAttachment uploads a file to a conversation, returning an
+// attachment that can later be linked to a message via SendMessage.
+func (h *ChatHandler) UploadChatAttachment(ctx context.Context, req *iamv1.UploadChatAttachmentRequest) (*iamv1.UploadChatAttachmentResponse, error) {
+	callerID, err := getUserIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	convID, err := uuid.Parse(req.GetConversationId())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid conversation_id: %v", err)
+	}
+	att, err := h.uploadAttach.Handle(ctx, callerID, convID, req.GetFileName(), req.GetContentType(), req.GetFileData())
+	if err != nil {
+		return nil, mapChatError(err)
+	}
+	return &iamv1.UploadChatAttachmentResponse{Base: chatSuccessBase(), Data: attachmentToProto(att)}, nil
 }
 
 // SetTyping sets the typing indicator.
@@ -431,14 +500,27 @@ func msgToProto(msg *chat.Message, plainBody string, receipts []*chat.ReadReceip
 	}
 }
 
+func attachmentToProto(a *chat.Attachment) *iamv1.AttachmentProto {
+	return &iamv1.AttachmentProto{
+		AttachmentId: a.AttachmentID().String(),
+		FileName:     a.FileName(),
+		FileUrl:      a.FileURL(),
+		ContentType:  a.ContentType(),
+		FileSize:     a.FileSize(),
+		ThumbnailUrl: a.ThumbnailURL(),
+	}
+}
+
 func chatSuccessBase() *commonv1.BaseResponse {
 	return &commonv1.BaseResponse{IsSuccess: true, Message: "success", StatusCode: "200"}
 }
 
 func mapChatError(err error) error {
 	switch {
-	case errors.Is(err, chat.ErrConversationNotFound), errors.Is(err, chat.ErrMessageNotFound):
+	case errors.Is(err, chat.ErrConversationNotFound), errors.Is(err, chat.ErrMessageNotFound), errors.Is(err, chat.ErrAttachmentNotFound):
 		return status.Errorf(codes.NotFound, "%v", err)
+	case errors.Is(err, chat.ErrStorageUnavailable):
+		return status.Errorf(codes.Unavailable, "%v", err)
 	case errors.Is(err, chat.ErrNotParticipant), errors.Is(err, chat.ErrNotAuthor), errors.Is(err, chat.ErrNotAdmin):
 		return status.Errorf(codes.PermissionDenied, "%v", err)
 	case errors.Is(err, chat.ErrDirectConversationFull), errors.Is(err, chat.ErrAlreadyParticipant):

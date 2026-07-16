@@ -73,6 +73,6 @@ func (h *EditMessageHandler) Handle(ctx context.Context, callerID, convID, msgID
 		return nil, fmt.Errorf("edit message: update: %w", err)
 	}
 	senderName := resolveSenderName(ctx, h.userResolver, msg.SenderUserID())
-	broadcastMessageEvent(h.broadcaster, conv, msg, newBody, "message_edited", senderName)
+	broadcastMessageEvent(h.broadcaster, conv, msg, newBody, "message_edited", senderName, nil)
 	return msg, nil
 }

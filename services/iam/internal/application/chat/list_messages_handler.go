@@ -53,7 +53,7 @@ func (h *ListMessagesHandler) Handle(ctx context.Context, callerID, convID uuid.
 		return &MessagesResult{Messages: []*DecryptedMessage{}, NextCursor: "", HasMore: false}, nil
 	}
 
-	msgs, nextCursor, hasMore, err := h.msgRepo.ListByConversation(ctx, convID, pageSize, beforeCursor)
+	msgs, nextCursor, hasMore, err := h.msgRepo.ListByConversation(ctx, convID, pageSize, beforeCursor, p.HistoryClearedAt())
 	if err != nil {
 		return nil, fmt.Errorf("list messages: %w", err)
 	}

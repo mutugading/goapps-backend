@@ -257,9 +257,18 @@ func (r *ChatConversationRepository) GetUnreadCounts(ctx context.Context, convID
 	return counts, nil
 }
 
+// ClearHistory sets history_cleared_at = NOW() for userID's participant row.
+func (r *ChatConversationRepository) ClearHistory(ctx context.Context, convID, userID uuid.UUID) error {
+	const q = `UPDATE chat_participant SET history_cleared_at = NOW() WHERE conversation_id=$1 AND user_id=$2`
+	if _, err := r.db.ExecContext(ctx, q, convID, userID); err != nil {
+		return fmt.Errorf("chat conv repo: clear history: %w", err)
+	}
+	return nil
+}
+
 func (r *ChatConversationRepository) loadParticipants(ctx context.Context, convID uuid.UUID) ([]*chat.Participant, error) {
 	const q = `
-		SELECT user_id, role, joined_at, left_at, last_read_at
+		SELECT user_id, role, joined_at, left_at, last_read_at, history_cleared_at
 		FROM chat_participant WHERE conversation_id = $1`
 
 	rows, err := r.db.QueryContext(ctx, q, convID)
@@ -271,19 +280,19 @@ func (r *ChatConversationRepository) loadParticipants(ctx context.Context, convI
 	var parts []*chat.Participant
 	for rows.Next() {
 		var (
-			userID             uuid.UUID
-			roleStr            string
-			joinedAt           time.Time
-			leftAt, lastReadAt *time.Time
+			userID                        uuid.UUID
+			roleStr                       string
+			joinedAt                      time.Time
+			leftAt, lastReadAt, clearedAt *time.Time
 		)
-		if err := rows.Scan(&userID, &roleStr, &joinedAt, &leftAt, &lastReadAt); err != nil {
+		if err := rows.Scan(&userID, &roleStr, &joinedAt, &leftAt, &lastReadAt, &clearedAt); err != nil {
 			return nil, fmt.Errorf("chat conv repo: scan participant: %w", err)
 		}
 		role, err := chat.ParseRole(roleStr)
 		if err != nil {
 			return nil, fmt.Errorf("chat conv repo: parse role: %w", err)
 		}
-		parts = append(parts, chat.ReconstructParticipant(convID, userID, role, joinedAt, leftAt, lastReadAt))
+		parts = append(parts, chat.ReconstructParticipant(convID, userID, role, joinedAt, leftAt, lastReadAt, clearedAt))
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("chat conv repo: participants rows err: %w", err)

@@ -77,37 +77,53 @@ func (r *ChatMessageRepository) GetByID(ctx context.Context, id uuid.UUID) (*cha
 }
 
 // ListByConversation returns messages using cursor-based pagination (newest first).
-func (r *ChatMessageRepository) ListByConversation(ctx context.Context, convID uuid.UUID, pageSize int, beforeCursor string) ([]*chat.Message, string, bool, error) {
+// If afterTime is non-nil, only messages created strictly after it are included —
+// used to hide history the caller has cleared from their own view.
+func (r *ChatMessageRepository) ListByConversation(ctx context.Context, convID uuid.UUID, pageSize int, beforeCursor string, afterTime *time.Time) ([]*chat.Message, string, bool, error) {
 	fetchSize := pageSize + 1
 
 	var rows *sql.Rows
 	var err error
 
 	if beforeCursor == "" {
-		const q = `
+		const qBase = `
 			SELECT message_id, conversation_id, sender_user_id,
 			       body_encrypted, body_plain_encrypted,
 			       is_edited, is_deleted, reply_to_id, created_at, updated_at
 			FROM chat_message
-			WHERE conversation_id = $1 AND is_deleted = FALSE
+			WHERE conversation_id = $1 AND is_deleted = FALSE`
+		if afterTime != nil {
+			rows, err = r.db.QueryContext(ctx, qBase+`
+			  AND created_at > $2
 			ORDER BY created_at DESC, message_id DESC
-			LIMIT $2`
-		rows, err = r.db.QueryContext(ctx, q, convID, fetchSize)
+			LIMIT $3`, convID, *afterTime, fetchSize)
+		} else {
+			rows, err = r.db.QueryContext(ctx, qBase+`
+			ORDER BY created_at DESC, message_id DESC
+			LIMIT $2`, convID, fetchSize)
+		}
 	} else {
 		cursorTime, cursorID, parseErr := decodeChatCursor(beforeCursor)
 		if parseErr != nil {
 			return nil, "", false, fmt.Errorf("chat msg repo: invalid cursor: %w", parseErr)
 		}
-		const q = `
+		const qBase = `
 			SELECT message_id, conversation_id, sender_user_id,
 			       body_encrypted, body_plain_encrypted,
 			       is_edited, is_deleted, reply_to_id, created_at, updated_at
 			FROM chat_message
 			WHERE conversation_id = $1 AND is_deleted = FALSE
-			  AND (created_at, message_id) < ($2, $3)
+			  AND (created_at, message_id) < ($2, $3)`
+		if afterTime != nil {
+			rows, err = r.db.QueryContext(ctx, qBase+`
+			  AND created_at > $4
 			ORDER BY created_at DESC, message_id DESC
-			LIMIT $4`
-		rows, err = r.db.QueryContext(ctx, q, convID, cursorTime, cursorID, fetchSize)
+			LIMIT $5`, convID, cursorTime, cursorID, *afterTime, fetchSize)
+		} else {
+			rows, err = r.db.QueryContext(ctx, qBase+`
+			ORDER BY created_at DESC, message_id DESC
+			LIMIT $4`, convID, cursorTime, cursorID, fetchSize)
+		}
 	}
 	if err != nil {
 		return nil, "", false, fmt.Errorf("chat msg repo: list: %w", err)

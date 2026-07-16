@@ -28,3 +28,9 @@ var ErrMessageDeleted = errors.New("message has been deleted")
 
 // ErrParticipantLeft indicates the participant already left.
 var ErrParticipantLeft = errors.New("participant has already left the conversation")
+
+// ErrAttachmentNotFound indicates the attachment does not exist.
+var ErrAttachmentNotFound = errors.New("attachment not found")
+
+// ErrStorageUnavailable indicates the file storage service is not configured.
+var ErrStorageUnavailable = errors.New("file storage is not available")

@@ -235,6 +235,8 @@ var methodPermissions = map[string]PermissionRequirement{
 	"/iam.v1.ChatService/MarkConversationRead":     {Permission: ""},
 	"/iam.v1.ChatService/SetTyping":                {Permission: ""},
 	"/iam.v1.ChatService/GetMessageEditHistory":    {Permission: ""},
+	"/iam.v1.ChatService/ClearConversationHistory": {Permission: ""},
+	"/iam.v1.ChatService/UploadChatAttachment":     {Permission: ""},
 
 	// Presence Service — authenticated only.
 	"/iam.v1.PresenceService/Heartbeat":      {Permission: ""},
