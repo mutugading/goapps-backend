@@ -14,6 +14,10 @@ import (
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/postgres"
 )
 
+// decryptionErrorBody is the placeholder body shown when a message body
+// fails to decrypt (e.g. master key rotated out from under an old message).
+const decryptionErrorBody = "[decryption error]"
+
 // resolveSenderName looks up a display name for senderID via userResolver,
 // falling back to username, then an empty string if the resolver is nil or
 // the lookup fails.

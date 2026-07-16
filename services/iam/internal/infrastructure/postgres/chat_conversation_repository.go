@@ -5,9 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 
 	"github.com/mutugading/goapps-backend/services/iam/internal/domain/chat"
 )
@@ -201,6 +204,59 @@ func (r *ChatConversationRepository) UpdateLastReadAt(ctx context.Context, convI
 	return nil
 }
 
+// GetUnreadCounts returns, for each conversation ID, the count of messages
+// created after userID's last_read_at (excluding userID's own messages).
+// Single batched query — avoids N+1 across the conversation list.
+func (r *ChatConversationRepository) GetUnreadCounts(ctx context.Context, convIDs []uuid.UUID, userID uuid.UUID) (map[uuid.UUID]int32, error) {
+	if len(convIDs) == 0 {
+		return map[uuid.UUID]int32{}, nil
+	}
+	placeholders := make([]string, len(convIDs))
+	args := make([]any, 0, len(convIDs)+1)
+	for i, id := range convIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args = append(args, id)
+	}
+	userParam := len(convIDs) + 1
+	args = append(args, userID)
+
+	q := fmt.Sprintf(`
+		SELECT cm.conversation_id, COUNT(*)
+		FROM chat_message cm
+		JOIN chat_participant cp ON cp.conversation_id = cm.conversation_id AND cp.user_id = $%d
+		WHERE cm.conversation_id IN (%s)
+		  AND cm.is_deleted = FALSE
+		  AND cm.sender_user_id != $%d
+		  AND (cp.last_read_at IS NULL OR cm.created_at > cp.last_read_at)
+		GROUP BY cm.conversation_id`, userParam, strings.Join(placeholders, ","), userParam)
+
+	rows, err := r.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("chat conv repo: get unread counts: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("chat conv repo: close unread count rows")
+		}
+	}()
+
+	counts := make(map[uuid.UUID]int32, len(convIDs))
+	for rows.Next() {
+		var (
+			convID uuid.UUID
+			count  int64
+		)
+		if err := rows.Scan(&convID, &count); err != nil {
+			return nil, fmt.Errorf("chat conv repo: scan unread count: %w", err)
+		}
+		counts[convID] = safeInt64ToInt32Chat(count)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("chat conv repo: unread count rows err: %w", err)
+	}
+	return counts, nil
+}
+
 func (r *ChatConversationRepository) loadParticipants(ctx context.Context, convID uuid.UUID) ([]*chat.Participant, error) {
 	const q = `
 		SELECT user_id, role, joined_at, left_at, last_read_at
@@ -215,10 +271,10 @@ func (r *ChatConversationRepository) loadParticipants(ctx context.Context, convI
 	var parts []*chat.Participant
 	for rows.Next() {
 		var (
-			userID              uuid.UUID
-			roleStr             string
-			joinedAt            time.Time
-			leftAt, lastReadAt  *time.Time
+			userID             uuid.UUID
+			roleStr            string
+			joinedAt           time.Time
+			leftAt, lastReadAt *time.Time
 		)
 		if err := rows.Scan(&userID, &roleStr, &joinedAt, &leftAt, &lastReadAt); err != nil {
 			return nil, fmt.Errorf("chat conv repo: scan participant: %w", err)
@@ -256,4 +312,12 @@ func (r *ChatConversationRepository) scanConversation(row *sql.Row) (*chat.Conve
 		return nil, fmt.Errorf("scan conversation: parse type: %w", err)
 	}
 	return chat.Reconstruct(id, convType, name.String, avatarURL.String, encryptionKey, createdBy, createdAt, updatedAt, deletedAt, nil), nil
+}
+
+// safeInt64ToInt32Chat clamps a COUNT(*) result into int32 range.
+func safeInt64ToInt32Chat(v int64) int32 {
+	if v > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	return int32(v) //nolint:gosec // bounds checked above
 }

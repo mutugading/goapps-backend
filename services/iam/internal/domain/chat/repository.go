@@ -32,6 +32,10 @@ type ConversationRepository interface {
 
 	// UpdateLastReadAt updates chat_participant.last_read_at for a user.
 	UpdateLastReadAt(ctx context.Context, conversationID, userID uuid.UUID, at time.Time) error
+
+	// GetUnreadCounts returns, for each conversation ID, the count of messages
+	// created after userID's last_read_at (excluding userID's own messages).
+	GetUnreadCounts(ctx context.Context, conversationIDs []uuid.UUID, userID uuid.UUID) (map[uuid.UUID]int32, error)
 }
 
 // MessageRepository handles persistence for Message aggregates.
@@ -56,6 +60,10 @@ type MessageRepository interface {
 
 	// GetEditHistory returns all edit history for a message, newest first.
 	GetEditHistory(ctx context.Context, messageID uuid.UUID) ([]*EditHistoryEntry, error)
+
+	// GetLastMessages returns, for each conversation ID, its most recent
+	// non-deleted message (one query, not N+1).
+	GetLastMessages(ctx context.Context, conversationIDs []uuid.UUID) (map[uuid.UUID]*Message, error)
 }
 
 // ReadReceiptRepository handles read receipts.

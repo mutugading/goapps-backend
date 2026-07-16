@@ -137,7 +137,7 @@ func (h *SendMessageHandler) notifyIfOffline(ctx context.Context, recipientID uu
 		Title:           title,
 		Body:            body,
 		ActionType:      notification.ActionNavigate,
-		ActionPayload:   `{"url":"/chat","label":"Reply"}`,
+		ActionPayload:   `{"path":"/chat"}`,
 		SourceType:      "chat_message",
 		SourceID:        msg.MessageID().String(),
 		CreatedBy:       senderID.String(),

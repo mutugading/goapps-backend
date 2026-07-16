@@ -65,7 +65,7 @@ func (h *ListMessagesHandler) Handle(ctx context.Context, callerID, convID uuid.
 			var decErr error
 			plain, decErr = h.enc.DecryptMessage(convKeyPlain, msg.BodyEncrypted())
 			if decErr != nil {
-				plain = "[decryption error]"
+				plain = decryptionErrorBody
 			}
 		}
 		decrypted = append(decrypted, &DecryptedMessage{Message: msg, PlainBody: plain})

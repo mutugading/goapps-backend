@@ -244,7 +244,7 @@ func run() error {
 			appChat.NewCreateDirectHandler(chatConvRepo, chatEnc),
 			appChat.NewCreateGroupHandler(chatConvRepo, chatEnc),
 			appChat.NewGetConversationHandler(chatConvRepo),
-			appChat.NewListConversationsHandler(chatConvRepo),
+			appChat.NewListConversationsHandler(chatConvRepo, chatMsgRepo, chatEnc),
 			appChat.NewLeaveConversationHandler(chatConvRepo),
 			sendMsgHandler,
 			appChat.NewEditMessageHandler(chatConvRepo, chatMsgRepo, chatEnc, chatBroadcaster, chatUserResolver),
@@ -253,6 +253,7 @@ func run() error {
 			appChat.NewMarkReadHandler(chatConvRepo, chatMsgRepo, chatReceiptRepo, chatBroadcaster),
 			appChat.NewSetTypingHandler(chatConvRepo, presenceSvc, chatBroadcaster),
 			appChat.NewStreamHandler(chatBroadcaster),
+			appChat.NewGetEditHistoryHandler(chatConvRepo, chatMsgRepo, chatEnc),
 			chatUserResolver,
 		)
 		if presenceSvc != nil {

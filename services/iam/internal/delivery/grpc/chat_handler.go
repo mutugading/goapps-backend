@@ -32,6 +32,7 @@ type ChatHandler struct {
 	markRead     *appChat.MarkReadHandler
 	setTyping    *appChat.SetTypingHandler
 	stream       *appChat.StreamHandler
+	editHistory  *appChat.GetEditHistoryHandler
 	userResolver *postgres.ChatUserResolver
 }
 
@@ -49,6 +50,7 @@ func NewChatHandler(
 	markRead *appChat.MarkReadHandler,
 	setTyping *appChat.SetTypingHandler,
 	stream *appChat.StreamHandler,
+	editHistory *appChat.GetEditHistoryHandler,
 	userResolver *postgres.ChatUserResolver,
 ) *ChatHandler {
 	return &ChatHandler{
@@ -56,7 +58,7 @@ func NewChatHandler(
 		getConv: getConv, listConvs: listConvs, leaveConv: leaveConv,
 		sendMsg: sendMsg, editMsg: editMsg, deleteMsg: deleteMsg,
 		listMsgs: listMsgs, markRead: markRead, setTyping: setTyping,
-		stream: stream, userResolver: userResolver,
+		stream: stream, editHistory: editHistory, userResolver: userResolver,
 	}
 }
 
@@ -133,8 +135,8 @@ func (h *ChatHandler) ListConversations(ctx context.Context, req *iamv1.ListConv
 		return nil, mapChatError(err)
 	}
 	protos := make([]*iamv1.ConversationProto, 0, len(result.Conversations))
-	for _, c := range result.Conversations {
-		protos = append(protos, h.convToProto(ctx, c))
+	for _, summary := range result.Conversations {
+		protos = append(protos, h.summaryToProto(ctx, summary))
 	}
 	totalPages := int32((result.Total + int64(pageSize) - 1) / int64(pageSize)) //nolint:gosec // bounded by page count
 	return &iamv1.ListConversationsResponse{
@@ -142,7 +144,7 @@ func (h *ChatHandler) ListConversations(ctx context.Context, req *iamv1.ListConv
 		Data: protos,
 		Pagination: &commonv1.PaginationResponse{
 			CurrentPage: int32(page),     //nolint:gosec // bounded by request validation
-			PageSize:    int32(pageSize),  //nolint:gosec // bounded by request validation
+			PageSize:    int32(pageSize), //nolint:gosec // bounded by request validation
 			TotalItems:  result.Total,
 			TotalPages:  totalPages,
 		},
@@ -260,6 +262,36 @@ func (h *ChatHandler) ListMessages(ctx context.Context, req *iamv1.ListMessagesR
 	}, nil
 }
 
+// GetMessageEditHistory returns the edit history for a specific message.
+func (h *ChatHandler) GetMessageEditHistory(ctx context.Context, req *iamv1.GetMessageEditHistoryRequest) (*iamv1.GetMessageEditHistoryResponse, error) {
+	callerID, err := getUserIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	convID, err := uuid.Parse(req.GetConversationId())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid conversation_id: %v", err)
+	}
+	msgID, err := uuid.Parse(req.GetMessageId())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid message_id: %v", err)
+	}
+	entries, err := h.editHistory.Handle(ctx, callerID, convID, msgID)
+	if err != nil {
+		return nil, mapChatError(err)
+	}
+	protos := make([]*iamv1.EditHistoryEntryProto, 0, len(entries))
+	for _, e := range entries {
+		protos = append(protos, &iamv1.EditHistoryEntryProto{
+			HistoryId: e.HistoryID(),
+			Body:      e.PlainBody,
+			EditedBy:  e.EditedBy().String(),
+			EditedAt:  e.EditedAt().UTC().Format(time.RFC3339Nano),
+		})
+	}
+	return &iamv1.GetMessageEditHistoryResponse{Base: chatSuccessBase(), Data: protos}, nil
+}
+
 // MarkConversationRead marks all messages as read.
 func (h *ChatHandler) MarkConversationRead(ctx context.Context, req *iamv1.MarkConversationReadRequest) (*iamv1.MarkConversationReadResponse, error) {
 	callerID, err := getUserIDFromContext(ctx)
@@ -314,6 +346,17 @@ func (h *ChatHandler) StreamChatEvents(_ *iamv1.StreamChatEventsRequest, stream 
 			}
 		}
 	}
+}
+
+// summaryToProto builds a ConversationProto and populates LastMessage +
+// UnreadCount from the batch-loaded summary (see ListConversationsHandler).
+func (h *ChatHandler) summaryToProto(ctx context.Context, summary *appChat.ConversationSummary) *iamv1.ConversationProto {
+	proto := h.convToProto(ctx, summary.Conversation)
+	proto.UnreadCount = summary.UnreadCount
+	if summary.LastMessage != nil {
+		proto.LastMessage = msgToProto(summary.LastMessage, summary.LastMessageBody, nil)
+	}
+	return proto
 }
 
 func (h *ChatHandler) convToProto(ctx context.Context, conv *chat.Conversation) *iamv1.ConversationProto {

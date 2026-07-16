@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 
 	"github.com/mutugading/goapps-backend/services/iam/internal/domain/chat"
 )
@@ -130,12 +131,69 @@ func (r *ChatMessageRepository) ListByConversation(ctx context.Context, convID u
 		msgs = msgs[:pageSize]
 	}
 
+	if err := r.attachReceipts(ctx, msgs); err != nil {
+		return nil, "", false, err
+	}
+
 	nextCursor := ""
 	if hasMore && len(msgs) > 0 {
 		last := msgs[len(msgs)-1]
 		nextCursor = encodeChatCursor(last.CreatedAt(), last.MessageID())
 	}
 	return msgs, nextCursor, hasMore, nil
+}
+
+// attachReceipts batch-loads read receipts for all given messages (one query,
+// not N+1) and reconstructs each message with its receipts attached.
+func (r *ChatMessageRepository) attachReceipts(ctx context.Context, msgs []*chat.Message) error {
+	if len(msgs) == 0 {
+		return nil
+	}
+	placeholders := make([]string, len(msgs))
+	args := make([]any, len(msgs))
+	for i, msg := range msgs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = msg.MessageID()
+	}
+
+	q := fmt.Sprintf(
+		`SELECT message_id, user_id, read_at FROM chat_read_receipt WHERE message_id IN (%s)`,
+		strings.Join(placeholders, ","),
+	)
+	rows, err := r.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return fmt.Errorf("chat msg repo: batch load receipts: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("chat msg repo: close batch receipt rows")
+		}
+	}()
+
+	receiptsByMsg := make(map[uuid.UUID][]*chat.ReadReceipt, len(msgs))
+	for rows.Next() {
+		var (
+			mID, uID uuid.UUID
+			readAt   time.Time
+		)
+		if err := rows.Scan(&mID, &uID, &readAt); err != nil {
+			return fmt.Errorf("chat msg repo: scan batch receipt: %w", err)
+		}
+		receiptsByMsg[mID] = append(receiptsByMsg[mID], chat.NewReadReceipt(mID, uID, readAt))
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("chat msg repo: batch receipt rows err: %w", err)
+	}
+
+	for i, msg := range msgs {
+		msgs[i] = chat.ReconstructMessage(
+			msg.MessageID(), msg.ConversationID(), msg.SenderUserID(),
+			msg.BodyEncrypted(), msg.BodyPlainEncrypted(),
+			msg.IsEdited(), msg.IsDeleted(), msg.ReplyToID(),
+			receiptsByMsg[msg.MessageID()], msg.CreatedAt(), msg.UpdatedAt(),
+		)
+	}
+	return nil
 }
 
 // UpdateBody persists body changes after an edit.
@@ -190,10 +248,10 @@ func (r *ChatMessageRepository) GetEditHistory(ctx context.Context, messageID uu
 	var entries []*chat.EditHistoryEntry
 	for rows.Next() {
 		var (
-			histID           int64
-			msgID, editedBy  uuid.UUID
-			bodyEnc          []byte
-			editedAt         time.Time
+			histID          int64
+			msgID, editedBy uuid.UUID
+			bodyEnc         []byte
+			editedAt        time.Time
 		)
 		if err := rows.Scan(&histID, &msgID, &bodyEnc, &editedBy, &editedAt); err != nil {
 			return nil, fmt.Errorf("chat msg repo: scan edit history: %w", err)
@@ -204,6 +262,52 @@ func (r *ChatMessageRepository) GetEditHistory(ctx context.Context, messageID uu
 		return nil, fmt.Errorf("chat msg repo: edit history rows err: %w", err)
 	}
 	return entries, nil
+}
+
+// GetLastMessages returns, for each conversation ID, its most recent
+// non-deleted message. Single query via DISTINCT ON — avoids N+1.
+func (r *ChatMessageRepository) GetLastMessages(ctx context.Context, convIDs []uuid.UUID) (map[uuid.UUID]*chat.Message, error) {
+	if len(convIDs) == 0 {
+		return map[uuid.UUID]*chat.Message{}, nil
+	}
+	placeholders := make([]string, len(convIDs))
+	args := make([]any, len(convIDs))
+	for i, id := range convIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+
+	q := fmt.Sprintf(`
+		SELECT DISTINCT ON (conversation_id)
+		       message_id, conversation_id, sender_user_id,
+		       body_encrypted, body_plain_encrypted,
+		       is_edited, is_deleted, reply_to_id, created_at, updated_at
+		FROM chat_message
+		WHERE conversation_id IN (%s) AND is_deleted = FALSE
+		ORDER BY conversation_id, created_at DESC, message_id DESC`, strings.Join(placeholders, ","))
+
+	rows, err := r.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("chat msg repo: get last messages: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("chat msg repo: close last message rows")
+		}
+	}()
+
+	result := make(map[uuid.UUID]*chat.Message, len(convIDs))
+	for rows.Next() {
+		msg, scanErr := r.scanMessageRows(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("chat msg repo: scan last message: %w", scanErr)
+		}
+		result[msg.ConversationID()] = msg
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("chat msg repo: last message rows err: %w", err)
+	}
+	return result, nil
 }
 
 func (r *ChatMessageRepository) loadReceipts(ctx context.Context, msgID uuid.UUID) ([]*chat.ReadReceipt, error) {
