@@ -272,7 +272,7 @@ func (h *ChatHandler) ListMessages(ctx context.Context, req *iamv1.ListMessagesR
 	for _, dm := range result.Messages {
 		senderIDs = append(senderIDs, dm.SenderUserID())
 	}
-	senderMap, _ := h.userResolver.ResolveUsers(ctx, senderIDs)
+	senderMap, _ := h.userResolver.ResolveUsers(ctx, senderIDs) //nolint:errcheck // name enrichment is best-effort
 
 	msgIDs := make([]uuid.UUID, 0, len(result.Messages))
 	for _, dm := range result.Messages {
@@ -447,7 +447,7 @@ func (h *ChatHandler) convToProto(ctx context.Context, conv *chat.Conversation) 
 	for _, p := range conv.Participants() {
 		userIDs = append(userIDs, p.UserID())
 	}
-	userMap, _ := h.userResolver.ResolveUsers(ctx, userIDs)
+	userMap, _ := h.userResolver.ResolveUsers(ctx, userIDs) //nolint:errcheck // name enrichment is best-effort
 
 	parts := make([]*iamv1.ParticipantProto, 0, len(conv.Participants()))
 	for _, p := range conv.Participants() {

@@ -15,6 +15,7 @@ package chat
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -200,7 +201,7 @@ func (b *Broadcaster) bridgeRedisStream(recipient uuid.UUID, ch chan *Event) con
 				Count:   50,
 			}).Result()
 			if err != nil {
-				if err == redis.Nil || ctx.Err() != nil {
+				if errors.Is(err, redis.Nil) || ctx.Err() != nil {
 					continue
 				}
 				log.Warn().Err(err).Msg("broadcaster: XREAD error")
@@ -220,12 +221,12 @@ func (b *Broadcaster) bridgeRedisStream(recipient uuid.UUID, ch chan *Event) con
 }
 
 func (b *Broadcaster) handleStreamMessage(msg redis.XMessage, userID uuid.UUID, ch chan *Event) {
-	podID, _ := msg.Values["pod"].(string)
+	podID, _ := msg.Values["pod"].(string) //nolint:errcheck // absent/typed-wrong pod is treated as empty
 	if podID == b.selfPodID {
 		return
 	}
-	eventID, _ := msg.Values["eid"].(string)
-	dataB64, _ := msg.Values["data"].(string)
+	eventID, _ := msg.Values["eid"].(string)  //nolint:errcheck // absent eid is treated as empty
+	dataB64, _ := msg.Values["data"].(string) //nolint:errcheck // absent data fails decode below
 	protoBytes, err := base64.StdEncoding.DecodeString(dataB64)
 	if err != nil {
 		log.Warn().Err(err).Msg("broadcaster: decode stream data")

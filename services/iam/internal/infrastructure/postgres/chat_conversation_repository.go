@@ -119,7 +119,11 @@ func (r *ChatConversationRepository) ListByUserID(ctx context.Context, userID uu
 	if err != nil {
 		return nil, 0, fmt.Errorf("chat conv repo: list: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("chat conv repo: close rows")
+		}
+	}()
 
 	var ids []uuid.UUID
 	for rows.Next() {
@@ -276,7 +280,11 @@ func (r *ChatConversationRepository) loadParticipants(ctx context.Context, convI
 	if err != nil {
 		return nil, fmt.Errorf("chat conv repo: load participants: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("chat conv repo: close rows")
+		}
+	}()
 
 	var parts []*chat.Participant
 	for rows.Next() {

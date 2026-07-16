@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 )
 
 // ChatUserInfo holds lightweight user data for chat participant display.
@@ -30,7 +31,7 @@ func NewChatUserResolver(db *DB) *ChatUserResolver {
 // ResolveUsers batch-resolves user IDs to display info.
 func (r *ChatUserResolver) ResolveUsers(ctx context.Context, userIDs []uuid.UUID) (map[uuid.UUID]*ChatUserInfo, error) {
 	if len(userIDs) == 0 {
-		return nil, nil
+		return map[uuid.UUID]*ChatUserInfo{}, nil
 	}
 	placeholders := make([]string, len(userIDs))
 	args := make([]any, len(userIDs))
@@ -50,7 +51,11 @@ func (r *ChatUserResolver) ResolveUsers(ctx context.Context, userIDs []uuid.UUID
 	if err != nil {
 		return nil, fmt.Errorf("chat user resolver: query: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("chat user resolver: close rows")
+		}
+	}()
 
 	result := make(map[uuid.UUID]*ChatUserInfo, len(userIDs))
 	for rows.Next() {

@@ -1,3 +1,5 @@
+// Package crypto provides AES-256-GCM encryption for chat conversation keys
+// and message bodies, wrapping per-conversation keys with a master key.
 package crypto
 
 import (

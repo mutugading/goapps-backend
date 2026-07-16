@@ -210,64 +210,14 @@ func run() error {
 	).WithRequestHandler(notifRequestHandler)
 
 	// ── Chat + Presence ────────────────────────────────────────────────────
-	chatMasterKeyHex := cfg.Chat.MasterKey
-	var chatHandler *grpcdelivery.ChatHandler
-	var presenceGRPCHandler *grpcdelivery.PresenceHandler
-	if chatMasterKeyHex != "" {
-		chatMasterKey, hexErr := hex.DecodeString(chatMasterKeyHex)
-		if hexErr != nil || len(chatMasterKey) != 32 {
-			log.Fatal().Msg("CHAT_MASTER_KEY must be a 64-char hex string (32 bytes)")
-		}
-		chatEnc, encErr := iamcrypto.NewEncryptor(chatMasterKey)
-		if encErr != nil {
-			log.Fatal().Err(encErr).Msg("Failed to init chat encryptor")
-		}
-		var chatBroadcaster *chatinfra.Broadcaster
-		if redisClient != nil {
-			chatBroadcaster = chatinfra.NewRedisBroadcaster(redisClient.Client)
-		} else {
-			chatBroadcaster = chatinfra.NewBroadcaster()
-		}
-		var presenceSvc *chatinfra.PresenceService
-		if redisClient != nil {
-			presenceSvc = chatinfra.NewPresenceService(redisClient.Client)
-		}
-		chatConvRepo := postgres.NewChatConversationRepository(db)
-		chatMsgRepo := postgres.NewChatMessageRepository(db)
-		chatReceiptRepo := postgres.NewChatReadReceiptRepository(db)
-		chatAttRepo := postgres.NewChatAttachmentRepository(db)
-		chatUserResolver := postgres.NewChatUserResolver(db)
-		sendMsgHandler := appChat.NewSendMessageHandler(chatConvRepo, chatMsgRepo, chatReceiptRepo, chatEnc, chatBroadcaster)
-		sendMsgHandler.WithAttachments(chatAttRepo)
-		if presenceSvc != nil && redisClient != nil {
-			sendMsgHandler.WithOfflineNotification(presenceSvc, notifCreate, notifEmailDispatcher, redisClient.Client, chatUserResolver)
-		}
-		chatHandler = grpcdelivery.NewChatHandler(
-			appChat.NewCreateDirectHandler(chatConvRepo, chatEnc),
-			appChat.NewCreateGroupHandler(chatConvRepo, chatEnc),
-			appChat.NewGetConversationHandler(chatConvRepo),
-			appChat.NewListConversationsHandler(chatConvRepo, chatMsgRepo, chatEnc),
-			appChat.NewLeaveConversationHandler(chatConvRepo),
-			sendMsgHandler,
-			appChat.NewEditMessageHandler(chatConvRepo, chatMsgRepo, chatEnc, chatBroadcaster, chatUserResolver),
-			appChat.NewDeleteMessageHandler(chatConvRepo, chatMsgRepo, chatBroadcaster),
-			appChat.NewListMessagesHandler(chatConvRepo, chatMsgRepo, chatEnc),
-			appChat.NewMarkReadHandler(chatConvRepo, chatMsgRepo, chatReceiptRepo, chatBroadcaster),
-			appChat.NewSetTypingHandler(chatConvRepo, presenceSvc, chatBroadcaster),
-			appChat.NewStreamHandler(chatBroadcaster),
-			appChat.NewGetEditHistoryHandler(chatConvRepo, chatMsgRepo, chatEnc),
-			appChat.NewClearHistoryHandler(chatConvRepo),
-			appChat.NewUploadAttachmentHandler(chatConvRepo, chatAttRepo, storageSvc),
-			chatAttRepo,
-			chatUserResolver,
-		)
-		if presenceSvc != nil {
-			presenceGRPCHandler = grpcdelivery.NewPresenceHandler(presenceSvc)
-		}
-		log.Info().Msg("Chat + Presence services initialized")
-	} else {
-		log.Warn().Msg("CHAT_MASTER_KEY not set — chat services disabled")
-	}
+	chatHandler, presenceGRPCHandler := initChatServices(chatDeps{
+		masterKeyHex:    cfg.Chat.MasterKey,
+		db:              db,
+		redisClient:     redisClient,
+		notifCreate:     notifCreate,
+		emailDispatcher: notifEmailDispatcher,
+		storageSvc:      storageSvc,
+	})
 
 	// Setup gRPC server with interceptor chain (pass JWT + session cache + session repo for auth & activity tracking)
 	grpcServer, err := grpcdelivery.NewServer(&cfg.Server, db, jwtService, sessionCache, sessionRepo, cfg.Security.InternalServiceToken)
@@ -342,6 +292,80 @@ func run() error {
 
 	log.Info().Msg("Server shutdown complete")
 	return nil
+}
+
+// chatDeps bundles the dependencies needed to wire the chat + presence stack.
+type chatDeps struct {
+	masterKeyHex    string
+	db              *postgres.DB
+	redisClient     *redisinfra.Client
+	notifCreate     *appnotif.CreateHandler
+	emailDispatcher appnotif.EmailDispatcher
+	storageSvc      storageinfra.Service
+}
+
+// initChatServices builds the chat and presence gRPC handlers. Both are nil
+// when CHAT_MASTER_KEY is unset (chat disabled); presence is nil when Redis is
+// unavailable. Extracted from run to keep its cognitive complexity in bounds.
+func initChatServices(d chatDeps) (*grpcdelivery.ChatHandler, *grpcdelivery.PresenceHandler) {
+	if d.masterKeyHex == "" {
+		log.Warn().Msg("CHAT_MASTER_KEY not set — chat services disabled")
+		return nil, nil
+	}
+	chatMasterKey, hexErr := hex.DecodeString(d.masterKeyHex)
+	if hexErr != nil || len(chatMasterKey) != 32 {
+		log.Fatal().Msg("CHAT_MASTER_KEY must be a 64-char hex string (32 bytes)")
+	}
+	chatEnc, encErr := iamcrypto.NewEncryptor(chatMasterKey)
+	if encErr != nil {
+		log.Fatal().Err(encErr).Msg("Failed to init chat encryptor")
+	}
+
+	chatBroadcaster := chatinfra.NewBroadcaster()
+	var presenceSvc *chatinfra.PresenceService
+	if d.redisClient != nil {
+		chatBroadcaster = chatinfra.NewRedisBroadcaster(d.redisClient.Client)
+		presenceSvc = chatinfra.NewPresenceService(d.redisClient.Client)
+	}
+
+	convRepo := postgres.NewChatConversationRepository(d.db)
+	msgRepo := postgres.NewChatMessageRepository(d.db)
+	receiptRepo := postgres.NewChatReadReceiptRepository(d.db)
+	attRepo := postgres.NewChatAttachmentRepository(d.db)
+	userResolver := postgres.NewChatUserResolver(d.db)
+
+	sendMsgHandler := appChat.NewSendMessageHandler(convRepo, msgRepo, receiptRepo, chatEnc, chatBroadcaster)
+	sendMsgHandler.WithAttachments(attRepo)
+	if presenceSvc != nil && d.redisClient != nil {
+		sendMsgHandler.WithOfflineNotification(presenceSvc, d.notifCreate, d.emailDispatcher, d.redisClient.Client, userResolver)
+	}
+
+	chatHandler := grpcdelivery.NewChatHandler(
+		appChat.NewCreateDirectHandler(convRepo, chatEnc),
+		appChat.NewCreateGroupHandler(convRepo, chatEnc),
+		appChat.NewGetConversationHandler(convRepo),
+		appChat.NewListConversationsHandler(convRepo, msgRepo, chatEnc),
+		appChat.NewLeaveConversationHandler(convRepo),
+		sendMsgHandler,
+		appChat.NewEditMessageHandler(convRepo, msgRepo, chatEnc, chatBroadcaster, userResolver),
+		appChat.NewDeleteMessageHandler(convRepo, msgRepo, chatBroadcaster),
+		appChat.NewListMessagesHandler(convRepo, msgRepo, chatEnc),
+		appChat.NewMarkReadHandler(convRepo, msgRepo, receiptRepo, chatBroadcaster),
+		appChat.NewSetTypingHandler(convRepo, presenceSvc, chatBroadcaster),
+		appChat.NewStreamHandler(chatBroadcaster),
+		appChat.NewGetEditHistoryHandler(convRepo, msgRepo, chatEnc),
+		appChat.NewClearHistoryHandler(convRepo),
+		appChat.NewUploadAttachmentHandler(convRepo, attRepo, d.storageSvc),
+		attRepo,
+		userResolver,
+	)
+
+	var presenceGRPCHandler *grpcdelivery.PresenceHandler
+	if presenceSvc != nil {
+		presenceGRPCHandler = grpcdelivery.NewPresenceHandler(presenceSvc)
+	}
+	log.Info().Msg("Chat + Presence services initialized")
+	return chatHandler, presenceGRPCHandler
 }
 
 // setupLogger configures the application logger.

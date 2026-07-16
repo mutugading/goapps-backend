@@ -82,53 +82,15 @@ func (r *ChatMessageRepository) GetByID(ctx context.Context, id uuid.UUID) (*cha
 func (r *ChatMessageRepository) ListByConversation(ctx context.Context, convID uuid.UUID, pageSize int, beforeCursor string, afterTime *time.Time) ([]*chat.Message, string, bool, error) {
 	fetchSize := pageSize + 1
 
-	var rows *sql.Rows
-	var err error
-
-	if beforeCursor == "" {
-		const qBase = `
-			SELECT message_id, conversation_id, sender_user_id,
-			       body_encrypted, body_plain_encrypted,
-			       is_edited, is_deleted, reply_to_id, created_at, updated_at
-			FROM chat_message
-			WHERE conversation_id = $1 AND is_deleted = FALSE`
-		if afterTime != nil {
-			rows, err = r.db.QueryContext(ctx, qBase+`
-			  AND created_at > $2
-			ORDER BY created_at DESC, message_id DESC
-			LIMIT $3`, convID, *afterTime, fetchSize)
-		} else {
-			rows, err = r.db.QueryContext(ctx, qBase+`
-			ORDER BY created_at DESC, message_id DESC
-			LIMIT $2`, convID, fetchSize)
-		}
-	} else {
-		cursorTime, cursorID, parseErr := decodeChatCursor(beforeCursor)
-		if parseErr != nil {
-			return nil, "", false, fmt.Errorf("chat msg repo: invalid cursor: %w", parseErr)
-		}
-		const qBase = `
-			SELECT message_id, conversation_id, sender_user_id,
-			       body_encrypted, body_plain_encrypted,
-			       is_edited, is_deleted, reply_to_id, created_at, updated_at
-			FROM chat_message
-			WHERE conversation_id = $1 AND is_deleted = FALSE
-			  AND (created_at, message_id) < ($2, $3)`
-		if afterTime != nil {
-			rows, err = r.db.QueryContext(ctx, qBase+`
-			  AND created_at > $4
-			ORDER BY created_at DESC, message_id DESC
-			LIMIT $5`, convID, cursorTime, cursorID, *afterTime, fetchSize)
-		} else {
-			rows, err = r.db.QueryContext(ctx, qBase+`
-			ORDER BY created_at DESC, message_id DESC
-			LIMIT $4`, convID, cursorTime, cursorID, fetchSize)
-		}
-	}
+	rows, err := r.queryMessagePage(ctx, convID, fetchSize, beforeCursor, afterTime)
 	if err != nil {
-		return nil, "", false, fmt.Errorf("chat msg repo: list: %w", err)
+		return nil, "", false, err
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("chat msg repo: close rows")
+		}
+	}()
 
 	var msgs []*chat.Message
 	for rows.Next() {
@@ -157,6 +119,51 @@ func (r *ChatMessageRepository) ListByConversation(ctx context.Context, convID u
 		nextCursor = encodeChatCursor(last.CreatedAt(), last.MessageID())
 	}
 	return msgs, nextCursor, hasMore, nil
+}
+
+const chatMessageSelectCols = `
+	SELECT message_id, conversation_id, sender_user_id,
+	       body_encrypted, body_plain_encrypted,
+	       is_edited, is_deleted, reply_to_id, created_at, updated_at
+	FROM chat_message
+	WHERE conversation_id = $1 AND is_deleted = FALSE`
+
+// queryMessagePage dispatches to the first-page or cursor-paginated query,
+// each optionally bounded by afterTime (the caller's cleared-history cutoff).
+func (r *ChatMessageRepository) queryMessagePage(ctx context.Context, convID uuid.UUID, fetchSize int, beforeCursor string, afterTime *time.Time) (*sql.Rows, error) {
+	if beforeCursor == "" {
+		return r.queryFirstPage(ctx, convID, fetchSize, afterTime)
+	}
+	cursorTime, cursorID, parseErr := decodeChatCursor(beforeCursor)
+	if parseErr != nil {
+		return nil, fmt.Errorf("chat msg repo: invalid cursor: %w", parseErr)
+	}
+	return r.queryCursorPage(ctx, convID, fetchSize, cursorTime, cursorID, afterTime)
+}
+
+func (r *ChatMessageRepository) queryFirstPage(ctx context.Context, convID uuid.UUID, fetchSize int, afterTime *time.Time) (*sql.Rows, error) {
+	if afterTime != nil {
+		return r.db.QueryContext(ctx, chatMessageSelectCols+`
+		  AND created_at > $2
+		ORDER BY created_at DESC, message_id DESC
+		LIMIT $3`, convID, *afterTime, fetchSize)
+	}
+	return r.db.QueryContext(ctx, chatMessageSelectCols+`
+	ORDER BY created_at DESC, message_id DESC
+	LIMIT $2`, convID, fetchSize)
+}
+
+func (r *ChatMessageRepository) queryCursorPage(ctx context.Context, convID uuid.UUID, fetchSize int, cursorTime time.Time, cursorID uuid.UUID, afterTime *time.Time) (*sql.Rows, error) {
+	const cursorFilter = ` AND (created_at, message_id) < ($2, $3)`
+	if afterTime != nil {
+		return r.db.QueryContext(ctx, chatMessageSelectCols+cursorFilter+`
+		  AND created_at > $4
+		ORDER BY created_at DESC, message_id DESC
+		LIMIT $5`, convID, cursorTime, cursorID, *afterTime, fetchSize)
+	}
+	return r.db.QueryContext(ctx, chatMessageSelectCols+cursorFilter+`
+	ORDER BY created_at DESC, message_id DESC
+	LIMIT $4`, convID, cursorTime, cursorID, fetchSize)
 }
 
 // attachReceipts batch-loads read receipts for all given messages (one query,
@@ -259,7 +266,11 @@ func (r *ChatMessageRepository) GetEditHistory(ctx context.Context, messageID uu
 	if err != nil {
 		return nil, fmt.Errorf("chat msg repo: get edit history: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("chat msg repo: close rows")
+		}
+	}()
 
 	var entries []*chat.EditHistoryEntry
 	for rows.Next() {
@@ -340,7 +351,11 @@ func (r *ChatMessageRepository) loadReceipts(ctx context.Context, msgID uuid.UUI
 	if err != nil {
 		return nil, fmt.Errorf("chat msg repo: load receipts: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("chat msg repo: close rows")
+		}
+	}()
 	var receipts []*chat.ReadReceipt
 	for rows.Next() {
 		var (
@@ -424,7 +439,11 @@ func (r *ChatReadReceiptRepository) ListByMessage(ctx context.Context, msgID uui
 	if err != nil {
 		return nil, fmt.Errorf("chat receipt repo: list: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("chat msg repo: close rows")
+		}
+	}()
 	var receipts []*chat.ReadReceipt
 	for rows.Next() {
 		var (

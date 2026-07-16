@@ -1,3 +1,5 @@
+// Package chat implements the application-layer use cases for chat
+// conversations, messages, attachments, presence, and real-time events.
 package chat
 
 import (
