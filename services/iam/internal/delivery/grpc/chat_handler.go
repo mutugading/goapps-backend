@@ -250,9 +250,23 @@ func (h *ChatHandler) ListMessages(ctx context.Context, req *iamv1.ListMessagesR
 	if err != nil {
 		return nil, mapChatError(err)
 	}
+	senderIDs := make([]uuid.UUID, 0, len(result.Messages))
+	for _, dm := range result.Messages {
+		senderIDs = append(senderIDs, dm.SenderUserID())
+	}
+	senderMap, _ := h.userResolver.ResolveUsers(ctx, senderIDs)
+
 	protos := make([]*iamv1.MessageProto, 0, len(result.Messages))
 	for _, dm := range result.Messages {
-		protos = append(protos, msgToProto(dm.Message, dm.PlainBody, dm.ReadReceipts()))
+		mp := msgToProto(dm.Message, dm.PlainBody, dm.ReadReceipts())
+		if info := senderMap[dm.SenderUserID()]; info != nil {
+			if info.FullName != "" {
+				mp.SenderName = info.FullName
+			} else {
+				mp.SenderName = info.Username
+			}
+		}
+		protos = append(protos, mp)
 	}
 	return &iamv1.ListMessagesResponse{
 		Base:       chatSuccessBase(),
