@@ -106,6 +106,9 @@ storage:
   region: us-east-1
   public_url: ""                   # Override for external access URL, e.g., https://staging-goapps.mutugading.com/storage
 
+chat:
+  master_key: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"  # 64-char hex (32 bytes) — dev only, override via CHAT_MASTER_KEY env in staging/prod
+
 logging:
   level: debug  # debug, info, warn, error
   format: console  # console, json

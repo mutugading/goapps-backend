@@ -1,0 +1,1485 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "iam/v1/chat.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "ChatService"
+    },
+    {
+      "name": "PresenceService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/iam/chat/conversations": {
+      "get": {
+        "summary": "ListConversations returns paginated conversations for the current user.",
+        "operationId": "ChatService_ListConversations",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListConversationsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ChatService"
+        ]
+      }
+    },
+    "/api/v1/iam/chat/conversations/direct": {
+      "post": {
+        "summary": "CreateDirectConversation creates a 1:1 direct message conversation with another user.",
+        "operationId": "ChatService_CreateDirectConversation",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateDirectConversationResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "CreateDirectConversationRequest creates a 1:1 direct conversation.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateDirectConversationRequest"
+            }
+          }
+        ],
+        "tags": [
+          "ChatService"
+        ]
+      }
+    },
+    "/api/v1/iam/chat/conversations/group": {
+      "post": {
+        "summary": "CreateGroupConversation creates a group conversation with multiple participants.",
+        "operationId": "ChatService_CreateGroupConversation",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateGroupConversationResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "CreateGroupConversationRequest creates a group conversation.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateGroupConversationRequest"
+            }
+          }
+        ],
+        "tags": [
+          "ChatService"
+        ]
+      }
+    },
+    "/api/v1/iam/chat/conversations/{conversationId}": {
+      "get": {
+        "summary": "GetConversation returns a single conversation by ID.",
+        "operationId": "ChatService_GetConversation",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetConversationResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ChatService"
+        ]
+      },
+      "put": {
+        "summary": "UpdateGroupConversation updates a group conversation name or avatar.",
+        "operationId": "ChatService_UpdateGroupConversation",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateGroupConversationResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ChatServiceUpdateGroupConversationBody"
+            }
+          }
+        ],
+        "tags": [
+          "ChatService"
+        ]
+      }
+    },
+    "/api/v1/iam/chat/conversations/{conversationId}/attachments": {
+      "post": {
+        "summary": "UploadChatAttachment uploads a file to a conversation and returns its\nattachment metadata. The returned attachment_id is passed to SendMessage.",
+        "operationId": "ChatService_UploadChatAttachment",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UploadChatAttachmentResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ChatServiceUploadChatAttachmentBody"
+            }
+          }
+        ],
+        "tags": [
+          "ChatService"
+        ]
+      }
+    },
+    "/api/v1/iam/chat/conversations/{conversationId}/history": {
+      "delete": {
+        "summary": "ClearConversationHistory clears the calling user's own view of a conversation's\nmessage history. Messages remain visible to other participants.",
+        "operationId": "ChatService_ClearConversationHistory",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ClearConversationHistoryResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ChatService"
+        ]
+      }
+    },
+    "/api/v1/iam/chat/conversations/{conversationId}/leave": {
+      "post": {
+        "summary": "LeaveConversation allows the current user to leave a group conversation.",
+        "operationId": "ChatService_LeaveConversation",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1LeaveConversationResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ChatServiceLeaveConversationBody"
+            }
+          }
+        ],
+        "tags": [
+          "ChatService"
+        ]
+      }
+    },
+    "/api/v1/iam/chat/conversations/{conversationId}/messages": {
+      "get": {
+        "summary": "ListMessages returns paginated messages for a conversation using cursor-based pagination.",
+        "operationId": "ChatService_ListMessages",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListMessagesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "beforeCursor",
+            "description": "Opaque base64 cursor; empty = start from latest messages.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ChatService"
+        ]
+      },
+      "post": {
+        "summary": "SendMessage sends a new message to a conversation.",
+        "operationId": "ChatService_SendMessage",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SendMessageResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ChatServiceSendMessageBody"
+            }
+          }
+        ],
+        "tags": [
+          "ChatService"
+        ]
+      }
+    },
+    "/api/v1/iam/chat/conversations/{conversationId}/messages/{messageId}": {
+      "delete": {
+        "summary": "DeleteMessage soft-deletes a message in a conversation.",
+        "operationId": "ChatService_DeleteMessage",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteMessageResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ChatService"
+        ]
+      },
+      "put": {
+        "summary": "EditMessage edits an existing message body.",
+        "operationId": "ChatService_EditMessage",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1EditMessageResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ChatServiceEditMessageBody"
+            }
+          }
+        ],
+        "tags": [
+          "ChatService"
+        ]
+      }
+    },
+    "/api/v1/iam/chat/conversations/{conversationId}/messages/{messageId}/history": {
+      "get": {
+        "summary": "GetMessageEditHistory returns the edit history for a specific message.",
+        "operationId": "ChatService_GetMessageEditHistory",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetMessageEditHistoryResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ChatService"
+        ]
+      }
+    },
+    "/api/v1/iam/chat/conversations/{conversationId}/participants": {
+      "post": {
+        "summary": "AddParticipants adds users to a group conversation.",
+        "operationId": "ChatService_AddParticipants",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1AddParticipantsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ChatServiceAddParticipantsBody"
+            }
+          }
+        ],
+        "tags": [
+          "ChatService"
+        ]
+      }
+    },
+    "/api/v1/iam/chat/conversations/{conversationId}/participants/{userId}": {
+      "delete": {
+        "summary": "RemoveParticipant removes a user from a group conversation.",
+        "operationId": "ChatService_RemoveParticipant",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RemoveParticipantResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ChatService"
+        ]
+      }
+    },
+    "/api/v1/iam/chat/conversations/{conversationId}/read": {
+      "post": {
+        "summary": "MarkConversationRead marks all messages in a conversation as read by the current user.",
+        "operationId": "ChatService_MarkConversationRead",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1MarkConversationReadResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ChatServiceMarkConversationReadBody"
+            }
+          }
+        ],
+        "tags": [
+          "ChatService"
+        ]
+      }
+    },
+    "/api/v1/iam/chat/conversations/{conversationId}/typing": {
+      "post": {
+        "summary": "SetTyping sets the typing indicator for the current user in a conversation.",
+        "operationId": "ChatService_SetTyping",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SetTypingResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ChatServiceSetTypingBody"
+            }
+          }
+        ],
+        "tags": [
+          "ChatService"
+        ]
+      }
+    },
+    "/api/v1/iam/chat/events": {
+      "get": {
+        "summary": "StreamChatEvents opens a server-streaming connection for real-time chat events.",
+        "operationId": "ChatService_StreamChatEvents",
+        "responses": {
+          "200": {
+            "description": "A successful response.(streaming responses)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/definitions/v1StreamChatEventsResponse"
+                },
+                "error": {
+                  "$ref": "#/definitions/rpcStatus"
+                }
+              },
+              "title": "Stream result of v1StreamChatEventsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "lastEventId",
+            "description": "Last event ID seen by the client; used to resume the stream after reconnect.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ChatService"
+        ]
+      }
+    },
+    "/api/v1/iam/presence/heartbeat": {
+      "post": {
+        "summary": "Heartbeat updates the current user online presence with a TTL-based expiry.",
+        "operationId": "PresenceService_Heartbeat",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1HeartbeatResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "HeartbeatRequest sends a heartbeat to update online presence.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1HeartbeatRequest"
+            }
+          }
+        ],
+        "tags": [
+          "PresenceService"
+        ]
+      }
+    },
+    "/api/v1/iam/presence/online": {
+      "get": {
+        "summary": "GetOnlineUsers returns the list of currently online user IDs.",
+        "operationId": "PresenceService_GetOnlineUsers",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetOnlineUsersResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "userIds",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "PresenceService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "ChatServiceAddParticipantsBody": {
+      "type": "object",
+      "properties": {
+        "userIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "AddParticipantsRequest adds users to a group conversation."
+    },
+    "ChatServiceEditMessageBody": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "string"
+        }
+      },
+      "description": "EditMessageRequest edits an existing message."
+    },
+    "ChatServiceLeaveConversationBody": {
+      "type": "object",
+      "description": "LeaveConversationRequest allows the current user to leave a group conversation."
+    },
+    "ChatServiceMarkConversationReadBody": {
+      "type": "object",
+      "description": "MarkConversationReadRequest marks a conversation as read."
+    },
+    "ChatServiceSendMessageBody": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "replyToId": {
+          "type": "string",
+          "description": "ID of the message being replied to (optional, empty = no reply)."
+        },
+        "attachmentIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Pre-uploaded attachment IDs to associate with this message (optional)."
+        }
+      },
+      "description": "SendMessageRequest sends a message to a conversation."
+    },
+    "ChatServiceSetTypingBody": {
+      "type": "object",
+      "properties": {
+        "isTyping": {
+          "type": "boolean"
+        }
+      },
+      "description": "SetTypingRequest sets the typing indicator for the current user."
+    },
+    "ChatServiceUpdateGroupConversationBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "avatarUrl": {
+          "type": "string"
+        }
+      },
+      "description": "UpdateGroupConversationRequest updates a group conversation."
+    },
+    "ChatServiceUploadChatAttachmentBody": {
+      "type": "object",
+      "properties": {
+        "fileName": {
+          "type": "string"
+        },
+        "contentType": {
+          "type": "string"
+        },
+        "fileData": {
+          "type": "string",
+          "format": "byte",
+          "description": "Raw file bytes (max 25MB)."
+        }
+      },
+      "description": "UploadChatAttachmentRequest uploads a single file to a conversation."
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1AddParticipantsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      },
+      "description": "AddParticipantsResponse confirms participants were added."
+    },
+    "v1AttachmentProto": {
+      "type": "object",
+      "properties": {
+        "attachmentId": {
+          "type": "string"
+        },
+        "fileName": {
+          "type": "string"
+        },
+        "fileUrl": {
+          "type": "string"
+        },
+        "contentType": {
+          "type": "string"
+        },
+        "fileSize": {
+          "type": "string",
+          "format": "int64"
+        },
+        "thumbnailUrl": {
+          "type": "string"
+        }
+      },
+      "description": "AttachmentProto represents a file or image attached to a chat message."
+    },
+    "v1BaseResponse": {
+      "type": "object",
+      "properties": {
+        "validationErrors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ValidationError"
+          },
+          "description": "List of validation errors if any."
+        },
+        "statusCode": {
+          "type": "string",
+          "description": "HTTP-like status code (e.g., \"200\", \"400\", \"404\", \"500\")."
+        },
+        "isSuccess": {
+          "type": "boolean",
+          "description": "Indicates if the operation was successful."
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable message describing the result."
+        }
+      },
+      "description": "BaseResponse is the standard response wrapper for all API responses."
+    },
+    "v1ClearConversationHistoryResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      },
+      "description": "ClearConversationHistoryResponse confirms the caller's history was cleared."
+    },
+    "v1ConversationProto": {
+      "type": "object",
+      "properties": {
+        "conversationId": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "avatarUrl": {
+          "type": "string"
+        },
+        "participants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ParticipantProto"
+          }
+        },
+        "lastMessage": {
+          "$ref": "#/definitions/v1MessageProto"
+        },
+        "unreadCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "description": "ConversationProto represents a chat conversation (direct or group)."
+    },
+    "v1CreateDirectConversationRequest": {
+      "type": "object",
+      "properties": {
+        "peerUserId": {
+          "type": "string"
+        }
+      },
+      "description": "CreateDirectConversationRequest creates a 1:1 direct conversation."
+    },
+    "v1CreateDirectConversationResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1ConversationProto"
+        }
+      },
+      "description": "CreateDirectConversationResponse returns the created direct conversation."
+    },
+    "v1CreateGroupConversationRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "participantIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "CreateGroupConversationRequest creates a group conversation."
+    },
+    "v1CreateGroupConversationResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1ConversationProto"
+        }
+      },
+      "description": "CreateGroupConversationResponse returns the created group conversation."
+    },
+    "v1DeleteEvent": {
+      "type": "object",
+      "properties": {
+        "conversationId": {
+          "type": "string"
+        },
+        "messageId": {
+          "type": "string"
+        }
+      },
+      "description": "DeleteEvent represents a message deletion event."
+    },
+    "v1DeleteMessageResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      },
+      "description": "DeleteMessageResponse confirms a message was deleted."
+    },
+    "v1EditHistoryEntryProto": {
+      "type": "object",
+      "properties": {
+        "historyId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "body": {
+          "type": "string"
+        },
+        "editedBy": {
+          "type": "string"
+        },
+        "editedAt": {
+          "type": "string"
+        }
+      },
+      "description": "EditHistoryEntryProto represents a single edit history entry for a message."
+    },
+    "v1EditMessageResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1MessageProto"
+        }
+      },
+      "description": "EditMessageResponse returns the edited message."
+    },
+    "v1GetConversationResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1ConversationProto"
+        }
+      },
+      "description": "GetConversationResponse returns a single conversation."
+    },
+    "v1GetMessageEditHistoryResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1EditHistoryEntryProto"
+          }
+        }
+      },
+      "description": "GetMessageEditHistoryResponse returns the edit history for a message."
+    },
+    "v1GetOnlineUsersResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "userIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "GetOnlineUsersResponse returns the list of online user IDs."
+    },
+    "v1HeartbeatRequest": {
+      "type": "object",
+      "description": "HeartbeatRequest sends a heartbeat to update online presence."
+    },
+    "v1HeartbeatResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      },
+      "description": "HeartbeatResponse confirms the heartbeat was received."
+    },
+    "v1LeaveConversationResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      },
+      "description": "LeaveConversationResponse confirms the user left the conversation."
+    },
+    "v1ListConversationsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ConversationProto"
+          }
+        },
+        "pagination": {
+          "$ref": "#/definitions/v1PaginationResponse"
+        }
+      },
+      "description": "ListConversationsResponse returns a paginated list of conversations."
+    },
+    "v1ListMessagesResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MessageProto"
+          }
+        },
+        "nextCursor": {
+          "type": "string"
+        },
+        "hasMore": {
+          "type": "boolean"
+        }
+      },
+      "description": "ListMessagesResponse returns a cursor-paginated list of messages."
+    },
+    "v1MarkConversationReadResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      },
+      "description": "MarkConversationReadResponse confirms the conversation was marked as read."
+    },
+    "v1MessageEvent": {
+      "type": "object",
+      "properties": {
+        "conversationId": {
+          "type": "string"
+        },
+        "message": {
+          "$ref": "#/definitions/v1MessageProto"
+        }
+      },
+      "description": "MessageEvent represents a new or edited message event."
+    },
+    "v1MessageProto": {
+      "type": "object",
+      "properties": {
+        "messageId": {
+          "type": "string"
+        },
+        "conversationId": {
+          "type": "string"
+        },
+        "senderUserId": {
+          "type": "string"
+        },
+        "senderName": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "isEdited": {
+          "type": "boolean"
+        },
+        "isDeleted": {
+          "type": "boolean"
+        },
+        "replyToId": {
+          "type": "string"
+        },
+        "readReceipts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ReadReceiptProto"
+          }
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "attachments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1AttachmentProto"
+          }
+        }
+      },
+      "description": "MessageProto represents a single chat message with decrypted body."
+    },
+    "v1PaginationResponse": {
+      "type": "object",
+      "properties": {
+        "currentPage": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Current page number."
+        },
+        "pageSize": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of items per page."
+        },
+        "totalItems": {
+          "type": "string",
+          "format": "int64",
+          "description": "Total number of items across all pages."
+        },
+        "totalPages": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Total number of pages."
+        }
+      },
+      "description": "PaginationResponse contains pagination metadata for list responses."
+    },
+    "v1ParticipantProto": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        },
+        "fullName": {
+          "type": "string"
+        },
+        "avatarUrl": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "isOnline": {
+          "type": "boolean"
+        },
+        "joinedAt": {
+          "type": "string"
+        }
+      },
+      "description": "ParticipantProto represents a user participating in a conversation."
+    },
+    "v1PresenceEvent": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "isOnline": {
+          "type": "boolean"
+        }
+      },
+      "description": "PresenceEvent represents a user online/offline status change."
+    },
+    "v1ReadEvent": {
+      "type": "object",
+      "properties": {
+        "conversationId": {
+          "type": "string"
+        },
+        "messageId": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "readAt": {
+          "type": "string"
+        }
+      },
+      "description": "ReadEvent represents a read receipt event."
+    },
+    "v1ReadReceiptProto": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "readAt": {
+          "type": "string"
+        }
+      },
+      "description": "ReadReceiptProto represents a read receipt for a message."
+    },
+    "v1RemoveParticipantResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      },
+      "description": "RemoveParticipantResponse confirms a participant was removed."
+    },
+    "v1SendMessageResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1MessageProto"
+        }
+      },
+      "description": "SendMessageResponse returns the sent message."
+    },
+    "v1SetTypingResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        }
+      },
+      "description": "SetTypingResponse confirms the typing indicator was set."
+    },
+    "v1StreamChatEventsResponse": {
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "type": "string"
+        },
+        "messageReceived": {
+          "$ref": "#/definitions/v1MessageEvent"
+        },
+        "messageEdited": {
+          "$ref": "#/definitions/v1MessageEvent"
+        },
+        "messageDeleted": {
+          "$ref": "#/definitions/v1DeleteEvent"
+        },
+        "typing": {
+          "$ref": "#/definitions/v1TypingEvent"
+        },
+        "readReceipt": {
+          "$ref": "#/definitions/v1ReadEvent"
+        },
+        "presence": {
+          "$ref": "#/definitions/v1PresenceEvent"
+        }
+      },
+      "description": "StreamChatEventsResponse wraps a real-time chat event delivered via server streaming."
+    },
+    "v1TypingEvent": {
+      "type": "object",
+      "properties": {
+        "conversationId": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "userName": {
+          "type": "string"
+        },
+        "isTyping": {
+          "type": "boolean"
+        }
+      },
+      "description": "TypingEvent represents a typing indicator event."
+    },
+    "v1UpdateGroupConversationResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1ConversationProto"
+        }
+      },
+      "description": "UpdateGroupConversationResponse returns the updated group conversation."
+    },
+    "v1UploadChatAttachmentResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1AttachmentProto"
+        }
+      },
+      "description": "UploadChatAttachmentResponse returns the uploaded attachment metadata."
+    },
+    "v1ValidationError": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "description": "The field name that failed validation."
+        },
+        "message": {
+          "type": "string",
+          "description": "The validation error message."
+        }
+      },
+      "description": "ValidationError represents a single field validation error."
+    }
+  }
+}

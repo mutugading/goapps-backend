@@ -25,6 +25,12 @@ type Config struct {
 	Tracing   TracingConfig   `mapstructure:"tracing"`
 	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
 	Logger    LoggerConfig    `mapstructure:"logging"`
+	Chat      ChatConfig      `mapstructure:"chat"`
+}
+
+// ChatConfig holds chat encryption configuration.
+type ChatConfig struct {
+	MasterKey string `mapstructure:"master_key"`
 }
 
 // CORSConfig holds CORS configuration for SSO multi-app support.
@@ -371,6 +377,8 @@ func bindEnvVars(v *viper.Viper) {
 		{"storage.public_url", "STORAGE_PUBLIC_URL"},
 		// Internal service-to-service token (shared with trusted backends).
 		{"security.internal_service_token", "INTERNAL_SERVICE_TOKEN"},
+		// Chat encryption master key (32-byte hex string).
+		{"chat.master_key", "CHAT_MASTER_KEY"},
 	}
 
 	for _, binding := range envBindings {

@@ -22,6 +22,8 @@ type Service interface {
 	UploadProfilePicture(ctx context.Context, userID string, filename string, data io.Reader, size int64, contentType string) (string, error)
 	// UploadCMSImage uploads a CMS image and returns the object URL.
 	UploadCMSImage(ctx context.Context, folder string, filename string, data io.Reader, size int64, contentType string) (string, error)
+	// UploadChatAttachment uploads a chat attachment and returns the object URL.
+	UploadChatAttachment(ctx context.Context, convID string, filename string, data io.Reader, size int64, contentType string) (string, error)
 	// DeleteObject deletes a file by its object key.
 	DeleteObject(ctx context.Context, objectKey string) error
 	// ExtractObjectKey extracts the object key from a full URL.
@@ -190,6 +192,36 @@ func (s *MinIOService) UploadCMSImage(ctx context.Context, folder string, filena
 		Str("object", objectName).
 		Str("url", objectURL).
 		Msg("CMS image uploaded")
+
+	return objectURL, nil
+}
+
+// UploadChatAttachment uploads a chat attachment to MinIO.
+// Files are stored as: {basePath}/chat/attachments/{convID}/{uuid}{ext}
+// Example with basePath="iam": iam/chat/attachments/conv-id/uuid.pdf
+func (s *MinIOService) UploadChatAttachment(ctx context.Context, convID string, filename string, data io.Reader, size int64, contentType string) (string, error) {
+	ext := path.Ext(filename)
+	objectName := fmt.Sprintf("%s/chat/attachments/%s/%s%s", s.basePath, convID, uuid.New().String(), ext)
+
+	_, err := s.client.PutObject(ctx, s.bucket, objectName, data, size, minio.PutObjectOptions{
+		ContentType: contentType,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to upload chat attachment: %w", err)
+	}
+
+	var objectURL string
+	if s.publicURL != "" {
+		objectURL = fmt.Sprintf("%s/%s/%s", strings.TrimRight(s.publicURL, "/"), s.bucket, objectName)
+	} else {
+		objectURL = fmt.Sprintf("%s/%s/%s", s.client.EndpointURL().String(), s.bucket, objectName)
+	}
+
+	log.Debug().
+		Str("conv_id", convID).
+		Str("object", objectName).
+		Str("url", objectURL).
+		Msg("chat attachment uploaded")
 
 	return objectURL, nil
 }

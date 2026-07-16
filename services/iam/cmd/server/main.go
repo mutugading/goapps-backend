@@ -11,12 +11,17 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"encoding/hex"
+
 	iamv1 "github.com/mutugading/goapps-backend/gen/iam/v1"
 	authapp "github.com/mutugading/goapps-backend/services/iam/internal/application/auth"
+	appChat "github.com/mutugading/goapps-backend/services/iam/internal/application/chat"
 	appnotif "github.com/mutugading/goapps-backend/services/iam/internal/application/notification"
 	grpcdelivery "github.com/mutugading/goapps-backend/services/iam/internal/delivery/grpc"
 	httpdelivery "github.com/mutugading/goapps-backend/services/iam/internal/delivery/httpdelivery"
+	chatinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/chat"
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/config"
+	iamcrypto "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/crypto"
 	emailinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/email"
 	"github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/jwt"
 	notifinfra "github.com/mutugading/goapps-backend/services/iam/internal/infrastructure/notification"
@@ -204,6 +209,16 @@ func run() error {
 		notifStream, validationHelper,
 	).WithRequestHandler(notifRequestHandler)
 
+	// ── Chat + Presence ────────────────────────────────────────────────────
+	chatHandler, presenceGRPCHandler := initChatServices(chatDeps{
+		masterKeyHex:    cfg.Chat.MasterKey,
+		db:              db,
+		redisClient:     redisClient,
+		notifCreate:     notifCreate,
+		emailDispatcher: notifEmailDispatcher,
+		storageSvc:      storageSvc,
+	})
+
 	// Setup gRPC server with interceptor chain (pass JWT + session cache + session repo for auth & activity tracking)
 	grpcServer, err := grpcdelivery.NewServer(&cfg.Server, db, jwtService, sessionCache, sessionRepo, cfg.Security.InternalServiceToken)
 	if err != nil {
@@ -232,6 +247,12 @@ func run() error {
 	iamv1.RegisterNotificationServiceServer(gs, notificationHandler)
 	iamv1.RegisterWorkflowTemplateServiceServer(gs, workflowTemplateHandler)
 	iamv1.RegisterWorkflowInstanceServiceServer(gs, workflowInstanceHandler)
+	if chatHandler != nil {
+		iamv1.RegisterChatServiceServer(gs, chatHandler)
+	}
+	if presenceGRPCHandler != nil {
+		iamv1.RegisterPresenceServiceServer(gs, presenceGRPCHandler)
+	}
 
 	// Start gRPC server
 	go func() {
@@ -271,6 +292,80 @@ func run() error {
 
 	log.Info().Msg("Server shutdown complete")
 	return nil
+}
+
+// chatDeps bundles the dependencies needed to wire the chat + presence stack.
+type chatDeps struct {
+	masterKeyHex    string
+	db              *postgres.DB
+	redisClient     *redisinfra.Client
+	notifCreate     *appnotif.CreateHandler
+	emailDispatcher appnotif.EmailDispatcher
+	storageSvc      storageinfra.Service
+}
+
+// initChatServices builds the chat and presence gRPC handlers. Both are nil
+// when CHAT_MASTER_KEY is unset (chat disabled); presence is nil when Redis is
+// unavailable. Extracted from run to keep its cognitive complexity in bounds.
+func initChatServices(d chatDeps) (*grpcdelivery.ChatHandler, *grpcdelivery.PresenceHandler) {
+	if d.masterKeyHex == "" {
+		log.Warn().Msg("CHAT_MASTER_KEY not set — chat services disabled")
+		return nil, nil
+	}
+	chatMasterKey, hexErr := hex.DecodeString(d.masterKeyHex)
+	if hexErr != nil || len(chatMasterKey) != 32 {
+		log.Fatal().Msg("CHAT_MASTER_KEY must be a 64-char hex string (32 bytes)")
+	}
+	chatEnc, encErr := iamcrypto.NewEncryptor(chatMasterKey)
+	if encErr != nil {
+		log.Fatal().Err(encErr).Msg("Failed to init chat encryptor")
+	}
+
+	chatBroadcaster := chatinfra.NewBroadcaster()
+	var presenceSvc *chatinfra.PresenceService
+	if d.redisClient != nil {
+		chatBroadcaster = chatinfra.NewRedisBroadcaster(d.redisClient.Client)
+		presenceSvc = chatinfra.NewPresenceService(d.redisClient.Client)
+	}
+
+	convRepo := postgres.NewChatConversationRepository(d.db)
+	msgRepo := postgres.NewChatMessageRepository(d.db)
+	receiptRepo := postgres.NewChatReadReceiptRepository(d.db)
+	attRepo := postgres.NewChatAttachmentRepository(d.db)
+	userResolver := postgres.NewChatUserResolver(d.db)
+
+	sendMsgHandler := appChat.NewSendMessageHandler(convRepo, msgRepo, receiptRepo, chatEnc, chatBroadcaster)
+	sendMsgHandler.WithAttachments(attRepo)
+	if presenceSvc != nil && d.redisClient != nil {
+		sendMsgHandler.WithOfflineNotification(presenceSvc, d.notifCreate, d.emailDispatcher, d.redisClient.Client, userResolver)
+	}
+
+	chatHandler := grpcdelivery.NewChatHandler(
+		appChat.NewCreateDirectHandler(convRepo, chatEnc),
+		appChat.NewCreateGroupHandler(convRepo, chatEnc),
+		appChat.NewGetConversationHandler(convRepo),
+		appChat.NewListConversationsHandler(convRepo, msgRepo, chatEnc),
+		appChat.NewLeaveConversationHandler(convRepo),
+		sendMsgHandler,
+		appChat.NewEditMessageHandler(convRepo, msgRepo, chatEnc, chatBroadcaster, userResolver),
+		appChat.NewDeleteMessageHandler(convRepo, msgRepo, chatBroadcaster),
+		appChat.NewListMessagesHandler(convRepo, msgRepo, chatEnc),
+		appChat.NewMarkReadHandler(convRepo, msgRepo, receiptRepo, chatBroadcaster),
+		appChat.NewSetTypingHandler(convRepo, presenceSvc, chatBroadcaster),
+		appChat.NewStreamHandler(chatBroadcaster),
+		appChat.NewGetEditHistoryHandler(convRepo, msgRepo, chatEnc),
+		appChat.NewClearHistoryHandler(convRepo),
+		appChat.NewUploadAttachmentHandler(convRepo, attRepo, d.storageSvc),
+		attRepo,
+		userResolver,
+	)
+
+	var presenceGRPCHandler *grpcdelivery.PresenceHandler
+	if presenceSvc != nil {
+		presenceGRPCHandler = grpcdelivery.NewPresenceHandler(presenceSvc)
+	}
+	log.Info().Msg("Chat + Presence services initialized")
+	return chatHandler, presenceGRPCHandler
 }
 
 // setupLogger configures the application logger.
