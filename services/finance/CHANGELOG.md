@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.15.0](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.14.0...finance-service/v0.15.0) (2026-08-05)
+
+
+### Features
+
+* **finance:** add RefreezeHandler for bulk MB param re-freeze without state transition ([3448bda](https://github.com/mutugading/goapps-backend/commit/3448bdaca4f4c74794b941ded2dd7ae4b7eb4917))
+* **finance:** resolve rm_code/rm_name for route RM edges ([ae91a4a](https://github.com/mutugading/goapps-backend/commit/ae91a4a7c72c24e9d73123193d584990ebcc6eee))
+* **ppc,finance:** add month-end carries, WO lot/allocation enhancements, MB param refreeze, and calc job fixes ([a9d39bf](https://github.com/mutugading/goapps-backend/commit/a9d39bfa83320fd989b9ff9793e48ad7226ac5d4))
+* **ppc:** name the missing input when lot generation fails, and write a WO atomically ([7f6f60a](https://github.com/mutugading/goapps-backend/commit/7f6f60aa52207e8a80bb2546b3d8c75273b1c233))
+
+
+### Bug Fixes
+
+* **finance:** cancel job cleans undispatched QUEUED chunks; add idempotency column ([d63d40b](https://github.com/mutugading/goapps-backend/commit/d63d40bab62d8a136b40a2770bb134c452e16221))
+* **finance:** correct VBx_LOSS change-over formula unit mismatch (kg÷MT → USD/kg) ([455a8f9](https://github.com/mutugading/goapps-backend/commit/455a8f9b333019de6b60a8bd88b5f51f0498004c))
+* **finance:** correctly count inserted vs updated rows in oracle sync upsert ([f962e18](https://github.com/mutugading/goapps-backend/commit/f962e18f04b7e2b986e7c72ea4966a1726c1f5e5))
+* **finance:** correctly count inserted vs updated rows in oracle sync upsert ([042682d](https://github.com/mutugading/goapps-backend/commit/042682dfe2637b1937ef8e8f36d483027d3205ee))
+* **finance:** MB freeze prefers per-head throughput/no_of_process over master defaults ([dc960c0](https://github.com/mutugading/goapps-backend/commit/dc960c04ff3d28b105f1c9bcc22c78e8d2543810))
+* **finance:** widen rm_cost flag_*_used constraints for V2 cascade labels + pass period to Oracle sync procedure ([74dd9df](https://github.com/mutugading/goapps-backend/commit/74dd9dfbcbae00aa66c0b096f5ee98d327bb5c89))
+* **finance:** widen rm_cost flag_*_used constraints for V2 cascade labels + pass period to Oracle sync procedure ([d50a4dd](https://github.com/mutugading/goapps-backend/commit/d50a4dd8aff134e5e13a808584f3aaa4fa541429))
+
 ## [0.14.0](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.13.0...finance-service/v0.14.0) (2026-07-30)
 
 
