@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.17.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.16.0...iam-service/v0.17.0) (2026-08-19)
+
+
+### Features
+
+* **iam:** seed spin fixed cost menu and permissions ([575dd44](https://github.com/mutugading/goapps-backend/commit/575dd44febe9f907ea7f0668906434f2602e8d01))
+
+
+### Bug Fixes
+
+* **build:** pin golangci-lint to v2.3.0 to match CI ([c00c906](https://github.com/mutugading/goapps-backend/commit/c00c906be743b87b9cb50a67324af76c1ba7b468))
+* **docker:** mount Postgres volumes at the PostgreSQL 18 data root ([4a960c8](https://github.com/mutugading/goapps-backend/commit/4a960c82ee4e965ff2cdb459e4f943157670b37f))
+* **finance:** implement spin fixed-cost POY pool model, master CRUD, calc engine injection, and permissions ([#163](https://github.com/mutugading/goapps-backend/issues/163)) ([b11085b](https://github.com/mutugading/goapps-backend/commit/b11085b2682ab8421690167f89a37ac84ff06b88))
+* **iam:** drop legacy chat tables before creating chat_message ([64ff286](https://github.com/mutugading/goapps-backend/commit/64ff2861a9754e8fe9a8b53c7d17e94cd8643aa9))
+* resolve Docker volume paths, IAM migration conflict, linter version, and PPC compose ([733bc38](https://github.com/mutugading/goapps-backend/commit/733bc38f102c94750b45a9c947ce28632a1565eb))
+
 ## [0.16.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.15.1...iam-service/v0.16.0) (2026-07-30)
 
 
