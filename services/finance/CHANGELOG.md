@@ -1,5 +1,57 @@
 # Changelog
 
+## [0.15.0](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.14.0...finance-service/v0.15.0) (2026-08-19)
+
+
+### Features
+
+* **finance:** add batch parent/child job execution tracking ([7bad374](https://github.com/mutugading/goapps-backend/commit/7bad37437a1c0108c1c2d559bebc78ea71ab2e47))
+* **finance:** add MC_WEIGHTAGE param and backfill it for HOY products ([22013cd](https://github.com/mutugading/goapps-backend/commit/22013cdc4c29ee4929269b54b7cbd90a911bdd60))
+* **finance:** add mst_spin_fixed_cost period-keyed POY pool table ([f3cca6c](https://github.com/mutugading/goapps-backend/commit/f3cca6c340083fb0a3a146f37a38370559233410))
+* **finance:** add product cost-sheet export pipeline, route cost sheet RPCs, and remove V1 RM cost calculation ([3d2d8c8](https://github.com/mutugading/goapps-backend/commit/3d2d8c8a6a77a31c0b8414a5a6d770f8ef249443))
+* **finance:** add product cost-sheet export worker + application handlers ([acfbff1](https://github.com/mutugading/goapps-backend/commit/acfbff125faaec1359dfd15da08518b7d89a3565))
+* **finance:** add RefreezeHandler for bulk MB param re-freeze without state transition ([3448bda](https://github.com/mutugading/goapps-backend/commit/3448bdaca4f4c74794b941ded2dd7ae4b7eb4917))
+* **finance:** add RM cost V2 source-data reader interface and execute command ([53fbdab](https://github.com/mutugading/goapps-backend/commit/53fbdab024b0ea2f6b032985d3eb01a4a6e38a53))
+* **finance:** add route cost sheet, period lookup, and cost-result filters ([b67dd68](https://github.com/mutugading/goapps-backend/commit/b67dd6806a22790110809c7df36f32edb4d447f9))
+* **finance:** exclude MB products from generic calc engine and enforce MB batch isolation ([#166](https://github.com/mutugading/goapps-backend/issues/166)) ([9eeef74](https://github.com/mutugading/goapps-backend/commit/9eeef74157fe2a939482b34304ede65170527826))
+* **finance:** flag stale MB pushes and close two MB guard gaps ([1a4f676](https://github.com/mutugading/goapps-backend/commit/1a4f6760de1f6f623f47c24359cf1dd09d1fd4fd))
+* **finance:** implement spin fixed cost master CRUD ([8a745c5](https://github.com/mutugading/goapps-backend/commit/8a745c584ea8e06e15ffe56ad200e1542062c0bf))
+* **finance:** inject the POY spin fixed-cost pool into the calc-engine scope ([46dc56d](https://github.com/mutugading/goapps-backend/commit/46dc56da4798a9c28999f13b00c4b8913c11ca0c))
+* **finance:** log nested MB children that are not VALIDATED ([927a688](https://github.com/mutugading/goapps-backend/commit/927a6884c91d77aca32fe36cf188293382b10300))
+* **finance:** resolve rm_code/rm_name for route RM edges ([ae91a4a](https://github.com/mutugading/goapps-backend/commit/ae91a4a7c72c24e9d73123193d584990ebcc6eee))
+* **finance:** switch HOY fixed cost per kg to the legacy spin-pool model ([a2f9b20](https://github.com/mutugading/goapps-backend/commit/a2f9b2059ca593fe8a142707ffd16dd56bb0cb7f))
+* **finance:** wire and backfill Group-C/D1 product cost sheet master params ([edac891](https://github.com/mutugading/goapps-backend/commit/edac891b0c47f4533ea38d5846f65c0b3f2a3ca5))
+* **ppc,finance:** add month-end carries, WO lot/allocation enhancements, MB param refreeze, and calc job fixes ([a9d39bf](https://github.com/mutugading/goapps-backend/commit/a9d39bfa83320fd989b9ff9793e48ad7226ac5d4))
+* **ppc:** name the missing input when lot generation fails, and write a WO atomically ([7f6f60a](https://github.com/mutugading/goapps-backend/commit/7f6f60aa52207e8a80bb2546b3d8c75273b1c233))
+
+
+### Bug Fixes
+
+* **build:** pin golangci-lint to v2.3.0 to match CI ([c00c906](https://github.com/mutugading/goapps-backend/commit/c00c906be743b87b9cb50a67324af76c1ba7b468))
+* **finance:** cancel job cleans undispatched QUEUED chunks; add idempotency column ([d63d40b](https://github.com/mutugading/goapps-backend/commit/d63d40bab62d8a136b40a2770bb134c452e16221))
+* **finance:** correct VBx_LOSS change-over formula unit mismatch (kg÷MT → USD/kg) ([455a8f9](https://github.com/mutugading/goapps-backend/commit/455a8f9b333019de6b60a8bd88b5f51f0498004c))
+* **finance:** correctly count inserted vs updated rows in oracle sync upsert ([f962e18](https://github.com/mutugading/goapps-backend/commit/f962e18f04b7e2b986e7c72ea4966a1726c1f5e5))
+* **finance:** correctly count inserted vs updated rows in oracle sync upsert ([042682d](https://github.com/mutugading/goapps-backend/commit/042682dfe2637b1937ef8e8f36d483027d3205ee))
+* **finance:** delete unused V1 RM cost calculation code ([78f631b](https://github.com/mutugading/goapps-backend/commit/78f631be29ca0cb2d8bf2c24e16993cdccc86e87))
+* **finance:** exclude MB products from the generic calc engine ([7aac671](https://github.com/mutugading/goapps-backend/commit/7aac671e9cc3368ad0274efff04d5e84cb117324))
+* **finance:** fail the calc run when no spin fixed cost pool exists ([a4cd7cf](https://github.com/mutugading/goapps-backend/commit/a4cd7cfe8e47014775a22241aa074dd2d0e86463))
+* **finance:** implement spin fixed-cost POY pool model, master CRUD, calc engine injection, and permissions ([#163](https://github.com/mutugading/goapps-backend/issues/163)) ([b11085b](https://github.com/mutugading/goapps-backend/commit/b11085b2682ab8421690167f89a37ac84ff06b88))
+* **finance:** MB freeze prefers per-head throughput/no_of_process over master defaults ([dc960c0](https://github.com/mutugading/goapps-backend/commit/dc960c04ff3d28b105f1c9bcc22c78e8d2543810))
+* **finance:** reject MB composition rows that price through no RM group ([49fe506](https://github.com/mutugading/goapps-backend/commit/49fe506f2eaff5bec1e77dbb84d4d14dbdf1331c))
+* **finance:** remove unused V1 test mocks ([ac7aa5f](https://github.com/mutugading/goapps-backend/commit/ac7aa5fd44332025eba39747a72e7c1a2fc03386))
+* **finance:** remove V1 rmCostCalculate wiring from main.go ([e811c2c](https://github.com/mutugading/goapps-backend/commit/e811c2cdfc20ba79c674964bfe984c342a21f8a4))
+* **finance:** resolve golangci-lint CI failures on cost-sheet export code ([b5f92b7](https://github.com/mutugading/goapps-backend/commit/b5f92b716a13e74d43b4dd804a88aa088a7af0c6))
+* **finance:** resolve nested MB costs and improve MB batch validation & logging ([32933ef](https://github.com/mutugading/goapps-backend/commit/32933ef74a8f66d49edef1514b2dfc9f938fdfd5))
+* **finance:** resolve nested MB costs in a single batch run ([bad8e0f](https://github.com/mutugading/goapps-backend/commit/bad8e0f83b7c9a0fdacef0e435a98c9231489231))
+* **finance:** resolve nested-MB upstream cost from cpc_cost_per_unit ([af1d57c](https://github.com/mutugading/goapps-backend/commit/af1d57c4c56b317f531d6c12640d47799cbb9ff7))
+* **finance:** retry RabbitMQ connect at startup and self-heal on drop ([5c7a61c](https://github.com/mutugading/goapps-backend/commit/5c7a61cc8eea2d3802dee79ba99a2b822f852c59))
+* **finance:** retry RabbitMQ connect at startup and self-heal on drop ([f637a53](https://github.com/mutugading/goapps-backend/commit/f637a53f80ed324ba1cdd88d348986b0d1320b29))
+* **finance:** stamp the real job ID onto MB batch cost rows ([a11e94d](https://github.com/mutugading/goapps-backend/commit/a11e94df7a26a8edf2e83c8c6cdd25866bb0184a))
+* **finance:** stop rejecting Finance UI's own ListMachines calls as unauthenticated ([d1d2801](https://github.com/mutugading/goapps-backend/commit/d1d2801aa24fbf007996aca5edfb53dd7ac8f98a))
+* **finance:** widen rm_cost flag_*_used constraints for V2 cascade labels + pass period to Oracle sync procedure ([74dd9df](https://github.com/mutugading/goapps-backend/commit/74dd9dfbcbae00aa66c0b096f5ee98d327bb5c89))
+* **finance:** widen rm_cost flag_*_used constraints for V2 cascade labels + pass period to Oracle sync procedure ([d50a4dd](https://github.com/mutugading/goapps-backend/commit/d50a4dd8aff134e5e13a808584f3aaa4fa541429))
+* resolve Docker volume paths, IAM migration conflict, linter version, and PPC compose ([733bc38](https://github.com/mutugading/goapps-backend/commit/733bc38f102c94750b45a9c947ce28632a1565eb))
+
 ## [0.14.0](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.13.0...finance-service/v0.14.0) (2026-07-30)
 
 
