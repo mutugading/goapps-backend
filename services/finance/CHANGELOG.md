@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.16.0](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.15.0...finance-service/v0.16.0) (2026-09-05)
+
+
+### Features
+
+* **finance:** add bulk MB Head force-unvalidate and regenerate lifecycle pipeline ([96f568f](https://github.com/mutugading/goapps-backend/commit/96f568f522770d3c8c3fb9f5f2b24626e82b7e89))
+* **finance:** add bulk MB Head force-unvalidate domain/infra/job layer ([a7bf6e5](https://github.com/mutugading/goapps-backend/commit/a7bf6e5d721c13c01e9a102d73451ca14bdc2c51))
+* **finance:** add lusture code field to MB Spin domain entity ([5193eb4](https://github.com/mutugading/goapps-backend/commit/5193eb47532236bc0237b7cfb3e06004dc4d05b0))
+* **finance:** add MB Head unrevoke workflow and guard MB Spin delete/duplicate lineage ([93ef561](https://github.com/mutugading/goapps-backend/commit/93ef561770d0d11781dc9a28bfe5ace48281da98))
+* **finance:** add mbs_lusture_code column and relabel mbs_cc display name ([46f7d21](https://github.com/mutugading/goapps-backend/commit/46f7d21123ca28f308b6bf81f75aa6685c21c3bf))
+* **finance:** add PO Rate to AUTO cascade and NONE label for empty ones ([a8d3cda](https://github.com/mutugading/goapps-backend/commit/a8d3cdae160edb9ece043ccf539dd43fdd3d8510))
+* **finance:** add REVOKED to DRAFT Unrevoke transition to MB Head state machine ([6ed93fb](https://github.com/mutugading/goapps-backend/commit/6ed93fb6793425de438c3d9f64214e85ad66f11d))
+* **finance:** add UnrevokeMBHead application handler and notifier event ([3e57514](https://github.com/mutugading/goapps-backend/commit/3e575147e2ec685ce0090828c97cdb73a70f4190))
+* **finance:** add worker consumer and gRPC delivery for bulk MB Head ([975bfdf](https://github.com/mutugading/goapps-backend/commit/975bfdfed5d3aea8dbcf9498760e4d0d375fa0aa))
+* **finance:** extend RM cost cascades with PO rate, NONE flags, and preserve user inputs ([43da1eb](https://github.com/mutugading/goapps-backend/commit/43da1ebc3bee105db79225d5d71beeb9ad6a4ae2))
+* **finance:** support MB Recipe data inheritance, lusture code, and LDR cascade impact on MB Spin ([11abc1a](https://github.com/mutugading/goapps-backend/commit/11abc1a1b257fae2278c1223667ec22ff4b665ca))
+* **finance:** wire UnrevokeMBHead gRPC endpoint and permission mapping ([6361b2b](https://github.com/mutugading/goapps-backend/commit/6361b2be78837cb132d1fbfc8a17c492848ee14f))
+
+
+### Bug Fixes
+
+* **finance:** auto-generated MB Spin and Cost Product Master inherit recipe data ([5b69c19](https://github.com/mutugading/goapps-backend/commit/5b69c19011188cf296acb29b7ce0ddf14a6005a4))
+* **finance:** copy shade/LDR/costing columns on MB Spin duplicate ([6478ab7](https://github.com/mutugading/goapps-backend/commit/6478ab7631ff4ed1177370e08599e57406833ee0))
+* **finance:** copy shade/LDR/costing columns on MB Spin duplicate ([6924263](https://github.com/mutugading/goapps-backend/commit/69242637bfde74430788962374a46e62c46b4524))
+* **finance:** correct stale MBCosting assertion in duplicate integration test ([7627b38](https://github.com/mutugading/goapps-backend/commit/7627b38a19c78ae244ca381dc67fead2588c868e))
+* **finance:** distinguish self-loop parent from already-duplicated on MB spin duplicate ([6f87b2d](https://github.com/mutugading/goapps-backend/commit/6f87b2d1f36c6c02369375fc78463bb534c1793d))
+* **finance:** extract true/false constants to fix goconst regression ([57f14a9](https://github.com/mutugading/goapps-backend/commit/57f14a9c5afda42b6e8f8285d61f5770f6c7725d))
+* **finance:** guard MB Spin delete and duplicate against lineage/usage violations ([de6d136](https://github.com/mutugading/goapps-backend/commit/de6d13662963e52e4a4d17c5f8e48ce7cdaafcb0))
+* **finance:** order bulk MB transitions by composition dependency, fix NULL scan crash ([d41e868](https://github.com/mutugading/goapps-backend/commit/d41e868c9e9b6f0348a1ac603f65b4f31736a3fe))
+* **finance:** populate routing Name via Master Product join in GetActiveByProduct ([4b8dd0c](https://github.com/mutugading/goapps-backend/commit/4b8dd0c337a78be99f4dec9ff29407427f668d9f))
+* **finance:** preserve MB head cost lineage on force-unvalidate to stop duplicate regenerate ([8d530fa](https://github.com/mutugading/goapps-backend/commit/8d530fa200ea752161a069b4aa734220b090e625))
+* **finance:** preserve MB head cost lineage on force-unvalidate to stop duplicate regenerate ([25940bf](https://github.com/mutugading/goapps-backend/commit/25940bf459fede6010570f683ab124ba28250b7c))
+* **finance:** preserve user-edited marketing default value across recalcs ([9249f27](https://github.com/mutugading/goapps-backend/commit/9249f2778745328866647426b1d83008001aa792))
+* **finance:** resolve bulk MB dependency ordering, null scan crash, and job status contract ([3e99f06](https://github.com/mutugading/goapps-backend/commit/3e99f06785b2e09bc570eac68ecf4e78ffabd799))
+* **finance:** return success with job info on partial publish failure in bulk MB Head ([8f0886d](https://github.com/mutugading/goapps-backend/commit/8f0886d05ac21831917c925c589ea9c512a8984d))
+* **finance:** stop writing NULL into NOT NULL cpm_grade_code on MB auto-gen ([af90bfe](https://github.com/mutugading/goapps-backend/commit/af90bfe05c89f2ee7334b4f63b5dfe54345efdfa))
+* **finance:** surface LDR cascade impact summary on UpdateMBSpin, map shade fields to wire ([6a6f5ac](https://github.com/mutugading/goapps-backend/commit/6a6f5accb90a47144ff22fdc8251ef942be3e8e2))
+* **finance:** translate internal job status to documented bulk MB head contract ([5136e44](https://github.com/mutugading/goapps-backend/commit/5136e443108dd97925fbe451de67dc70b4e91813))
+
 ## [0.15.0](https://github.com/mutugading/goapps-backend/compare/finance-service/v0.14.0...finance-service/v0.15.0) (2026-08-29)
 
 
