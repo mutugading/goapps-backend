@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.18.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.17.0...iam-service/v0.18.0) (2026-09-05)
+
+
+### Features
+
+* **finance:** add bulk MB Head force-unvalidate and regenerate lifecycle pipeline ([96f568f](https://github.com/mutugading/goapps-backend/commit/96f568f522770d3c8c3fb9f5f2b24626e82b7e89))
+* **finance:** add MB Head unrevoke workflow and guard MB Spin delete/duplicate lineage ([93ef561](https://github.com/mutugading/goapps-backend/commit/93ef561770d0d11781dc9a28bfe5ace48281da98))
+* **iam:** seed bulk MB Head permissions granted to super admin ([3803b36](https://github.com/mutugading/goapps-backend/commit/3803b365b675b4a9ed59d9b8cd02f4bd91764fae))
+* **iam:** seed finance.mb.head.unrevoke permission for Super Admin ([86396b4](https://github.com/mutugading/goapps-backend/commit/86396b42ec35209e13c35217e2bdc46636bc3bf2))
+
 ## [0.17.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.16.0...iam-service/v0.17.0) (2026-08-29)
 
 
