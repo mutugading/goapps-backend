@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.18.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.17.0...iam-service/v0.18.0) (2026-10-10)
+
+
+### Features
+
+* **finance:** add bulk MB Head force-unvalidate and regenerate lifecycle pipeline ([96f568f](https://github.com/mutugading/goapps-backend/commit/96f568f522770d3c8c3fb9f5f2b24626e82b7e89))
+* **finance:** add MB Head unrevoke workflow and guard MB Spin delete/duplicate lineage ([93ef561](https://github.com/mutugading/goapps-backend/commit/93ef561770d0d11781dc9a28bfe5ace48281da98))
+* **finance:** add Superba Cost SP master and MB cost formula integration ([9579930](https://github.com/mutugading/goapps-backend/commit/9579930fcb048851bf742cde6af07e3bb4cf5711))
+* **finance:** add Yarn TX Weight master, cost engine integration, and RM Group carry-forward/freeze ([5de512c](https://github.com/mutugading/goapps-backend/commit/5de512c83caa081f05fe8761c47df4e1dd5b4d45))
+* **finance:** implement ERP cost integration, Oracle connectors, and PgBouncer support ([6447f78](https://github.com/mutugading/goapps-backend/commit/6447f787e3d2efa1dd9482f799fb5d0c1045d028))
+* **iam:** seed bulk MB Head permissions granted to super admin ([3803b36](https://github.com/mutugading/goapps-backend/commit/3803b365b675b4a9ed59d9b8cd02f4bd91764fae))
+* **iam:** seed ERP integration permissions, roles and menus (000094) ([827697a](https://github.com/mutugading/goapps-backend/commit/827697a8c2eb77afcae3d121d1792681131a25be))
+* **iam:** seed finance.mb.head.unrevoke permission for Super Admin ([86396b4](https://github.com/mutugading/goapps-backend/commit/86396b42ec35209e13c35217e2bdc46636bc3bf2))
+* **iam:** seed yarn TX weight menu and permissions ([4156a26](https://github.com/mutugading/goapps-backend/commit/4156a269fd563ee49fea1148e8daa8872e928722))
+* **iam:** superba cost sp menu and permissions ([d2075ff](https://github.com/mutugading/goapps-backend/commit/d2075ff14a856980a84e7842af25f4cc1c3f7041))
+
 ## [0.17.0](https://github.com/mutugading/goapps-backend/compare/iam-service/v0.16.0...iam-service/v0.17.0) (2026-08-29)
 
 
