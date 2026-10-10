@@ -3,6 +3,7 @@ package grpc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/intermingling"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/machine"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbhead"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbsource"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbspin"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/parameter"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/productgrade"
@@ -167,70 +169,14 @@ var mbHeadTextReaders = map[string]func(*mbhead.Entity) (string, bool){
 	},
 }
 
-// mbSpinNumericReaders maps lookup_source_column → numeric value extractor for mst_mb_spin entity.
-var mbSpinNumericReaders = map[string]func(*mbspin.Entity) (float64, bool){
-	"mbs_denier": func(e *mbspin.Entity) (float64, bool) {
-		if v := e.Denier(); v != nil {
-			return *v, true
-		}
-		return 0, false
-	},
-	// D30: mbs_dozing is the retired, contaminated legacy column. The READER is kept
-	// on purpose until L1 repoints lookup_source_column — removing it now would empty
-	// out the fills that are currently live.
-	// G5 (2026-08-22): it is deliberately NOT registered in mst_lookup_master_column
-	// (pulled back out of 000477), so it is not offered in the "Source Column"
-	// dropdown — its units are mixed across heads (oil-rate vs run_ldr scale). It is a
-	// documented t7Exceptions entry in yarn_lookup_fill_column_registry_test.go.
-	"mbs_dozing": func(e *mbspin.Entity) (float64, bool) {
-		if v := e.Dozing(); v != nil {
-			return *v, true
-		}
-		return 0, false
-	},
-	// D30: mbs_run_ldr_pct is the actual LDR used in production — the correct value for costing.
-	"mbs_run_ldr_pct": func(e *mbspin.Entity) (float64, bool) {
-		if v := e.MBSRunLdrPct(); v != nil {
-			return *v, true
-		}
-		return 0, false
-	},
-	// D30: mbs_ldr_prsn is the planned LDR, set while the product is still new.
-	"mbs_ldr_prsn": func(e *mbspin.Entity) (float64, bool) {
-		if v := e.MBSLdrPrsn(); v != nil {
-			return *v, true
-		}
-		return 0, false
-	},
-	"mbs_filament": func(e *mbspin.Entity) (float64, bool) {
-		if v := e.Filament(); v != nil {
-			return float64(*v), true
-		}
-		return 0, false
-	},
-	"mbs_cost_rate_mkt": func(e *mbspin.Entity) (float64, bool) {
-		if v := e.CostRateMkt(); v != nil {
-			return *v, true
-		}
-		return 0, false
-	},
-}
-
-// mbSpinTextReaders maps lookup_source_column → text value extractor for mst_mb_spin entity.
-var mbSpinTextReaders = map[string]func(*mbspin.Entity) (string, bool){
-	"mbs_mgt_name": func(e *mbspin.Entity) (string, bool) {
-		if v := e.MgtName(); v != "" {
-			return v, true
-		}
-		return "", false
-	},
-	"mbs_cc": func(e *mbspin.Entity) (string, bool) {
-		if v := e.CC(); v != nil && *v != "" {
-			return *v, true
-		}
-		return "", false
-	},
-}
+// mbSpinNumericReaders / mbSpinTextReaders map lookup_source_column → value extractor for
+// mst_mb_spin. The maps live in the mbspin domain package (mbspin.NumericFillReaders /
+// mbspin.TextFillReaders) so the shade-driven auto-fill (mbsource) reuses EXACTLY the same
+// mapping as the interactive Param-tab fill and cannot diverge from it.
+var (
+	mbSpinNumericReaders = mbspin.NumericFillReaders
+	mbSpinTextReaders    = mbspin.TextFillReaders
+)
 
 // boxBobbinCostColumns mirrors the `case` labels of fillFromBoxBobbinCost, which
 // resolves columns with a literal switch instead of a reader map and therefore
@@ -310,6 +256,16 @@ type YarnLookupFillHandler struct {
 	mbSpinRepo        mbspin.Repository
 	boxBobbinRepo     boxbobbincost.Repository
 	paramRepo         parameter.Repository
+	// superbaFallback resolves a SUPERBA shade stored in MB_SP_CODE (optional; see
+	// WithSuperbaFallback).
+	superbaFallback mbsource.Provider
+}
+
+// WithSuperbaFallback lets the MB_SPIN fill resolve a Superba shade (stored in MB_SP_CODE by the
+// shade-driven auto-fill) instead of returning NotFound: it fills MB_SP_DYE with the colour name.
+func (h *YarnLookupFillHandler) WithSuperbaFallback(p mbsource.Provider) *YarnLookupFillHandler {
+	h.superbaFallback = p
+	return h
 }
 
 // NewYarnLookupFillHandler creates a new YarnLookupFillHandler.
@@ -621,9 +577,7 @@ func putOpt(m map[string]float64, code string, v *float64) {
 func (h *YarnLookupFillHandler) fillFromMBSpin(ctx context.Context, selectedKey, sourceParamCode string) (*financev1.GetLookupFillValuesResponse, error) {
 	spin, err := h.resolveMBSpinForFill(ctx, selectedKey)
 	if err != nil {
-		return &financev1.GetLookupFillValuesResponse{
-			Base: domainErrorToBaseResponse(err),
-		}, nil //nolint:nilerr // BaseResponse pattern
+		return h.mbSpinFillMiss(ctx, selectedKey, err), nil
 	}
 
 	children, err := h.paramRepo.GetByFillGroup(ctx, sourceParamCode)
@@ -659,6 +613,51 @@ func (h *YarnLookupFillHandler) fillFromMBSpin(ctx context.Context, selectedKey,
 		TextFills:    texts,
 		DisplayLabel: label,
 	}, nil
+}
+
+// mbSpinFillMiss answers an MB_SPIN fill whose key is not a spin: a Superba shade (when the
+// fallback is wired) fills the colour name, anything else keeps the original error response.
+func (h *YarnLookupFillHandler) mbSpinFillMiss(ctx context.Context, selectedKey string, err error) *financev1.GetLookupFillValuesResponse {
+	if errors.Is(err, mbspin.ErrNotFound) {
+		if resp, ok := h.fillFromSuperbaShade(ctx, selectedKey); ok {
+			return resp
+		}
+	}
+	return &financev1.GetLookupFillValuesResponse{Base: domainErrorToBaseResponse(err)}
+}
+
+// fillFromSuperbaShade answers an MB_SPIN fill for a key that is not a spin but a Superba shade.
+// Only text children the superba source knows (MB_SP_DYE) are returned; numeric children stay
+// empty (the MB cost of a Superba product comes from the IS_SUPERBA branch, not from rate/dozing).
+func (h *YarnLookupFillHandler) fillFromSuperbaShade(ctx context.Context, selectedKey string) (*financev1.GetLookupFillValuesResponse, bool) {
+	if h.superbaFallback == nil {
+		return nil, false
+	}
+	got, err := h.superbaFallback.ResolveByShades(ctx, []string{selectedKey})
+	if err != nil {
+		log.Warn().Err(err).Str("key", selectedKey).Msg("superba fallback for MB_SPIN fill failed")
+		return nil, false
+	}
+	res, ok := got[mbsource.NormalizeShade(selectedKey)]
+	if !ok {
+		return nil, false
+	}
+	texts := make(map[string]string)
+	for code, v := range res.Children {
+		if v.Text != nil {
+			texts[code] = *v.Text
+		}
+	}
+	label := selectedKey
+	if res.DyeName != "" {
+		label = fmt.Sprintf("%s — %s", selectedKey, res.DyeName)
+	}
+	return &financev1.GetLookupFillValuesResponse{
+		Base:         successResponse("Fill values retrieved (Superba shade)"),
+		NumericFills: map[string]float64{},
+		TextFills:    texts,
+		DisplayLabel: label,
+	}, true
 }
 
 // resolveMBSpinForFill resolves selectedKey to an MB Spin entity for the read

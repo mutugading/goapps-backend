@@ -205,11 +205,17 @@ Test model: `internal/application/costcalc/compute_cap_pack_poy_test.go`.
 ## 6. Row 73 MB Cost Marketing for SUPERBA (Superba Cost SP master)
 
 `MB_COST_MKT` (row 73, formula `F_YARN_MB_COST`) is overridden for SUPERBA-class products only
-(`cost_product_type.cpt_oil_class = 'SUPERBA'`) by migration `000567`:
+(`cost_product_type.cpt_oil_class = 'SUPERBA'`) by migrations `000567` + `000568`:
 
 ```
-F_YARN_MB_COST = IS_SUPERBA == 1 ? SUPERBA_MB_COST : (MB_RATE_MKT * MB_SP_DOZING / 100.0)
+F_YARN_MB_COST = IS_SUPERBA == 1 ? SUPERBA_MB_COST : (((1 + WASTE_PERC) * MB_SP_DOZING) * MB_RATE_MKT / 100.0)
 ```
+
+- **Prod drift**: PROD's formula had been web-edited (admin, 2026-09-24) to
+  `((1 + WASTE_PERC) * MB_SP_DOZING) * MB_RATE_MKT / 100.0`, so `000567` (guarded on the 000408 text
+  `MB_RATE_MKT * MB_SP_DOZING / 100.0`) matched 0 rows there. `000568` rewrites both that prod text (case A) and
+  000567's output in lower envs (case B, syncing them to the waste-adjusted arm), adds the
+  `F_YARN_MB_COST -> WASTE_PERC` edge if missing, and backs up to `bak_000568_formula`.
 
 - `SUPERBA_MB_COST` is an **engine-injected** scope key (like `IS_POY` / `IS_ACTUAL`): no `mst_parameter`
   row, no `formula_param` edge. Loader `LoadSuperbaCost` (`internal/application/costcalc/loader_superba.go`)
@@ -244,3 +250,37 @@ WHERE NOT EXISTS (
   WHERE s.is_active AND s.deleted_at IS NULL
     AND UPPER(TRIM(s.shade_code)) = UPPER(TRIM(pm.cpm_shade_code)));
 ```
+
+### MB source resolver (shade-driven MB_SP_CODE / MB_SP_DYE auto-fill, 000569)
+
+The user only enters the product **shade**; the backend fills the MB source parameters.
+
+- **Where**: `internal/domain/mbsource` (resolver + providers), `internal/application/mbsourceautofill`
+  (service), hooks on product create, product update and the CPM bulk import (all best-effort: a
+  failure is logged and never fails the save), plus one-time backfill migration `000569`.
+- **Match**: `UPPER(TRIM(shade))` both sides, exact. Providers are ordered and batch-only; first hit
+  wins, so **MB spin wins over Superba** when a shade exists in both.
+- **MB spin provider**: live + active `mst_mb_spin` rows by `mbs_shade_code`. Several rows per shade
+  -> one deterministic pick: `mbs_status` Spinning > Boughtout > R and D (other/NULL last), then
+  newest (`GREATEST(created_at, updated_at)` desc), then `mbs_id`. The ORDER BY lives in
+  `mbsource.SpinPickOrderSQL` and migration 000569 repeats the same text (a test asserts equality).
+  MB_SP_CODE = ORION item code (else mb_costing, else spin id), companion `cpp_value_mb_spin_id` =
+  the picked spin, children = the same columns the Param-tab fill uses (`mbspin.NumericFillReaders` /
+  `TextFillReaders`, shared with `yarn_lookup_fill_handler`).
+- **Superba provider** (`cost_superba_cost_sp`): MB_SP_CODE = the normalized shade, MB_SP_DYE =
+  colour name; rate / dozing / other children stay empty (MB cost still comes from the
+  `IS_SUPERBA` branch above).
+- **Write rules**: only EMPTY cells; a product that already has any MB_SP_CODE value is skipped
+  entirely; locked and MB-typed products are skipped. MB_SP_CODE + its fill-group children are
+  attached (CAPP) only for products whose shade resolved. Values carry
+  `cpp_filled_by = 'auto_mb_source'` (backfill: `'backfill_mb_source_000569'`) so a future
+  "re-resolve" can find them. Values are frozen like any manual fill (no calc-time lookup; engine
+  and `mbbatch` unchanged).
+- **Fill handler**: selecting/refreshing a Superba shade in the Param tab no longer fails; when the
+  MB_SPIN lookup is NotFound the handler falls back to the Superba provider and fills MB_SP_DYE.
+- **Future merge of Superba into MB spin** (rows keyed by shade): delete `SuperbaProvider` and the
+  handler fallback; MBSpinProvider then hits first for those shades; re-resolve products whose
+  MB_SP_CODE holds a shade code (identifiable via `cpp_filled_by` and "no matching spin id") so they
+  get rate/dozing/spin id; finally drop the `IS_SUPERBA` branch of `F_YARN_MB_COST` with a guarded
+  (prod-text) formula migration, 000568-style. No per-product source is persisted, so no product
+  rewrite is required.
