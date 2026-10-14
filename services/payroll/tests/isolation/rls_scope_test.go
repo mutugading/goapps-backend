@@ -38,6 +38,7 @@ const (
 var (
 	appDB *postgres.DB
 	ownDB *sql.DB // payroll_migrator (role payroll_owner): fixtures only
+	etlDB *sql.DB // payroll_etl: staging writer
 )
 
 func TestMain(m *testing.M) {
@@ -122,6 +123,11 @@ func setup() (func(), error) {
 		return nil, err
 	}
 	appDB = postgres.NewDBFromSQL(rawApp)
+	etlDB, err = sql.Open("pgx", dsn("payroll_etl", "payroll_etl123"))
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
 
 	return cleanup, nil
 }
@@ -171,17 +177,22 @@ func seed(ctx context.Context, db *sql.DB) error {
 		`INSERT INTO payroll.pyr_employee (pe_nik, pe_division, pe_nama, pe_orion_sub_acnt, pe_company_id) VALUES
 		   ('S1','SOLO','Solo One','x',1), ('J1','JAKARTA','Jkt One','x',1), ('O1','SOLO','Other One','x',2)`,
 		`INSERT INTO payroll.pyr_rule_set (prs_id, prs_name, prs_effective_from) VALUES (1, 'v1', 202601)`,
-		`INSERT INTO payroll.pyr_period (pp_yymm, pp_division, pp_date_from, pp_date_to) VALUES
-		   (202609,'SOLO','2026-09-01','2026-09-30'), (202609,'JAKARTA','2026-09-01','2026-09-30')`,
-		`INSERT INTO payroll.pyr_att_snapshot (pas_yymm, pas_division, pas_source_batch_ids, pas_checksum) VALUES
-		   (202609,'SOLO','{1}','c'), (202609,'JAKARTA','{1}','c')`,
-		`INSERT INTO payroll.pyr_run (pr_yymm, pr_division, pr_pay_date, pr_rule_set_id, pr_snapshot_id, pr_status) VALUES
-		   (202609,'SOLO','2026-09-30',1,1,'ACTIVE'), (202609,'JAKARTA','2026-09-30',1,2,'ACTIVE')`,
-		`INSERT INTO payroll.pyr_salary_head (psh_run_id, psh_nik, psh_yymm, psh_division, psh_tot_tunjangan, psh_tot_potongan, psh_rounding) VALUES
-		   (1,'S1',202609,'SOLO',0,0,0), (2,'J1',202609,'JAKARTA',0,0,0)`,
+		`INSERT INTO payroll.pyr_period (pp_company_id, pp_yymm, pp_division, pp_date_from, pp_date_to) VALUES
+		   (1,202609,'SOLO','2026-09-01','2026-09-30'), (1,202609,'JAKARTA','2026-09-01','2026-09-30')`,
+		`INSERT INTO payroll.pyr_att_snapshot (pas_company_id, pas_yymm, pas_division, pas_source_batch_ids, pas_checksum) VALUES
+		   (1,202609,'SOLO','{1}','c'), (1,202609,'JAKARTA','{1}','c')`,
+		`INSERT INTO payroll.pyr_run (pr_company_id, pr_yymm, pr_division, pr_pay_date, pr_rule_set_id, pr_snapshot_id, pr_status) VALUES
+		   (1,202609,'SOLO','2026-09-30',1,1,'ACTIVE'), (1,202609,'JAKARTA','2026-09-30',1,2,'ACTIVE')`,
+		`INSERT INTO payroll.pyr_salary_head (psh_company_id, psh_run_id, psh_nik, psh_yymm, psh_division, psh_tot_tunjangan, psh_tot_potongan, psh_rounding) VALUES
+		   (1,1,'S1',202609,'SOLO',0,0,0), (1,2,'J1',202609,'JAKARTA',0,0,0)`,
+		`INSERT INTO payroll.pyr_salary_detail (psd_run_id, psd_nik, psd_type, psd_id, psd_amount) VALUES
+		   (1,'S1','Tunjangan',1,100), (2,'J1','Tunjangan',1,200)`,
+		`INSERT INTO payroll_stg.pyr_stg_sync_batch (psb_source, psb_company_id, psb_division) VALUES ('T',1,'SOLO')`,
+		`INSERT INTO payroll_stg.pyr_stg_att_daily (psad_work_date, psad_nik, psad_company_id, psad_division, psad_row_hash, psad_batch_id) VALUES
+		   ('2026-09-01','S1',1,'SOLO','h',1), ('2026-09-01','J1',1,'JAKARTA','h',1)`,
 		`UPDATE payroll.pyr_period p SET pp_active_run_id = r.pr_id FROM payroll.pyr_run r
 		   WHERE r.pr_yymm = p.pp_yymm AND r.pr_division = p.pp_division`,
-		`INSERT INTO payroll.pyr_rule_constant (prc_rule_set_id, prc_key, prc_value, prc_division) VALUES (1,'GLOBAL',1,NULL)`,
+		`INSERT INTO payroll.pyr_rule_constant (prc_company_id, prc_rule_set_id, prc_key, prc_value, prc_division) VALUES (1,1,'GLOBAL',1,NULL)`,
 		`INSERT INTO payroll.pyr_user_scope (pus_user_id, pus_company_id, pus_division) VALUES
 		   ('` + userSolo + `',1,'SOLO'), ('` + userTwo + `',1,'SOLO'), ('` + userTwo + `',1,'JAKARTA')`,
 		`INSERT INTO payroll.pyr_user_scope (pus_user_id, pus_all_scopes) VALUES ('` + userAdmin + `', true)`,
@@ -304,8 +315,8 @@ func TestI18_NoScopeSetFailsClosed(t *testing.T) {
 func TestI19_InsertOutsideScopeRejected(t *testing.T) {
 	ctx := ctxFor(t, userSolo)
 	err := appDB.ScopedTx(ctx, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `INSERT INTO payroll.pyr_addition (pa_yymm, pa_nik, pa_division, pa_type, pa_id, pa_amount)
-			VALUES (202609, 'J1', 'JAKARTA', 'Tunjangan', 1, 1000)`)
+		_, err := tx.ExecContext(ctx, `INSERT INTO payroll.pyr_addition (pa_company_id, pa_yymm, pa_nik, pa_division, pa_type, pa_id, pa_amount)
+			VALUES (1, 202609, 'J1', 'JAKARTA', 'Tunjangan', 1, 1000)`)
 		return err
 	})
 	var pgErr *pgconn.PgError
@@ -316,8 +327,8 @@ func TestI19_InsertOutsideScopeRejected(t *testing.T) {
 	// Same insert inside scope succeeds (rolled back so other tests are unaffected).
 	errRollback := errors.New("rollback")
 	err = appDB.ScopedTx(ctx, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO payroll.pyr_addition (pa_yymm, pa_nik, pa_division, pa_type, pa_id, pa_amount)
-			VALUES (202609, 'S1', 'SOLO', 'Tunjangan', 1, 1000)`); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO payroll.pyr_addition (pa_company_id, pa_yymm, pa_nik, pa_division, pa_type, pa_id, pa_amount)
+			VALUES (1, 202609, 'S1', 'SOLO', 'Tunjangan', 1, 1000)`); err != nil {
 			return err
 		}
 		return errRollback
@@ -327,27 +338,110 @@ func TestI19_InsertOutsideScopeRejected(t *testing.T) {
 	}
 }
 
-// I20: no payroll table with a *_division column lacks RLS.
-func TestI20_AllDivisionTablesHaveRLS(t *testing.T) {
-	rows, err := ownDB.QueryContext(context.Background(), `
-		SELECT c.relname FROM pg_class c
+// globalTables hold reference data without company/division; they are the
+// only payroll tables allowed to skip RLS (I20, D-15). Adding a table here
+// needs a reason: it must not carry employee, run or company-specific data.
+var globalTables = []string{
+	"payroll.pyr_batal_premi", "payroll.pyr_company", "payroll.pyr_component_master",
+	"payroll.pyr_component_template", "payroll.pyr_currency", "payroll.pyr_division_ref",
+	"payroll.pyr_fx_rate", "payroll.pyr_holiday", "payroll.pyr_level_rule",
+	"payroll.pyr_rule_set", "payroll.pyr_static_value",
+}
+
+// I20: every table in payroll/payroll_stg has RLS, except the global allowlist.
+func TestI20_AllTablesHaveRLS(t *testing.T) {
+	missing := queryOwner(t, `
+		SELECT n.nspname || '.' || c.relname FROM pg_class c
 		JOIN pg_namespace n ON n.oid = c.relnamespace
-		JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname LIKE '%\_division'
-		WHERE n.nspname = 'payroll' AND c.relkind = 'r' AND NOT c.relrowsecurity`)
+		WHERE n.nspname IN ('payroll', 'payroll_stg') AND c.relkind IN ('r', 'p')
+		  AND NOT c.relrowsecurity AND NOT (n.nspname || '.' || c.relname = ANY ($1))
+		ORDER BY 1`, globalTables)
+	if len(missing) != 0 {
+		t.Fatalf("I20: tables without RLS: %v", missing)
+	}
+	// The allowlist must not hide a table that gained company/division columns.
+	scoped := queryOwner(t, `
+		SELECT n.nspname || '.' || c.relname FROM pg_class c
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+		WHERE n.nspname || '.' || c.relname = ANY ($1)
+		  AND c.relname NOT IN ('pyr_company', 'pyr_division_ref')
+		  AND (a.attname LIKE '%\_division%' OR a.attname LIKE '%\_company\_id')`, globalTables)
+	if len(scoped) != 0 {
+		t.Fatalf("I20: allowlisted tables carry company/division: %v", scoped)
+	}
+}
+
+func queryOwner(t *testing.T, q string, args ...any) []string {
+	t.Helper()
+	rows, err := ownDB.QueryContext(context.Background(), q, args...)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer rows.Close()
-	var missing []string
+	var out []string
 	for rows.Next() {
 		var s string
 		if err := rows.Scan(&s); err != nil {
 			t.Fatal(err)
 		}
-		missing = append(missing, s)
+		out = append(out, s)
 	}
-	if len(missing) != 0 {
-		t.Fatalf("I20: tables without RLS: %v", missing)
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// Child tables without a division column follow their parent's scope.
+func TestRLS_ChildFollowsParent(t *testing.T) {
+	const q = `SELECT psd_nik FROM payroll.pyr_salary_detail ORDER BY 1`
+	if got := queryStrings(t, ctxFor(t, userSolo), q); strings.Join(got, ",") != "S1" {
+		t.Fatalf("solo: got %v, want [S1]", got)
+	}
+	if got := queryStrings(t, ctxFor(t, userNone), q); len(got) != 0 {
+		t.Fatalf("none: got %v, want 0 rows", got)
+	}
+	// WITH CHECK: a detail row cannot be attached to an out-of-scope run.
+	ctx := ctxFor(t, userSolo)
+	err := appDB.ScopedTx(ctx, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `INSERT INTO payroll.pyr_salary_detail
+			(psd_run_id, psd_nik, psd_type, psd_id, psd_amount) VALUES (2,'X','Tunjangan',9,1)`)
+		return err
+	})
+	assertPgCode(t, err, "42501")
+}
+
+// Staging is scoped for payroll_app; the ETL role writes every division.
+func TestRLS_StagingScoped(t *testing.T) {
+	const q = `SELECT psad_nik FROM payroll_stg.pyr_stg_att_daily ORDER BY 1`
+	if got := queryStrings(t, ctxFor(t, userSolo), q); strings.Join(got, ",") != "S1" {
+		t.Fatalf("solo: got %v, want [S1]", got)
+	}
+	if got := queryStrings(t, ctxFor(t, userNone), q); len(got) != 0 {
+		t.Fatalf("none: got %v, want 0 rows", got)
+	}
+	var n int
+	if err := etlDB.QueryRowContext(context.Background(),
+		`SELECT count(*) FROM payroll_stg.pyr_stg_att_daily`).Scan(&n); err != nil || n != 2 {
+		t.Fatalf("etl: got %d rows (err %v), want 2", n, err)
+	}
+}
+
+// company_id has no default and must match a known company:division pair.
+func TestCompanyRequiredAndConsistent(t *testing.T) {
+	ctx := context.Background()
+	_, err := ownDB.ExecContext(ctx, `INSERT INTO payroll.pyr_attd_days (pad_yymm, pad_division, pad_days) VALUES (202609,'SOLO',25)`)
+	assertPgCode(t, err, "23502") // not_null_violation
+	_, err = ownDB.ExecContext(ctx, `INSERT INTO payroll.pyr_attd_days (pad_company_id, pad_yymm, pad_division, pad_days) VALUES (2,202609,'JAKARTA',25)`)
+	assertPgCode(t, err, "23503") // foreign_key_violation: 2:JAKARTA not in pyr_division_ref
+}
+
+func assertPgCode(t *testing.T, err error, code string) {
+	t.Helper()
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != code {
+		t.Fatalf("want SQLSTATE %s, got %v", code, err)
 	}
 }
 

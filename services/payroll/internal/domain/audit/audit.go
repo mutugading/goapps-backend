@@ -14,7 +14,7 @@ type Entry struct {
 	Action    string
 	Entity    string
 	EntityKey string
-	Before    any // marshalled to jsonb, PII masked
+	Before    any // marshaled to jsonb, PII masked
 	After     any
 	IP        string // empty = unknown
 }

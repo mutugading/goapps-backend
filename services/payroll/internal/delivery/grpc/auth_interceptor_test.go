@@ -113,6 +113,13 @@ func TestPermissionInterceptor_Scenarios(t *testing.T) {
 		{"missing permission", context.WithValue(base, AuthPermissionsKey, []string{"payroll.run.run.view"}), codes.PermissionDenied},
 		{"super admin bypass", context.WithValue(base, AuthRolesKey, []string{"SUPER_ADMIN"}), codes.OK},
 	}
+	t.Run("unmapped RPC is denied", func(t *testing.T) {
+		ctx := context.WithValue(base, AuthPermissionsKey, []string{"payroll.run.run.commit"})
+		unmapped := &grpc.UnaryServerInfo{FullMethod: "/payroll.v1.PayrollService/Unmapped"}
+		if _, err := PermissionInterceptor()(ctx, nil, unmapped, ok); status.Code(err) != codes.PermissionDenied {
+			t.Fatalf("code = %v, want PermissionDenied", status.Code(err))
+		}
+	})
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := PermissionInterceptor()(tt.ctx, nil, info, ok)
@@ -120,5 +127,38 @@ func TestPermissionInterceptor_Scenarios(t *testing.T) {
 				t.Fatalf("code = %v, want %v", status.Code(err), tt.wantCode)
 			}
 		})
+	}
+}
+
+func TestValidateAccessToken_RejectsWeakTokens(t *testing.T) {
+	const secret = "test-secret"
+	claims := JWTClaims{TokenType: "access", UserID: "u1"}
+	sign := func(m jwt.SigningMethod, c JWTClaims) string {
+		s, err := jwt.NewWithClaims(m, c).SignedString([]byte(secret))
+		if err != nil {
+			t.Fatalf("sign: %v", err)
+		}
+		return s
+	}
+	withExp := claims
+	withExp.ExpiresAt = jwt.NewNumericDate(time.Now().Add(time.Minute))
+	none, err := jwt.NewWithClaims(jwt.SigningMethodNone, withExp).SignedString(jwt.UnsafeAllowNoneSignatureType)
+	if err != nil {
+		t.Fatalf("sign none: %v", err)
+	}
+	tests := map[string]string{
+		"no exp":   sign(jwt.SigningMethodHS256, claims),
+		"HS512":    sign(jwt.SigningMethodHS512, withExp),
+		"alg none": none,
+	}
+	for name, tok := range tests {
+		t.Run(name, func(t *testing.T) {
+			if _, err := validateAccessToken(tok, []byte(secret)); err == nil {
+				t.Fatal("want error, got nil")
+			}
+		})
+	}
+	if _, err := validateAccessToken(sign(jwt.SigningMethodHS256, withExp), []byte(secret)); err != nil {
+		t.Fatalf("valid HS256 token rejected: %v", err)
 	}
 }

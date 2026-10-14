@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -112,7 +113,35 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("error unmarshaling config: %w", err)
 	}
 
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
 	return &cfg, nil
+}
+
+// minJWTSecretLen is the HS256 key size (32 bytes) required outside development.
+const minJWTSecretLen = 32
+
+// placeholderJWTSecrets are the sample values shipped in config.yaml/compose.
+var placeholderJWTSecrets = []string{"change-this-in-production", "dev-access-secret-change-in-production"}
+
+// Validate rejects configurations that must not start. Outside development the
+// JWT secret must be set, not a sample value and at least 32 bytes long.
+func (c *Config) Validate() error {
+	secret := c.JWT.AccessTokenSecret
+	if secret == "" {
+		return errors.New("config: jwt.access_token_secret (JWT_ACCESS_SECRET) is required")
+	}
+	if c.App.Env == "development" {
+		return nil
+	}
+	if slices.Contains(placeholderJWTSecrets, secret) {
+		return fmt.Errorf("config: jwt.access_token_secret is a sample value, not allowed in %q", c.App.Env)
+	}
+	if len(secret) < minJWTSecretLen {
+		return fmt.Errorf("config: jwt.access_token_secret must be at least %d bytes in %q", minJWTSecretLen, c.App.Env)
+	}
+	return nil
 }
 
 func setDefaults(v *viper.Viper) {

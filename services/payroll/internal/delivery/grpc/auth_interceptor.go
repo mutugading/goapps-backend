@@ -98,12 +98,10 @@ func extractBearerToken(ctx context.Context) (string, error) {
 }
 
 func validateAccessToken(tokenString string, secret []byte) (*JWTClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (any, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("unexpected signing method")
-		}
+	// IAM signs with HS256 only (iam/internal/infrastructure/jwt); exp is mandatory.
+	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(*jwt.Token) (any, error) {
 		return secret, nil
-	})
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithExpirationRequired())
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
 			return nil, errors.New("token expired")
@@ -158,10 +156,11 @@ func PermissionInterceptor() grpc.UnaryServerInterceptor {
 			return handler(ctx, req)
 		}
 
-		required := rpcPermissions[info.FullMethod]
-		if required == "" {
-			// No specific permission mapped yet -- authenticated access is sufficient.
-			return handler(ctx, req)
+		required, mapped := rpcPermissions[info.FullMethod]
+		if !mapped || required == "" {
+			// Fail closed: every business RPC must be mapped explicitly.
+			log.Warn().Str("method", info.FullMethod).Msg("RPC without permission mapping denied")
+			return nil, status.Error(codes.PermissionDenied, "permission denied: RPC not mapped")
 		}
 
 		if !HasPermission(ctx, required) {
@@ -174,5 +173,5 @@ func PermissionInterceptor() grpc.UnaryServerInterceptor {
 
 // rpcPermissions maps a fully-qualified gRPC method to the payroll.* permission
 // code it requires (services/payroll/docs/permissions.md). Filled in alongside
-// the business handlers.
+// the business handlers; an unmapped RPC is denied (PermissionInterceptor).
 var rpcPermissions = map[string]string{}
