@@ -86,14 +86,27 @@ func TestDiv_Precision(t *testing.T) {
 		{"9", "3", "3"},
 		{"0", "3", "0"},
 		{"99", "100", "0.99"},
+		{"10", "4", "2.5"},
+		// negative divisor and both negative
+		{"2", "-3", "-0.66666666666666666666666666666666666667"},
+		{"-2", "-3", "0.66666666666666666666666666666666666667"},
+		// exact quotient just below 1: 38 nines, must not collapse to 1 with 37 digits
+		{"1", "1.00000000000000000000000000000000000001", "0.99999999999999999999999999999999999999"},
+		// quotient carries over a power of ten at the 38th digit
+		{"1", "1.000000000000000000000000000000000000004", "1"},
+		{"999999999999999999999999999999999999995", "1000000000000000000000000000000000000000", "1"},
+		// very large and very small operands
+		{"1000000000000000000000000000000", "7", "142857142857142857142857142857.14285714"},
+		{"0.000000000001", "3", "0.00000000000033333333333333333333333333333333333333"},
+		{"123456789012345678", "0.000000001", "123456789012345678000000000"},
 	}
 	for _, c := range cases {
 		got, err := Div(d(c.a), d(c.b))
 		if err != nil {
 			t.Fatalf("Div(%s, %s): %v", c.a, c.b, err)
 		}
-		if !got.Equal(d(c.want)) {
-			t.Errorf("Div(%s, %s) = %s, want %s", c.a, c.b, got, c.want)
+		if got.String() != d(c.want).String() {
+			t.Errorf("Div(%s, %s) = %s, want %s (exact text, D-13)", c.a, c.b, got, c.want)
 		}
 	}
 }

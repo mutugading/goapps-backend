@@ -130,3 +130,14 @@ func TestEngineImportsArePure(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestInputHasRekap_NilVersusEmpty(t *testing.T) {
+	in := validInput()
+	if in.HasRekap() {
+		t.Fatal("nil Att must mean no recap (D2)")
+	}
+	in.Att = AttRekap{}
+	if !in.HasRekap() {
+		t.Fatal("empty non-nil Att must count as a recap")
+	}
+}

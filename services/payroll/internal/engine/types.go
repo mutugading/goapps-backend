@@ -136,9 +136,9 @@ type Input struct {
 	Division   string
 	Emp        Employee
 	Components []EmpComponent
-	Att        AttRekap // nil when the employee has no recap (D2)
-	AttAdd     AttRekapAdd
-	Sch        SchRekap
+	Att        AttRekap    // nil = no recap (D2); empty non-nil = recap with all columns zero
+	AttAdd     AttRekapAdd // nil = no additional recap
+	Sch        SchRekap    // nil = no schedule recap
 	Workdays   *int
 	Additions  map[CompKey][]Addition
 	Loans      []LoanDue
@@ -146,6 +146,10 @@ type Input struct {
 	YTD        YTDTax
 	Rules      RuleSet
 }
+
+// HasRekap reports whether the employee has an attendance recap. Legacy mode skips
+// the header when it does not (D2). An empty but non-nil recap counts as present.
+func (in Input) HasRekap() bool { return in.Att != nil }
 
 // Input validation errors.
 var (
