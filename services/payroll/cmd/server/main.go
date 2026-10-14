@@ -14,6 +14,7 @@ import (
 	grpcdelivery "github.com/mutugading/goapps-backend/services/payroll/internal/delivery/grpc"
 	httpdelivery "github.com/mutugading/goapps-backend/services/payroll/internal/delivery/httpdelivery"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/config"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/postgres"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/tracing"
 )
 
@@ -48,9 +49,6 @@ func run() error {
 	cleanupTracing := setupTracing(ctx, cfg)
 	defer cleanupTracing()
 
-	// No domain wired yet (T001 scaffold): no database connection, no gRPC
-	// service besides the standard health check. DB wiring lands with the
-	// dev stack (T002) and baseline migrations (T003).
 	return startServers(ctx, cfg)
 }
 
@@ -85,7 +83,17 @@ func setupTracing(ctx context.Context, cfg *config.Config) func() {
 
 // startServers starts the gRPC and HTTP servers and handles graceful shutdown.
 func startServers(ctx context.Context, cfg *config.Config) error {
-	grpcServer, err := grpcdelivery.NewServer(&cfg.Server)
+	db, err := postgres.NewConnection(&cfg.Database)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := db.Close(); cerr != nil {
+			log.Warn().Err(cerr).Msg("Failed to close database")
+		}
+	}()
+
+	grpcServer, err := grpcdelivery.NewServer(&cfg.Server, &cfg.JWT, postgres.NewScopeResolver(db))
 	if err != nil {
 		return err
 	}

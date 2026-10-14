@@ -15,6 +15,7 @@ type Config struct {
 	App      AppConfig      `mapstructure:"app"`
 	Server   ServerConfig   `mapstructure:"server"`
 	Database DatabaseConfig `mapstructure:"database"`
+	JWT      JWTConfig      `mapstructure:"jwt"`
 	CORS     CORSConfig     `mapstructure:"cors"`
 	Tracing  TracingConfig  `mapstructure:"tracing"`
 	Logger   LoggerConfig   `mapstructure:"logger"`
@@ -34,8 +35,8 @@ type ServerConfig struct {
 	GRPCTimeout time.Duration `mapstructure:"grpc_timeout"`
 }
 
-// DatabaseConfig holds database configuration. Not dialed yet in this scaffold
-// (T001) -- wired once migrations land (T002/T003).
+// DatabaseConfig holds database configuration. The service connects as
+// payroll_app (never the owner), so RLS always applies.
 type DatabaseConfig struct {
 	Host            string        `mapstructure:"host"`
 	Port            int           `mapstructure:"port"`
@@ -54,6 +55,11 @@ func (c *DatabaseConfig) ConnectionString() string {
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		c.Host, c.Port, c.User, c.Password, c.Name, c.SSLMode,
 	)
+}
+
+// JWTConfig holds JWT validation configuration (shared secret with IAM).
+type JWTConfig struct {
+	AccessTokenSecret string `mapstructure:"access_token_secret"`
 }
 
 // CORSConfig holds CORS configuration for the BFF/frontend origin(s).
@@ -131,6 +137,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("database.max_idle_conns", 5)
 	v.SetDefault("database.conn_max_lifetime", 5*time.Minute)
 
+	// JWT defaults (must match IAM access token secret).
+	v.SetDefault("jwt.access_token_secret", "change-this-in-production")
+
 	// CORS defaults.
 	v.SetDefault("cors.allowed_origins", []string{"http://localhost:3000"})
 	v.SetDefault("cors.max_age", 300)
@@ -159,6 +168,8 @@ func bindEnvVars(v *viper.Viper) {
 		{"database.password", "PAYROLL_DATABASE_PASSWORD"},
 		{"database.name", "PAYROLL_DATABASE_NAME"},
 		{"database.ssl_mode", "PAYROLL_DATABASE_SSLMODE"},
+		// JWT.
+		{"jwt.access_token_secret", "JWT_ACCESS_SECRET"},
 		// CORS.
 		{"cors.allowed_origins", "CORS_ALLOWED_ORIGINS"},
 		// Tracing.

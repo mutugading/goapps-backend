@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 
+	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/scope"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/config"
 )
 
@@ -25,13 +26,9 @@ type Server struct {
 	config     *config.ServerConfig
 }
 
-// NewServer creates a new gRPC server with the baseline interceptor chain.
-//
-// JWT auth + RBAC permission interceptors are intentionally not wired yet --
-// they land in T006 once `pyr_user_scope` and the IAM-format permission codes
-// (D-05, D-06) exist. Until then every RPC is unauthenticated; there are none
-// besides the standard gRPC health service registered below.
-func NewServer(cfg *config.ServerConfig) (*Server, error) {
+// NewServer creates a new gRPC server with the interceptor chain, including
+// JWT auth + payroll scope resolution (D-06, D-11) and RBAC permission checks.
+func NewServer(cfg *config.ServerConfig, jwtCfg *config.JWTConfig, resolver scope.Resolver) (*Server, error) {
 	// Create rate limiter (100 requests per second default).
 	rateLimiter := NewRateLimiter(100)
 
@@ -46,6 +43,8 @@ func NewServer(cfg *config.ServerConfig) (*Server, error) {
 		RateLimitInterceptor(rateLimiter),  // 5. Rate limiting
 		LoggingInterceptor(),               // 6. Log request
 		TimeoutInterceptor(60*time.Second), // 7. Enforce timeout
+		AuthInterceptor(jwtCfg, resolver),  // 8. JWT + payroll scope
+		PermissionInterceptor(),            // 9. RBAC permission check
 	)
 
 	opts := []grpc.ServerOption{
