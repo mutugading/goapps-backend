@@ -191,7 +191,7 @@ func seed(ctx context.Context, db *sql.DB) error {
 		`INSERT INTO payroll_stg.pyr_stg_att_daily (psad_work_date, psad_nik, psad_company_id, psad_division, psad_row_hash, psad_batch_id) VALUES
 		   ('2026-09-01','S1',1,'SOLO','h',1), ('2026-09-01','J1',1,'JAKARTA','h',1)`,
 		`UPDATE payroll.pyr_period p SET pp_active_run_id = r.pr_id FROM payroll.pyr_run r
-		   WHERE r.pr_yymm = p.pp_yymm AND r.pr_division = p.pp_division`,
+		   WHERE r.pr_company_id = p.pp_company_id AND r.pr_yymm = p.pp_yymm AND r.pr_division = p.pp_division`,
 		`INSERT INTO payroll.pyr_rule_constant (prc_company_id, prc_rule_set_id, prc_key, prc_value, prc_division) VALUES (1,1,'GLOBAL',1,NULL)`,
 		`INSERT INTO payroll.pyr_user_scope (pus_user_id, pus_company_id, pus_division) VALUES
 		   ('` + userSolo + `',1,'SOLO'), ('` + userTwo + `',1,'SOLO'), ('` + userTwo + `',1,'JAKARTA')`,
