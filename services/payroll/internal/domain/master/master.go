@@ -95,7 +95,8 @@ type Repository interface {
 
 	CreateCompany(ctx context.Context, tx *sql.Tx, c Company, npwp string, p PII) (Company, error)
 	GetCompany(ctx context.Context, tx *sql.Tx, id int16, p PII) (Company, error)
-	ListCompanies(ctx context.Context, tx *sql.Tx, p PII) ([]Company, error)
+	// ListCompanies returns only the given company ids, so PII outside the scope is never decrypted.
+	ListCompanies(ctx context.Context, tx *sql.Tx, ids []int16, p PII) ([]Company, error)
 	UpdateCompany(ctx context.Context, tx *sql.Tx, c Company, npwp string, ifMatch int, p PII) (Company, error)
 
 	CreateDivision(ctx context.Context, tx *sql.Tx, d Division) (Division, error)

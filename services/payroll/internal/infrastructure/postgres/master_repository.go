@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgconn"
 
@@ -143,8 +145,9 @@ func (MasterRepository) GetCompany(ctx context.Context, tx *sql.Tx, id int16, p 
 }
 
 // ListCompanies lists companies by id.
-func (MasterRepository) ListCompanies(ctx context.Context, tx *sql.Tx, p domain.PII) ([]domain.Company, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT `+companyCols+` FROM payroll.pyr_company ORDER BY pco_company_id`, p.Reveal, p.EncKey)
+func (MasterRepository) ListCompanies(ctx context.Context, tx *sql.Tx, ids []int16, p domain.PII) ([]domain.Company, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT `+companyCols+` FROM payroll.pyr_company
+		WHERE pco_company_id = ANY($3::smallint[]) ORDER BY pco_company_id`, p.Reveal, p.EncKey, pq(ids))
 	if err != nil {
 		return nil, err
 	}
@@ -250,4 +253,13 @@ func (MasterRepository) LockCompany(ctx context.Context, tx *sql.Tx, id int16) e
 // LockDivision locks one division row until the transaction ends.
 func (MasterRepository) LockDivision(ctx context.Context, tx *sql.Tx, companyID int16, code string) error {
 	return lockRow(ctx, tx, `SELECT 1 FROM payroll.pyr_division_ref WHERE pdr_company_id=$1 AND pdr_code=$2 FOR UPDATE`, companyID, code)
+}
+
+// pq renders ids as a Postgres array literal ("{1,2}"); only integers, so no injection.
+func pq(ids []int16) string {
+	parts := make([]string, len(ids))
+	for i, id := range ids {
+		parts[i] = strconv.Itoa(int(id))
+	}
+	return "{" + strings.Join(parts, ",") + "}"
 }

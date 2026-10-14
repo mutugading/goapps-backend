@@ -110,20 +110,46 @@ func inCompany(ctx context.Context, companyID int16) error {
 	return apperr.DivisionForbidden(companyID, "")
 }
 
-func companyInScope(ctx context.Context, companyID int16) bool {
-	return inCompany(ctx, companyID) == nil
+// scopeCompanies lists the distinct company ids in the caller's scope.
+func scopeCompanies(ctx context.Context) (ids []int16) {
+	id, ok := scope.FromContext(ctx)
+	if !ok {
+		return nil
+	}
+	seen := map[int16]bool{}
+	for _, sc := range id.Scopes {
+		if !seen[sc.CompanyID()] {
+			seen[sc.CompanyID()] = true
+			ids = append(ids, sc.CompanyID())
+		}
+	}
+	return ids
+}
+
+// auditCompany is the company a global create (no target company yet) is audited under.
+// A caller with no scope is refused: the audit row could not be written under RLS (D-18).
+func auditCompany(ctx context.Context) (int16, error) {
+	ids := scopeCompanies(ctx)
+	if len(ids) == 0 {
+		return 0, apperr.DivisionForbidden(0, "")
+	}
+	return ids[0], nil
 }
 
 // ── Currency ─────────────────────────────────────────────────────────────────
 
 // CreateCurrency creates a currency.
 func (s *Service) CreateCurrency(ctx context.Context, c domain.Currency, ip string) (out domain.Currency, err error) {
+	auditCo, err := auditCompany(ctx)
+	if err != nil {
+		return out, err
+	}
 	err = s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
 		var e error
 		if out, e = s.repo.CreateCurrency(ctx, tx, c); e != nil {
 			return toAppErr(e, "mata uang")
 		}
-		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: firstScopeCompany(ctx), Action: "CREATE", Entity: "pyr_currency", EntityKey: out.Code, After: out, IP: ip})
+		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: auditCo, Action: "CREATE", Entity: "pyr_currency", EntityKey: out.Code, After: out, IP: ip})
 	})
 	return out, err
 }
@@ -140,6 +166,10 @@ func (s *Service) ListCurrencies(ctx context.Context) (out []domain.Currency, er
 
 // UpdateCurrency updates a currency under If-Match.
 func (s *Service) UpdateCurrency(ctx context.Context, c domain.Currency, ifMatch int, ip string) (out domain.Currency, err error) {
+	auditCo, err := auditCompany(ctx)
+	if err != nil {
+		return out, err
+	}
 	err = s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
 		if e := s.repo.LockCurrency(ctx, tx, c.Code); e != nil {
 			return toAppErr(e, "mata uang")
@@ -151,7 +181,7 @@ func (s *Service) UpdateCurrency(ctx context.Context, c domain.Currency, ifMatch
 		if out, e = s.repo.UpdateCurrency(ctx, tx, c, ifMatch); e != nil {
 			return toAppErr(e, "mata uang")
 		}
-		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: firstScopeCompany(ctx), Action: "UPDATE", Entity: "pyr_currency", EntityKey: out.Code, Before: before, After: out, IP: ip})
+		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: auditCo, Action: "UPDATE", Entity: "pyr_currency", EntityKey: out.Code, Before: before, After: out, IP: ip})
 	})
 	return out, err
 }
@@ -163,6 +193,10 @@ func (s *Service) CreateCompany(ctx context.Context, c domain.Company, npwp stri
 	if npwp == domain.MaskedValue {
 		return out, validation("npwp", "npwp tidak boleh berisi nilai mask")
 	}
+	auditCo, err := auditCompany(ctx)
+	if err != nil {
+		return out, err
+	}
 	if c.BaseCurrency == "" {
 		c.BaseCurrency = "IDR"
 	}
@@ -173,7 +207,7 @@ func (s *Service) CreateCompany(ctx context.Context, c domain.Company, npwp stri
 		}
 		// The new company is not yet in app.scopes, so RLS would reject an audit row under
 		// its own id; record it under the caller's first scoped company instead.
-		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: firstScopeCompany(ctx), Action: "CREATE", Entity: "pyr_company", EntityKey: out.Code, After: out, IP: cl.IP})
+		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: auditCo, Action: "CREATE", Entity: "pyr_company", EntityKey: out.Code, After: out, IP: cl.IP})
 	})
 	return out, err
 }
@@ -195,12 +229,7 @@ func (s *Service) GetCompany(ctx context.Context, id int16, cl Caller) (out doma
 func (s *Service) ListCompanies(ctx context.Context, cl Caller) (out []domain.Company, err error) {
 	err = s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
 		var e error
-		all, e := s.repo.ListCompanies(ctx, tx, s.pii(cl))
-		for _, c := range all {
-			if companyInScope(ctx, c.ID) {
-				out = append(out, c)
-			}
-		}
+		out, e = s.repo.ListCompanies(ctx, tx, scopeCompanies(ctx), s.pii(cl))
 		return e
 	})
 	return out, err
@@ -433,13 +462,6 @@ func (s *Service) UpdateEmployee(ctx context.Context, id int64, e domain.Employe
 			Entity: "pyr_employee", EntityKey: strconv.FormatInt(id, 10), Before: before, After: out, IP: cl.IP})
 	})
 	return out, err
-}
-
-func firstScopeCompany(ctx context.Context) int16 {
-	if id, ok := scope.FromContext(ctx); ok && len(id.Scopes) > 0 {
-		return id.Scopes[0].CompanyID()
-	}
-	return 0
 }
 
 func actorOf(ctx context.Context) string {

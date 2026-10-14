@@ -444,3 +444,61 @@ func TestListCursorAndQWildcards(t *testing.T) {
 		t.Fatalf("bad cursor must be VALIDATION, got %v", err)
 	}
 }
+
+func TestEmptyScopeCannotCreateGlobalMasters(t *testing.T) {
+	ctx := ctxFor(t, "user-noscope", permsRW...)
+	check := func(name string, err error) {
+		t.Helper()
+		if err == nil || code(t, err) != apperr.CodeDivisionForbidden {
+			t.Fatalf("%s: want DIVISION_FORBIDDEN, got %v", name, err)
+		}
+	}
+	_, err := handler.CreateCompany(ctx, &payrollv1.CreateCompanyRequest{Code: "NSC", Name: "No Scope"})
+	check("create company", err)
+	_, err = handler.CreateCurrency(ctx, &payrollv1.CreateCurrencyRequest{Code: "GBP", MinorUnit: 2})
+	check("create currency", err)
+	var n int
+	if err := ownDB.QueryRow(`SELECT count(*) FROM payroll.pyr_company WHERE pco_code='NSC'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("company must not exist: n=%d err=%v", n, err)
+	}
+	list, err := handler.ListCompanies(ctx, &payrollv1.ListCompaniesRequest{})
+	if err != nil || len(list.GetData()) != 0 {
+		t.Fatalf("empty scope must list nothing: %v %+v", err, list)
+	}
+}
+
+// D-18: company/division masters are guarded per company, not per division, so a
+// SOLO-only user may manage divisions of company 1 (including JAKARTA).
+func TestDivisionManagementIsCompanyLevel(t *testing.T) {
+	ctx := ctxFor(t, userRW, permsRW...) // SOLO scope only
+	if _, err := handler.CreateDivision(ctx, &payrollv1.CreateDivisionRequest{CompanyId: 1, Code: "SURABAYA", Name: "Surabaya"}); err != nil {
+		t.Fatalf("create division in own company: %v", err)
+	}
+	jkt, err := handler.ListDivisions(ctx, &payrollv1.ListDivisionsRequest{CompanyId: 1})
+	if err != nil || len(jkt.GetData()) < 3 {
+		t.Fatalf("list divisions: %v %+v", err, jkt)
+	}
+	for _, d := range jkt.GetData() {
+		if d.GetCode() == "JAKARTA" {
+			if _, err := handler.UpdateDivision(ctx, &payrollv1.UpdateDivisionRequest{CompanyId: 1, Code: "JAKARTA", Name: "Jakarta Raya", IfMatch: d.GetEtag()}); err != nil {
+				t.Fatalf("update JAKARTA by SOLO user (company-level, D-18): %v", err)
+			}
+		}
+	}
+}
+
+func TestListCompaniesDecryptsOnlyScope(t *testing.T) {
+	var other int16
+	if err := ownDB.QueryRow(`INSERT INTO payroll.pyr_company (pco_code, pco_name) VALUES ('OT2','Other2') RETURNING pco_company_id`).Scan(&other); err != nil {
+		t.Fatal(err)
+	}
+	list, err := handler.ListCompanies(ctxFor(t, userRW, permsRW...), &payrollv1.ListCompaniesRequest{})
+	if err != nil || len(list.GetData()) == 0 {
+		t.Fatalf("list: %v", err)
+	}
+	for _, c := range list.GetData() {
+		if int16(c.GetCompanyId()) == other {
+			t.Fatal("company outside scope returned")
+		}
+	}
+}
