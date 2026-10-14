@@ -1,0 +1,228 @@
+package engine
+
+import (
+	"errors"
+	"fmt"
+	"sort"
+	"time"
+
+	"github.com/shopspring/decimal"
+)
+
+// CompType is the component type: T (tunjangan/allowance) or P (potongan/deduction).
+type CompType string
+
+// Component types.
+const (
+	CompT CompType = "T"
+	CompP CompType = "P"
+)
+
+// Valid reports whether t is a known component type.
+func (t CompType) Valid() bool { return t == CompT || t == CompP }
+
+// CompKey identifies a component by legacy (type, id).
+type CompKey struct {
+	Type CompType
+	ID   int
+}
+
+// String renders the key as e.g. "T001".
+func (k CompKey) String() string { return fmt.Sprintf("%s%03d", k.Type, k.ID) }
+
+// Less orders keys T before P, then by id (06§9).
+func (k CompKey) Less(o CompKey) bool {
+	if k.Type != o.Type {
+		return k.Type == CompT
+	}
+	return k.ID < o.ID
+}
+
+// Period is a payroll period. Start is the 26th of the previous month, End the 25th.
+type Period struct {
+	YYMM  int // e.g. 202610
+	Start time.Time
+	End   time.Time
+}
+
+// Year returns the calendar year of the period.
+func (p Period) Year() int { return p.YYMM / 100 }
+
+// Month returns the calendar month (1..12) of the period.
+func (p Period) Month() int { return p.YYMM % 100 }
+
+// IsJanuary reports whether the period is January.
+func (p Period) IsJanuary() bool { return p.Month() == 1 }
+
+// IsDecember reports whether the period is December (annual PPh reconciliation).
+func (p Period) IsDecember() bool { return p.Month() == 12 }
+
+// Employee holds the employee attributes the engine needs.
+type Employee struct {
+	NIK       string
+	Name      string
+	Level     string // e.g. executive / staff / operator, as mapped in the rule set
+	TaxStatus string // PTKP code, e.g. "K/1"
+	HasNPWP   bool
+	BirthDate *time.Time
+	GapokSts  string // F (full) / D (prorate) for the base salary
+}
+
+// EmpComponent is an employee component amount (COMPNT_EMP, frz=2 & sts_payroll=2).
+type EmpComponent struct {
+	Key    CompKey
+	Amount decimal.Decimal
+	Sts    string // 'F' full / 'D' prorate
+	Tax    bool
+}
+
+// AttRekap is a frozen attendance recap row (MPAR_* columns), keyed by column name
+// in lower case, e.g. "day_work", "pay_tot", "jam_lembur_n1".
+type AttRekap map[string]decimal.Decimal
+
+// Get returns the column value, or zero when absent (legacy NVL(x, 0)).
+func (r AttRekap) Get(col string) decimal.Decimal {
+	if v, ok := r[col]; ok {
+		return v
+	}
+	return decimal.Zero
+}
+
+// AttRekapAdd is the additional recap (day_work_add, pay_tot_add, shift_add).
+type AttRekapAdd = AttRekap
+
+// SchRekap is the schedule recap used by shift components.
+type SchRekap = AttRekap
+
+// Addition is one pyr_addition amount for a component.
+type Addition struct {
+	Amount decimal.Decimal
+	Remark string
+}
+
+// LoanDue is a loan installment due in this period (15§2.4).
+type LoanDue struct {
+	LoanID    int64
+	Seq       int
+	Principal decimal.Decimal
+	Interest  decimal.Decimal
+}
+
+// DailyFails holds counts derived from daily attendance (05§7).
+type DailyFails struct {
+	PremiFail int
+	BerasFail int
+}
+
+// YTDTax is the year-to-date tax basis, January up to the previous period.
+type YTDTax struct {
+	Gross   decimal.Decimal
+	TaxPaid decimal.Decimal
+	Months  int
+}
+
+// RuleSet is a versioned rule set (03§2.3). Implementations must be immutable.
+type RuleSet interface {
+	ID() int
+	// LegacyCompat is true for rule v1 that reproduces legacy behavior (K3).
+	LegacyCompat() bool
+	// Constant returns a rule constant such as DAYS_MONTH or HOURS_MONTH.
+	Constant(key string) (decimal.Decimal, bool)
+}
+
+// Input is everything Calculate needs for one employee. It carries no I/O handles.
+type Input struct {
+	Period     Period
+	Division   string
+	Emp        Employee
+	Components []EmpComponent
+	Att        AttRekap // nil when the employee has no recap (D2)
+	AttAdd     AttRekapAdd
+	Sch        SchRekap
+	Workdays   *int
+	Additions  map[CompKey][]Addition
+	Loans      []LoanDue
+	Daily      DailyFails
+	YTD        YTDTax
+	Rules      RuleSet
+}
+
+// Input validation errors.
+var (
+	ErrNoRules          = errors.New("engine: input has no rule set")
+	ErrBadPeriod        = errors.New("engine: invalid period")
+	ErrNoNIK            = errors.New("engine: employee NIK is empty")
+	ErrBadComponentType = errors.New("engine: invalid component type")
+	ErrDupComponent     = errors.New("engine: duplicate component")
+)
+
+// Validate checks structural invariants of the input.
+func (in Input) Validate() error {
+	if in.Rules == nil {
+		return ErrNoRules
+	}
+	if m := in.Period.Month(); in.Period.YYMM < 190001 || m < 1 || m > 12 {
+		return fmt.Errorf("%w: yymm %d", ErrBadPeriod, in.Period.YYMM)
+	}
+	if !in.Period.Start.IsZero() && !in.Period.End.IsZero() && in.Period.End.Before(in.Period.Start) {
+		return fmt.Errorf("%w: end before start", ErrBadPeriod)
+	}
+	if in.Emp.NIK == "" {
+		return ErrNoNIK
+	}
+	seen := make(map[CompKey]struct{}, len(in.Components))
+	for _, c := range in.Components {
+		if !c.Key.Type.Valid() {
+			return fmt.Errorf("%w: %q", ErrBadComponentType, c.Key.Type)
+		}
+		if _, dup := seen[c.Key]; dup {
+			return fmt.Errorf("%w: %s", ErrDupComponent, c.Key)
+		}
+		seen[c.Key] = struct{}{}
+	}
+	return nil
+}
+
+// Line is one calculated component (pyr_salary_detail).
+type Line struct {
+	Key     CompKey
+	Amount  *decimal.Decimal // already ROUND(0); nil only for legacy NULL results (D10)
+	Base    decimal.Decimal  // calculation basis (audit)
+	Qty     decimal.Decimal  // days / hours / shifts
+	Rate    decimal.Decimal
+	Tax     bool
+	Remark  string // replaces legacy *_DESCR
+	Formula string // formula code, e.g. "PRORATE_30"
+}
+
+// AmountOrZero returns the amount, treating NULL as zero (legacy NVL in totals).
+func (l Line) AmountOrZero() decimal.Decimal {
+	if l.Amount == nil {
+		return decimal.Zero
+	}
+	return *l.Amount
+}
+
+// Header is the per-employee summary (pyr_salary_head, 06§7).
+type Header struct {
+	BasicPay     decimal.Decimal
+	RatePerJam   decimal.Decimal
+	TotTunjangan decimal.Decimal
+	TotPotongan  decimal.Decimal
+	Rounding     decimal.Decimal
+	TakeHome     decimal.Decimal
+	Remarks      string
+}
+
+// Result is the output of Calculate for one employee.
+type Result struct {
+	NIK      string
+	Lines    []Line  // sorted by (type, id)
+	Header   *Header // nil when legacy mode skips the header (D2)
+	Warnings []string
+}
+
+// SortLines orders lines deterministically by (type, id) (06§9).
+func SortLines(lines []Line) {
+	sort.SliceStable(lines, func(i, j int) bool { return lines[i].Key.Less(lines[j].Key) })
+}
