@@ -17,6 +17,7 @@ type Config struct {
 	Server   ServerConfig   `mapstructure:"server"`
 	Database DatabaseConfig `mapstructure:"database"`
 	JWT      JWTConfig      `mapstructure:"jwt"`
+	PII      PIIConfig      `mapstructure:"pii"`
 	CORS     CORSConfig     `mapstructure:"cors"`
 	Tracing  TracingConfig  `mapstructure:"tracing"`
 	Logger   LoggerConfig   `mapstructure:"logger"`
@@ -61,6 +62,13 @@ func (c *DatabaseConfig) ConnectionString() string {
 // JWTConfig holds JWT validation configuration (shared secret with IAM).
 type JWTConfig struct {
 	AccessTokenSecret string `mapstructure:"access_token_secret"`
+}
+
+// PIIConfig holds the keys protecting PII columns (D-17): EncKey feeds pgcrypto
+// pgp_sym_encrypt, HMACKey feeds the NPWP hash (13§3.3). Never stored in the DB.
+type PIIConfig struct {
+	EncKey  string `mapstructure:"enc_key"`
+	HMACKey string `mapstructure:"hmac_key"`
 }
 
 // CORSConfig holds CORS configuration for the BFF/frontend origin(s).
@@ -132,8 +140,14 @@ func (c *Config) Validate() error {
 	if secret == "" {
 		return errors.New("config: jwt.access_token_secret (JWT_ACCESS_SECRET) is required")
 	}
+	if c.PII.EncKey == "" || c.PII.HMACKey == "" {
+		return errors.New("config: pii.enc_key (PAYROLL_PII_KEY) and pii.hmac_key (PAYROLL_PII_HMAC_KEY) are required")
+	}
 	if c.App.Env == "development" {
 		return nil
+	}
+	if len(c.PII.EncKey) < minJWTSecretLen || len(c.PII.HMACKey) < minJWTSecretLen {
+		return fmt.Errorf("config: pii keys must be at least %d bytes in %q", minJWTSecretLen, c.App.Env)
 	}
 	if slices.Contains(placeholderJWTSecrets, secret) {
 		return fmt.Errorf("config: jwt.access_token_secret is a sample value, not allowed in %q", c.App.Env)
@@ -168,6 +182,9 @@ func setDefaults(v *viper.Viper) {
 
 	// JWT defaults (must match IAM access token secret).
 	v.SetDefault("jwt.access_token_secret", "change-this-in-production")
+	// Development-only sample keys; Validate requires real keys outside development.
+	v.SetDefault("pii.enc_key", "dev-pii-enc-key-change-in-production")
+	v.SetDefault("pii.hmac_key", "dev-pii-hmac-key-change-in-production")
 
 	// CORS defaults.
 	v.SetDefault("cors.allowed_origins", []string{"http://localhost:3000"})
@@ -199,6 +216,9 @@ func bindEnvVars(v *viper.Viper) {
 		{"database.ssl_mode", "PAYROLL_DATABASE_SSLMODE"},
 		// JWT.
 		{"jwt.access_token_secret", "JWT_ACCESS_SECRET"},
+		// PII (D-17).
+		{"pii.enc_key", "PAYROLL_PII_KEY"},
+		{"pii.hmac_key", "PAYROLL_PII_HMAC_KEY"},
 		// CORS.
 		{"cors.allowed_origins", "CORS_ALLOWED_ORIGINS"},
 		// Tracing.

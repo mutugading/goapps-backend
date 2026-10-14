@@ -4,14 +4,586 @@
     "title": "payroll/v1/payroll_service.proto",
     "version": "version not set"
   },
+  "tags": [
+    {
+      "name": "PayrollService"
+    }
+  ],
   "consumes": [
     "application/json"
   ],
   "produces": [
     "application/json"
   ],
-  "paths": {},
+  "paths": {
+    "/api/v1/payroll/companies": {
+      "get": {
+        "operationId": "PayrollService_ListCompanies",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListCompaniesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "PayrollService"
+        ]
+      },
+      "post": {
+        "summary": "── Master: Company ────────────────────────────────────────────────────────",
+        "operationId": "PayrollService_CreateCompany",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateCompanyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateCompanyRequest"
+            }
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
+    "/api/v1/payroll/companies/{companyId}": {
+      "get": {
+        "operationId": "PayrollService_GetCompany",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetCompanyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      },
+      "put": {
+        "operationId": "PayrollService_UpdateCompany",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateCompanyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PayrollServiceUpdateCompanyBody"
+            }
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
+    "/api/v1/payroll/companies/{companyId}/divisions": {
+      "get": {
+        "operationId": "PayrollService_ListDivisions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListDivisionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      },
+      "post": {
+        "summary": "── Master: Division ───────────────────────────────────────────────────────",
+        "operationId": "PayrollService_CreateDivision",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateDivisionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PayrollServiceCreateDivisionBody"
+            }
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
+    "/api/v1/payroll/companies/{companyId}/divisions/{code}": {
+      "put": {
+        "operationId": "PayrollService_UpdateDivision",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateDivisionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PayrollServiceUpdateDivisionBody"
+            }
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
+    "/api/v1/payroll/currencies": {
+      "get": {
+        "operationId": "PayrollService_ListCurrencies",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListCurrenciesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "PayrollService"
+        ]
+      },
+      "post": {
+        "summary": "── Master: Currency ───────────────────────────────────────────────────────",
+        "operationId": "PayrollService_CreateCurrency",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateCurrencyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateCurrencyRequest"
+            }
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
+    "/api/v1/payroll/currencies/{code}": {
+      "put": {
+        "operationId": "PayrollService_UpdateCurrency",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateCurrencyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PayrollServiceUpdateCurrencyBody"
+            }
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
+    "/api/v1/payroll/employees": {
+      "get": {
+        "operationId": "PayrollService_ListEmployees",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListEmployeesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "division",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "stsPayroll",
+            "description": "0 = all.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "q",
+            "description": "NIK (current/old) or name.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "description": "0 = 50.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      },
+      "post": {
+        "summary": "── Master: Employee ───────────────────────────────────────────────────────",
+        "operationId": "PayrollService_CreateEmployee",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateEmployeeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateEmployeeRequest"
+            }
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
+    "/api/v1/payroll/employees/id/{id}": {
+      "put": {
+        "operationId": "PayrollService_UpdateEmployee",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateEmployeeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PayrollServiceUpdateEmployeeBody"
+            }
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
+    "/api/v1/payroll/employees/{nik}": {
+      "get": {
+        "operationId": "PayrollService_GetEmployee",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetEmployeeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "nik",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "companyId",
+            "description": "0 = any company in scope.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    }
+  },
   "definitions": {
+    "PayrollServiceCreateDivisionBody": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "PayrollServiceUpdateCompanyBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "npwp": {
+          "type": "string"
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "ifMatch": {
+          "type": "string"
+        }
+      }
+    },
+    "PayrollServiceUpdateCurrencyBody": {
+      "type": "object",
+      "properties": {
+        "minorUnit": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "takehomeRound": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "ifMatch": {
+          "type": "string"
+        }
+      }
+    },
+    "PayrollServiceUpdateDivisionBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "ifMatch": {
+          "type": "string"
+        }
+      }
+    },
+    "PayrollServiceUpdateEmployeeBody": {
+      "type": "object",
+      "properties": {
+        "input": {
+          "$ref": "#/definitions/v1EmployeeInput"
+        },
+        "ifMatch": {
+          "type": "string"
+        }
+      }
+    },
     "protobufAny": {
       "type": "object",
       "properties": {
@@ -39,6 +611,624 @@
           }
         }
       }
+    },
+    "v1AuditInfo": {
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the record was created (ISO 8601)."
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "User who created the record."
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the record was last updated (ISO 8601)."
+        },
+        "updatedBy": {
+          "type": "string",
+          "description": "User who last updated the record."
+        }
+      },
+      "description": "AuditInfo contains audit trail information."
+    },
+    "v1BaseResponse": {
+      "type": "object",
+      "properties": {
+        "validationErrors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ValidationError"
+          },
+          "description": "List of validation errors if any."
+        },
+        "statusCode": {
+          "type": "string",
+          "description": "HTTP-like status code (e.g., \"200\", \"400\", \"404\", \"500\")."
+        },
+        "isSuccess": {
+          "type": "boolean",
+          "description": "Indicates if the operation was successful."
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable message describing the result."
+        }
+      },
+      "description": "BaseResponse is the standard response wrapper for all API responses."
+    },
+    "v1Company": {
+      "type": "object",
+      "properties": {
+        "companyId": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "code": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "npwp": {
+          "type": "string",
+          "description": "Withholding-agent NPWP, masked unless permitted."
+        },
+        "baseCurrency": {
+          "type": "string"
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "etag": {
+          "type": "string"
+        }
+      }
+    },
+    "v1CreateCompanyRequest": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "npwp": {
+          "type": "string"
+        },
+        "baseCurrency": {
+          "type": "string",
+          "description": "Empty = IDR."
+        }
+      }
+    },
+    "v1CreateCompanyResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Company"
+        }
+      }
+    },
+    "v1CreateCurrencyRequest": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "minorUnit": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "takehomeRound": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "v1CreateCurrencyResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Currency"
+        }
+      }
+    },
+    "v1CreateDivisionResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Division"
+        }
+      }
+    },
+    "v1CreateEmployeeRequest": {
+      "type": "object",
+      "properties": {
+        "companyId": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "division": {
+          "type": "string"
+        },
+        "nik": {
+          "type": "string"
+        },
+        "input": {
+          "$ref": "#/definitions/v1EmployeeInput"
+        }
+      }
+    },
+    "v1CreateEmployeeResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Employee"
+        }
+      }
+    },
+    "v1Currency": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "minorUnit": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "takehomeRound": {
+          "type": "integer",
+          "format": "int32",
+          "description": "IDR: -2, USD: 2."
+        },
+        "etag": {
+          "type": "string"
+        }
+      }
+    },
+    "v1Division": {
+      "type": "object",
+      "properties": {
+        "companyId": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "code": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "etag": {
+          "type": "string"
+        }
+      }
+    },
+    "v1Employee": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "nik": {
+          "type": "string"
+        },
+        "companyId": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "division": {
+          "type": "string"
+        },
+        "nama": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "deptId": {
+          "type": "string"
+        },
+        "dept": {
+          "type": "string"
+        },
+        "sectionId": {
+          "type": "string"
+        },
+        "section": {
+          "type": "string"
+        },
+        "designationId": {
+          "type": "string"
+        },
+        "designation": {
+          "type": "string"
+        },
+        "grade": {
+          "type": "string"
+        },
+        "level": {
+          "type": "string"
+        },
+        "taxId": {
+          "type": "string",
+          "description": "TK/TK1/K0/..."
+        },
+        "stsEmp": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "stsPayroll": {
+          "type": "integer",
+          "format": "int32",
+          "description": "1 inactive, 2 active (legacy)."
+        },
+        "stsBonus": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "dateJoin": {
+          "type": "string"
+        },
+        "resignDate": {
+          "type": "string"
+        },
+        "birthDate": {
+          "type": "string"
+        },
+        "birthPlace": {
+          "type": "string"
+        },
+        "sex": {
+          "type": "string"
+        },
+        "marriedSts": {
+          "type": "string"
+        },
+        "religion": {
+          "type": "string"
+        },
+        "npwp": {
+          "type": "string",
+          "description": "Masked unless permitted (D-17)."
+        },
+        "ktp": {
+          "type": "string",
+          "description": "Masked unless permitted."
+        },
+        "bank": {
+          "type": "string"
+        },
+        "bankBranch": {
+          "type": "string"
+        },
+        "bankAcnt": {
+          "type": "string",
+          "description": "Masked unless permitted."
+        },
+        "bankAcntName": {
+          "type": "string"
+        },
+        "orionSubAcnt": {
+          "type": "string"
+        },
+        "idMesin": {
+          "type": "string"
+        },
+        "cutiTahunan": {
+          "type": "string",
+          "description": "Decimal string."
+        },
+        "payCurrency": {
+          "type": "string"
+        },
+        "employmentStatus": {
+          "type": "string",
+          "description": "PERMANENT|PKWT|PROBATION|OUTSOURCE."
+        },
+        "costGroup": {
+          "type": "string",
+          "description": "MGT|MB|CONTRACT."
+        },
+        "hrisSysId": {
+          "type": "string",
+          "format": "int64",
+          "description": "0 = not linked."
+        },
+        "prevEmployeeId": {
+          "type": "string",
+          "format": "int64",
+          "description": "0 = none."
+        },
+        "placementReason": {
+          "type": "string",
+          "description": "REHIRE|CONTRACT_TO_PERMANENT|TRANSFER_COMPANY."
+        },
+        "etag": {
+          "type": "string"
+        },
+        "audit": {
+          "$ref": "#/definitions/v1AuditInfo"
+        }
+      },
+      "description": "Employee is the payroll master row (pyr_employee). `id` is the stable\ninternal key; `nik` may change over time (13 §3.1)."
+    },
+    "v1EmployeeInput": {
+      "type": "object",
+      "properties": {
+        "nama": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "deptId": {
+          "type": "string"
+        },
+        "dept": {
+          "type": "string"
+        },
+        "sectionId": {
+          "type": "string"
+        },
+        "section": {
+          "type": "string"
+        },
+        "designationId": {
+          "type": "string"
+        },
+        "designation": {
+          "type": "string"
+        },
+        "grade": {
+          "type": "string"
+        },
+        "level": {
+          "type": "string"
+        },
+        "taxId": {
+          "type": "string"
+        },
+        "stsEmp": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "stsPayroll": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "stsBonus": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "dateJoin": {
+          "type": "string"
+        },
+        "resignDate": {
+          "type": "string"
+        },
+        "birthDate": {
+          "type": "string"
+        },
+        "birthPlace": {
+          "type": "string"
+        },
+        "sex": {
+          "type": "string"
+        },
+        "marriedSts": {
+          "type": "string"
+        },
+        "religion": {
+          "type": "string"
+        },
+        "npwp": {
+          "type": "string",
+          "description": "Plaintext PII. On update an empty value keeps the stored value."
+        },
+        "ktp": {
+          "type": "string"
+        },
+        "bank": {
+          "type": "string"
+        },
+        "bankBranch": {
+          "type": "string"
+        },
+        "bankAcnt": {
+          "type": "string"
+        },
+        "bankAcntName": {
+          "type": "string"
+        },
+        "orionSubAcnt": {
+          "type": "string"
+        },
+        "idMesin": {
+          "type": "string"
+        },
+        "cutiTahunan": {
+          "type": "string"
+        },
+        "payCurrency": {
+          "type": "string",
+          "description": "Empty = IDR."
+        },
+        "employmentStatus": {
+          "type": "string"
+        },
+        "costGroup": {
+          "type": "string"
+        },
+        "hrisSysId": {
+          "type": "string",
+          "format": "int64"
+        }
+      },
+      "description": "EmployeeInput carries the writable fields shared by create and update."
+    },
+    "v1GetCompanyResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Company"
+        }
+      }
+    },
+    "v1GetEmployeeResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Employee"
+        }
+      }
+    },
+    "v1ListCompaniesResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Company"
+          }
+        }
+      }
+    },
+    "v1ListCurrenciesResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Currency"
+          }
+        }
+      }
+    },
+    "v1ListDivisionsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Division"
+          }
+        }
+      }
+    },
+    "v1ListEmployeesResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Employee"
+          }
+        },
+        "nextCursor": {
+          "type": "string",
+          "description": "Empty = last page."
+        }
+      }
+    },
+    "v1UpdateCompanyResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Company"
+        }
+      }
+    },
+    "v1UpdateCurrencyResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Currency"
+        }
+      }
+    },
+    "v1UpdateDivisionResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Division"
+        }
+      }
+    },
+    "v1UpdateEmployeeResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Employee"
+        }
+      }
+    },
+    "v1ValidationError": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "description": "The field name that failed validation."
+        },
+        "message": {
+          "type": "string",
+          "description": "The validation error message."
+        }
+      },
+      "description": "ValidationError represents a single field validation error."
     }
   }
 }

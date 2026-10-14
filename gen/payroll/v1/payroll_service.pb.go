@@ -7,6 +7,7 @@
 package payrollv1
 
 import (
+	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -25,19 +26,91 @@ var File_payroll_v1_payroll_service_proto protoreflect.FileDescriptor
 const file_payroll_v1_payroll_service_proto_rawDesc = "" +
 	"\n" +
 	" payroll/v1/payroll_service.proto\x12\n" +
-	"payroll.v12\x10\n" +
-	"\x0ePayrollServiceB\xad\x01\n" +
+	"payroll.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x17payroll/v1/master.proto2\xd0\x0e\n" +
+	"\x0ePayrollService\x12~\n" +
+	"\x0eCreateCurrency\x12!.payroll.v1.CreateCurrencyRequest\x1a\".payroll.v1.CreateCurrencyResponse\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/api/v1/payroll/currencies\x12{\n" +
+	"\x0eListCurrencies\x12!.payroll.v1.ListCurrenciesRequest\x1a\".payroll.v1.ListCurrenciesResponse\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/api/v1/payroll/currencies\x12\x85\x01\n" +
+	"\x0eUpdateCurrency\x12!.payroll.v1.UpdateCurrencyRequest\x1a\".payroll.v1.UpdateCurrencyResponse\",\x82\xd3\xe4\x93\x02&:\x01*\x1a!/api/v1/payroll/currencies/{code}\x12z\n" +
+	"\rCreateCompany\x12 .payroll.v1.CreateCompanyRequest\x1a!.payroll.v1.CreateCompanyResponse\"$\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/api/v1/payroll/companies\x12{\n" +
+	"\n" +
+	"GetCompany\x12\x1d.payroll.v1.GetCompanyRequest\x1a\x1e.payroll.v1.GetCompanyResponse\".\x82\xd3\xe4\x93\x02(\x12&/api/v1/payroll/companies/{company_id}\x12w\n" +
+	"\rListCompanies\x12 .payroll.v1.ListCompaniesRequest\x1a!.payroll.v1.ListCompaniesResponse\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/api/v1/payroll/companies\x12\x87\x01\n" +
+	"\rUpdateCompany\x12 .payroll.v1.UpdateCompanyRequest\x1a!.payroll.v1.UpdateCompanyResponse\"1\x82\xd3\xe4\x93\x02+:\x01*\x1a&/api/v1/payroll/companies/{company_id}\x12\x94\x01\n" +
+	"\x0eCreateDivision\x12!.payroll.v1.CreateDivisionRequest\x1a\".payroll.v1.CreateDivisionResponse\";\x82\xd3\xe4\x93\x025:\x01*\"0/api/v1/payroll/companies/{company_id}/divisions\x12\x8e\x01\n" +
+	"\rListDivisions\x12 .payroll.v1.ListDivisionsRequest\x1a!.payroll.v1.ListDivisionsResponse\"8\x82\xd3\xe4\x93\x022\x120/api/v1/payroll/companies/{company_id}/divisions\x12\x9b\x01\n" +
+	"\x0eUpdateDivision\x12!.payroll.v1.UpdateDivisionRequest\x1a\".payroll.v1.UpdateDivisionResponse\"B\x82\xd3\xe4\x93\x02<:\x01*\x1a7/api/v1/payroll/companies/{company_id}/divisions/{code}\x12}\n" +
+	"\x0eCreateEmployee\x12!.payroll.v1.CreateEmployeeRequest\x1a\".payroll.v1.CreateEmployeeResponse\"$\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/api/v1/payroll/employees\x12w\n" +
+	"\vGetEmployee\x12\x1e.payroll.v1.GetEmployeeRequest\x1a\x1f.payroll.v1.GetEmployeeResponse\"'\x82\xd3\xe4\x93\x02!\x12\x1f/api/v1/payroll/employees/{nik}\x12w\n" +
+	"\rListEmployees\x12 .payroll.v1.ListEmployeesRequest\x1a!.payroll.v1.ListEmployeesResponse\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/api/v1/payroll/employees\x12\x85\x01\n" +
+	"\x0eUpdateEmployee\x12!.payroll.v1.UpdateEmployeeRequest\x1a\".payroll.v1.UpdateEmployeeResponse\",\x82\xd3\xe4\x93\x02&:\x01*\x1a!/api/v1/payroll/employees/id/{id}B\xad\x01\n" +
 	"\x0ecom.payroll.v1B\x13PayrollServiceProtoP\x01Z=github.com/mutugading/goapps-backend/gen/payroll/v1;payrollv1\xa2\x02\x03PXX\xaa\x02\n" +
 	"Payroll.V1\xca\x02\n" +
 	"Payroll\\V1\xe2\x02\x16Payroll\\V1\\GPBMetadata\xea\x02\vPayroll::V1b\x06proto3"
 
-var file_payroll_v1_payroll_service_proto_goTypes = []any{}
+var file_payroll_v1_payroll_service_proto_goTypes = []any{
+	(*CreateCurrencyRequest)(nil),  // 0: payroll.v1.CreateCurrencyRequest
+	(*ListCurrenciesRequest)(nil),  // 1: payroll.v1.ListCurrenciesRequest
+	(*UpdateCurrencyRequest)(nil),  // 2: payroll.v1.UpdateCurrencyRequest
+	(*CreateCompanyRequest)(nil),   // 3: payroll.v1.CreateCompanyRequest
+	(*GetCompanyRequest)(nil),      // 4: payroll.v1.GetCompanyRequest
+	(*ListCompaniesRequest)(nil),   // 5: payroll.v1.ListCompaniesRequest
+	(*UpdateCompanyRequest)(nil),   // 6: payroll.v1.UpdateCompanyRequest
+	(*CreateDivisionRequest)(nil),  // 7: payroll.v1.CreateDivisionRequest
+	(*ListDivisionsRequest)(nil),   // 8: payroll.v1.ListDivisionsRequest
+	(*UpdateDivisionRequest)(nil),  // 9: payroll.v1.UpdateDivisionRequest
+	(*CreateEmployeeRequest)(nil),  // 10: payroll.v1.CreateEmployeeRequest
+	(*GetEmployeeRequest)(nil),     // 11: payroll.v1.GetEmployeeRequest
+	(*ListEmployeesRequest)(nil),   // 12: payroll.v1.ListEmployeesRequest
+	(*UpdateEmployeeRequest)(nil),  // 13: payroll.v1.UpdateEmployeeRequest
+	(*CreateCurrencyResponse)(nil), // 14: payroll.v1.CreateCurrencyResponse
+	(*ListCurrenciesResponse)(nil), // 15: payroll.v1.ListCurrenciesResponse
+	(*UpdateCurrencyResponse)(nil), // 16: payroll.v1.UpdateCurrencyResponse
+	(*CreateCompanyResponse)(nil),  // 17: payroll.v1.CreateCompanyResponse
+	(*GetCompanyResponse)(nil),     // 18: payroll.v1.GetCompanyResponse
+	(*ListCompaniesResponse)(nil),  // 19: payroll.v1.ListCompaniesResponse
+	(*UpdateCompanyResponse)(nil),  // 20: payroll.v1.UpdateCompanyResponse
+	(*CreateDivisionResponse)(nil), // 21: payroll.v1.CreateDivisionResponse
+	(*ListDivisionsResponse)(nil),  // 22: payroll.v1.ListDivisionsResponse
+	(*UpdateDivisionResponse)(nil), // 23: payroll.v1.UpdateDivisionResponse
+	(*CreateEmployeeResponse)(nil), // 24: payroll.v1.CreateEmployeeResponse
+	(*GetEmployeeResponse)(nil),    // 25: payroll.v1.GetEmployeeResponse
+	(*ListEmployeesResponse)(nil),  // 26: payroll.v1.ListEmployeesResponse
+	(*UpdateEmployeeResponse)(nil), // 27: payroll.v1.UpdateEmployeeResponse
+}
 var file_payroll_v1_payroll_service_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	0,  // 0: payroll.v1.PayrollService.CreateCurrency:input_type -> payroll.v1.CreateCurrencyRequest
+	1,  // 1: payroll.v1.PayrollService.ListCurrencies:input_type -> payroll.v1.ListCurrenciesRequest
+	2,  // 2: payroll.v1.PayrollService.UpdateCurrency:input_type -> payroll.v1.UpdateCurrencyRequest
+	3,  // 3: payroll.v1.PayrollService.CreateCompany:input_type -> payroll.v1.CreateCompanyRequest
+	4,  // 4: payroll.v1.PayrollService.GetCompany:input_type -> payroll.v1.GetCompanyRequest
+	5,  // 5: payroll.v1.PayrollService.ListCompanies:input_type -> payroll.v1.ListCompaniesRequest
+	6,  // 6: payroll.v1.PayrollService.UpdateCompany:input_type -> payroll.v1.UpdateCompanyRequest
+	7,  // 7: payroll.v1.PayrollService.CreateDivision:input_type -> payroll.v1.CreateDivisionRequest
+	8,  // 8: payroll.v1.PayrollService.ListDivisions:input_type -> payroll.v1.ListDivisionsRequest
+	9,  // 9: payroll.v1.PayrollService.UpdateDivision:input_type -> payroll.v1.UpdateDivisionRequest
+	10, // 10: payroll.v1.PayrollService.CreateEmployee:input_type -> payroll.v1.CreateEmployeeRequest
+	11, // 11: payroll.v1.PayrollService.GetEmployee:input_type -> payroll.v1.GetEmployeeRequest
+	12, // 12: payroll.v1.PayrollService.ListEmployees:input_type -> payroll.v1.ListEmployeesRequest
+	13, // 13: payroll.v1.PayrollService.UpdateEmployee:input_type -> payroll.v1.UpdateEmployeeRequest
+	14, // 14: payroll.v1.PayrollService.CreateCurrency:output_type -> payroll.v1.CreateCurrencyResponse
+	15, // 15: payroll.v1.PayrollService.ListCurrencies:output_type -> payroll.v1.ListCurrenciesResponse
+	16, // 16: payroll.v1.PayrollService.UpdateCurrency:output_type -> payroll.v1.UpdateCurrencyResponse
+	17, // 17: payroll.v1.PayrollService.CreateCompany:output_type -> payroll.v1.CreateCompanyResponse
+	18, // 18: payroll.v1.PayrollService.GetCompany:output_type -> payroll.v1.GetCompanyResponse
+	19, // 19: payroll.v1.PayrollService.ListCompanies:output_type -> payroll.v1.ListCompaniesResponse
+	20, // 20: payroll.v1.PayrollService.UpdateCompany:output_type -> payroll.v1.UpdateCompanyResponse
+	21, // 21: payroll.v1.PayrollService.CreateDivision:output_type -> payroll.v1.CreateDivisionResponse
+	22, // 22: payroll.v1.PayrollService.ListDivisions:output_type -> payroll.v1.ListDivisionsResponse
+	23, // 23: payroll.v1.PayrollService.UpdateDivision:output_type -> payroll.v1.UpdateDivisionResponse
+	24, // 24: payroll.v1.PayrollService.CreateEmployee:output_type -> payroll.v1.CreateEmployeeResponse
+	25, // 25: payroll.v1.PayrollService.GetEmployee:output_type -> payroll.v1.GetEmployeeResponse
+	26, // 26: payroll.v1.PayrollService.ListEmployees:output_type -> payroll.v1.ListEmployeesResponse
+	27, // 27: payroll.v1.PayrollService.UpdateEmployee:output_type -> payroll.v1.UpdateEmployeeResponse
+	14, // [14:28] is the sub-list for method output_type
+	0,  // [0:14] is the sub-list for method input_type
+	0,  // [0:0] is the sub-list for extension type_name
+	0,  // [0:0] is the sub-list for extension extendee
+	0,  // [0:0] is the sub-list for field type_name
 }
 
 func init() { file_payroll_v1_payroll_service_proto_init() }
@@ -45,6 +118,7 @@ func file_payroll_v1_payroll_service_proto_init() {
 	if File_payroll_v1_payroll_service_proto != nil {
 		return
 	}
+	file_payroll_v1_master_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

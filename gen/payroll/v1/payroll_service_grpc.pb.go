@@ -7,13 +7,33 @@
 package payrollv1
 
 import (
+	context "context"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 )
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
 // Requires gRPC-Go v1.64.0 or later.
 const _ = grpc.SupportPackageIsVersion9
+
+const (
+	PayrollService_CreateCurrency_FullMethodName = "/payroll.v1.PayrollService/CreateCurrency"
+	PayrollService_ListCurrencies_FullMethodName = "/payroll.v1.PayrollService/ListCurrencies"
+	PayrollService_UpdateCurrency_FullMethodName = "/payroll.v1.PayrollService/UpdateCurrency"
+	PayrollService_CreateCompany_FullMethodName  = "/payroll.v1.PayrollService/CreateCompany"
+	PayrollService_GetCompany_FullMethodName     = "/payroll.v1.PayrollService/GetCompany"
+	PayrollService_ListCompanies_FullMethodName  = "/payroll.v1.PayrollService/ListCompanies"
+	PayrollService_UpdateCompany_FullMethodName  = "/payroll.v1.PayrollService/UpdateCompany"
+	PayrollService_CreateDivision_FullMethodName = "/payroll.v1.PayrollService/CreateDivision"
+	PayrollService_ListDivisions_FullMethodName  = "/payroll.v1.PayrollService/ListDivisions"
+	PayrollService_UpdateDivision_FullMethodName = "/payroll.v1.PayrollService/UpdateDivision"
+	PayrollService_CreateEmployee_FullMethodName = "/payroll.v1.PayrollService/CreateEmployee"
+	PayrollService_GetEmployee_FullMethodName    = "/payroll.v1.PayrollService/GetEmployee"
+	PayrollService_ListEmployees_FullMethodName  = "/payroll.v1.PayrollService/ListEmployees"
+	PayrollService_UpdateEmployee_FullMethodName = "/payroll.v1.PayrollService/UpdateEmployee"
+)
 
 // PayrollServiceClient is the client API for PayrollService service.
 //
@@ -23,11 +43,29 @@ const _ = grpc.SupportPackageIsVersion9
 // PayrollService aggregates all Payroll RPCs.
 // REST is exposed via grpc-gateway under /api/v1/payroll/* (decision D-01).
 //
-// Skeleton only (T004): RPCs are added per feature task (master, run, period, ...).
+// RPCs are added per feature task (master T007, run, period, ...).
 // Permission codes follow the IAM 4-segment format (D-05), see
 // goapps-backend/services/payroll/docs/permissions.md.
 // =============================================================================
 type PayrollServiceClient interface {
+	// ── Master: Currency ───────────────────────────────────────────────────────
+	CreateCurrency(ctx context.Context, in *CreateCurrencyRequest, opts ...grpc.CallOption) (*CreateCurrencyResponse, error)
+	ListCurrencies(ctx context.Context, in *ListCurrenciesRequest, opts ...grpc.CallOption) (*ListCurrenciesResponse, error)
+	UpdateCurrency(ctx context.Context, in *UpdateCurrencyRequest, opts ...grpc.CallOption) (*UpdateCurrencyResponse, error)
+	// ── Master: Company ────────────────────────────────────────────────────────
+	CreateCompany(ctx context.Context, in *CreateCompanyRequest, opts ...grpc.CallOption) (*CreateCompanyResponse, error)
+	GetCompany(ctx context.Context, in *GetCompanyRequest, opts ...grpc.CallOption) (*GetCompanyResponse, error)
+	ListCompanies(ctx context.Context, in *ListCompaniesRequest, opts ...grpc.CallOption) (*ListCompaniesResponse, error)
+	UpdateCompany(ctx context.Context, in *UpdateCompanyRequest, opts ...grpc.CallOption) (*UpdateCompanyResponse, error)
+	// ── Master: Division ───────────────────────────────────────────────────────
+	CreateDivision(ctx context.Context, in *CreateDivisionRequest, opts ...grpc.CallOption) (*CreateDivisionResponse, error)
+	ListDivisions(ctx context.Context, in *ListDivisionsRequest, opts ...grpc.CallOption) (*ListDivisionsResponse, error)
+	UpdateDivision(ctx context.Context, in *UpdateDivisionRequest, opts ...grpc.CallOption) (*UpdateDivisionResponse, error)
+	// ── Master: Employee ───────────────────────────────────────────────────────
+	CreateEmployee(ctx context.Context, in *CreateEmployeeRequest, opts ...grpc.CallOption) (*CreateEmployeeResponse, error)
+	GetEmployee(ctx context.Context, in *GetEmployeeRequest, opts ...grpc.CallOption) (*GetEmployeeResponse, error)
+	ListEmployees(ctx context.Context, in *ListEmployeesRequest, opts ...grpc.CallOption) (*ListEmployeesResponse, error)
+	UpdateEmployee(ctx context.Context, in *UpdateEmployeeRequest, opts ...grpc.CallOption) (*UpdateEmployeeResponse, error)
 }
 
 type payrollServiceClient struct {
@@ -38,6 +76,146 @@ func NewPayrollServiceClient(cc grpc.ClientConnInterface) PayrollServiceClient {
 	return &payrollServiceClient{cc}
 }
 
+func (c *payrollServiceClient) CreateCurrency(ctx context.Context, in *CreateCurrencyRequest, opts ...grpc.CallOption) (*CreateCurrencyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateCurrencyResponse)
+	err := c.cc.Invoke(ctx, PayrollService_CreateCurrency_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) ListCurrencies(ctx context.Context, in *ListCurrenciesRequest, opts ...grpc.CallOption) (*ListCurrenciesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListCurrenciesResponse)
+	err := c.cc.Invoke(ctx, PayrollService_ListCurrencies_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) UpdateCurrency(ctx context.Context, in *UpdateCurrencyRequest, opts ...grpc.CallOption) (*UpdateCurrencyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateCurrencyResponse)
+	err := c.cc.Invoke(ctx, PayrollService_UpdateCurrency_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) CreateCompany(ctx context.Context, in *CreateCompanyRequest, opts ...grpc.CallOption) (*CreateCompanyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateCompanyResponse)
+	err := c.cc.Invoke(ctx, PayrollService_CreateCompany_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) GetCompany(ctx context.Context, in *GetCompanyRequest, opts ...grpc.CallOption) (*GetCompanyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetCompanyResponse)
+	err := c.cc.Invoke(ctx, PayrollService_GetCompany_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) ListCompanies(ctx context.Context, in *ListCompaniesRequest, opts ...grpc.CallOption) (*ListCompaniesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListCompaniesResponse)
+	err := c.cc.Invoke(ctx, PayrollService_ListCompanies_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) UpdateCompany(ctx context.Context, in *UpdateCompanyRequest, opts ...grpc.CallOption) (*UpdateCompanyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateCompanyResponse)
+	err := c.cc.Invoke(ctx, PayrollService_UpdateCompany_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) CreateDivision(ctx context.Context, in *CreateDivisionRequest, opts ...grpc.CallOption) (*CreateDivisionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateDivisionResponse)
+	err := c.cc.Invoke(ctx, PayrollService_CreateDivision_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) ListDivisions(ctx context.Context, in *ListDivisionsRequest, opts ...grpc.CallOption) (*ListDivisionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDivisionsResponse)
+	err := c.cc.Invoke(ctx, PayrollService_ListDivisions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) UpdateDivision(ctx context.Context, in *UpdateDivisionRequest, opts ...grpc.CallOption) (*UpdateDivisionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateDivisionResponse)
+	err := c.cc.Invoke(ctx, PayrollService_UpdateDivision_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) CreateEmployee(ctx context.Context, in *CreateEmployeeRequest, opts ...grpc.CallOption) (*CreateEmployeeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateEmployeeResponse)
+	err := c.cc.Invoke(ctx, PayrollService_CreateEmployee_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) GetEmployee(ctx context.Context, in *GetEmployeeRequest, opts ...grpc.CallOption) (*GetEmployeeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetEmployeeResponse)
+	err := c.cc.Invoke(ctx, PayrollService_GetEmployee_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) ListEmployees(ctx context.Context, in *ListEmployeesRequest, opts ...grpc.CallOption) (*ListEmployeesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListEmployeesResponse)
+	err := c.cc.Invoke(ctx, PayrollService_ListEmployees_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) UpdateEmployee(ctx context.Context, in *UpdateEmployeeRequest, opts ...grpc.CallOption) (*UpdateEmployeeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateEmployeeResponse)
+	err := c.cc.Invoke(ctx, PayrollService_UpdateEmployee_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PayrollServiceServer is the server API for PayrollService service.
 // All implementations must embed UnimplementedPayrollServiceServer
 // for forward compatibility.
@@ -46,11 +224,29 @@ func NewPayrollServiceClient(cc grpc.ClientConnInterface) PayrollServiceClient {
 // PayrollService aggregates all Payroll RPCs.
 // REST is exposed via grpc-gateway under /api/v1/payroll/* (decision D-01).
 //
-// Skeleton only (T004): RPCs are added per feature task (master, run, period, ...).
+// RPCs are added per feature task (master T007, run, period, ...).
 // Permission codes follow the IAM 4-segment format (D-05), see
 // goapps-backend/services/payroll/docs/permissions.md.
 // =============================================================================
 type PayrollServiceServer interface {
+	// ── Master: Currency ───────────────────────────────────────────────────────
+	CreateCurrency(context.Context, *CreateCurrencyRequest) (*CreateCurrencyResponse, error)
+	ListCurrencies(context.Context, *ListCurrenciesRequest) (*ListCurrenciesResponse, error)
+	UpdateCurrency(context.Context, *UpdateCurrencyRequest) (*UpdateCurrencyResponse, error)
+	// ── Master: Company ────────────────────────────────────────────────────────
+	CreateCompany(context.Context, *CreateCompanyRequest) (*CreateCompanyResponse, error)
+	GetCompany(context.Context, *GetCompanyRequest) (*GetCompanyResponse, error)
+	ListCompanies(context.Context, *ListCompaniesRequest) (*ListCompaniesResponse, error)
+	UpdateCompany(context.Context, *UpdateCompanyRequest) (*UpdateCompanyResponse, error)
+	// ── Master: Division ───────────────────────────────────────────────────────
+	CreateDivision(context.Context, *CreateDivisionRequest) (*CreateDivisionResponse, error)
+	ListDivisions(context.Context, *ListDivisionsRequest) (*ListDivisionsResponse, error)
+	UpdateDivision(context.Context, *UpdateDivisionRequest) (*UpdateDivisionResponse, error)
+	// ── Master: Employee ───────────────────────────────────────────────────────
+	CreateEmployee(context.Context, *CreateEmployeeRequest) (*CreateEmployeeResponse, error)
+	GetEmployee(context.Context, *GetEmployeeRequest) (*GetEmployeeResponse, error)
+	ListEmployees(context.Context, *ListEmployeesRequest) (*ListEmployeesResponse, error)
+	UpdateEmployee(context.Context, *UpdateEmployeeRequest) (*UpdateEmployeeResponse, error)
 	mustEmbedUnimplementedPayrollServiceServer()
 }
 
@@ -61,6 +257,48 @@ type PayrollServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedPayrollServiceServer struct{}
 
+func (UnimplementedPayrollServiceServer) CreateCurrency(context.Context, *CreateCurrencyRequest) (*CreateCurrencyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateCurrency not implemented")
+}
+func (UnimplementedPayrollServiceServer) ListCurrencies(context.Context, *ListCurrenciesRequest) (*ListCurrenciesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListCurrencies not implemented")
+}
+func (UnimplementedPayrollServiceServer) UpdateCurrency(context.Context, *UpdateCurrencyRequest) (*UpdateCurrencyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateCurrency not implemented")
+}
+func (UnimplementedPayrollServiceServer) CreateCompany(context.Context, *CreateCompanyRequest) (*CreateCompanyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateCompany not implemented")
+}
+func (UnimplementedPayrollServiceServer) GetCompany(context.Context, *GetCompanyRequest) (*GetCompanyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetCompany not implemented")
+}
+func (UnimplementedPayrollServiceServer) ListCompanies(context.Context, *ListCompaniesRequest) (*ListCompaniesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListCompanies not implemented")
+}
+func (UnimplementedPayrollServiceServer) UpdateCompany(context.Context, *UpdateCompanyRequest) (*UpdateCompanyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateCompany not implemented")
+}
+func (UnimplementedPayrollServiceServer) CreateDivision(context.Context, *CreateDivisionRequest) (*CreateDivisionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateDivision not implemented")
+}
+func (UnimplementedPayrollServiceServer) ListDivisions(context.Context, *ListDivisionsRequest) (*ListDivisionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListDivisions not implemented")
+}
+func (UnimplementedPayrollServiceServer) UpdateDivision(context.Context, *UpdateDivisionRequest) (*UpdateDivisionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateDivision not implemented")
+}
+func (UnimplementedPayrollServiceServer) CreateEmployee(context.Context, *CreateEmployeeRequest) (*CreateEmployeeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateEmployee not implemented")
+}
+func (UnimplementedPayrollServiceServer) GetEmployee(context.Context, *GetEmployeeRequest) (*GetEmployeeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetEmployee not implemented")
+}
+func (UnimplementedPayrollServiceServer) ListEmployees(context.Context, *ListEmployeesRequest) (*ListEmployeesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListEmployees not implemented")
+}
+func (UnimplementedPayrollServiceServer) UpdateEmployee(context.Context, *UpdateEmployeeRequest) (*UpdateEmployeeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateEmployee not implemented")
+}
 func (UnimplementedPayrollServiceServer) mustEmbedUnimplementedPayrollServiceServer() {}
 func (UnimplementedPayrollServiceServer) testEmbeddedByValue()                        {}
 
@@ -82,13 +320,322 @@ func RegisterPayrollServiceServer(s grpc.ServiceRegistrar, srv PayrollServiceSer
 	s.RegisterService(&PayrollService_ServiceDesc, srv)
 }
 
+func _PayrollService_CreateCurrency_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateCurrencyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).CreateCurrency(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_CreateCurrency_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).CreateCurrency(ctx, req.(*CreateCurrencyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_ListCurrencies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListCurrenciesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).ListCurrencies(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_ListCurrencies_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).ListCurrencies(ctx, req.(*ListCurrenciesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_UpdateCurrency_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateCurrencyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).UpdateCurrency(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_UpdateCurrency_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).UpdateCurrency(ctx, req.(*UpdateCurrencyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_CreateCompany_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateCompanyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).CreateCompany(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_CreateCompany_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).CreateCompany(ctx, req.(*CreateCompanyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_GetCompany_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCompanyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).GetCompany(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_GetCompany_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).GetCompany(ctx, req.(*GetCompanyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_ListCompanies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListCompaniesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).ListCompanies(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_ListCompanies_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).ListCompanies(ctx, req.(*ListCompaniesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_UpdateCompany_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateCompanyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).UpdateCompany(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_UpdateCompany_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).UpdateCompany(ctx, req.(*UpdateCompanyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_CreateDivision_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateDivisionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).CreateDivision(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_CreateDivision_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).CreateDivision(ctx, req.(*CreateDivisionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_ListDivisions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDivisionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).ListDivisions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_ListDivisions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).ListDivisions(ctx, req.(*ListDivisionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_UpdateDivision_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateDivisionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).UpdateDivision(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_UpdateDivision_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).UpdateDivision(ctx, req.(*UpdateDivisionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_CreateEmployee_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateEmployeeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).CreateEmployee(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_CreateEmployee_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).CreateEmployee(ctx, req.(*CreateEmployeeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_GetEmployee_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetEmployeeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).GetEmployee(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_GetEmployee_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).GetEmployee(ctx, req.(*GetEmployeeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_ListEmployees_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListEmployeesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).ListEmployees(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_ListEmployees_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).ListEmployees(ctx, req.(*ListEmployeesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_UpdateEmployee_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateEmployeeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).UpdateEmployee(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_UpdateEmployee_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).UpdateEmployee(ctx, req.(*UpdateEmployeeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PayrollService_ServiceDesc is the grpc.ServiceDesc for PayrollService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var PayrollService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "payroll.v1.PayrollService",
 	HandlerType: (*PayrollServiceServer)(nil),
-	Methods:     []grpc.MethodDesc{},
-	Streams:     []grpc.StreamDesc{},
-	Metadata:    "payroll/v1/payroll_service.proto",
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CreateCurrency",
+			Handler:    _PayrollService_CreateCurrency_Handler,
+		},
+		{
+			MethodName: "ListCurrencies",
+			Handler:    _PayrollService_ListCurrencies_Handler,
+		},
+		{
+			MethodName: "UpdateCurrency",
+			Handler:    _PayrollService_UpdateCurrency_Handler,
+		},
+		{
+			MethodName: "CreateCompany",
+			Handler:    _PayrollService_CreateCompany_Handler,
+		},
+		{
+			MethodName: "GetCompany",
+			Handler:    _PayrollService_GetCompany_Handler,
+		},
+		{
+			MethodName: "ListCompanies",
+			Handler:    _PayrollService_ListCompanies_Handler,
+		},
+		{
+			MethodName: "UpdateCompany",
+			Handler:    _PayrollService_UpdateCompany_Handler,
+		},
+		{
+			MethodName: "CreateDivision",
+			Handler:    _PayrollService_CreateDivision_Handler,
+		},
+		{
+			MethodName: "ListDivisions",
+			Handler:    _PayrollService_ListDivisions_Handler,
+		},
+		{
+			MethodName: "UpdateDivision",
+			Handler:    _PayrollService_UpdateDivision_Handler,
+		},
+		{
+			MethodName: "CreateEmployee",
+			Handler:    _PayrollService_CreateEmployee_Handler,
+		},
+		{
+			MethodName: "GetEmployee",
+			Handler:    _PayrollService_GetEmployee_Handler,
+		},
+		{
+			MethodName: "ListEmployees",
+			Handler:    _PayrollService_ListEmployees_Handler,
+		},
+		{
+			MethodName: "UpdateEmployee",
+			Handler:    _PayrollService_UpdateEmployee_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "payroll/v1/payroll_service.proto",
 }

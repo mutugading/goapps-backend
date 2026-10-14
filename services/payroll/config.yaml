@@ -40,3 +40,7 @@ logger:
   level: debug   # debug, info, warn, error
   format: console  # console, json
   pretty_json: false
+
+pii:  # D-17: override via PAYROLL_PII_KEY / PAYROLL_PII_HMAC_KEY (>= 32 bytes outside development)
+  enc_key: "dev-pii-enc-key-change-in-production"
+  hmac_key: "dev-pii-hmac-key-change-in-production"

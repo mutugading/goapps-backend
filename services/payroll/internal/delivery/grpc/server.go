@@ -32,6 +32,11 @@ func NewServer(cfg *config.ServerConfig, jwtCfg *config.JWTConfig, resolver scop
 	// Create rate limiter (100 requests per second default).
 	rateLimiter := NewRateLimiter(100)
 
+	validation, err := ValidationInterceptor()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build request validator: %w", err)
+	}
+
 	// Chain interceptors in order (outermost first).
 	unaryChain := grpc.ChainUnaryInterceptor(
 		StructuredErrorInterceptor(),       // 0. Wrap gRPC errors into BaseResponse
@@ -45,6 +50,7 @@ func NewServer(cfg *config.ServerConfig, jwtCfg *config.JWTConfig, resolver scop
 		TimeoutInterceptor(60*time.Second), // 7. Enforce timeout
 		AuthInterceptor(jwtCfg, resolver),  // 8. JWT + payroll scope
 		PermissionInterceptor(),            // 9. RBAC permission check
+		validation,                         // 10. buf.validate request constraints
 	)
 
 	opts := []grpc.ServerOption{

@@ -11,8 +11,11 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	payrollv1 "github.com/mutugading/goapps-backend/gen/payroll/v1"
+	masterapp "github.com/mutugading/goapps-backend/services/payroll/internal/application/master"
 	grpcdelivery "github.com/mutugading/goapps-backend/services/payroll/internal/delivery/grpc"
 	httpdelivery "github.com/mutugading/goapps-backend/services/payroll/internal/delivery/httpdelivery"
+	auditinfra "github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/audit"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/config"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/postgres"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/tracing"
@@ -97,6 +100,9 @@ func startServers(ctx context.Context, cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
+
+	masterSvc := masterapp.NewService(db, postgres.NewMasterRepository(), auditinfra.NewWriter(), cfg.PII.EncKey, cfg.PII.HMACKey)
+	payrollv1.RegisterPayrollServiceServer(grpcServer.GRPCServer(), grpcdelivery.NewMasterHandler(masterSvc))
 
 	// Start gRPC server.
 	go func() {
