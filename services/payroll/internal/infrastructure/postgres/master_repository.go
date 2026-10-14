@@ -227,3 +227,27 @@ func (r MasterRepository) UpdateDivision(ctx context.Context, tx *sql.Tx, d doma
 	}
 	return out, err
 }
+
+func lockRow(ctx context.Context, tx *sql.Tx, q string, args ...any) error {
+	var one int
+	err := tx.QueryRowContext(ctx, q, args...).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.ErrNotFound
+	}
+	return err
+}
+
+// LockCurrency locks one currency row until the transaction ends.
+func (MasterRepository) LockCurrency(ctx context.Context, tx *sql.Tx, code string) error {
+	return lockRow(ctx, tx, `SELECT 1 FROM payroll.pyr_currency WHERE pcy_code=$1 FOR UPDATE`, code)
+}
+
+// LockCompany locks one company row until the transaction ends.
+func (MasterRepository) LockCompany(ctx context.Context, tx *sql.Tx, id int16) error {
+	return lockRow(ctx, tx, `SELECT 1 FROM payroll.pyr_company WHERE pco_company_id=$1 FOR UPDATE`, id)
+}
+
+// LockDivision locks one division row until the transaction ends.
+func (MasterRepository) LockDivision(ctx context.Context, tx *sql.Tx, companyID int16, code string) error {
+	return lockRow(ctx, tx, `SELECT 1 FROM payroll.pyr_division_ref WHERE pdr_company_id=$1 AND pdr_code=$2 FOR UPDATE`, companyID, code)
+}

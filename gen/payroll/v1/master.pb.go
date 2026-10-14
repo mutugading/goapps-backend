@@ -2138,9 +2138,11 @@ func (x *CreateEmployeeResponse) GetData() *Employee {
 // GetEmployee resolves `nik` (old or new, 13 §3.1) to one employee inside the
 // caller's scope; an ambiguous NIK is rejected.
 type GetEmployeeRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Nik           string                 `protobuf:"bytes,1,opt,name=nik,proto3" json:"nik,omitempty"`
-	CompanyId     int32                  `protobuf:"varint,2,opt,name=company_id,json=companyId,proto3" json:"company_id,omitempty"` // 0 = any company in scope.
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Nik       string                 `protobuf:"bytes,1,opt,name=nik,proto3" json:"nik,omitempty"`
+	CompanyId int32                  `protobuf:"varint,2,opt,name=company_id,json=companyId,proto3" json:"company_id,omitempty"` // 0 = any company in scope.
+	// Disambiguates a NIK that exists in more than one division; empty = any division in scope.
+	Division      string `protobuf:"bytes,3,opt,name=division,proto3" json:"division,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2187,6 +2189,13 @@ func (x *GetEmployeeRequest) GetCompanyId() int32 {
 		return x.CompanyId
 	}
 	return 0
+}
+
+func (x *GetEmployeeRequest) GetDivision() string {
+	if x != nil {
+		return x.Division
+	}
+	return ""
 }
 
 type GetEmployeeResponse struct {
@@ -2713,11 +2722,12 @@ const file_payroll_v1_master_proto_rawDesc = "" +
 	"\x05input\x18\x04 \x01(\v2\x19.payroll.v1.EmployeeInputB\x06\xbaH\x03\xc8\x01\x01R\x05input\"o\n" +
 	"\x16CreateEmployeeResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12(\n" +
-	"\x04data\x18\x02 \x01(\v2\x14.payroll.v1.EmployeeR\x04data\"P\n" +
+	"\x04data\x18\x02 \x01(\v2\x14.payroll.v1.EmployeeR\x04data\"u\n" +
 	"\x12GetEmployeeRequest\x12\x1b\n" +
 	"\x03nik\x18\x01 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18\x0fR\x03nik\x12\x1d\n" +
 	"\n" +
-	"company_id\x18\x02 \x01(\x05R\tcompanyId\"l\n" +
+	"company_id\x18\x02 \x01(\x05R\tcompanyId\x12#\n" +
+	"\bdivision\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x18\x1eR\bdivision\"l\n" +
 	"\x13GetEmployeeResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12(\n" +
 	"\x04data\x18\x02 \x01(\v2\x14.payroll.v1.EmployeeR\x04data\"\xd5\x01\n" +

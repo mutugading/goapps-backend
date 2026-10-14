@@ -106,7 +106,15 @@ type Repository interface {
 	CreateEmployee(ctx context.Context, tx *sql.Tx, e Employee, npwp, ktp, bankAcnt, actor string, p PII) (Employee, error)
 	GetEmployeeByID(ctx context.Context, tx *sql.Tx, id int64, p PII) (Employee, error)
 	// ResolveEmployeeIDs maps a current or historical NIK to distinct employee ids (13§3.1).
-	ResolveEmployeeIDs(ctx context.Context, tx *sql.Tx, nik string, companyID int16) ([]int64, error)
+	// division "" = any division in scope.
+	ResolveEmployeeIDs(ctx context.Context, tx *sql.Tx, nik string, companyID int16, division string) ([]int64, error)
 	ListEmployees(ctx context.Context, tx *sql.Tx, f EmployeeFilter, p PII) ([]Employee, error)
 	UpdateEmployee(ctx context.Context, tx *sql.Tx, id int64, e Employee, npwp, ktp, bankAcnt, actor string, ifMatch int, p PII) (Employee, error)
+
+	// Lock* take a row lock (SELECT ... FOR UPDATE) so the "before" image read for
+	// the audit log cannot differ from the row the UPDATE then changes.
+	LockCurrency(ctx context.Context, tx *sql.Tx, code string) error
+	LockCompany(ctx context.Context, tx *sql.Tx, id int16) error
+	LockDivision(ctx context.Context, tx *sql.Tx, companyID int16, code string) error
+	LockEmployee(ctx context.Context, tx *sql.Tx, id int64) error
 }

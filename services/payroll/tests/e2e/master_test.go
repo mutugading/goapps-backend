@@ -1,6 +1,6 @@
 // Package e2e holds end-to-end tests of the payroll gRPC handlers against a real
 // PostgreSQL 18 (testcontainers), connecting as payroll_app like the service.
-// Gated by INTEGRATION_TEST=true (needs Docker).
+// Gated by INTEGRATION_TEST=true (needs Docker); `make test-e2e` sets it.
 package e2e
 
 import (
@@ -29,14 +29,15 @@ import (
 )
 
 const (
-	encKey  = "test-enc-key-0123456789-0123456789"
-	hmacKey = "test-hmac-key-0123456789-012345678"
-	userRW  = "user-rw"  // SOLO scope, may update (sees PII)
-	userRO  = "user-ro"  // SOLO scope, view only (PII masked)
-	userJkt = "user-jkt" // JAKARTA scope only
-	rawNPWP = "01.234.567.8-901.000"
-	rawKTP  = "3372010101010001"
-	rawBank = "1234567890"
+	encKey   = "test-enc-key-0123456789-0123456789"
+	hmacKey  = "test-hmac-key-0123456789-012345678"
+	userRW   = "user-rw"   // SOLO scope, may update (sees PII)
+	userRO   = "user-ro"   // SOLO scope, view only (PII masked)
+	userJkt  = "user-jkt"  // JAKARTA scope only
+	userBoth = "user-both" // SOLO + JAKARTA
+	rawNPWP  = "01.234.567.8-901.000"
+	rawKTP   = "3372010101010001"
+	rawBank  = "1234567890"
 )
 
 var (
@@ -116,7 +117,7 @@ func setup() (func(), error) {
 		`INSERT INTO payroll.pyr_company (pco_code, pco_name) VALUES ('MGT', 'Mutu Gading')`,
 		`INSERT INTO payroll.pyr_division_ref VALUES (1,'SOLO','Solo'), (1,'JAKARTA','Jakarta')`,
 		`INSERT INTO payroll.pyr_user_scope (pus_user_id, pus_company_id, pus_division) VALUES
-		   ('` + userRW + `',1,'SOLO'), ('` + userRO + `',1,'SOLO'), ('` + userJkt + `',1,'JAKARTA')`,
+		   ('` + userRW + `',1,'SOLO'), ('` + userRO + `',1,'SOLO'), ('` + userJkt + `',1,'JAKARTA'), ('` + userBoth + `',1,'SOLO'), ('` + userBoth + `',1,'JAKARTA')`,
 	} {
 		if _, err := ownDB.ExecContext(ctx, s); err != nil {
 			return fail(fmt.Errorf("seed: %w", err))
@@ -145,8 +146,10 @@ func ctxFor(t *testing.T, userID string, perms ...string) context.Context {
 }
 
 var (
-	permsRW = []string{"payroll.master.employee.view", "payroll.master.employee.create", "payroll.master.employee.update"}
-	permsRO = []string{"payroll.master.employee.view"}
+	permsRW = []string{"payroll.master.employee.view", "payroll.master.employee.create", "payroll.master.employee.update",
+		"payroll.master.company.view", "payroll.master.company.create", "payroll.master.company.update",
+		"payroll.master.currency.view", "payroll.master.currency.create", "payroll.master.currency.update"}
+	permsRO = []string{"payroll.master.employee.view", "payroll.master.company.view", "payroll.master.currency.view"}
 )
 
 func input(nama string) *payrollv1.EmployeeInput {
@@ -338,5 +341,106 @@ func TestCompanyDivisionCurrencyETag(t *testing.T) {
 	}
 	if _, err := handler.UpdateDivision(ctx, &payrollv1.UpdateDivisionRequest{CompanyId: 1, Code: "BANDUNG", Name: "Bdg", IfMatch: "7"}); err == nil || code(t, err) != apperr.CodeVersionMismatch {
 		t.Fatalf("stale division update: %v", err)
+	}
+}
+
+func TestAmbiguousNIKNeedsDivision(t *testing.T) {
+	mustCreate(t, "E600", "Solo Orang")
+	if _, err := handler.CreateEmployee(ctxFor(t, userJkt, permsRW...), &payrollv1.CreateEmployeeRequest{
+		CompanyId: 1, Division: "JAKARTA", Nik: "E600", Input: input("Jakarta Orang")}); err != nil {
+		t.Fatalf("same NIK in another division must be allowed: %v", err)
+	}
+	both := ctxFor(t, userBoth, permsRW...)
+	if _, err := handler.GetEmployee(both, &payrollv1.GetEmployeeRequest{Nik: "E600"}); err == nil || code(t, err) != apperr.CodeConflict {
+		t.Fatalf("want CONFLICT for ambiguous NIK, got %v", err)
+	}
+	got, err := handler.GetEmployee(both, &payrollv1.GetEmployeeRequest{Nik: "E600", Division: "JAKARTA"})
+	if err != nil || got.GetData().GetNama() != "Jakarta Orang" {
+		t.Fatalf("division disambiguation: %v %+v", err, got)
+	}
+}
+
+func TestGlobalMasterScopeForbidden(t *testing.T) {
+	var other int16
+	if err := ownDB.QueryRow(`INSERT INTO payroll.pyr_company (pco_code, pco_name) VALUES ('OTH','Other') RETURNING pco_company_id`).Scan(&other); err != nil {
+		t.Fatal(err)
+	}
+	ctx := ctxFor(t, userRW, permsRW...)
+	check := func(name string, err error) {
+		t.Helper()
+		if err == nil || code(t, err) != apperr.CodeDivisionForbidden {
+			t.Fatalf("%s: want DIVISION_FORBIDDEN, got %v", name, err)
+		}
+	}
+	_, err := handler.GetCompany(ctx, &payrollv1.GetCompanyRequest{CompanyId: int32(other)})
+	check("get company", err)
+	_, err = handler.UpdateCompany(ctx, &payrollv1.UpdateCompanyRequest{CompanyId: int32(other), Name: "X", Active: true, IfMatch: "1"})
+	check("update company", err)
+	_, err = handler.CreateDivision(ctx, &payrollv1.CreateDivisionRequest{CompanyId: int32(other), Code: "D1", Name: "D1"})
+	check("create division", err)
+	_, err = handler.ListDivisions(ctx, &payrollv1.ListDivisionsRequest{CompanyId: int32(other)})
+	check("list divisions", err)
+	list, err := handler.ListCompanies(ctx, &payrollv1.ListCompaniesRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range list.GetData() {
+		if int16(c.GetCompanyId()) == other {
+			t.Fatal("ListCompanies leaked a company outside scope")
+		}
+	}
+}
+
+func TestCurrencyAuditAndInputGuards(t *testing.T) {
+	ctx := ctxFor(t, userRW, permsRW...)
+	if _, err := handler.CreateCurrency(ctx, &payrollv1.CreateCurrencyRequest{Code: "EUR", MinorUnit: 2, TakehomeRound: 0}); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := ownDB.QueryRow(`SELECT count(*) FROM payroll.pyr_audit_log WHERE pal_entity='pyr_currency' AND pal_entity_key='EUR' AND pal_company_id=1`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("currency audit row under caller company: n=%d err=%v", n, err)
+	}
+
+	in := input("Mask Echo")
+	in.Npwp = "***"
+	_, err := handler.CreateEmployee(ctx, &payrollv1.CreateEmployeeRequest{CompanyId: 1, Division: "SOLO", Nik: "E700", Input: in})
+	if err == nil || code(t, err) != apperr.CodeValidation {
+		t.Fatalf("masked PII input must be rejected, got %v", err)
+	}
+	if _, err := handler.UpdateCompany(ctx, &payrollv1.UpdateCompanyRequest{CompanyId: 1, Name: "X", Npwp: "***", Active: true, IfMatch: "1"}); err == nil || code(t, err) != apperr.CodeValidation {
+		t.Fatalf("masked company NPWP must be rejected, got %v", err)
+	}
+	if _, err := handler.CreateCompany(ctx, &payrollv1.CreateCompanyRequest{Code: "MSK", Name: "Mask", Npwp: "***"}); err == nil || code(t, err) != apperr.CodeValidation {
+		t.Fatalf("masked company NPWP on create must be rejected, got %v", err)
+	}
+	in = input("Cuti Big")
+	in.CutiTahunan = "9999.95"
+	_, err = handler.CreateEmployee(ctx, &payrollv1.CreateEmployeeRequest{CompanyId: 1, Division: "SOLO", Nik: "E701", Input: in})
+	if err == nil || code(t, err) != apperr.CodeValidation {
+		t.Fatalf("cuti_tahunan above 9999.9 must be rejected, got %v", err)
+	}
+}
+
+func TestListCursorAndQWildcards(t *testing.T) {
+	ctx := ctxFor(t, userRW, permsRW...)
+	mustCreate(t, "E800", "Pct 100% Wide")
+	mustCreate(t, "E801", "Plain Name")
+	mustCreate(t, "E802", "Under_score")
+	for q, want := range map[string]int{"%": 1, "_": 1, "100%": 1} {
+		got, err := handler.ListEmployees(ctx, &payrollv1.ListEmployeesRequest{Q: q, Limit: 50})
+		if err != nil || len(got.GetData()) != want {
+			t.Fatalf("q=%q want %d rows, got %d err=%v", q, want, len(got.GetData()), err)
+		}
+	}
+	first, err := handler.ListEmployees(ctx, &payrollv1.ListEmployeesRequest{Limit: 2})
+	if err != nil || len(first.GetData()) != 2 || first.GetNextCursor() == "" {
+		t.Fatalf("first page: %v %+v", err, first)
+	}
+	second, err := handler.ListEmployees(ctx, &payrollv1.ListEmployeesRequest{Limit: 2, Cursor: first.GetNextCursor()})
+	if err != nil || len(second.GetData()) == 0 || second.GetData()[0].GetId() <= first.GetData()[1].GetId() {
+		t.Fatalf("second page must continue after the cursor: %v %+v", err, second)
+	}
+	if _, err := handler.ListEmployees(ctx, &payrollv1.ListEmployeesRequest{Cursor: "abc"}); err == nil || code(t, err) != apperr.CodeValidation {
+		t.Fatalf("bad cursor must be VALIDATION, got %v", err)
 	}
 }

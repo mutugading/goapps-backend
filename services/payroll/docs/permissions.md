@@ -1,7 +1,8 @@
 # Payroll — peta permission (spec 07 → IAM, D-05)
 
 Format IAM: `payroll.<modul>.<entitas>.<aksi>` (4 segmen, huruf kecil, tanpa underscore).
-Seed: `services/iam/migrations/postgres/000094_seed_payroll_menu_and_permissions.up.sql`.
+Seed: `services/iam/migrations/postgres/000094_seed_payroll_menu_and_permissions.up.sql`
+(+ `000095_seed_payroll_master_global_permissions.up.sql` untuk company/currency, D-18).
 Aksi `commit` dan `close` ditambahkan ke whitelist `chk_permission_action` di migrasi yang sama.
 Kolom role = pemberian default menurut spec 07 (belum di-seed ke role kecuali SUPER_ADMIN, lihat D-12).
 O=Officer, S=Supervisor, F=Finance, A=Admin.
@@ -11,6 +12,8 @@ O=Officer, S=Supervisor, F=Finance, A=Admin.
 | (menu) | `payroll.module.root.view` | semua pengguna payroll |
 | `master.read` | `payroll.master.employee.view` | O S F A |
 | `master.write` | `payroll.master.employee.create` / `.update` | O S A |
+| `master.write` (company/divisi, D-18) | `payroll.master.company.view` / `.create` / `.update` | A |
+| `master.write` (currency, D-18) | `payroll.master.currency.view` / `.create` / `.update` | A F |
 | `employee.gl_write` | `payroll.master.orionaccount.update` | (13§4, belum ada di tabel 07) |
 | `rule.write` | `payroll.rule.set.update` | A |
 | aktivasi rule set (4-eyes) | `payroll.rule.set.approve` | S |

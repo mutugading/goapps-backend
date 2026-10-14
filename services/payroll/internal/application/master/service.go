@@ -95,6 +95,25 @@ func inScope(ctx context.Context, companyID int16, division string) error {
 	return apperr.DivisionForbidden(companyID, division)
 }
 
+// inCompany rejects a company in which the caller holds no scope at all (D-18).
+// Company and division masters carry no RLS (D-15), so this is the only guard.
+func inCompany(ctx context.Context, companyID int16) error {
+	id, ok := scope.FromContext(ctx)
+	if !ok {
+		return scope.ErrNoIdentity
+	}
+	for _, sc := range id.Scopes {
+		if sc.CompanyID() == companyID {
+			return nil
+		}
+	}
+	return apperr.DivisionForbidden(companyID, "")
+}
+
+func companyInScope(ctx context.Context, companyID int16) bool {
+	return inCompany(ctx, companyID) == nil
+}
+
 // ── Currency ─────────────────────────────────────────────────────────────────
 
 // CreateCurrency creates a currency.
@@ -104,7 +123,7 @@ func (s *Service) CreateCurrency(ctx context.Context, c domain.Currency, ip stri
 		if out, e = s.repo.CreateCurrency(ctx, tx, c); e != nil {
 			return toAppErr(e, "mata uang")
 		}
-		return s.audit.Write(ctx, tx, audit.Entry{Action: "CREATE", Entity: "pyr_currency", EntityKey: out.Code, After: out, IP: ip})
+		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: firstScopeCompany(ctx), Action: "CREATE", Entity: "pyr_currency", EntityKey: out.Code, After: out, IP: ip})
 	})
 	return out, err
 }
@@ -122,6 +141,9 @@ func (s *Service) ListCurrencies(ctx context.Context) (out []domain.Currency, er
 // UpdateCurrency updates a currency under If-Match.
 func (s *Service) UpdateCurrency(ctx context.Context, c domain.Currency, ifMatch int, ip string) (out domain.Currency, err error) {
 	err = s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
+		if e := s.repo.LockCurrency(ctx, tx, c.Code); e != nil {
+			return toAppErr(e, "mata uang")
+		}
 		before, e := s.repo.GetCurrency(ctx, tx, c.Code)
 		if e != nil {
 			return toAppErr(e, "mata uang")
@@ -129,7 +151,7 @@ func (s *Service) UpdateCurrency(ctx context.Context, c domain.Currency, ifMatch
 		if out, e = s.repo.UpdateCurrency(ctx, tx, c, ifMatch); e != nil {
 			return toAppErr(e, "mata uang")
 		}
-		return s.audit.Write(ctx, tx, audit.Entry{Action: "UPDATE", Entity: "pyr_currency", EntityKey: out.Code, Before: before, After: out, IP: ip})
+		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: firstScopeCompany(ctx), Action: "UPDATE", Entity: "pyr_currency", EntityKey: out.Code, Before: before, After: out, IP: ip})
 	})
 	return out, err
 }
@@ -138,6 +160,9 @@ func (s *Service) UpdateCurrency(ctx context.Context, c domain.Currency, ifMatch
 
 // CreateCompany creates a company.
 func (s *Service) CreateCompany(ctx context.Context, c domain.Company, npwp string, cl Caller) (out domain.Company, err error) {
+	if npwp == domain.MaskedValue {
+		return out, validation("npwp", "npwp tidak boleh berisi nilai mask")
+	}
 	if c.BaseCurrency == "" {
 		c.BaseCurrency = "IDR"
 	}
@@ -155,6 +180,9 @@ func (s *Service) CreateCompany(ctx context.Context, c domain.Company, npwp stri
 
 // GetCompany reads a company.
 func (s *Service) GetCompany(ctx context.Context, id int16, cl Caller) (out domain.Company, err error) {
+	if err = inCompany(ctx, id); err != nil {
+		return out, err
+	}
 	err = s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
 		var e error
 		out, e = s.repo.GetCompany(ctx, tx, id, s.pii(cl))
@@ -167,7 +195,12 @@ func (s *Service) GetCompany(ctx context.Context, id int16, cl Caller) (out doma
 func (s *Service) ListCompanies(ctx context.Context, cl Caller) (out []domain.Company, err error) {
 	err = s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
 		var e error
-		out, e = s.repo.ListCompanies(ctx, tx, s.pii(cl))
+		all, e := s.repo.ListCompanies(ctx, tx, s.pii(cl))
+		for _, c := range all {
+			if companyInScope(ctx, c.ID) {
+				out = append(out, c)
+			}
+		}
 		return e
 	})
 	return out, err
@@ -175,7 +208,16 @@ func (s *Service) ListCompanies(ctx context.Context, cl Caller) (out []domain.Co
 
 // UpdateCompany updates a company under If-Match.
 func (s *Service) UpdateCompany(ctx context.Context, c domain.Company, npwp string, ifMatch int, cl Caller) (out domain.Company, err error) {
+	if npwp == domain.MaskedValue {
+		return out, validation("npwp", "npwp tidak boleh berisi nilai mask")
+	}
+	if err = inCompany(ctx, c.ID); err != nil {
+		return out, err
+	}
 	err = s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
+		if e := s.repo.LockCompany(ctx, tx, c.ID); e != nil {
+			return toAppErr(e, "company")
+		}
 		before, e := s.repo.GetCompany(ctx, tx, c.ID, s.pii(cl))
 		if e != nil {
 			return toAppErr(e, "company")
@@ -192,6 +234,9 @@ func (s *Service) UpdateCompany(ctx context.Context, c domain.Company, npwp stri
 
 // CreateDivision creates a division.
 func (s *Service) CreateDivision(ctx context.Context, d domain.Division, ip string) (out domain.Division, err error) {
+	if err = inCompany(ctx, d.CompanyID); err != nil {
+		return out, err
+	}
 	err = s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
 		var e error
 		if out, e = s.repo.CreateDivision(ctx, tx, d); e != nil {
@@ -204,6 +249,9 @@ func (s *Service) CreateDivision(ctx context.Context, d domain.Division, ip stri
 
 // ListDivisions lists the divisions of a company.
 func (s *Service) ListDivisions(ctx context.Context, companyID int16) (out []domain.Division, err error) {
+	if err = inCompany(ctx, companyID); err != nil {
+		return nil, err
+	}
 	err = s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
 		var e error
 		out, e = s.repo.ListDivisions(ctx, tx, companyID)
@@ -214,7 +262,13 @@ func (s *Service) ListDivisions(ctx context.Context, companyID int16) (out []dom
 
 // UpdateDivision updates a division under If-Match.
 func (s *Service) UpdateDivision(ctx context.Context, d domain.Division, ifMatch int, ip string) (out domain.Division, err error) {
+	if err = inCompany(ctx, d.CompanyID); err != nil {
+		return out, err
+	}
 	err = s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
+		if e := s.repo.LockDivision(ctx, tx, d.CompanyID, d.Code); e != nil {
+			return toAppErr(e, "divisi")
+		}
 		before, e := s.repo.GetDivision(ctx, tx, d.CompanyID, d.Code)
 		if e != nil {
 			return toAppErr(e, "divisi")
@@ -232,9 +286,21 @@ func (s *Service) UpdateDivision(ctx context.Context, d domain.Division, ifMatch
 // EmployeeSecrets are the plaintext PII values of a write; empty on update = keep.
 type EmployeeSecrets struct{ NPWP, KTP, BankAcnt string }
 
+// validate rejects the mask echoed back by a client that read masked PII (D-17);
+// storing it would overwrite the real value with "***".
+func (s EmployeeSecrets) validate() error {
+	for f, v := range map[string]string{"npwp": s.NPWP, "ktp": s.KTP, "bank_acnt": s.BankAcnt} {
+		if v == domain.MaskedValue {
+			return validation(f, f+" tidak boleh berisi nilai mask")
+		}
+	}
+	return nil
+}
+
 var (
-	dateRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
-	ccyRE  = regexp.MustCompile(`^[A-Z]{3}$`)
+	maxCuti = decimal.RequireFromString("9999.9") // numeric(5,1); rounding 9999.95 would overflow
+	dateRE  = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+	ccyRE   = regexp.MustCompile(`^[A-Z]{3}$`)
 )
 
 func validDate(field, v string) error {
@@ -265,7 +331,7 @@ func normalize(e *domain.Employee) error {
 	}
 	if e.CutiTahunan != "" {
 		d, err := decimal.NewFromString(e.CutiTahunan)
-		if err != nil || d.IsNegative() || d.GreaterThan(decimal.NewFromInt(9999)) {
+		if err != nil || d.IsNegative() || d.GreaterThan(maxCuti) {
 			return validation("cuti_tahunan", "cuti_tahunan harus desimal 0..9999.9")
 		}
 		e.CutiTahunan = d.Round(1).String() // numeric(5,1), half-up (D-07)
@@ -275,6 +341,9 @@ func normalize(e *domain.Employee) error {
 
 // CreateEmployee creates an employee inside the caller's scope.
 func (s *Service) CreateEmployee(ctx context.Context, e domain.Employee, sec EmployeeSecrets, cl Caller) (out domain.Employee, err error) {
+	if err = sec.validate(); err != nil {
+		return out, err
+	}
 	if err = inScope(ctx, e.CompanyID, e.Division); err != nil {
 		return out, err
 	}
@@ -294,9 +363,9 @@ func (s *Service) CreateEmployee(ctx context.Context, e domain.Employee, sec Emp
 }
 
 // GetEmployee resolves a current/old NIK to a single employee (13§3.1).
-func (s *Service) GetEmployee(ctx context.Context, nik string, companyID int16, cl Caller) (out domain.Employee, err error) {
+func (s *Service) GetEmployee(ctx context.Context, nik string, companyID int16, division string, cl Caller) (out domain.Employee, err error) {
 	err = s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
-		ids, e := s.repo.ResolveEmployeeIDs(ctx, tx, nik, companyID)
+		ids, e := s.repo.ResolveEmployeeIDs(ctx, tx, nik, companyID, division)
 		if e != nil {
 			return e
 		}
@@ -342,11 +411,17 @@ func (s *Service) ListEmployees(ctx context.Context, f domain.EmployeeFilter, cu
 
 // UpdateEmployee updates an employee under If-Match.
 func (s *Service) UpdateEmployee(ctx context.Context, id int64, e domain.Employee, sec EmployeeSecrets, ifMatch int, cl Caller) (out domain.Employee, err error) {
+	if err = sec.validate(); err != nil {
+		return out, err
+	}
 	if err = normalize(&e); err != nil {
 		return out, err
 	}
 	actor := actorOf(ctx)
 	err = s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
+		if e2 := s.repo.LockEmployee(ctx, tx, id); e2 != nil {
+			return toAppErr(e2, "karyawan")
+		}
 		before, e2 := s.repo.GetEmployeeByID(ctx, tx, id, domain.PII{EncKey: s.enc, HMACKey: s.hmac})
 		if e2 != nil {
 			return toAppErr(e2, "karyawan")

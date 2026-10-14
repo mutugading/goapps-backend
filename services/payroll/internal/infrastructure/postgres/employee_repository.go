@@ -112,11 +112,12 @@ func (MasterRepository) GetEmployeeByID(ctx context.Context, tx *sql.Tx, id int6
 }
 
 // ResolveEmployeeIDs maps a current or historical NIK to distinct employee ids.
-func (MasterRepository) ResolveEmployeeIDs(ctx context.Context, tx *sql.Tx, nik string, companyID int16) ([]int64, error) {
+func (MasterRepository) ResolveEmployeeIDs(ctx context.Context, tx *sql.Tx, nik string, companyID int16, division string) ([]int64, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT DISTINCT e.pe_id FROM payroll.pyr_employee e
 		WHERE ($2::smallint = 0 OR e.pe_company_id = $2)
+		  AND ($3::text = '' OR e.pe_division = $3)
 		  AND (e.pe_nik = $1 OR EXISTS (SELECT 1 FROM payroll.pyr_employee_nik_hist h WHERE h.penh_employee_id = e.pe_id AND h.penh_nik = $1))
-		ORDER BY 1 LIMIT 2`, nik, companyID)
+		ORDER BY 1 LIMIT 2`, nik, companyID, division)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +139,7 @@ var listEmployeesSQL = `SELECT ` + employeeCols + ` FROM payroll.pyr_employee
 		  AND ($4::smallint = 0 OR pe_company_id = $4)
 		  AND ($5::text = '' OR pe_division = $5)
 		  AND ($6::int = 0 OR pe_sts_payroll = $6)
-		  AND ($7::text = '' OR pe_nik = $7 OR pe_nama ILIKE '%' || $7 || '%'
+		  AND ($7::text = '' OR pe_nik = $7 OR strpos(lower(pe_nama), lower($7)) > 0
 		       OR EXISTS (SELECT 1 FROM payroll.pyr_employee_nik_hist h WHERE h.penh_employee_id = pe_id AND h.penh_nik = $7))
 		ORDER BY pe_id LIMIT $8` //nolint:gosec // no user input in the SQL text
 
@@ -159,6 +160,11 @@ func (MasterRepository) ListEmployees(ctx context.Context, tx *sql.Tx, f domain.
 		out = append(out, e)
 	}
 	return out, rows.Err()
+}
+
+// LockEmployee locks one employee row until the transaction ends.
+func (MasterRepository) LockEmployee(ctx context.Context, tx *sql.Tx, id int64) error {
+	return lockRow(ctx, tx, `SELECT 1 FROM payroll.pyr_employee WHERE pe_id=$1 FOR UPDATE`, id)
 }
 
 // UpdateEmployee updates an employee when its version equals ifMatch. Empty PII

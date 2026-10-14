@@ -509,6 +509,13 @@
             "required": false,
             "type": "integer",
             "format": "int32"
+          },
+          {
+            "name": "division",
+            "description": "Disambiguates a NIK that exists in more than one division; empty = any division in scope.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [

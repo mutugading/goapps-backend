@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -160,5 +161,28 @@ func TestValidateAccessToken_RejectsWeakTokens(t *testing.T) {
 	}
 	if _, err := validateAccessToken(sign(jwt.SigningMethodHS256, withExp), []byte(secret)); err != nil {
 		t.Fatalf("valid HS256 token rejected: %v", err)
+	}
+}
+
+// Every master RPC must be mapped (fail-closed) and view-only users must not reach writes.
+func TestMasterRPCPermissionMap(t *testing.T) {
+	const svc = "/payroll.v1.PayrollService/"
+	methods := []string{"CreateCurrency", "ListCurrencies", "UpdateCurrency", "CreateCompany", "GetCompany", "ListCompanies",
+		"UpdateCompany", "CreateDivision", "ListDivisions", "UpdateDivision", "CreateEmployee", "GetEmployee", "ListEmployees", "UpdateEmployee"}
+	if len(methods) != 14 {
+		t.Fatal("expected 14 master RPCs")
+	}
+	viewOnly := context.WithValue(context.Background(), AuthPermissionsKey,
+		[]string{permEmployeeView, permCompanyView, permCurrencyView})
+	for _, m := range methods {
+		perm, ok := rpcPermissions[svc+m]
+		if !ok || perm == "" {
+			t.Errorf("%s is not mapped", m)
+			continue
+		}
+		isRead := strings.HasPrefix(m, "Get") || strings.HasPrefix(m, "List")
+		if got := HasPermission(viewOnly, perm); got != isRead {
+			t.Errorf("%s: view-only user allowed=%v, want %v (perm %s)", m, got, isRead, perm)
+		}
 	}
 }

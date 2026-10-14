@@ -21,17 +21,25 @@ const (
 	permEmployeeView   = "payroll.master.employee.view"
 	permEmployeeCreate = "payroll.master.employee.create"
 	permEmployeeUpdate = "payroll.master.employee.update"
+
+	// Global masters (D-18).
+	permCompanyView    = "payroll.master.company.view"
+	permCompanyCreate  = "payroll.master.company.create"
+	permCompanyUpdate  = "payroll.master.company.update"
+	permCurrencyView   = "payroll.master.currency.view"
+	permCurrencyCreate = "payroll.master.currency.create"
+	permCurrencyUpdate = "payroll.master.currency.update"
 )
 
 func init() {
 	const svc = "/payroll.v1.PayrollService/"
 	for m, p := range map[string]string{
-		"ListCurrencies": permEmployeeView, "GetCompany": permEmployeeView, "ListCompanies": permEmployeeView,
-		"ListDivisions": permEmployeeView, "GetEmployee": permEmployeeView, "ListEmployees": permEmployeeView,
-		"CreateCurrency": permEmployeeCreate, "CreateCompany": permEmployeeCreate,
-		"CreateDivision": permEmployeeCreate, "CreateEmployee": permEmployeeCreate,
-		"UpdateCurrency": permEmployeeUpdate, "UpdateCompany": permEmployeeUpdate,
-		"UpdateDivision": permEmployeeUpdate, "UpdateEmployee": permEmployeeUpdate,
+		"ListCurrencies": permCurrencyView, "CreateCurrency": permCurrencyCreate, "UpdateCurrency": permCurrencyUpdate,
+		"GetCompany": permCompanyView, "ListCompanies": permCompanyView, "ListDivisions": permCompanyView,
+		"CreateCompany": permCompanyCreate, "CreateDivision": permCompanyCreate,
+		"UpdateCompany": permCompanyUpdate, "UpdateDivision": permCompanyUpdate,
+		"GetEmployee": permEmployeeView, "ListEmployees": permEmployeeView,
+		"CreateEmployee": permEmployeeCreate, "UpdateEmployee": permEmployeeUpdate,
 	} {
 		rpcPermissions[svc+m] = p
 	}
@@ -271,7 +279,7 @@ func (h *MasterHandler) CreateEmployee(ctx context.Context, r *payrollv1.CreateE
 
 // GetEmployee resolves a current or old NIK.
 func (h *MasterHandler) GetEmployee(ctx context.Context, r *payrollv1.GetEmployeeRequest) (*payrollv1.GetEmployeeResponse, error) {
-	out, err := h.svc.GetEmployee(ctx, r.GetNik(), i16(r.GetCompanyId()), caller(ctx))
+	out, err := h.svc.GetEmployee(ctx, r.GetNik(), i16(r.GetCompanyId()), r.GetDivision(), caller(ctx))
 	if err != nil {
 		return nil, fail(ctx, err)
 	}
