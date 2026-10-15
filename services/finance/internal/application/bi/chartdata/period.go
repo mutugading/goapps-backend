@@ -3,7 +3,10 @@
 // formatting, and cache integration.
 package chartdata
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // PeriodRange is an inclusive [From, To] date window resolved from a preset.
 type PeriodRange struct {
@@ -69,6 +72,9 @@ func PeriodLabel(t time.Time, grain string) string {
 	switch grain {
 	case "DAILY":
 		return t.Format("2006-01-02")
+	case "WEEKLY":
+		y, w := t.ISOWeek()
+		return fmt.Sprintf("%04d-W%02d", y, w)
 	case "QUARTERLY":
 		q := (int(t.Month())-1)/3 + 1
 		return t.Format("2006") + "-Q" + string(rune('0'+q))

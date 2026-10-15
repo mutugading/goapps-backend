@@ -92,12 +92,12 @@ func TestNewChartType(t *testing.T) {
 }
 
 func TestNewPeriodGrain(t *testing.T) {
-	for _, s := range []string{"DAILY", "MONTHLY", "QUARTERLY", "YEARLY"} {
+	for _, s := range []string{"DAILY", "WEEKLY", "MONTHLY", "QUARTERLY", "YEARLY"} {
 		if _, err := dashboard.NewPeriodGrain(s); err != nil {
 			t.Errorf("want OK for %q, got %v", s, err)
 		}
 	}
-	for _, s := range []string{"daily", "Monthly", "WEEKLY", ""} {
+	for _, s := range []string{"daily", "Monthly", "weekly", "HOURLY", ""} {
 		if _, err := dashboard.NewPeriodGrain(s); err == nil {
 			t.Errorf("want error for %q", s)
 		} else if !errors.Is(err, dashboard.ErrInvalidGrain) {

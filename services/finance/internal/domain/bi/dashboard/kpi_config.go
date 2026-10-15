@@ -25,6 +25,11 @@ type KpiEntry struct {
 	CrossRatioNumeratorGroup1   string  // e.g. "NET PROFIT"
 	CrossRatioDenominatorGroup1 string  // e.g. "EBITDA"
 	CrossRatioScale             float64 // e.g. 100 for percentage; default 1
+	// HD-08: optional fact types for numerator/denominator (default = dashboard type), so a ratio
+	// can span two types (e.g. HR_SICK_DAYS / HR_SCHED_DAYS). When a side's group_1 is empty the
+	// viewer's group_1 (dept) filter applies to that side instead of a fixed group_1.
+	CrossRatioNumeratorType   string
+	CrossRatioDenominatorType string
 }
 
 // KpiConfig is the ordered list of KPI cards a dashboard renders above its main chart.
@@ -137,6 +142,7 @@ func parseKpiEntry(m map[string]any, idx int) (KpiEntry, error) {
 	}
 
 	crossNumer, crossDenom, crossScale := parseCrossRatioFields(agg, m)
+	crossNumerType, crossDenomType := parseCrossRatioTypes(agg, m)
 
 	return KpiEntry{
 		Label:                       label,
@@ -152,6 +158,8 @@ func parseKpiEntry(m map[string]any, idx int) (KpiEntry, error) {
 		CrossRatioNumeratorGroup1:   crossNumer,
 		CrossRatioDenominatorGroup1: crossDenom,
 		CrossRatioScale:             crossScale,
+		CrossRatioNumeratorType:     crossNumerType,
+		CrossRatioDenominatorType:   crossDenomType,
 	}, nil
 }
 
@@ -168,6 +176,14 @@ func parseCrossRatioFields(agg string, m map[string]any) (numer, denom string, s
 		scale = v
 	}
 	return numer, denom, scale
+}
+
+// parseCrossRatioTypes reads the optional per-side fact types (HD-08); empty = dashboard type.
+func parseCrossRatioTypes(agg string, m map[string]any) (numer, denom string) {
+	if agg != kpiAggCrossRatio {
+		return "", ""
+	}
+	return mapStringVal(m, "cross_ratio_numerator_type"), mapStringVal(m, "cross_ratio_denominator_type")
 }
 
 // parseKpiAgg reads and validates the aggregation key, defaulting to "sum".

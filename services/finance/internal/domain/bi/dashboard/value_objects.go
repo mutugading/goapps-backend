@@ -72,7 +72,7 @@ type PeriodGrain struct{ value chart.PeriodGrain }
 // NewPeriodGrain validates and constructs a PeriodGrain.
 func NewPeriodGrain(s string) (PeriodGrain, error) {
 	if !chart.IsValidPeriodGrain(s) {
-		return PeriodGrain{}, fmt.Errorf("%w: %q is not a valid period grain (want DAILY|MONTHLY|QUARTERLY|YEARLY)", ErrInvalidGrain, s)
+		return PeriodGrain{}, fmt.Errorf("%w: %q is not a valid period grain (want DAILY|WEEKLY|MONTHLY|QUARTERLY|YEARLY)", ErrInvalidGrain, s)
 	}
 	return PeriodGrain{value: chart.PeriodGrain(s)}, nil
 }

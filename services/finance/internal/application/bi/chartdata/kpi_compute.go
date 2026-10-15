@@ -100,7 +100,8 @@ func computeOneKPI(
 	return row, nil
 }
 
-// computeCrossRatioKPI computes SUM(numerator_group_1) / NULLIF(SUM(denominator_group_1), 0) * scale.
+// computeCrossRatioKPI computes SUM(numerator_group_1) / NULLIF(SUM(denominator_group_1), 0) * scale
+// (HD-08: per-side type override and dept filter).
 // Both groups are queried from bi_fact_metric with the dashboard's type, grain, and the KPI's period scope.
 // Returns 0 with no error when the denominator is 0 or data is absent.
 func computeCrossRatioKPI(
@@ -109,7 +110,7 @@ func computeCrossRatioKPI(
 	d *dashboarddomain.Dashboard,
 	k dashboarddomain.KpiEntry,
 	now time.Time,
-	_, _ []string, // group1Filters, group2Filters — not applicable for cross_ratio KPIs (fixed group_1 semantics)
+	group1Filters, _ []string, // group2Filters not applicable; group1Filters (dept) apply only to sides without a fixed group_1
 ) (factmetric.KpiRow, error) {
 	effPeriod := resolveKPIPeriod(k.Period, PeriodRange{
 		From: shiftByMonths(now, -12),
@@ -117,25 +118,41 @@ func computeCrossRatioKPI(
 	}, now)
 
 	grain := d.PeriodGrain().String()
-	buildQuery := func(group1 string) factmetric.PlannedQuery {
-		args := []any{d.FilterType(), group1, grain, effPeriod.From, effPeriod.To}
+	buildQuery := func(typ, group1 string) factmetric.PlannedQuery {
+		if typ == "" {
+			typ = d.FilterType()
+		}
+		args := []any{typ, grain, effPeriod.From, effPeriod.To}
+		conds := ""
+		switch {
+		case group1 != "":
+			conds = " AND group_1 = $5"
+			args = append(args, group1)
+		case len(group1Filters) > 0:
+			ph := make([]string, len(group1Filters))
+			for i, v := range group1Filters {
+				ph[i] = fmt.Sprintf("$%d", len(args)+1)
+				args = append(args, v)
+			}
+			conds = " AND group_1 IN (" + strings.Join(ph, ",") + ")"
+		}
 		sql := `SELECT 'kpi'::text AS category, NULL::date AS periode_date,
                        ''::text AS periode_label,
                        COALESCE(SUM(display_value), 0) AS value,
                        0::numeric AS prev_value, 0::int AS order_seq
                 FROM bi_fact_metric
-                WHERE type = $1 AND group_1 = $2 AND periode_grain = $3
-                  AND periode_date BETWEEN $4 AND $5
+                WHERE type = $1 AND periode_grain = $2
+                  AND periode_date BETWEEN $3 AND $4` + conds + `
                   AND is_active = TRUE AND metric_name = 'VALUE'`
 		return factmetric.PlannedQuery{SQL: sql, Args: args, TargetTable: "bi_fact_metric"}
 	}
 
-	numRows, err := repo.QueryAggregate(ctx, buildQuery(k.CrossRatioNumeratorGroup1))
+	numRows, err := repo.QueryAggregate(ctx, buildQuery(k.CrossRatioNumeratorType, k.CrossRatioNumeratorGroup1))
 	if err != nil {
 		return factmetric.KpiRow{Label: k.Label}, fmt.Errorf("cross ratio numerator: %w", err)
 	}
 
-	denRows, err := repo.QueryAggregate(ctx, buildQuery(k.CrossRatioDenominatorGroup1))
+	denRows, err := repo.QueryAggregate(ctx, buildQuery(k.CrossRatioDenominatorType, k.CrossRatioDenominatorGroup1))
 	if err != nil {
 		return factmetric.KpiRow{Label: k.Label}, fmt.Errorf("cross ratio denominator: %w", err)
 	}
@@ -388,19 +405,29 @@ func resolveKPIPeriod(scope string, selected PeriodRange, now time.Time) PeriodR
 	}
 }
 
+// KPI compare-mode keys.
+const (
+	kpiCmpMoM = "MoM"
+	kpiCmpQoQ = "QoQ"
+	kpiCmpYoY = "YoY"
+)
+
 // compareRange computes the [from, to] window for a KPI compare mode.
 func compareRange(current PeriodRange, mode, grain string, _ time.Time) (PeriodRange, string) {
 	if current.From.IsZero() || current.To.IsZero() {
 		return PeriodRange{}, ""
 	}
+	if grain == "WEEKLY" {
+		return compareRangeWeekly(current, mode, grain)
+	}
 	switch mode {
-	case "MoM":
+	case kpiCmpMoM:
 		return PeriodRange{From: shiftByMonths(current.From, -1), To: shiftByMonths(current.To, -1)},
 			PeriodLabel(shiftByMonths(current.To, -1), grain)
-	case "QoQ":
+	case kpiCmpQoQ:
 		return PeriodRange{From: shiftByMonths(current.From, -3), To: shiftByMonths(current.To, -3)},
 			PeriodLabel(shiftByMonths(current.To, -3), grain)
-	case "YoY":
+	case kpiCmpYoY:
 		return PeriodRange{From: current.From.AddDate(-1, 0, 0), To: current.To.AddDate(-1, 0, 0)},
 			PeriodLabel(current.To.AddDate(-1, 0, 0), grain)
 	case "YTD_vs_LY":
@@ -409,6 +436,24 @@ func compareRange(current PeriodRange, mode, grain string, _ time.Time) (PeriodR
 			"YTD " + current.To.AddDate(-1, 0, 0).Format("2006")
 	}
 	return PeriodRange{}, ""
+}
+
+// compareRangeWeekly shifts in whole weeks so the Monday anchor of WEEKLY facts is kept
+// (HD-05: prev = −7 days, YoY = −52 weeks).
+func compareRangeWeekly(current PeriodRange, mode, grain string) (PeriodRange, string) {
+	var days int
+	switch mode {
+	case kpiCmpMoM:
+		days = -7
+	case kpiCmpQoQ:
+		days = -13 * 7
+	case kpiCmpYoY, "YTD_vs_LY":
+		days = -52 * 7
+	default:
+		return PeriodRange{}, ""
+	}
+	to := current.To.AddDate(0, 0, days)
+	return PeriodRange{From: current.From.AddDate(0, 0, days), To: to}, PeriodLabel(to, grain)
 }
 
 // mapAgg translates a KPI agg key to a SQL aggregate function.

@@ -2,6 +2,7 @@ package chartdata_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -253,5 +254,43 @@ func TestComputeKPIs_Empty(t *testing.T) {
 	}
 	if len(rows) != 0 {
 		t.Errorf("no KPIs configured → empty result, got %d", len(rows))
+	}
+}
+
+// HD-08: numerator/denominator may come from different fact types, and the viewer's dept
+// (group_1) filter applies to sides that have no fixed group_1.
+func TestComputeKPIs_CrossRatio_CrossTypeWithDeptFilter(t *testing.T) {
+	d := dashboardWithKPIs(t, []map[string]any{
+		{
+			"label":                        "Sick Rate",
+			"agg":                          "cross_ratio",
+			"cross_ratio_numerator_type":   "HR_SICK_DAYS",
+			"cross_ratio_denominator_type": "HR_SCHED_DAYS",
+			"scale":                        float64(100),
+			"format":                       "percent",
+		},
+	})
+	repo := &scriptedFactRepo{values: []float64{5, 200}}
+	now := time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC)
+	period := chartdata.ResolvePeriod("L12M", time.Time{}, time.Time{}, "WEEKLY", now)
+
+	rows, err := chartdata.ComputeKPIs(context.Background(), repo, d, period, now, []string{"WEAVING", "SPINNING"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rows[0].Value != 2.5 {
+		t.Errorf("want 2.5, got %v", rows[0].Value)
+	}
+	if len(repo.queries) != 2 {
+		t.Fatalf("want 2 queries, got %d", len(repo.queries))
+	}
+	for i, wantType := range []string{"HR_SICK_DAYS", "HR_SCHED_DAYS"} {
+		q := repo.queries[i]
+		if q.Args[0] != wantType {
+			t.Errorf("query %d type: want %s, got %v", i, wantType, q.Args[0])
+		}
+		if !strings.Contains(q.SQL, "group_1 IN ($5,$6)") || q.Args[4] != "WEAVING" || q.Args[5] != "SPINNING" {
+			t.Errorf("query %d: dept filter not applied: %s %v", i, q.SQL, q.Args)
+		}
 	}
 }
