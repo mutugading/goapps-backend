@@ -62,7 +62,7 @@ func computeOneKPI(
 
 	// Each KPI may scope its own window (e.g. "Current Month" vs "YTD") independently
 	// of the period the viewer selected for the main chart; "selected" inherits it.
-	effPeriod := resolveKPIPeriod(k.Period, period, now)
+	effPeriod := resolveKPIPeriod(k.Period, period, now, d.PeriodGrain().String(), d.PeriodCalendar().String())
 	currentVal, err := runKPIScalar(ctx, repo, d, k, effPeriod, "ACTUAL", now, group1Filters, group2Filters)
 	if err != nil {
 		return factmetric.KpiRow{}, err
@@ -72,7 +72,7 @@ func computeOneKPI(
 		Value: currentVal,
 	}
 	if k.Compare != "none" && k.Compare != "" {
-		comparePeriod, compareLabel := compareRange(effPeriod, k.Compare, d.PeriodGrain().String(), now)
+		comparePeriod, compareLabel := compareRange(effPeriod, k.Compare, d.PeriodGrain().String(), d.PeriodCalendar().String())
 		if !comparePeriod.From.IsZero() {
 			compareVal, err := runKPIScalar(ctx, repo, d, k, comparePeriod, "ACTUAL", now, group1Filters, group2Filters)
 			if err != nil {
@@ -116,9 +116,9 @@ func computeCrossRatioKPI(
 	// Follows the viewer's selected period (H002b); falls back to L12M when none (ALL).
 	selected := period
 	if selected.From.IsZero() || selected.To.IsZero() {
-		selected = PeriodRange{From: shiftByMonths(now, -12), To: now}
+		selected = ResolvePeriodCal("L12M", time.Time{}, time.Time{}, d.PeriodGrain().String(), d.PeriodCalendar().String(), now)
 	}
-	effPeriod := resolveKPIPeriod(k.Period, selected, now)
+	effPeriod := resolveKPIPeriod(k.Period, selected, now, d.PeriodGrain().String(), d.PeriodCalendar().String())
 
 	grain := d.PeriodGrain().String()
 	buildQuery := func(typ, group1 string) factmetric.PlannedQuery {
@@ -275,6 +275,9 @@ func runSparkline(
 
 	// Use the last N periods up to `now`.
 	startDate := shiftByMonths(now, -periods+1)
+	if d.PeriodCalendar().String() == PayrollCalendar {
+		startDate = PayrollTrailingStart(periods, d.PeriodGrain().String(), now)
+	}
 	conds = append(conds, fmt.Sprintf("periode_date >= $%d AND periode_date <= $%d", idx, idx+1))
 	args = append(args, startDate, now)
 	idx += 2
@@ -384,9 +387,12 @@ func kpiSourceTable(d *dashboarddomain.Dashboard) (source, group1Filter string) 
 //	May 2026 -> value=Jan-May 2026, compare=Jan-May 2025
 //	May 2025 -> value=Jan-May 2025, compare=Jan-May 2024
 //	Jan 2026 -> value=Jan 2026,     compare=Jan 2025 (actual YoY for January)
-func resolveKPIPeriod(scope string, selected PeriodRange, now time.Time) PeriodRange {
+func resolveKPIPeriod(scope string, selected PeriodRange, now time.Time, grain, calendar string) PeriodRange {
 	switch scope {
 	case "current_month":
+		if calendar == PayrollCalendar {
+			return ResolvePeriodCal("THIS_MONTH", time.Time{}, time.Time{}, grain, calendar, now)
+		}
 		return PeriodRange{From: firstOfMonth(now), To: now}
 	case "ytd":
 		return PeriodRange{From: time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location()), To: now}
@@ -402,6 +408,9 @@ func resolveKPIPeriod(scope string, selected PeriodRange, now time.Time) PeriodR
 			To:   anchor,
 		}
 	case "l12m":
+		if calendar == PayrollCalendar {
+			return ResolvePeriodCal("L12M", time.Time{}, time.Time{}, grain, calendar, now)
+		}
 		return PeriodRange{From: shiftByMonths(now, -12), To: now}
 	default:
 		return selected
@@ -416,12 +425,22 @@ const (
 )
 
 // compareRange computes the [from, to] window for a KPI compare mode.
-func compareRange(current PeriodRange, mode, grain string, _ time.Time) (PeriodRange, string) {
+func compareRange(current PeriodRange, mode, grain, calendar string) (PeriodRange, string) {
 	if current.From.IsZero() || current.To.IsZero() {
 		return PeriodRange{}, ""
 	}
 	if grain == "WEEKLY" {
 		return compareRangeWeekly(current, mode, grain)
+	}
+	if calendar == PayrollCalendar {
+		// Payroll periods are 26..25: shift both ends by whole months on their own day (25/26 never
+		// overflow) instead of snapping to the 1st, so MONTHLY facts dated the 25th line up (HD-06).
+		switch mode {
+		case kpiCmpMoM:
+			return shiftPayroll(current, -1, grain)
+		case kpiCmpQoQ:
+			return shiftPayroll(current, -3, grain)
+		}
 	}
 	switch mode {
 	case kpiCmpMoM:
@@ -439,6 +458,12 @@ func compareRange(current PeriodRange, mode, grain string, _ time.Time) (PeriodR
 			"YTD " + current.To.AddDate(-1, 0, 0).Format("2006")
 	}
 	return PeriodRange{}, ""
+}
+
+// shiftPayroll moves a payroll-calendar window back by `months` whole months.
+func shiftPayroll(current PeriodRange, months int, grain string) (PeriodRange, string) {
+	to := current.To.AddDate(0, months, 0)
+	return PeriodRange{From: current.From.AddDate(0, months, 0), To: to}, PeriodLabel(to, grain)
 }
 
 // compareRangeWeekly shifts in whole weeks so the Monday anchor of WEEKLY facts is kept

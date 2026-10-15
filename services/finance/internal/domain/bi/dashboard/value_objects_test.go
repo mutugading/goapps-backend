@@ -208,3 +208,20 @@ func TestNewRefreshInterval(t *testing.T) {
 		t.Errorf("want ErrInvalidRefreshInterval for 3601, got %v", err)
 	}
 }
+
+func TestNewPeriodCalendar(t *testing.T) {
+	for in, want := range map[string]string{"": "CALENDAR", "CALENDAR": "CALENDAR", "PAYROLL_26_25": "PAYROLL_26_25"} {
+		got, err := dashboard.NewPeriodCalendar(in)
+		if err != nil || got.String() != want {
+			t.Errorf("NewPeriodCalendar(%q) = %q, %v; want %q", in, got.String(), err, want)
+		}
+	}
+	if _, err := dashboard.NewPeriodCalendar("FISCAL"); !errors.Is(err, dashboard.ErrInvalidPeriodCalendar) {
+		t.Errorf("want ErrInvalidPeriodCalendar, got %v", err)
+	}
+	for _, p := range []string{"LAST_MONTH", "YESTERDAY"} {
+		if _, err := dashboard.NewDefaultPeriod(p); err != nil {
+			t.Errorf("NewDefaultPeriod(%q): %v", p, err)
+		}
+	}
+}

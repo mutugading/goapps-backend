@@ -20,7 +20,7 @@ const (
 
 // ViewerFilters carries the runtime filter state from the viewer page.
 type ViewerFilters struct {
-	PeriodPreset string    // L12M | L24M | THIS_YEAR | THIS_QTR | THIS_MONTH | THIS_WEEK | LAST_WEEK | ALL | CUSTOM
+	PeriodPreset string    // L12M | L24M | THIS_YEAR | THIS_QTR | THIS_MONTH | LAST_MONTH | THIS_WEEK | LAST_WEEK | YESTERDAY | ALL | CUSTOM
 	PeriodFrom   time.Time // valid when CUSTOM
 	PeriodTo     time.Time
 	Compare      string   // none | MoM | QoQ | YoY | YTD | R12
@@ -69,7 +69,7 @@ func Plan(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time) (factmet
 		return factmetric.PlannedQuery{}, fmt.Errorf("%w: depth %d > max %d", factmetric.ErrDrillTooDeep, drillDepth, d.MaxDrillLevel().Int())
 	}
 
-	period := ResolvePeriod(f.PeriodPreset, f.PeriodFrom, f.PeriodTo, d.PeriodGrain().String(), now)
+	period := ResolvePeriodCal(f.PeriodPreset, f.PeriodFrom, f.PeriodTo, d.PeriodGrain().String(), d.PeriodCalendar().String(), now)
 
 	// Trend charts (x_axis_field="period") group by period over time; categorical charts
 	// (waterfall/bar/donut) group by the drill-level group column.
@@ -110,7 +110,7 @@ func metricFilter(d *dashboarddomain.Dashboard) []string {
 // not user input). In addition, metric names are validated as UPPERCASE_SNAKE_CASE by the
 // registry before being stored, so they contain no SQL-injection characters.
 func planMultiMetric(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time, metrics []string) (factmetric.PlannedQuery, error) {
-	period := ResolvePeriod(f.PeriodPreset, f.PeriodFrom, f.PeriodTo, d.PeriodGrain().String(), now)
+	period := ResolvePeriodCal(f.PeriodPreset, f.PeriodFrom, f.PeriodTo, d.PeriodGrain().String(), d.PeriodCalendar().String(), now)
 
 	// Build common WHERE conditions (shared across all UNION branches).
 	// $1 = type. Additional params indexed from $2.
@@ -458,7 +458,7 @@ func planComputedRatio( //nolint:unparam
 	// Derive the order column from the groupBy column (e.g. group_2 → group_2_order).
 	orderCol := groupBy + "_order"
 
-	period := ResolvePeriod(f.PeriodPreset, f.PeriodFrom, f.PeriodTo, d.PeriodGrain().String(), now)
+	period := ResolvePeriodCal(f.PeriodPreset, f.PeriodFrom, f.PeriodTo, d.PeriodGrain().String(), d.PeriodCalendar().String(), now)
 	args := []any{d.FilterType()}
 	idx := 2
 	conds := []string{"type = $1", "agg_method = 'SUM'", "is_active = TRUE"}

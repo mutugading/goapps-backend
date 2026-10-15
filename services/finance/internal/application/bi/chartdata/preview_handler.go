@@ -84,7 +84,7 @@ func (h *PreviewHandler) Handle(ctx context.Context, q PreviewQuery) (*Result, e
 		return nil, err
 	}
 
-	period := ResolvePeriod(filters.PeriodPreset, time.Time{}, time.Time{}, d.PeriodGrain().String(), now)
+	period := ResolvePeriodCal(filters.PeriodPreset, time.Time{}, time.Time{}, d.PeriodGrain().String(), d.PeriodCalendar().String(), now)
 	kpis, err := ComputeKPIs(ctx, h.fact, d, period, now, nil, nil)
 	if err != nil {
 		return nil, err
