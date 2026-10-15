@@ -24,6 +24,8 @@ type GetDataQuery struct {
 	Filters       ViewerFilters
 	UserRoles     []string
 	IsSuperAdmin  bool
+	// CanViewEmployee = caller holds PermWorkforceEmployee (HD-07); gates group_3 of HR_* types.
+	CanViewEmployee bool
 }
 
 // GetDataHandler is the viewer-side orchestrator: loads dashboard, applies access check,
@@ -85,6 +87,11 @@ func (h *GetDataHandler) Handle(ctx context.Context, q GetDataQuery) (*Result, e
 	// 2. Access check
 	if !d.IsAccessibleBy(q.UserRoles, q.IsSuperAdmin) {
 		return nil, dashboarddomain.ErrForbidden
+	}
+	// 2b. Employee-level (group_3) of HR_* needs its own permission. Checked before the cache
+	// so a result cached for a permitted user is never served to one without it (HD-07).
+	if !q.IsSuperAdmin && !q.CanViewEmployee && RequestsEmployeeLevel(d, q.Filters) {
+		return nil, fmt.Errorf("%w: employee-level data requires %s", dashboarddomain.ErrForbidden, PermWorkforceEmployee)
 	}
 
 	// 3. Try cache

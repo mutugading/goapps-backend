@@ -4,6 +4,7 @@ import (
 	"context"
 
 	financev1 "github.com/mutugading/goapps-backend/gen/finance/v1"
+	chartdataapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/chartdata"
 	dsapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/datasource"
 )
 
@@ -52,6 +53,10 @@ func (h *BIDataSourceHandler) GetFactDistincts(ctx context.Context, req *finance
 	d, err := h.distinctsHandler.Handle(ctx, dsapp.GetDistinctsQuery{Type: req.GetType()})
 	if err != nil {
 		return &financev1.GetFactDistinctsResponse{Base: biDomainErrorToBase(err)}, nil
+	}
+	// HD-07: group_3 of HR_* types is NIK; hide it from callers without the employee permission.
+	if chartdataapp.IsHRType(req.GetType()) && !IsSuperAdmin(ctx) && !HasPermission(ctx, chartdataapp.PermWorkforceEmployee) {
+		d.Group3s = nil
 	}
 	return &financev1.GetFactDistinctsResponse{
 		Base: successResponse("Distincts retrieved"),

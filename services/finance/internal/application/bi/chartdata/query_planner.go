@@ -16,6 +16,7 @@ const compareNoneLC = "none"
 const (
 	colGroup1 = "group_1"
 	colGroup2 = "group_2"
+	colGroup3 = "group_3"
 )
 
 // ViewerFilters carries the runtime filter state from the viewer page.
@@ -452,8 +453,9 @@ func planComputedRatio( //nolint:unparam
 	d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time,
 	numerator, denominator string, scale float64, groupBy string,
 ) (factmetric.PlannedQuery, error) {
-	if groupBy == "" {
-		groupBy = colGroup2
+	groupBy, err := NormalizeGroupBy(groupBy)
+	if err != nil {
+		return factmetric.PlannedQuery{}, err
 	}
 	// Derive the order column from the groupBy column (e.g. group_2 → group_2_order).
 	orderCol := groupBy + "_order"

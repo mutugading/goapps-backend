@@ -55,10 +55,11 @@ func (h *BIChartDataHandler) GetDashboardData(ctx context.Context, req *financev
 	// Read filter values forwarded by the BFF as gRPC metadata headers.
 	applyMetadataFilters(ctx, &filters)
 	q := chartdataapp.GetDataQuery{
-		DashboardCode: req.GetDashboardCode(),
-		Filters:       filters,
-		UserRoles:     GetRolesFromCtx(ctx),
-		IsSuperAdmin:  IsSuperAdmin(ctx),
+		DashboardCode:   req.GetDashboardCode(),
+		Filters:         filters,
+		UserRoles:       GetRolesFromCtx(ctx),
+		IsSuperAdmin:    IsSuperAdmin(ctx),
+		CanViewEmployee: HasPermission(ctx, chartdataapp.PermWorkforceEmployee),
 	}
 	result, err := h.getDataHandler.Handle(ctx, q)
 	if err != nil {
