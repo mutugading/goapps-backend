@@ -23,6 +23,9 @@ type PreviewQuery struct {
 	ChartConfig  map[string]any
 	KpiConfig    []map[string]any
 	CompareModes []string
+	// CanViewWorkforce / IsSuperAdmin gate HR_* types (HD-10); preview must not bypass them.
+	CanViewWorkforce bool
+	IsSuperAdmin     bool
 }
 
 // PreviewHandler renders an unsaved dashboard configuration.
@@ -71,6 +74,11 @@ func (h *PreviewHandler) Handle(ctx context.Context, q PreviewQuery) (*Result, e
 	})
 	if err != nil {
 		return nil, fmt.Errorf("validate preview dashboard: %w", err)
+	}
+
+	// HD-10: HR_* (own type or via a KPI cross_ratio) needs workforce.view; checked before any query.
+	if !q.IsSuperAdmin && !q.CanViewWorkforce && TouchesHRType(d.FilterType(), d.KpiConfig()) {
+		return nil, fmt.Errorf("%w: workforce data requires %s", dashboarddomain.ErrForbidden, PermWorkforceView)
 	}
 
 	filters := ViewerFilters{PeriodPreset: "L12M"}

@@ -57,7 +57,7 @@ func TestGetDataHandler_EmployeeLevel(t *testing.T) {
 			_, err := h.Handle(context.Background(), chartdata.GetDataQuery{
 				DashboardCode: "HR_TEST",
 				Filters:       chartdata.ViewerFilters{PeriodPreset: "L12M", DrillPath: c.drill},
-				IsSuperAdmin:  c.super, CanViewEmployee: c.can,
+				IsSuperAdmin:  c.super, CanViewEmployee: c.can, CanViewWorkforce: true,
 			})
 			denied := errors.Is(err, dashboarddomain.ErrForbidden)
 			if denied != c.wantDenied {
@@ -106,5 +106,90 @@ func TestNormalizeGroupBy(t *testing.T) {
 		if _, err := chartdata.NormalizeGroupBy(bad); !errors.Is(err, factmetric.ErrInvalidPlan) {
 			t.Fatalf("%q harus ditolak, err=%v", bad, err)
 		}
+	}
+}
+
+// HD-10: HR_* dashboards need workforce.view; other types are unaffected.
+func TestGetDataHandler_WorkforceView(t *testing.T) {
+	now := func() time.Time { return time.Date(2026, 5, 15, 0, 0, 0, 0, time.UTC) }
+	for _, c := range []struct {
+		name       string
+		filterType string
+		view       bool
+		super      bool
+		wantDenied bool
+	}{
+		{"HR tanpa izin ditolak", "HR_OT_HOURS", false, false, true},
+		{"HR dengan izin ok", "HR_OT_HOURS", true, false, false},
+		{"HR super admin ok", "HR_OT_HOURS", false, true, false},
+		{"hr huruf kecil tetap dibatasi", "hr_ot_hours", false, false, true},
+		{"non-HR tanpa izin ok", "MIS", false, false, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			dash := hrDashboard(t, c.filterType, "")
+			repo := &mockDashboardRepo{getByCode: func(context.Context, string) (*dashboarddomain.Dashboard, error) { return dash, nil }}
+			fact := &mockFactRepo{}
+			cache := newMockCache()
+			cache.store["HR_TESTh"] = []byte("x") // seolah ada hasil cache dari user berizin
+			h := chartdata.NewGetDataHandler(repo, fact, cache, func(any) string { return "h" }).WithNow(now)
+			_, err := h.Handle(context.Background(), chartdata.GetDataQuery{
+				DashboardCode: "HR_TEST", Filters: chartdata.ViewerFilters{PeriodPreset: "L12M"},
+				IsSuperAdmin: c.super, CanViewWorkforce: c.view,
+			})
+			if denied := errors.Is(err, dashboarddomain.ErrForbidden); denied != c.wantDenied {
+				t.Fatalf("denied=%v want %v (err=%v)", denied, c.wantDenied, err)
+			}
+		})
+	}
+}
+
+func TestPreviewHandler_WorkforceView(t *testing.T) {
+	q := chartdata.PreviewQuery{
+		FilterType: "HR_OT_HOURS", PeriodGrain: "MONTHLY", ChartType: "bar",
+		ChartConfig: map[string]any{"x_axis_field": "group_1", "y_axis_field": "value"}, CompareModes: []string{"YoY"},
+	}
+	fact := &mockFactRepo{}
+	h := chartdata.NewPreviewHandler(fact)
+	if _, err := h.Handle(context.Background(), q); !errors.Is(err, dashboarddomain.ErrForbidden) {
+		t.Fatalf("preview HR_* tanpa izin harus ditolak, err=%v", err)
+	}
+	if fact.queries != 0 {
+		t.Fatalf("tidak boleh query DB, queries=%d", fact.queries)
+	}
+	q.CanViewWorkforce = true
+	if _, err := h.Handle(context.Background(), q); errors.Is(err, dashboarddomain.ErrForbidden) {
+		t.Fatalf("dengan izin tidak boleh ditolak: %v", err)
+	}
+}
+
+// Temuan review H004b: KPI cross_ratio pada dashboard non-HR tidak boleh membaca HR_* tanpa izin.
+func TestWorkforceView_CrossRatioKPIOnNonHRDashboard(t *testing.T) {
+	kpi := []map[string]any{{
+		"label": "Rasio", "agg": "cross_ratio", "value_field": "value",
+		"cross_ratio_numerator_group1": "A", "cross_ratio_denominator_group1": "B",
+		"cross_ratio_numerator_type": "HR_OT_HOURS", "cross_ratio_denominator_type": "MIS",
+	}}
+	d, err := dashboarddomain.NewDashboard(dashboarddomain.NewDashboardParams{
+		Code: "MIS_KPI", Title: "x", FilterType: "MIS", FilterGroup1: "EBITDA", PeriodGrain: "MONTHLY",
+		DefaultPeriod: "L12M", ChartType: "bar", KpiConfigRaw: kpi,
+		ChartConfigRaw: map[string]any{"x_axis_field": "group_2", "y_axis_field": "value"},
+		CompareModes:   []string{"YoY"}, MaxDrillLevel: 3, GroupID: uuid.New(), IsActive: true, CreatedBy: uuid.New(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !chartdata.TouchesHRType(d.FilterType(), d.KpiConfig()) {
+		t.Fatalf("KPI cross_ratio bertipe HR_ harus terdeteksi; kpi=%+v", d.KpiConfig())
+	}
+	repo := &mockDashboardRepo{getByCode: func(context.Context, string) (*dashboarddomain.Dashboard, error) { return d, nil }}
+	fact := &mockFactRepo{}
+	h := chartdata.NewGetDataHandler(repo, fact, nil, nil)
+	_, err = h.Handle(context.Background(), chartdata.GetDataQuery{DashboardCode: "MIS_KPI", Filters: chartdata.ViewerFilters{PeriodPreset: "L12M"}})
+	if !errors.Is(err, dashboarddomain.ErrForbidden) || fact.queries != 0 {
+		t.Fatalf("harus ditolak tanpa query: err=%v queries=%d", err, fact.queries)
+	}
+	_, err = h.Handle(context.Background(), chartdata.GetDataQuery{DashboardCode: "MIS_KPI", Filters: chartdata.ViewerFilters{PeriodPreset: "L12M"}, CanViewWorkforce: true})
+	if errors.Is(err, dashboarddomain.ErrForbidden) {
+		t.Fatalf("dengan izin tidak boleh ditolak: %v", err)
 	}
 }

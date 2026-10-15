@@ -54,9 +54,20 @@ func (h *BIDataSourceHandler) GetFactDistincts(ctx context.Context, req *finance
 	if err != nil {
 		return &financev1.GetFactDistinctsResponse{Base: biDomainErrorToBase(err)}, nil
 	}
-	// HD-07: group_3 of HR_* types is NIK; hide it from callers without the employee permission.
-	if chartdataapp.IsHRType(req.GetType()) && !IsSuperAdmin(ctx) && !HasPermission(ctx, chartdataapp.PermWorkforceEmployee) {
-		d.Group3s = nil
+	// HD-07/HD-10: HR_* metadata is hidden from callers without workforce.view; group_3 (NIK)
+	// additionally needs the employee-level permission.
+	if !IsSuperAdmin(ctx) {
+		canView := HasPermission(ctx, chartdataapp.PermWorkforceView)
+		if !canView {
+			d.Types = filterOutHRTypes(d.Types)
+		}
+		if chartdataapp.IsHRType(req.GetType()) {
+			if !canView {
+				d.Group1s, d.Group2s, d.Group3s, d.DimensionKeys = nil, nil, nil, nil
+			} else if !HasPermission(ctx, chartdataapp.PermWorkforceEmployee) {
+				d.Group3s = nil
+			}
+		}
 	}
 	return &financev1.GetFactDistinctsResponse{
 		Base: successResponse("Distincts retrieved"),
@@ -68,6 +79,17 @@ func (h *BIDataSourceHandler) GetFactDistincts(ctx context.Context, req *finance
 			DimensionKeys: d.DimensionKeys,
 		},
 	}, nil
+}
+
+// filterOutHRTypes drops HR_* type names so callers without workforce.view cannot discover them.
+func filterOutHRTypes(types []string) []string {
+	out := make([]string, 0, len(types))
+	for _, t := range types {
+		if !chartdataapp.IsHRType(t) {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 // Compile-time interface check.

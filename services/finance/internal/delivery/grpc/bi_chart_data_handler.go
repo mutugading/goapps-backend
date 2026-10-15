@@ -55,11 +55,12 @@ func (h *BIChartDataHandler) GetDashboardData(ctx context.Context, req *financev
 	// Read filter values forwarded by the BFF as gRPC metadata headers.
 	applyMetadataFilters(ctx, &filters)
 	q := chartdataapp.GetDataQuery{
-		DashboardCode:   req.GetDashboardCode(),
-		Filters:         filters,
-		UserRoles:       GetRolesFromCtx(ctx),
-		IsSuperAdmin:    IsSuperAdmin(ctx),
-		CanViewEmployee: HasPermission(ctx, chartdataapp.PermWorkforceEmployee),
+		DashboardCode:    req.GetDashboardCode(),
+		Filters:          filters,
+		UserRoles:        GetRolesFromCtx(ctx),
+		IsSuperAdmin:     IsSuperAdmin(ctx),
+		CanViewEmployee:  HasPermission(ctx, chartdataapp.PermWorkforceEmployee),
+		CanViewWorkforce: HasPermission(ctx, chartdataapp.PermWorkforceView),
 	}
 	result, err := h.getDataHandler.Handle(ctx, q)
 	if err != nil {
@@ -81,13 +82,15 @@ func (h *BIChartDataHandler) PreviewDashboard(ctx context.Context, req *financev
 		modes = append(modes, compareModeToString(m))
 	}
 	q := chartdataapp.PreviewQuery{
-		FilterType:   req.GetFilterType(),
-		FilterGroup1: req.GetFilterGroup_1(),
-		PeriodGrain:  periodeGrainToString(req.GetPeriodeGrain()),
-		ChartType:    chartTypeToString(req.GetChartType()),
-		ChartConfig:  structToMap(req.GetChartConfig()),
-		KpiConfig:    structListToMaps(req.GetKpiConfig()),
-		CompareModes: modes,
+		FilterType:       req.GetFilterType(),
+		FilterGroup1:     req.GetFilterGroup_1(),
+		PeriodGrain:      periodeGrainToString(req.GetPeriodeGrain()),
+		ChartType:        chartTypeToString(req.GetChartType()),
+		ChartConfig:      structToMap(req.GetChartConfig()),
+		KpiConfig:        structListToMaps(req.GetKpiConfig()),
+		CompareModes:     modes,
+		CanViewWorkforce: HasPermission(ctx, chartdataapp.PermWorkforceView),
+		IsSuperAdmin:     IsSuperAdmin(ctx),
 	}
 	result, err := h.previewHandler.Handle(ctx, q)
 	if err != nil {

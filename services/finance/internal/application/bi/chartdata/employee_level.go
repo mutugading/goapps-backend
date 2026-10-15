@@ -12,12 +12,30 @@ import (
 // facts of HR_* types (HD-07, HD-10).
 const PermWorkforceEmployee = "finance.bi.workforceemployee.view"
 
+// PermWorkforceView is the permission required to read any HR_* report (department level, HD-10).
+const PermWorkforceView = "finance.bi.workforce.view"
+
 // hrTypePrefix marks fact types from the HR dashboard whose group_3 holds a NIK.
 const hrTypePrefix = "HR_"
 
 // IsHRType reports whether a fact type belongs to the HR dashboard (case-insensitive).
 func IsHRType(factType string) bool {
 	return strings.HasPrefix(strings.ToUpper(strings.TrimSpace(factType)), hrTypePrefix)
+}
+
+// TouchesHRType reports whether a dashboard reads any HR_* fact type: its own filter_type or a
+// KPI cross_ratio numerator/denominator type (HD-08). Gating only filter_type would let a
+// non-HR dashboard pull HR numbers through a KPI.
+func TouchesHRType(filterType string, kpis dashboarddomain.KpiConfig) bool {
+	if IsHRType(filterType) {
+		return true
+	}
+	for _, k := range kpis {
+		if IsHRType(k.CrossRatioNumeratorType) || IsHRType(k.CrossRatioDenominatorType) {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizedGroupBy(g string) string { return strings.ToLower(strings.TrimSpace(g)) }
