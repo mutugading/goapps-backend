@@ -1,0 +1,74 @@
+package bietl
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+
+	oracleinfra "github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/oracle"
+)
+
+// TargetHROTStaging is the job target_type that loads VIEW_BI_OT_DAILY into bi_hr_stg_ot_daily.
+const TargetHROTStaging = "HR_OT_STAGING"
+
+// HRISWindowDays is the re-pull horizon (HRIS corrects data retroactively, HD-04).
+const HRISWindowDays = 35
+
+// OTSource fetches OT view rows from Oracle HRIS.
+type OTSource interface {
+	FetchOTDaily(ctx context.Context, d1, d2 time.Time) ([]oracleinfra.OTDailyRow, error)
+}
+
+// OTStaging replaces the staging window in one transaction.
+type OTStaging interface {
+	ReplaceOTDaily(ctx context.Context, d1, d2 time.Time, rows []oracleinfra.OTDailyRow) (int, error)
+}
+
+// HRISLoader loads HRIS views into staging (HD-03/HD-04). Job start/end/status are logged in
+// bi_job_log by the job handler; this loader never logs employee names.
+type HRISLoader struct {
+	ot      OTSource
+	staging OTStaging
+	now     func() time.Time
+}
+
+// NewHRISLoader constructs an HRISLoader.
+func NewHRISLoader(ot OTSource, staging OTStaging) *HRISLoader {
+	return &HRISLoader{ot: ot, staging: staging, now: time.Now}
+}
+
+// Load implements Runner.
+func (l *HRISLoader) Load(ctx context.Context, targetType, _ string, _ uuid.UUID) (int, error) {
+	switch targetType {
+	case TargetHROTStaging:
+		d1, d2 := HRISWindow(l.now())
+		rows, err := l.ot.FetchOTDaily(ctx, d1, d2)
+		if err != nil {
+			return 0, fmt.Errorf("fetch OT daily: %w", err)
+		}
+		return l.staging.ReplaceOTDaily(ctx, d1, d2, rows)
+	default:
+		return 0, fmt.Errorf("unsupported HRIS target_type %q", targetType)
+	}
+}
+
+// HRISWindow returns [d1, d2] for the pull: d2 = yesterday; d1 = today−35 rounded down to the
+// Monday of its week and to the start (day 26) of the payroll period it falls in, whichever is
+// earlier, so weekly (R2) and monthly (26–25) aggregates are always recomputed over whole spans.
+func HRISWindow(now time.Time) (d1, d2 time.Time) {
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	d2 = today.AddDate(0, 0, -1)
+	d1 = today.AddDate(0, 0, -HRISWindowDays)
+
+	monday := d1.AddDate(0, 0, -((int(d1.Weekday()) + 6) % 7))
+	periodStart := time.Date(d1.Year(), d1.Month(), 26, 0, 0, 0, 0, time.UTC)
+	if d1.Day() < 26 {
+		periodStart = periodStart.AddDate(0, -1, 0)
+	}
+	if periodStart.Before(monday) {
+		return periodStart, d2
+	}
+	return monday, d2
+}
