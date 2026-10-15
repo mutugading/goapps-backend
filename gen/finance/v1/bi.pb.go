@@ -35,6 +35,7 @@ const (
 	PeriodeGrain_PERIODE_GRAIN_MONTHLY     PeriodeGrain = 2
 	PeriodeGrain_PERIODE_GRAIN_QUARTERLY   PeriodeGrain = 3
 	PeriodeGrain_PERIODE_GRAIN_YEARLY      PeriodeGrain = 4
+	PeriodeGrain_PERIODE_GRAIN_WEEKLY      PeriodeGrain = 5
 )
 
 // Enum value maps for PeriodeGrain.
@@ -45,6 +46,7 @@ var (
 		2: "PERIODE_GRAIN_MONTHLY",
 		3: "PERIODE_GRAIN_QUARTERLY",
 		4: "PERIODE_GRAIN_YEARLY",
+		5: "PERIODE_GRAIN_WEEKLY",
 	}
 	PeriodeGrain_value = map[string]int32{
 		"PERIODE_GRAIN_UNSPECIFIED": 0,
@@ -52,6 +54,7 @@ var (
 		"PERIODE_GRAIN_MONTHLY":     2,
 		"PERIODE_GRAIN_QUARTERLY":   3,
 		"PERIODE_GRAIN_YEARLY":      4,
+		"PERIODE_GRAIN_WEEKLY":      5,
 	}
 )
 
@@ -5607,7 +5610,7 @@ const file_finance_v1_bi_proto_rawDesc = "" +
 	"\x1bDeleteDashboardGroupRequest\x12#\n" +
 	"\bgroup_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\agroupId\"K\n" +
 	"\x1cDeleteDashboardGroupResponse\x12+\n" +
-	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\"\xd6\b\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\"\xec\b\n" +
 	"\x16CreateDashboardRequest\x12C\n" +
 	"\x0edashboard_code\x18\x01 \x01(\tB\x1c\xbaH\x19r\x17\x10\x02\x18<2\x11^[A-Z][A-Z0-9_]*$R\rdashboardCode\x123\n" +
 	"\x0fdashboard_title\x18\x02 \x01(\tB\n" +
@@ -5616,9 +5619,9 @@ const file_finance_v1_bi_proto_rawDesc = "" +
 	"\vfilter_type\x18\x04 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18(R\n" +
 	"filterType\x12-\n" +
 	"\x0efilter_group_1\x18\x05 \x01(\tB\a\xbaH\x04r\x02\x18dR\ffilterGroup1\x12G\n" +
-	"\rperiode_grain\x18\x06 \x01(\x0e2\x18.finance.v1.PeriodeGrainB\b\xbaH\x05\x82\x01\x02 \x00R\fperiodeGrain\x12f\n" +
-	"\x0edefault_period\x18\a \x01(\tB?\xbaH<r:R\x04L12MR\x04L24MR\tTHIS_YEARR\bTHIS_QTRR\n" +
-	"THIS_MONTHR\x03ALLR\x06CUSTOMR\rdefaultPeriod\x12>\n" +
+	"\rperiode_grain\x18\x06 \x01(\x0e2\x18.finance.v1.PeriodeGrainB\b\xbaH\x05\x82\x01\x02 \x00R\fperiodeGrain\x12|\n" +
+	"\x0edefault_period\x18\a \x01(\tBU\xbaHRrPR\x04L12MR\x04L24MR\tTHIS_YEARR\bTHIS_QTRR\n" +
+	"THIS_MONTHR\tTHIS_WEEKR\tLAST_WEEKR\x03ALLR\x06CUSTOMR\rdefaultPeriod\x12>\n" +
 	"\n" +
 	"chart_type\x18\b \x01(\x0e2\x15.finance.v1.ChartTypeB\b\xbaH\x05\x82\x01\x02 \x00R\tchartType\x12:\n" +
 	"\fchart_config\x18\t \x01(\v2\x17.google.protobuf.StructR\vchartConfig\x12<\n" +
@@ -5666,7 +5669,7 @@ const file_finance_v1_bi_proto_rawDesc = "" +
 	"\x04data\x18\x02 \x03(\v2\x15.finance.v1.DashboardR\x04data\x12=\n" +
 	"\n" +
 	"pagination\x18\x03 \x01(\v2\x1d.common.v1.PaginationResponseR\n" +
-	"pagination\"\xfc\v\n" +
+	"pagination\"\x93\f\n" +
 	"\x16UpdateDashboardRequest\x12+\n" +
 	"\fdashboard_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\vdashboardId\x128\n" +
 	"\x0fdashboard_title\x18\x02 \x01(\tB\n" +
@@ -5675,9 +5678,9 @@ const file_finance_v1_bi_proto_rawDesc = "" +
 	"\vfilter_type\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x18(H\x02R\n" +
 	"filterType\x88\x01\x01\x122\n" +
 	"\x0efilter_group_1\x18\x05 \x01(\tB\a\xbaH\x04r\x02\x18dH\x03R\ffilterGroup1\x88\x01\x01\x12B\n" +
-	"\rperiode_grain\x18\x06 \x01(\x0e2\x18.finance.v1.PeriodeGrainH\x04R\fperiodeGrain\x88\x01\x01\x12m\n" +
-	"\x0edefault_period\x18\a \x01(\tBA\xbaH>r<R\x00R\x04L12MR\x04L24MR\tTHIS_YEARR\bTHIS_QTRR\n" +
-	"THIS_MONTHR\x03ALLR\x06CUSTOMH\x05R\rdefaultPeriod\x88\x01\x01\x129\n" +
+	"\rperiode_grain\x18\x06 \x01(\x0e2\x18.finance.v1.PeriodeGrainH\x04R\fperiodeGrain\x88\x01\x01\x12\x83\x01\n" +
+	"\x0edefault_period\x18\a \x01(\tBW\xbaHTrRR\x00R\x04L12MR\x04L24MR\tTHIS_YEARR\bTHIS_QTRR\n" +
+	"THIS_MONTHR\tTHIS_WEEKR\tLAST_WEEKR\x03ALLR\x06CUSTOMH\x05R\rdefaultPeriod\x88\x01\x01\x129\n" +
 	"\n" +
 	"chart_type\x18\b \x01(\x0e2\x15.finance.v1.ChartTypeH\x06R\tchartType\x88\x01\x01\x12:\n" +
 	"\fchart_config\x18\t \x01(\v2\x17.google.protobuf.StructR\vchartConfig\x12<\n" +
@@ -5753,11 +5756,11 @@ const file_finance_v1_bi_proto_rawDesc = "" +
 	"\tperiod_to\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\bperiodTo\x121\n" +
 	"\acompare\x18\x04 \x01(\x0e2\x17.finance.v1.CompareModeR\acompare\x12\x1d\n" +
 	"\n" +
-	"drill_path\x18\x05 \x03(\tR\tdrillPath\"\xfb\x02\n" +
+	"drill_path\x18\x05 \x03(\tR\tdrillPath\"\x91\x03\n" +
 	"\x17GetDashboardDataRequest\x120\n" +
-	"\x0edashboard_code\x18\x01 \x01(\tB\t\xbaH\x06r\x04\x10\x02\x18<R\rdashboardCode\x12f\n" +
-	"\rperiod_preset\x18\x02 \x01(\tBA\xbaH>r<R\x00R\x04L12MR\x04L24MR\tTHIS_YEARR\bTHIS_QTRR\n" +
-	"THIS_MONTHR\x03ALLR\x06CUSTOMR\fperiodPreset\x12;\n" +
+	"\x0edashboard_code\x18\x01 \x01(\tB\t\xbaH\x06r\x04\x10\x02\x18<R\rdashboardCode\x12|\n" +
+	"\rperiod_preset\x18\x02 \x01(\tBW\xbaHTrRR\x00R\x04L12MR\x04L24MR\tTHIS_YEARR\bTHIS_QTRR\n" +
+	"THIS_MONTHR\tTHIS_WEEKR\tLAST_WEEKR\x03ALLR\x06CUSTOMR\fperiodPreset\x12;\n" +
 	"\vperiod_from\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"periodFrom\x127\n" +
 	"\tperiod_to\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\bperiodTo\x121\n" +
@@ -5956,13 +5959,14 @@ const file_finance_v1_bi_proto_rawDesc = "" +
 	"\x04data\x18\x02 \x03(\v2\x18.finance.v1.BiAuditEntryR\x04data\x12=\n" +
 	"\n" +
 	"pagination\x18\x03 \x01(\v2\x1d.common.v1.PaginationResponseR\n" +
-	"pagination*\x98\x01\n" +
+	"pagination*\xb2\x01\n" +
 	"\fPeriodeGrain\x12\x1d\n" +
 	"\x19PERIODE_GRAIN_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13PERIODE_GRAIN_DAILY\x10\x01\x12\x19\n" +
 	"\x15PERIODE_GRAIN_MONTHLY\x10\x02\x12\x1b\n" +
 	"\x17PERIODE_GRAIN_QUARTERLY\x10\x03\x12\x18\n" +
-	"\x14PERIODE_GRAIN_YEARLY\x10\x04*\xb0\x01\n" +
+	"\x14PERIODE_GRAIN_YEARLY\x10\x04\x12\x18\n" +
+	"\x14PERIODE_GRAIN_WEEKLY\x10\x05*\xb0\x01\n" +
 	"\vCompareMode\x12\x1c\n" +
 	"\x18COMPARE_MODE_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11COMPARE_MODE_NONE\x10\x01\x12\x14\n" +

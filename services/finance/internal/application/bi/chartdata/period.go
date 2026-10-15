@@ -36,6 +36,12 @@ func ResolvePeriod(preset string, customFrom, customTo time.Time, _ string, now 
 	case "THIS_MONTH":
 		first := firstOfMonth(now)
 		return PeriodRange{From: first, To: now}
+	case "THIS_WEEK":
+		// WEEKLY snaps to ISO Monday (HD-05); "Kemarin" stays a DAILY concern.
+		return PeriodRange{From: mondayOf(now), To: now}
+	case "LAST_WEEK":
+		mon := mondayOf(now)
+		return PeriodRange{From: mon.AddDate(0, 0, -7), To: mon.AddDate(0, 0, -1)}
 	case "THIS_QTR":
 		first := firstOfQuarter(now)
 		return PeriodRange{From: first, To: now}
@@ -48,6 +54,13 @@ func ResolvePeriod(preset string, customFrom, customTo time.Time, _ string, now 
 		return PeriodRange{From: shiftByMonths(now, -12), To: now}
 	}
 	return PeriodRange{From: shiftByMonths(now, -12), To: now}
+}
+
+// mondayOf returns 00:00 of the ISO Monday of the week containing t.
+func mondayOf(t time.Time) time.Time {
+	d := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+	back := (int(d.Weekday()) + 6) % 7
+	return d.AddDate(0, 0, -back)
 }
 
 // firstOfMonth returns YYYY-MM-01 00:00:00 in t's location.

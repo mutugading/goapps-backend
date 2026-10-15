@@ -130,6 +130,8 @@ func periodeGrainToString(g financev1.PeriodeGrain) string {
 	switch g {
 	case financev1.PeriodeGrain_PERIODE_GRAIN_DAILY:
 		return "DAILY"
+	case financev1.PeriodeGrain_PERIODE_GRAIN_WEEKLY:
+		return "WEEKLY"
 	case financev1.PeriodeGrain_PERIODE_GRAIN_MONTHLY:
 		return "MONTHLY"
 	case financev1.PeriodeGrain_PERIODE_GRAIN_QUARTERLY:
@@ -145,6 +147,8 @@ func stringToPeriodeGrain(s string) financev1.PeriodeGrain {
 	switch s {
 	case "DAILY":
 		return financev1.PeriodeGrain_PERIODE_GRAIN_DAILY
+	case "WEEKLY":
+		return financev1.PeriodeGrain_PERIODE_GRAIN_WEEKLY
 	case "MONTHLY":
 		return financev1.PeriodeGrain_PERIODE_GRAIN_MONTHLY
 	case "QUARTERLY":

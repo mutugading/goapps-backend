@@ -20,7 +20,7 @@ const (
 
 // ViewerFilters carries the runtime filter state from the viewer page.
 type ViewerFilters struct {
-	PeriodPreset string    // L12M | L24M | THIS_YEAR | THIS_QTR | THIS_MONTH | ALL | CUSTOM
+	PeriodPreset string    // L12M | L24M | THIS_YEAR | THIS_QTR | THIS_MONTH | THIS_WEEK | LAST_WEEK | ALL | CUSTOM
 	PeriodFrom   time.Time // valid when CUSTOM
 	PeriodTo     time.Time
 	Compare      string   // none | MoM | QoQ | YoY | YTD | R12

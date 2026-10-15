@@ -135,6 +135,8 @@ var allowedDefaultPeriods = map[string]struct{}{
 	"THIS_YEAR":  {},
 	"THIS_QTR":   {},
 	"THIS_MONTH": {},
+	"THIS_WEEK":  {},
+	"LAST_WEEK":  {},
 	"ALL":        {},
 	"CUSTOM":     {},
 }

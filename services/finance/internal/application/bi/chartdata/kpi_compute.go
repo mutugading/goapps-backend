@@ -57,7 +57,7 @@ func computeOneKPI(
 	group1Filters, group2Filters []string,
 ) (factmetric.KpiRow, error) {
 	if k.Agg == "cross_ratio" {
-		return computeCrossRatioKPI(ctx, repo, d, k, now, group1Filters, group2Filters)
+		return computeCrossRatioKPI(ctx, repo, d, k, period, now, group1Filters, group2Filters)
 	}
 
 	// Each KPI may scope its own window (e.g. "Current Month" vs "YTD") independently
@@ -109,13 +109,16 @@ func computeCrossRatioKPI(
 	repo factmetric.Repository,
 	d *dashboarddomain.Dashboard,
 	k dashboarddomain.KpiEntry,
+	period PeriodRange,
 	now time.Time,
 	group1Filters, _ []string, // group2Filters not applicable; group1Filters (dept) apply only to sides without a fixed group_1
 ) (factmetric.KpiRow, error) {
-	effPeriod := resolveKPIPeriod(k.Period, PeriodRange{
-		From: shiftByMonths(now, -12),
-		To:   now,
-	}, now)
+	// Follows the viewer's selected period (H002b); falls back to L12M when none (ALL).
+	selected := period
+	if selected.From.IsZero() || selected.To.IsZero() {
+		selected = PeriodRange{From: shiftByMonths(now, -12), To: now}
+	}
+	effPeriod := resolveKPIPeriod(k.Period, selected, now)
 
 	grain := d.PeriodGrain().String()
 	buildQuery := func(typ, group1 string) factmetric.PlannedQuery {
