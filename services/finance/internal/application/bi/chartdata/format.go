@@ -101,7 +101,9 @@ func Shape(d *dashboarddomain.Dashboard, rows []factmetric.AggRow, kpis []factme
 	// AggRows come from planMultiMetric() where Category = metric_name.
 	// Route to shapeMultiMetric() to produce one Series per metric.
 	if IsPivot(d, f) {
-		series, cats := shapePivot(rows, numFmt, decimals)
+		x, _, _ := pivotDims(d, f)
+		now := time.Now()
+		series, cats := shapePivot(rows, numFmt, decimals, pivotFillLabels(d, f, now, x))
 		return Result{
 			Config:       d.ChartConfig().MarshalToMap(),
 			Series:       series,

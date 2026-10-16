@@ -137,3 +137,23 @@ func TestShape_Pivot_HourBucketsSortNumerically(t *testing.T) {
 		t.Errorf("categories = %s", got)
 	}
 }
+
+func TestShape_Pivot_WeeklyZeroFillsWindowWeeks(t *testing.T) {
+	d := newPivotDashboard(t, "heatmap", "WEEKLY", "", map[string]any{
+		"x_axis_field": "period", "y_axis_field": "group_1", "value_field": "value", "filter_group_2": "OVER_LIMIT",
+	})
+	f := chartdata.ViewerFilters{
+		PeriodPreset: "CUSTOM",
+		PeriodFrom:   time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC),
+		PeriodTo:     time.Date(2026, 10, 25, 0, 0, 0, 0, time.UTC),
+	}
+	rows := []factmetric.AggRow{{Category: "QA", PeriodLabel: "2026-W41", Value: 2}}
+	res := chartdata.Shape(d, rows, nil, f, chartdata.DrillContext{})
+	if got := strings.Join(res.Categories, ","); got != "2026-W40,2026-W41,2026-W42,2026-W43" {
+		t.Fatalf("categories = %s", got)
+	}
+	pts := res.Series[0].Points
+	if pts[0].Value != 0 || pts[1].Value != 2 || pts[3].Value != 0 {
+		t.Errorf("points = %+v", pts)
+	}
+}

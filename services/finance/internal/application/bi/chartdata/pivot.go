@@ -145,7 +145,10 @@ func pivotExpr(c, grain string) string {
 
 // shapePivot turns pivot rows into one Series per series value over the sorted x categories.
 // Both axes are sorted ascending (period labels sort chronologically); missing cells are 0.
-func shapePivot(rows []factmetric.AggRow, numFmt chart.NumberFormat, decimals int) ([]Series, []string) {
+//
+// fill lists x labels that must appear even without rows (weeks of the window, H018): an
+// empty cell is a real 0, not a missing column.
+func shapePivot(rows []factmetric.AggRow, numFmt chart.NumberFormat, decimals int, fill []string) ([]Series, []string) {
 	cells := make(map[string]map[string]float64)
 	xSet := make(map[string]struct{})
 	for _, r := range rows {
@@ -154,6 +157,9 @@ func shapePivot(rows []factmetric.AggRow, numFmt chart.NumberFormat, decimals in
 		}
 		cells[r.Category][r.PeriodLabel] += r.Value
 		xSet[r.PeriodLabel] = struct{}{}
+	}
+	for _, l := range fill {
+		xSet[l] = struct{}{}
 	}
 	cats := sortedKeys(xSet)
 	names := make([]string, 0, len(cells))
@@ -208,3 +214,30 @@ func leadingNumber(s string) (int, bool) {
 	n, err := strconv.Atoi(s[:end])
 	return n, err == nil
 }
+
+// pivotFillLabels returns the Monday labels of the resolved window when the pivot x axis is the
+// period of a WEEKLY dashboard (otherwise nil), so a week without facts shows 0 instead of no
+// column (H018). The window is resolved with the same WIB anchor Plan uses for WEEKLY
+// (resolveAsOf); DAILY is not filled because its anchor is the latest loaded date.
+func pivotFillLabels(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time, x string) []string {
+	if x != xAxisPeriod || d.PeriodGrain().String() != grainWeekly {
+		return nil
+	}
+	p := ResolvePeriodCal(f.PeriodPreset, f.PeriodFrom, f.PeriodTo, grainWeekly, d.PeriodCalendar().String(), wibDate(now))
+	if p.From.IsZero() || p.To.IsZero() || p.To.Before(p.From) {
+		return nil
+	}
+	from := dayOf(p.From)
+	cur := mondayOf(from)
+	if cur.Before(from) {
+		cur = cur.AddDate(0, 0, 7)
+	}
+	var out []string
+	for ; !cur.After(p.To) && len(out) < maxFillLabels; cur = cur.AddDate(0, 0, 7) {
+		out = append(out, PeriodLabel(cur, grainWeekly))
+	}
+	return out
+}
+
+// maxFillLabels caps zero-filled x labels (≈ 15 years of weeks).
+const maxFillLabels = 800
