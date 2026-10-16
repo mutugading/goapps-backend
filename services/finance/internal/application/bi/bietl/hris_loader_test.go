@@ -42,6 +42,13 @@ func TestHRISWindow(t *testing.T) {
 	}
 }
 
+// H013: the 05:00 WIB run fires at 22:00 UTC the previous day and must still pull up to H-1 (WIB).
+func TestHRISWindow_UsesWIBDate(t *testing.T) {
+	fire := time.Date(2026, 10, 15, 22, 0, 0, 0, time.UTC) // = 2026-10-16 05:00 WIB
+	_, d2 := HRISWindow(fire)
+	assert.Equal(t, "2026-10-15", d2.Format("2006-01-02"))
+}
+
 type fakeOT struct{ d1, d2 time.Time }
 
 func (f *fakeOT) FetchOTDaily(_ context.Context, d1, d2 time.Time) ([]oracleinfra.OTDailyRow, error) {

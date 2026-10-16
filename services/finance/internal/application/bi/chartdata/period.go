@@ -103,7 +103,7 @@ func ResolvePeriodCal(preset string, customFrom, customTo time.Time, grain, cale
 // the period containing their Sunday (K10), so the reference is the Sunday of now's ISO week;
 // other grains use now itself.
 func payrollRef(now time.Time, grain string) time.Time {
-	if grain == "WEEKLY" {
+	if grain == grainWeekly {
 		return mondayOf(now).AddDate(0, 0, 6)
 	}
 	return now
@@ -130,9 +130,9 @@ func payrollStart(end time.Time) time.Time {
 // dated per day and the window is capped at `now`.
 func payrollWindow(start, end time.Time, grain string, now time.Time) PeriodRange {
 	switch grain {
-	case "WEEKLY":
+	case grainWeekly:
 		return PeriodRange{From: start.AddDate(0, 0, -6), To: end.AddDate(0, 0, -6)}
-	case "DAILY":
+	case grainDaily:
 		if d := dayOf(now); d.Before(end) {
 			end = d
 		}
@@ -184,9 +184,9 @@ func shiftByMonths(t time.Time, deltaMonths int) time.Time {
 // PeriodLabel formats a date as the canonical period_label string for a given grain.
 func PeriodLabel(t time.Time, grain string) string {
 	switch grain {
-	case "DAILY":
+	case grainDaily:
 		return t.Format("2006-01-02")
-	case "WEEKLY":
+	case grainWeekly:
 		y, w := t.ISOWeek()
 		return fmt.Sprintf("%04d-W%02d", y, w)
 	case "QUARTERLY":

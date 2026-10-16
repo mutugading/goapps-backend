@@ -30,6 +30,9 @@ type KpiEntry struct {
 	// viewer's group_1 (dept) filter applies to that side instead of a fixed group_1.
 	CrossRatioNumeratorType   string
 	CrossRatioDenominatorType string
+	// FilterGroup2 pins group_2 for a standard KPI (e.g. OVER_LIMIT vs NEAR_LIMIT on
+	// HR_OT_WEEK_STATUS, H013); the KPI then reads mv_bi_metric_g2.
+	FilterGroup2 string
 }
 
 // KpiConfig is the ordered list of KPI cards a dashboard renders above its main chart.
@@ -58,6 +61,8 @@ const kpiAggCrossRatio = "cross_ratio"
 // regardless of what the viewer selected.
 var allowedKpiPeriods = map[string]struct{}{
 	kpiPeriodSelected: {}, "current_month": {}, "ytd": {}, "l12m": {},
+	// "this_week" / "last_week" scope WEEKLY KPIs to the latest loaded week and the one before (R2).
+	"this_week": {}, "last_week": {},
 	// "selected_ytd" computes Jan 1 of the selected period's year → selected.To,
 	// making the KPI follow the viewer's month picker for year-to-date values.
 	"selected_ytd": {},
@@ -160,6 +165,7 @@ func parseKpiEntry(m map[string]any, idx int) (KpiEntry, error) {
 		CrossRatioScale:             crossScale,
 		CrossRatioNumeratorType:     crossNumerType,
 		CrossRatioDenominatorType:   crossDenomType,
+		FilterGroup2:                mapStringVal(m, "filter_group_2"),
 	}, nil
 }
 
@@ -217,7 +223,7 @@ func parseKpiPeriod(m map[string]any, idx int) (string, error) {
 		period = kpiPeriodSelected
 	}
 	if _, ok := allowedKpiPeriods[period]; !ok {
-		return "", fmt.Errorf("%w: entry %d period %q is not one of selected/current_month/ytd/l12m", ErrInvalidKpiConfig, idx, period)
+		return "", fmt.Errorf("%w: entry %d period %q is not one of selected/current_month/ytd/l12m/this_week/last_week", ErrInvalidKpiConfig, idx, period)
 	}
 	return period, nil
 }
@@ -242,9 +248,8 @@ func (k KpiConfig) MarshalToList() []map[string]any {
 			"compare":     e.Compare,
 			"format":      string(e.Format),
 		}
-		if e.MetricName != "" {
-			m["metric_name"] = e.MetricName
-		}
+		putString(m, "metric_name", e.MetricName)
+		putString(m, "filter_group_2", e.FilterGroup2)
 		if e.Period != "" && e.Period != kpiPeriodSelected {
 			m["period"] = e.Period
 		}

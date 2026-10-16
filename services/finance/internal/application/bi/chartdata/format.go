@@ -100,6 +100,18 @@ func Shape(d *dashboarddomain.Dashboard, rows []factmetric.AggRow, kpis []factme
 	// Multi-metric detection: when the dashboard has metric_filter.include_metrics set,
 	// AggRows come from planMultiMetric() where Category = metric_name.
 	// Route to shapeMultiMetric() to produce one Series per metric.
+	if IsPivot(d, f) {
+		series, cats := shapePivot(rows, numFmt, decimals)
+		return Result{
+			Config:       d.ChartConfig().MarshalToMap(),
+			Series:       series,
+			Categories:   cats,
+			KPIs:         formattedKPIs,
+			DrillContext: drillContext,
+			Meta:         Meta{AsOf: time.Now().UTC(), RowCount: len(rows)},
+		}
+	}
+
 	if metrics := d.ChartConfig().MetricFilter.IncludeMetrics; len(metrics) > 0 {
 		multiSeries := shapeMultiMetric(rows, staticMetricLabels, numFmt, decimals)
 

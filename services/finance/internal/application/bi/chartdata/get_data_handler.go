@@ -68,7 +68,13 @@ func (h *GetDataHandler) WithNow(now func() time.Time) *GetDataHandler {
 // resolveAsOf returns the "data as of" anchor for the dashboard. Warehouse data lags wall-clock
 // (the current calendar month is usually not loaded yet), so period presets and KPI windows are
 // anchored to the latest loaded period for this dashboard's scope; falls back to now when empty.
+//
+// WEEKLY (HR R2, HD-05) is the exception: "this week / last week" mean the calendar week, and a
+// week with nobody over/near the limit has no fact rows, so the anchor is today's WIB date (H013).
 func (h *GetDataHandler) resolveAsOf(ctx context.Context, d *dashboarddomain.Dashboard) (time.Time, error) {
+	if d.PeriodGrain().String() == grainWeekly {
+		return wibDate(h.now()), nil
+	}
 	latest, err := h.fact.LatestPeriod(ctx, d.FilterType(), d.FilterGroup1(), d.PeriodGrain().String())
 	if err != nil {
 		return time.Time{}, fmt.Errorf("latest period: %w", err)

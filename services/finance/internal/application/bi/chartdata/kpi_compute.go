@@ -205,6 +205,12 @@ func runKPIScalar(
 		args = append(args, group1Filter)
 		idx++
 	}
+	if k.FilterGroup2 != "" {
+		source = mvBiMetricG2
+		conds = append(conds, fmt.Sprintf("group_2 = $%d", idx))
+		args = append(args, k.FilterGroup2)
+		idx++
+	}
 	// Apply viewer filter-chip group_1 selections when no dashboard-level pre-filter is set.
 	if group1Filter == "" && len(group1Filters) > 0 {
 		conds, args, idx = appendINClause(conds, args, idx, "group_1", group1Filters)
@@ -265,6 +271,12 @@ func runSparkline(
 	if group1Filter == "" && len(group1Filters) > 0 {
 		conds, args, idx = appendINClause(conds, args, idx, "group_1", group1Filters)
 	}
+	if k.FilterGroup2 != "" {
+		source = mvBiMetricG2
+		conds = append(conds, fmt.Sprintf("group_2 = $%d", idx))
+		args = append(args, k.FilterGroup2)
+		idx++
+	}
 	// mv_bi_metric_g1 does not have a group_2 column — skip the filter to avoid SQL error.
 	if len(group2Filters) > 0 && source != mvBiMetricG1 {
 		conds, args, idx = appendINClause(conds, args, idx, "group_2", group2Filters)
@@ -317,6 +329,11 @@ func runKPIScalarDirect(
 	args := []any{d.FilterType(), k.MetricName}
 	idx := 3
 	conds := []string{"type = $1", "metric_name = $2", "is_active = TRUE"}
+	if k.FilterGroup2 != "" {
+		conds = append(conds, fmt.Sprintf("group_2 = $%d", idx))
+		args = append(args, k.FilterGroup2)
+		idx++
+	}
 
 	if d.FilterGroup1() != "" {
 		conds = append(conds, fmt.Sprintf("group_1 = $%d", idx))
@@ -362,6 +379,9 @@ FROM bi_fact_metric WHERE %s`, aggSQL, joinAnd(conds))
 // with "column group_2 does not exist". runKPIScalar and runSparkline guard on this.
 const mvBiMetricG1 = "mv_bi_metric_g1"
 
+// mvBiMetricG2 is the materialized view aggregated at group_2 level (KPI filter_group_2).
+const mvBiMetricG2 = "mv_bi_metric_g2"
+
 // kpiSourceTable picks the right MV given whether the dashboard pre-filters group_1.
 // The source table is always mv_bi_metric_g1 in this implementation; different MVs may
 // be introduced in future when per-grain materialized views are available.
@@ -396,6 +416,10 @@ func resolveKPIPeriod(scope string, selected PeriodRange, now time.Time, grain, 
 		return PeriodRange{From: firstOfMonth(now), To: now}
 	case "ytd":
 		return PeriodRange{From: time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location()), To: now}
+	case "this_week":
+		return ResolvePeriodCal("THIS_WEEK", time.Time{}, time.Time{}, grain, calendar, now)
+	case "last_week":
+		return ResolvePeriodCal("LAST_WEEK", time.Time{}, time.Time{}, grain, calendar, now)
 	case "selected_ytd":
 		// YTD anchored to the selected period's end date: Jan 1 of that year to selected.To.
 		// Falls back to current YTD when the selected period is zero.
@@ -429,7 +453,7 @@ func compareRange(current PeriodRange, mode, grain, calendar string) (PeriodRang
 	if current.From.IsZero() || current.To.IsZero() {
 		return PeriodRange{}, ""
 	}
-	if grain == "WEEKLY" {
+	if grain == grainWeekly {
 		return compareRangeWeekly(current, mode, grain)
 	}
 	if calendar == PayrollCalendar {

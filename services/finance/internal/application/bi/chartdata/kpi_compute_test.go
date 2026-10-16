@@ -294,3 +294,40 @@ func TestComputeKPIs_CrossRatio_CrossTypeWithDeptFilter(t *testing.T) {
 		}
 	}
 }
+
+// H013: filter_group_2 pins group_2 and reads mv_bi_metric_g2; this_week/last_week scope a
+// WEEKLY KPI to the latest week and the one before it.
+func TestComputeKPIs_FilterGroup2AndWeekScopes(t *testing.T) {
+	d, err := dashboarddomain.NewDashboard(dashboarddomain.NewDashboardParams{
+		Code: "HR_WEEK", Title: "R2", FilterType: "HR_OT_WEEK_STATUS", PeriodGrain: "WEEKLY",
+		DefaultPeriod: "L12M", ChartType: "kpi_card", ChartConfigRaw: map[string]any{"value_field": "value"},
+		KpiConfigRaw: []map[string]any{
+			{"label": "Over minggu lalu", "value_field": "value", "agg": "sum", "period": "last_week", "filter_group_2": "OVER_LIMIT", "format": "raw"},
+			{"label": "Mendekati minggu ini", "value_field": "value", "agg": "sum", "period": "this_week", "filter_group_2": "NEAR_LIMIT", "format": "raw"},
+		},
+		MaxDrillLevel: 2, CacheTTLSec: 60, GroupID: uuid.New(), IsActive: true, CreatedBy: uuid.New(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := &scriptedFactRepo{values: []float64{3, 5}}
+	now := time.Date(2026, 10, 14, 0, 0, 0, 0, time.UTC) // Wednesday
+	if _, err = chartdata.ComputeKPIs(context.Background(), repo, d, chartdata.PeriodRange{}, now, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(repo.queries) != 2 {
+		t.Fatalf("want 2 queries, got %d", len(repo.queries))
+	}
+	for i, want := range []string{"OVER_LIMIT", "NEAR_LIMIT"} {
+		q := repo.queries[i]
+		if q.TargetTable != "mv_bi_metric_g2" || q.Args[1] != want {
+			t.Errorf("kpi %d: source %s args %v", i, q.TargetTable, q.Args)
+		}
+	}
+	if got, want := firstDateArg(repo.queries[0]), time.Date(2026, 10, 5, 0, 0, 0, 0, time.UTC); !got.Equal(want) {
+		t.Errorf("last_week from = %v, want %v", got, want)
+	}
+	if got, want := firstDateArg(repo.queries[1]), time.Date(2026, 10, 12, 0, 0, 0, 0, time.UTC); !got.Equal(want) {
+		t.Errorf("this_week from = %v, want %v", got, want)
+	}
+}

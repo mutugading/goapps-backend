@@ -65,6 +65,11 @@ func Plan(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time) (factmet
 		return planMultiMetric(d, f, now, metrics)
 	}
 
+	// Two-dimensional charts (stacked_bar dept × OT type, heatmap week × dept; H013).
+	if x, series, ok := pivotDims(d, f); ok {
+		return planPivot(d, f, now, x, series)
+	}
+
 	drillDepth := len(f.DrillPath)
 	if drillDepth > d.MaxDrillLevel().Int() {
 		return factmetric.PlannedQuery{}, fmt.Errorf("%w: depth %d > max %d", factmetric.ErrDrillTooDeep, drillDepth, d.MaxDrillLevel().Int())
@@ -366,15 +371,16 @@ func buildPlan(a buildArgs) (factmetric.PlannedQuery, error) {
 			return buildTrendComparePlan(a, coreConds, dateConds, args, shift), nil
 		}
 		// NB: the materialized views (mv_bi_metric_g1/g2) do NOT carry periode_label,
-		// so the label is derived from periode_date via TO_CHAR (YYYYMM) here.
+		// so the label is derived from periode_date via TO_CHAR per grain (YYYYMM for MONTHLY).
+		label := periodLabelSQL(a.Grain)
 		sql := fmt.Sprintf(`
-SELECT TO_CHAR(periode_date, 'YYYYMM')::text AS category, periode_date,
-       TO_CHAR(periode_date, 'YYYYMM')::text AS periode_label,
+SELECT %s::text AS category, periode_date,
+       %s::text AS periode_label,
        SUM(value) AS value, 0::numeric AS prev_value, 0::int AS order_seq
 FROM %s
 WHERE %s
 GROUP BY periode_date
-ORDER BY periode_date`, a.Source, strings.Join(dateConds, " AND "))
+ORDER BY periode_date`, label, label, a.Source, strings.Join(dateConds, " AND "))
 		return factmetric.PlannedQuery{SQL: sql, Args: args, TargetTable: a.Source}, nil
 	}
 
@@ -403,7 +409,8 @@ ORDER BY order_seq NULLS LAST, category`,
 // shiftMonths is a fixed integer derived from the compare mode (not user input), so the
 // INTERVAL literal is safe to inline.
 func buildTrendComparePlan(a buildArgs, coreConds, dateConds []string, args []any, shiftMonths int) factmetric.PlannedQuery {
-	// NB: the materialized views don't carry periode_label; it is derived via TO_CHAR.
+	// NB: the materialized views don't carry periode_label; it is derived via TO_CHAR per grain.
+	label := periodLabelExpr(a.Grain, "cur.periode_date")
 	sql := fmt.Sprintf(`
 WITH cur AS (
     SELECT periode_date, SUM(value) AS value
@@ -417,9 +424,9 @@ prev AS (
     WHERE %s
     GROUP BY periode_date
 )
-SELECT TO_CHAR(cur.periode_date, 'YYYYMM')::text AS category,
+SELECT %s::text AS category,
        cur.periode_date,
-       TO_CHAR(cur.periode_date, 'YYYYMM')::text AS periode_label,
+       %s::text AS periode_label,
        cur.value,
        COALESCE(prev.value, 0) AS prev_value,
        0::int AS order_seq
@@ -428,7 +435,7 @@ LEFT JOIN prev ON prev.periode_date = (cur.periode_date - INTERVAL '%d months')
 ORDER BY cur.periode_date`,
 		a.Source, strings.Join(dateConds, " AND "),
 		a.Source, strings.Join(coreConds, " AND "),
-		shiftMonths)
+		label, label, shiftMonths)
 
 	return factmetric.PlannedQuery{SQL: sql, Args: args, TargetTable: a.Source}
 }

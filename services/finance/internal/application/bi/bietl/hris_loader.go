@@ -54,10 +54,23 @@ func (l *HRISLoader) Load(ctx context.Context, targetType, _ string, sourceID uu
 	}
 }
 
-// HRISWindow returns [d1, d2] for the pull: d2 = yesterday; d1 = today−35 rounded down to the
+// hrisZone is the HRIS business time zone: "today"/"yesterday" are WIB dates whatever the server
+// TZ is (the finance container runs in UTC; the 05:00 WIB job fires at 22:00 UTC the day before).
+var hrisZone = loadHRISZone()
+
+func loadHRISZone() *time.Location {
+	loc, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		return time.FixedZone("WIB", 7*60*60)
+	}
+	return loc
+}
+
+// HRISWindow returns [d1, d2] for the pull: d2 = yesterday (WIB); d1 = today−35 rounded down to the
 // Monday of its week and to the start (day 26) of the payroll period it falls in, whichever is
 // earlier, so weekly (R2) and monthly (26–25) aggregates are always recomputed over whole spans.
 func HRISWindow(now time.Time) (d1, d2 time.Time) {
+	now = now.In(hrisZone)
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	d2 = today.AddDate(0, 0, -1)
 	d1 = today.AddDate(0, 0, -HRISWindowDays)
