@@ -99,9 +99,11 @@ func TestBiHRStagingRepository_ReplaceOTDaily(t *testing.T) {
 
 	// H011: facts follow staging in the same transaction. Rows: 01-04 Normal 1.5 (kept) and
 	// 01-06 Normal 1.5 (calc 3.125 → DQ 1.625); the 01-05 Change Off row is gone (HD-04).
-	facts := func() map[string]string {
+	// r2 selects the R2 types (H012) instead of the R1 ones.
+	factsOf := func(r2 bool) map[string]string {
 		rs, qErr := raw.QueryContext(ctx, `SELECT type||' '||periode_grain||' '||periode_label||' '||COALESCE(group_2,''), value::text
-FROM bi_fact_metric WHERE type LIKE 'HR_OT_%' AND group_3 = $1`, marker)
+FROM bi_fact_metric WHERE type LIKE 'HR_OT_%' AND group_3 = $1
+  AND (type IN ('HR_OT_HOURS', 'HR_OT_DQ')) <> $2`, marker, r2)
 		require.NoError(t, qErr)
 		defer func() { _ = rs.Close() }()
 		m := map[string]string{}
@@ -113,6 +115,7 @@ FROM bi_fact_metric WHERE type LIKE 'HR_OT_%' AND group_3 = $1`, marker)
 		require.NoError(t, rs.Err())
 		return m
 	}
+	facts := func() map[string]string { return factsOf(false) }
 	want := map[string]string{
 		"HR_OT_HOURS DAILY 1999-01-04 Normal": "1.5",
 		"HR_OT_HOURS DAILY 1999-01-06 Normal": "1.5",
@@ -128,6 +131,37 @@ FROM bi_fact_metric WHERE type LIKE 'HR_OT_%' AND group_3 = $1`, marker)
 		[]oracleinfra.OTDailyRow{row("1999-01-06", "Normal", "3.125")}, srcID)
 	require.NoError(t, err)
 	require.Equal(t, want, facts())
+
+	// H012: R2 week 1999-W01 (Mon 01-04) = 2.25 + 3.125 counted hours; week 1998-W51 (Mon 12-21)
+	// starts before staging does and is skipped; the removed 01-05 day fact is gone.
+	require.Equal(t, map[string]string{
+		"HR_OT_WEEK WEEKLY 1999-W01 UNDER_LIMIT":   "5.375",
+		"HR_OT_WEEK_BUCKET WEEKLY 1999-W01 0-7":    "1",
+		"HR_OT_WEEK_DAILY DAILY 1999-01-04 Normal": "2.25",
+		"HR_OT_WEEK_DAILY DAILY 1999-01-06 Normal": "3.125",
+	}, factsOf(true))
+
+	// Over-limit in two consecutive runs: the streak continues from the stored HR_OT_CHRONIC of the
+	// week before the window; Holiday counts only above 7.5 h (8 → 0.5).
+	_, err = repo.ReplaceOTDaily(ctx, d("1999-01-11"), d("1999-01-17"),
+		[]oracleinfra.OTDailyRow{row("1999-01-12", "Normal", "15")}, srcID)
+	require.NoError(t, err)
+	_, err = repo.ReplaceOTDaily(ctx, d("1999-01-18"), d("1999-01-24"),
+		[]oracleinfra.OTDailyRow{row("1999-01-19", "Off", "14"), row("1999-01-23", "Holiday", "8")}, srcID)
+	require.NoError(t, err)
+	r2 := factsOf(true)
+	for k, v := range map[string]string{
+		"HR_OT_WEEK WEEKLY 1999-W02 OVER_LIMIT":       "15",
+		"HR_OT_WEEK_STATUS WEEKLY 1999-W02 OVER_LIMIT": "1",
+		"HR_OT_WEEK_EXCESS WEEKLY 1999-W02 ":          "1",
+		"HR_OT_CHRONIC WEEKLY 1999-W02 ":              "1",
+		"HR_OT_WEEK WEEKLY 1999-W03 OVER_LIMIT":       "14.5",
+		"HR_OT_WEEK_BUCKET WEEKLY 1999-W03 14-18":     "1",
+		"HR_OT_CHRONIC WEEKLY 1999-W03 ":              "2",
+		"HR_OT_WEEK_DAILY DAILY 1999-01-23 Holiday":   "0.5",
+	} {
+		require.Equal(t, v, r2[k], k)
+	}
 
 	// HD-15: an employee's facts outside the window follow the current dept.
 	_, err = raw.ExecContext(ctx, `UPDATE bi_hr_employee SET dept_name = 'Dept Baru' WHERE nik = $1`, marker)

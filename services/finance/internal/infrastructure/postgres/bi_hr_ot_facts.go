@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/shopspring/decimal"
 
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/bi/hrot"
@@ -16,6 +17,7 @@ import (
 // period touched by [d1, d2] from staging, inside the caller's transaction (HD-03/HD-04): facts of
 // those periods are deleted and re-inserted, so rows removed at the source disappear from the facts.
 // Department = current dept from bi_hr_employee (K15); older facts are restated to it (HD-15).
+// The R2 weekly facts (H012) are recomputed in the same transaction.
 func replaceOTFacts(ctx context.Context, tx *sql.Tx, d1, d2 time.Time, sourceID uuid.UUID) error {
 	from, to := hrot.PayrollPeriodStart(d1), hrot.PayrollPeriodEnd(d2)
 
@@ -63,8 +65,14 @@ WHERE type IN ($1, $2, $3) AND scenario = 'ACTUAL'
 			return fmt.Errorf("insert OT fact: %w", err)
 		}
 	}
+	if err = replaceOTWeekFacts(ctx, tx, d1, d2, sourceID, dept, loadedFrom); err != nil {
+		return err
+	}
 	return restateOTDept(ctx, tx)
 }
+
+// perEmployeeTypes are the OT fact types keyed by NIK in group_3 (R1 and R2), restated by HD-15.
+var perEmployeeTypes = append([]string{hrot.TypeHours, hrot.TypeDQ, hrot.TypeWeekDaily}, r2WeeklyTypes...)
 
 // restateOTDept moves per-employee facts outside the recomputed window to the employee's current
 // dept (K15, HD-15), so one employee never splits across two depts in a trend. A NIK has a single
@@ -73,9 +81,9 @@ func restateOTDept(ctx context.Context, tx *sql.Tx) error {
 	if _, err := tx.ExecContext(ctx, `UPDATE bi_fact_metric f
 SET group_1 = LEFT(e.dept_name, 120), loaded_at = NOW()
 FROM bi_hr_employee e
-WHERE f.type IN ($1, $2) AND f.group_3 = e.nik
+WHERE f.type = ANY($1) AND f.group_3 = e.nik
   AND e.dept_name IS NOT NULL AND e.dept_name <> ''
-  AND f.group_1 <> LEFT(e.dept_name, 120)`, hrot.TypeHours, hrot.TypeDQ); err != nil {
+  AND f.group_1 <> LEFT(e.dept_name, 120)`, pq.Array(perEmployeeTypes)); err != nil {
 		return fmt.Errorf("restate OT dept: %w", err)
 	}
 	return nil

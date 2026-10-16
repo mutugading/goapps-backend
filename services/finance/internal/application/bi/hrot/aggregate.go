@@ -119,17 +119,7 @@ func Aggregate(rows []Row, currentDept map[string]string, d1, d2, loadedFrom tim
 		acc.add(key{TypePareto, ParetoTotal, "", "", GrainMonthly, pEnd}, total)
 	}
 
-	facts := make([]Fact, 0, len(acc.sums))
-	for k, v := range acc.sums {
-		v = v.Round(factScale)
-		if v.IsZero() {
-			continue
-		}
-		facts = append(facts, Fact{
-			Type: k.typ, Group1: k.g1, Group2: k.g2, Group3: k.g3, Grain: k.grain,
-			PeriodDate: k.date, PeriodLabel: periodLabel(k.grain, k.date), Value: v,
-		})
-	}
+	facts := acc.facts()
 	SortFacts(facts)
 	return facts
 }
@@ -210,8 +200,11 @@ func clip(s string) string {
 }
 
 func periodLabel(grain string, d time.Time) string {
-	if grain == GrainMonthly {
+	switch grain {
+	case GrainMonthly:
 		return d.Format("200601")
+	case GrainWeekly:
+		return isoWeekLabel(d)
 	}
 	return d.Format("2006-01-02")
 }
