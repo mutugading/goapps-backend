@@ -39,6 +39,11 @@ func (r *BiHRStagingRepository) ReplaceOTDaily(
 		}
 	}()
 
+	// Serialize concurrent replaces (05:00 run vs manual/midday run) so facts are not doubled.
+	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, "bi_hr_replace:"+sourceID.String()); err != nil {
+		return 0, fmt.Errorf("advisory lock: %w", err)
+	}
+
 	if _, err = tx.ExecContext(ctx, `DELETE FROM bi_hr_stg_ot_daily WHERE work_date BETWEEN $1 AND $2`, d1, d2); err != nil {
 		return 0, fmt.Errorf("delete window: %w", err)
 	}
