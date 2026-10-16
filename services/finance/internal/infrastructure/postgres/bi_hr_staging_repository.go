@@ -2,8 +2,12 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
+
+	"github.com/google/uuid"
 
 	oracleinfra "github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/oracle"
 )
@@ -18,15 +22,22 @@ func NewBiHRStagingRepository(db *DB) *BiHRStagingRepository {
 	return &BiHRStagingRepository{db: db}
 }
 
-// ReplaceOTDaily deletes staging rows with work_date in [d1, d2] and inserts rows in one
-// transaction (HD-04), and upserts the employee label table (HD-07). Rows with empty NIK are skipped.
-// Returns rows inserted.
-func (r *BiHRStagingRepository) ReplaceOTDaily(ctx context.Context, d1, d2 time.Time, rows []oracleinfra.OTDailyRow) (int, error) {
+// ReplaceOTDaily deletes staging rows with work_date in [d1, d2] and inserts rows, upserts the
+// employee label table (HD-07), then re-aggregates the R1 facts of the window (H011) — all in one
+// transaction (HD-04). Rows with empty NIK are skipped. sourceID is stamped on the facts.
+// Returns staging rows inserted.
+func (r *BiHRStagingRepository) ReplaceOTDaily(
+	ctx context.Context, d1, d2 time.Time, rows []oracleinfra.OTDailyRow, sourceID uuid.UUID,
+) (int, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf("begin tx: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			_ = rbErr
+		}
+	}()
 
 	if _, err = tx.ExecContext(ctx, `DELETE FROM bi_hr_stg_ot_daily WHERE work_date BETWEEN $1 AND $2`, d1, d2); err != nil {
 		return 0, fmt.Errorf("delete window: %w", err)
@@ -61,6 +72,9 @@ ON CONFLICT (nik) DO UPDATE SET emp_sys_id = EXCLUDED.emp_sys_id, emp_name = EXC
 		if _, err = tx.ExecContext(ctx, emp, x.NIK, x.EmpSysID, x.EmpName, x.DeptID, x.DeptName); err != nil {
 			return 0, fmt.Errorf("upsert employee: %w", err)
 		}
+	}
+	if err = replaceOTFacts(ctx, tx, d1, d2, sourceID); err != nil {
+		return 0, fmt.Errorf("aggregate OT facts: %w", err)
 	}
 	if err = tx.Commit(); err != nil {
 		return 0, fmt.Errorf("commit: %w", err)

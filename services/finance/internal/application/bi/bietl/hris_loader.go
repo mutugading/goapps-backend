@@ -21,9 +21,9 @@ type OTSource interface {
 	FetchOTDaily(ctx context.Context, d1, d2 time.Time) ([]oracleinfra.OTDailyRow, error)
 }
 
-// OTStaging replaces the staging window in one transaction.
+// OTStaging replaces the staging window and re-aggregates its R1 facts in one transaction (H011).
 type OTStaging interface {
-	ReplaceOTDaily(ctx context.Context, d1, d2 time.Time, rows []oracleinfra.OTDailyRow) (int, error)
+	ReplaceOTDaily(ctx context.Context, d1, d2 time.Time, rows []oracleinfra.OTDailyRow, sourceID uuid.UUID) (int, error)
 }
 
 // HRISLoader loads HRIS views into staging (HD-03/HD-04). Job start/end/status are logged in
@@ -40,7 +40,7 @@ func NewHRISLoader(ot OTSource, staging OTStaging) *HRISLoader {
 }
 
 // Load implements Runner.
-func (l *HRISLoader) Load(ctx context.Context, targetType, _ string, _ uuid.UUID) (int, error) {
+func (l *HRISLoader) Load(ctx context.Context, targetType, _ string, sourceID uuid.UUID) (int, error) {
 	switch targetType {
 	case TargetHROTStaging:
 		d1, d2 := HRISWindow(l.now())
@@ -48,7 +48,7 @@ func (l *HRISLoader) Load(ctx context.Context, targetType, _ string, _ uuid.UUID
 		if err != nil {
 			return 0, fmt.Errorf("fetch OT daily: %w", err)
 		}
-		return l.staging.ReplaceOTDaily(ctx, d1, d2, rows)
+		return l.staging.ReplaceOTDaily(ctx, d1, d2, rows, sourceID)
 	default:
 		return 0, fmt.Errorf("unsupported HRIS target_type %q", targetType)
 	}

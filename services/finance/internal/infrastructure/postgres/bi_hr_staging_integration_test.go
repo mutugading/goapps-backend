@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
@@ -36,12 +37,23 @@ func TestBiHRStagingRepository_ReplaceOTDaily(t *testing.T) {
 	require.NoError(t, err)
 	_, err = raw.ExecContext(ctx, string(ddl))
 	require.NoError(t, err)
+	var srcID uuid.UUID
+	require.NoError(t, raw.QueryRowContext(ctx,
+		`SELECT source_id FROM bi_data_source WHERE source_code = 'HRIS_ORACLE'`).Scan(&srcID))
 
 	// Fixture dates far in the past so real data is never touched.
 	const marker = "TST-H010"
 	cleanup := func() {
-		_, _ = raw.ExecContext(ctx, `DELETE FROM bi_hr_stg_ot_daily WHERE nik = $1`, marker)
-		_, _ = raw.ExecContext(ctx, `DELETE FROM bi_hr_employee WHERE nik = $1`, marker)
+		for _, q := range []string{
+			`DELETE FROM bi_hr_stg_ot_daily WHERE nik = $1`,
+			`DELETE FROM bi_hr_employee WHERE nik = $1`,
+			`DELETE FROM bi_fact_metric WHERE type LIKE 'HR_OT_%' AND group_3 = $1`,
+			`DELETE FROM bi_fact_metric WHERE type = 'HR_OT_PARETO' AND periode_date < '2000-01-01' AND $1 <> ''`,
+		} {
+			if _, cErr := raw.ExecContext(ctx, q, marker); cErr != nil {
+				t.Logf("cleanup: %v", cErr)
+			}
+		}
 	}
 	cleanup()
 	defer cleanup()
@@ -51,30 +63,85 @@ func TestBiHRStagingRepository_ReplaceOTDaily(t *testing.T) {
 		return oracleinfra.OTDailyRow{
 			WorkDate: d(date), WeekStart: d("1999-01-04"), AttPeriod: "199901", WeekAttPeriod: "199901",
 			EmpSysID: "S1", NIK: marker, EmpName: "Test", DeptID: "D1", DeptName: "Dept",
-			OTType: typ, ActualHours: decimal.RequireFromString("1.5"),
+			OTType: typ, Tier1: decimal.RequireFromString("1.5"), ActualHours: decimal.RequireFromString("1.5"),
 			CalcHours: decimal.RequireFromString(calc), LimitHours: decimal.RequireFromString(calc),
 		}
 	}
+	zero := func(date string) oracleinfra.OTDailyRow {
+		r := row(date, "Normal", "0")
+		r.Tier1, r.ActualHours = decimal.Zero, decimal.Zero
+		return r
+	}
 	repo := postgres.NewBiHRStagingRepository(&postgres.DB{DB: raw})
 
-	n, err := repo.ReplaceOTDaily(ctx, d("1999-01-04"), d("1999-01-10"),
-		[]oracleinfra.OTDailyRow{row("1999-01-04", "Normal", "2.25"), row("1999-01-05", "Change Off", "7.5")})
+	// Staging must cover period 199901 (1998-12-26..1999-01-25) from its first day, else MONTHLY is
+	// skipped as partial; the zero-hour 12-26 row anchors it.
+	n, err := repo.ReplaceOTDaily(ctx, d("1998-12-26"), d("1999-01-10"),
+		[]oracleinfra.OTDailyRow{zero("1998-12-26"), row("1999-01-04", "Normal", "2.25"), row("1999-01-05", "Change Off", "7.5")}, srcID)
 	require.NoError(t, err)
-	require.Equal(t, 2, n)
+	require.Equal(t, 3, n)
 
 	// Second run over a sub-window: the 01-05 row is replaced, 01-04 (outside) kept.
 	n, err = repo.ReplaceOTDaily(ctx, d("1999-01-05"), d("1999-01-10"),
-		[]oracleinfra.OTDailyRow{row("1999-01-06", "Normal", "3.125")})
+		[]oracleinfra.OTDailyRow{row("1999-01-06", "Normal", "3.125")}, srcID)
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
 
 	var cnt int
 	require.NoError(t, raw.QueryRowContext(ctx, `SELECT COUNT(*) FROM bi_hr_stg_ot_daily WHERE nik = $1`, marker).Scan(&cnt))
-	require.Equal(t, 2, cnt)
+	require.Equal(t, 3, cnt)
 	var calc string
 	require.NoError(t, raw.QueryRowContext(ctx,
 		`SELECT ot_calc_hours::text FROM bi_hr_stg_ot_daily WHERE nik = $1 AND work_date = '1999-01-06'`, marker).Scan(&calc))
 	require.True(t, decimal.RequireFromString(calc).Equal(decimal.RequireFromString("3.125")))
 	require.NoError(t, raw.QueryRowContext(ctx, `SELECT COUNT(*) FROM bi_hr_employee WHERE nik = $1`, marker).Scan(&cnt))
 	require.Equal(t, 1, cnt)
+
+	// H011: facts follow staging in the same transaction. Rows: 01-04 Normal 1.5 (kept) and
+	// 01-06 Normal 1.5 (calc 3.125 → DQ 1.625); the 01-05 Change Off row is gone (HD-04).
+	facts := func() map[string]string {
+		rs, qErr := raw.QueryContext(ctx, `SELECT type||' '||periode_grain||' '||periode_label||' '||COALESCE(group_2,''), value::text
+FROM bi_fact_metric WHERE type LIKE 'HR_OT_%' AND group_3 = $1`, marker)
+		require.NoError(t, qErr)
+		defer func() { _ = rs.Close() }()
+		m := map[string]string{}
+		for rs.Next() {
+			var k, v string
+			require.NoError(t, rs.Scan(&k, &v))
+			m[k] = decimal.RequireFromString(v).String()
+		}
+		require.NoError(t, rs.Err())
+		return m
+	}
+	want := map[string]string{
+		"HR_OT_HOURS DAILY 1999-01-04 Normal": "1.5",
+		"HR_OT_HOURS DAILY 1999-01-06 Normal": "1.5",
+		"HR_OT_HOURS MONTHLY 199901 Normal":   "3",
+		"HR_OT_DQ DAILY 1999-01-04 Normal":    "0.75",
+		"HR_OT_DQ DAILY 1999-01-06 Normal":    "1.625",
+		"HR_OT_DQ MONTHLY 199901 Normal":      "2.375",
+	}
+	require.Equal(t, want, facts())
+
+	// Idempotent: the same run twice yields identical facts (ACCEPTANCE 1.1).
+	_, err = repo.ReplaceOTDaily(ctx, d("1999-01-05"), d("1999-01-10"),
+		[]oracleinfra.OTDailyRow{row("1999-01-06", "Normal", "3.125")}, srcID)
+	require.NoError(t, err)
+	require.Equal(t, want, facts())
+
+	// HD-15: an employee's facts outside the window follow the current dept.
+	_, err = raw.ExecContext(ctx, `UPDATE bi_hr_employee SET dept_name = 'Dept Baru' WHERE nik = $1`, marker)
+	require.NoError(t, err)
+	_, err = repo.ReplaceOTDaily(ctx, d("1999-02-01"), d("1999-02-02"), nil, srcID)
+	require.NoError(t, err)
+	var depts []string
+	rs, err := raw.QueryContext(ctx, `SELECT DISTINCT group_1 FROM bi_fact_metric WHERE type LIKE 'HR_OT_%' AND group_3 = $1`, marker)
+	require.NoError(t, err)
+	for rs.Next() {
+		var g string
+		require.NoError(t, rs.Scan(&g))
+		depts = append(depts, g)
+	}
+	require.NoError(t, rs.Close())
+	require.Equal(t, []string{"Dept Baru"}, depts)
 }

@@ -49,10 +49,13 @@ func (f *fakeOT) FetchOTDaily(_ context.Context, d1, d2 time.Time) ([]oracleinfr
 	return []oracleinfra.OTDailyRow{{NIK: "1"}, {NIK: "2"}}, nil
 }
 
-type fakeStg struct{ d1, d2 time.Time }
+type fakeStg struct {
+	d1, d2 time.Time
+	src    uuid.UUID
+}
 
-func (f *fakeStg) ReplaceOTDaily(_ context.Context, d1, d2 time.Time, rows []oracleinfra.OTDailyRow) (int, error) {
-	f.d1, f.d2 = d1, d2
+func (f *fakeStg) ReplaceOTDaily(_ context.Context, d1, d2 time.Time, rows []oracleinfra.OTDailyRow, src uuid.UUID) (int, error) {
+	f.d1, f.d2, f.src = d1, d2, src
 	return len(rows), nil
 }
 
@@ -61,9 +64,11 @@ func TestHRISLoader_Load(t *testing.T) {
 	l := NewHRISLoader(src, stg)
 	l.now = func() time.Time { return day("2026-10-15") }
 
-	n, err := l.Load(context.Background(), TargetHROTStaging, "", uuid.Nil)
+	srcID := uuid.New()
+	n, err := l.Load(context.Background(), TargetHROTStaging, "", srcID)
 	require.NoError(t, err)
 	assert.Equal(t, 2, n)
+	assert.Equal(t, srcID, stg.src)
 	assert.Equal(t, src.d1, stg.d1)
 	assert.Equal(t, src.d2, stg.d2)
 
