@@ -90,6 +90,7 @@ func (h *BIChartDataHandler) PreviewDashboard(ctx context.Context, req *financev
 		KpiConfig:        structListToMaps(req.GetKpiConfig()),
 		CompareModes:     modes,
 		CanViewWorkforce: HasPermission(ctx, chartdataapp.PermWorkforceView),
+		CanViewEmployee:  HasPermission(ctx, chartdataapp.PermWorkforceEmployee),
 		IsSuperAdmin:     IsSuperAdmin(ctx),
 	}
 	result, err := h.previewHandler.Handle(ctx, q)

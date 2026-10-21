@@ -59,6 +59,11 @@ func Plan(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time) (factmet
 		return planComputedRatio(d, f, now, cr.Numerator, cr.Denominator, cr.Scale, cr.GroupBy)
 	}
 
+	// Employee table (H018): one row per employee, read from bi_fact_metric directly.
+	if isEmployeeTable(d) {
+		return planEmployeeTable(d, f, now)
+	}
+
 	// Multi-metric path: chart_config.metric_filter.include_metrics is set.
 	// Bypasses MVs — builds a UNION ALL query per metric against bi_fact_metric directly.
 	if metrics := metricFilter(d); len(metrics) > 0 {

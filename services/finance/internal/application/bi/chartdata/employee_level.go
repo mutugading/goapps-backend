@@ -59,6 +59,9 @@ func RequestsEmployeeLevel(d *dashboarddomain.Dashboard, f ViewerFilters) bool {
 	if !IsHRType(d.FilterType()) {
 		return false
 	}
+	if isEmployeeTable(d) {
+		return true
+	}
 	if f.ComputedRatio != nil && normalizedGroupBy(f.ComputedRatio.GroupBy) == colGroup3 {
 		return true
 	}

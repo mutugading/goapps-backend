@@ -25,7 +25,9 @@ type PreviewQuery struct {
 	CompareModes []string
 	// CanViewWorkforce / IsSuperAdmin gate HR_* types (HD-10); preview must not bypass them.
 	CanViewWorkforce bool
-	IsSuperAdmin     bool
+	// CanViewEmployee gates employee-level (group_3 = NIK) output (HD-07), e.g. table_mode.
+	CanViewEmployee bool
+	IsSuperAdmin    bool
 }
 
 // PreviewHandler renders an unsaved dashboard configuration.
@@ -82,6 +84,9 @@ func (h *PreviewHandler) Handle(ctx context.Context, q PreviewQuery) (*Result, e
 	}
 
 	filters := ViewerFilters{PeriodPreset: "L12M"}
+	if !q.IsSuperAdmin && !q.CanViewEmployee && RequestsEmployeeLevel(d, filters) {
+		return nil, fmt.Errorf("%w: employee-level data requires %s", dashboarddomain.ErrForbidden, PermWorkforceEmployee)
+	}
 	now := h.now()
 	plan, err := Plan(d, filters, now)
 	if err != nil {

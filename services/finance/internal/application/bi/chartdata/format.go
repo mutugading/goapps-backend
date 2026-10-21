@@ -100,6 +100,18 @@ func Shape(d *dashboarddomain.Dashboard, rows []factmetric.AggRow, kpis []factme
 	// Multi-metric detection: when the dashboard has metric_filter.include_metrics set,
 	// AggRows come from planMultiMetric() where Category = metric_name.
 	// Route to shapeMultiMetric() to produce one Series per metric.
+	// Employee table (H018): one row per NIK, one Series per column.
+	if isEmployeeTable(d) && len(f.DrillPath) == 0 {
+		series, cats := shapeEmployeeTable(rows, numFmt, decimals)
+		return Result{
+			Config:       d.ChartConfig().MarshalToMap(),
+			Series:       series,
+			Categories:   cats,
+			KPIs:         formattedKPIs,
+			DrillContext: drillContext,
+			Meta:         Meta{AsOf: time.Now().UTC(), RowCount: len(rows)},
+		}
+	}
 	if IsPivot(d, f) {
 		x, _, _ := pivotDims(d, f)
 		now := time.Now()
