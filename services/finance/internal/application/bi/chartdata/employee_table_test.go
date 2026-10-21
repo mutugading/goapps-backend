@@ -1,6 +1,7 @@
 package chartdata_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -54,5 +55,14 @@ func TestShapeEmployeeTable_OrdersByHours(t *testing.T) {
 	}
 	if len(series) != 3 || series[2].Points[1].Value != 3 || series[0].Points[0].Meta["name"] != "Budi" {
 		t.Errorf("series = %+v", series)
+	}
+}
+
+func TestEmployeeTable_RejectsTooDeepDrill(t *testing.T) {
+	d := newPivotDashboard(t, "data_table", "WEEKLY", "", employeeTableDashboardCfg())
+	now := time.Date(2026, 10, 21, 3, 0, 0, 0, time.UTC)
+	_, err := chartdata.Plan(d, chartdata.ViewerFilters{PeriodPreset: "LAST_WEEK", DrillPath: []string{"a", "b", "c", "d"}}, now)
+	if !errors.Is(err, factmetric.ErrDrillTooDeep) {
+		t.Fatalf("want ErrDrillTooDeep, got %v", err)
 	}
 }

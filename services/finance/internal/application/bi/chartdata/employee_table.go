@@ -1,6 +1,7 @@
 package chartdata
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -38,6 +39,9 @@ func isEmployeeTable(d *dashboarddomain.Dashboard) bool {
 // The week is the latest Monday whose Sunday is on/after the window start (K10, week belongs to
 // the period of its Sunday) and whose Monday is on/before the window end.
 func planEmployeeTable(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time) (factmetric.PlannedQuery, error) {
+	if n := len(f.DrillPath); n > d.MaxDrillLevel().Int() {
+		return factmetric.PlannedQuery{}, fmt.Errorf("%w: depth %d > max %d", factmetric.ErrDrillTooDeep, n, d.MaxDrillLevel().Int())
+	}
 	period := ResolvePeriodCal(f.PeriodPreset, f.PeriodFrom, f.PeriodTo, grainWeekly, d.PeriodCalendar().String(), wibDate(now))
 	args := []any{d.FilterType(), period.From, period.To}
 	const weekCTE = `WITH w AS (
