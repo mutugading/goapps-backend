@@ -76,10 +76,19 @@ func TestBiHRStagingRepository_ReplaceOTDaily(t *testing.T) {
 
 	// Staging must cover period 199901 (1998-12-26..1999-01-25) from its first day, else MONTHLY is
 	// skipped as partial; the zero-hour 12-26 row anchors it.
+	// The latest work_date carries the current division/dept (HD-18), even when read first.
+	latest := row("1999-01-05", "Change Off", "7.5")
+	latest.Division, latest.DeptName = "DIV-NEW", "Dept"
+	older := row("1999-01-04", "Normal", "2.25")
+	older.Division, older.DeptName = "DIV-OLD", "Dept Lama"
 	n, err := repo.ReplaceOTDaily(ctx, d("1998-12-26"), d("1999-01-10"),
-		[]oracleinfra.OTDailyRow{zero("1998-12-26"), row("1999-01-04", "Normal", "2.25"), row("1999-01-05", "Change Off", "7.5")}, srcID)
+		[]oracleinfra.OTDailyRow{latest, zero("1998-12-26"), older}, srcID)
 	require.NoError(t, err)
 	require.Equal(t, 3, n)
+	var div, dept string
+	require.NoError(t, raw.QueryRowContext(ctx, `SELECT COALESCE(division, ''), COALESCE(dept_name, '') FROM bi_hr_employee WHERE nik = $1`, marker).Scan(&div, &dept))
+	require.Equal(t, "DIV-NEW", div)
+	require.Equal(t, "Dept", dept)
 
 	// Second run over a sub-window: the 01-05 row is replaced, 01-04 (outside) kept.
 	n, err = repo.ReplaceOTDaily(ctx, d("1999-01-05"), d("1999-01-10"),
@@ -151,14 +160,14 @@ FROM bi_fact_metric WHERE type LIKE 'HR_OT_%' AND group_3 = $1
 	require.NoError(t, err)
 	r2 := factsOf(true)
 	for k, v := range map[string]string{
-		"HR_OT_WEEK WEEKLY 1999-W02 OVER_LIMIT":       "15",
+		"HR_OT_WEEK WEEKLY 1999-W02 OVER_LIMIT":        "15",
 		"HR_OT_WEEK_STATUS WEEKLY 1999-W02 OVER_LIMIT": "1",
-		"HR_OT_WEEK_EXCESS WEEKLY 1999-W02 ":          "1",
-		"HR_OT_CHRONIC WEEKLY 1999-W02 ":              "1",
-		"HR_OT_WEEK WEEKLY 1999-W03 OVER_LIMIT":       "14.5",
-		"HR_OT_WEEK_BUCKET WEEKLY 1999-W03 14-18":     "1",
-		"HR_OT_CHRONIC WEEKLY 1999-W03 ":              "2",
-		"HR_OT_WEEK_DAILY DAILY 1999-01-23 Holiday":   "0.5",
+		"HR_OT_WEEK_EXCESS WEEKLY 1999-W02 ":           "1",
+		"HR_OT_CHRONIC WEEKLY 1999-W02 ":               "1",
+		"HR_OT_WEEK WEEKLY 1999-W03 OVER_LIMIT":        "14.5",
+		"HR_OT_WEEK_BUCKET WEEKLY 1999-W03 14-18":      "1",
+		"HR_OT_CHRONIC WEEKLY 1999-W03 ":               "2",
+		"HR_OT_WEEK_DAILY DAILY 1999-01-23 Holiday":    "0.5",
 	} {
 		require.Equal(t, v, r2[k], k)
 	}

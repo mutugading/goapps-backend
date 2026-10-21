@@ -92,18 +92,9 @@ func (h *GetDataHandler) Handle(ctx context.Context, q GetDataQuery) (*Result, e
 	if err != nil {
 		return nil, err
 	}
-	// 2. Access check
-	if !d.IsAccessibleBy(q.UserRoles, q.IsSuperAdmin) {
-		return nil, dashboarddomain.ErrForbidden
-	}
-	// 2a. HR_* dashboards need workforce.view on top of the role whitelist (HD-10).
-	if !q.IsSuperAdmin && !q.CanViewWorkforce && TouchesHRType(d.FilterType(), d.KpiConfig()) {
-		return nil, fmt.Errorf("%w: workforce data requires %s", dashboarddomain.ErrForbidden, PermWorkforceView)
-	}
-	// 2b. Employee-level (group_3) of HR_* needs its own permission. Checked before the cache
-	// so a result cached for a permitted user is never served to one without it (HD-07).
-	if !q.IsSuperAdmin && !q.CanViewEmployee && RequestsEmployeeLevel(d, q.Filters) {
-		return nil, fmt.Errorf("%w: employee-level data requires %s", dashboarddomain.ErrForbidden, PermWorkforceEmployee)
+	// 2. Access checks (role whitelist, HD-10 workforce, HD-07 employee level)
+	if err := authorizeView(d, q); err != nil {
+		return nil, err
 	}
 
 	// 3. Try cache
@@ -149,6 +140,7 @@ func (h *GetDataHandler) Handle(ctx context.Context, q GetDataQuery) (*Result, e
 	// 7. Shape + format
 	drillCtx := BuildDrillContext(d, q.Filters)
 	result := Shape(d, rows, kpis, q.Filters, drillCtx)
+	addEmployeeOTRanges(&result, d, q.Filters, asOf)
 	result.Meta.QueryHash = hashKey
 
 	// 8. Cache (best-effort)
@@ -160,4 +152,21 @@ func (h *GetDataHandler) Handle(ctx context.Context, q GetDataQuery) (*Result, e
 	}
 
 	return &result, nil
+}
+
+// authorizeView applies the dashboard access checks of Handle. The employee-level check runs
+// before the cache so a result cached for a permitted user is never served to one without it.
+func authorizeView(d *dashboarddomain.Dashboard, q GetDataQuery) error {
+	if !d.IsAccessibleBy(q.UserRoles, q.IsSuperAdmin) {
+		return dashboarddomain.ErrForbidden
+	}
+	// HR_* dashboards need workforce.view on top of the role whitelist (HD-10).
+	if !q.IsSuperAdmin && !q.CanViewWorkforce && TouchesHRType(d.FilterType(), d.KpiConfig()) {
+		return fmt.Errorf("%w: workforce data requires %s", dashboarddomain.ErrForbidden, PermWorkforceView)
+	}
+	// Employee-level (group_3) of HR_* needs its own permission (HD-07).
+	if !q.IsSuperAdmin && !q.CanViewEmployee && RequestsEmployeeLevel(d, q.Filters) {
+		return fmt.Errorf("%w: employee-level data requires %s", dashboarddomain.ErrForbidden, PermWorkforceEmployee)
+	}
+	return nil
 }

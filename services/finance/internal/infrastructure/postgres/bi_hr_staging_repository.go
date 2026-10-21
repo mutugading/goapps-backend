@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -52,12 +53,11 @@ func (r *BiHRStagingRepository) ReplaceOTDaily(
     work_date, week_start, att_period, week_att_period, emp_sys_id, nik, division, dept_id, dept_name,
     schedule_code, ot_type, ot_tier_1, ot_tier_2, ot_tier_3, ot_actual_hours, ot_calc_hours, ot_limit_hours
 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`
-	const emp = `INSERT INTO bi_hr_employee (nik, emp_sys_id, emp_name, dept_id, dept_name, updated_at)
-VALUES ($1,$2,$3,$4,$5,NOW())
+	const emp = `INSERT INTO bi_hr_employee (nik, emp_sys_id, emp_name, division, dept_id, dept_name, updated_at)
+VALUES ($1,$2,$3,$4,$5,$6,NOW())
 ON CONFLICT (nik) DO UPDATE SET emp_sys_id = EXCLUDED.emp_sys_id, emp_name = EXCLUDED.emp_name,
-    dept_id = EXCLUDED.dept_id, dept_name = EXCLUDED.dept_name, updated_at = NOW()`
+    division = EXCLUDED.division, dept_id = EXCLUDED.dept_id, dept_name = EXCLUDED.dept_name, updated_at = NOW()`
 
-	seen := make(map[string]struct{}, len(rows))
 	inserted := 0
 	for _, x := range rows {
 		if x.NIK == "" { // cannot be keyed to an employee; skipped (count = len(rows) - inserted)
@@ -70,11 +70,9 @@ ON CONFLICT (nik) DO UPDATE SET emp_sys_id = EXCLUDED.emp_sys_id, emp_name = EXC
 			return 0, fmt.Errorf("insert staging OT: %w", err)
 		}
 		inserted++
-		if _, ok := seen[x.NIK]; ok {
-			continue
-		}
-		seen[x.NIK] = struct{}{}
-		if _, err = tx.ExecContext(ctx, emp, x.NIK, x.EmpSysID, x.EmpName, x.DeptID, x.DeptName); err != nil {
+	}
+	for _, x := range latestPerNIK(rows) {
+		if _, err = tx.ExecContext(ctx, emp, x.NIK, x.EmpSysID, x.EmpName, x.Division, x.DeptID, x.DeptName); err != nil {
 			return 0, fmt.Errorf("upsert employee: %w", err)
 		}
 	}
@@ -85,4 +83,28 @@ ON CONFLICT (nik) DO UPDATE SET emp_sys_id = EXCLUDED.emp_sys_id, emp_name = EXC
 		return 0, fmt.Errorf("commit: %w", err)
 	}
 	return inserted, nil
+}
+
+// latestPerNIK returns, per NIK, the row with the latest work_date (HD-18): the employee's current
+// name, division and dept. Ties keep the first row read. Rows with empty NIK are skipped; the
+// result is ordered by NIK so the upserts are deterministic.
+func latestPerNIK(rows []oracleinfra.OTDailyRow) []oracleinfra.OTDailyRow {
+	idx := make(map[string]int, len(rows))
+	out := make([]oracleinfra.OTDailyRow, 0)
+	for _, x := range rows {
+		if x.NIK == "" {
+			continue
+		}
+		i, ok := idx[x.NIK]
+		if !ok {
+			idx[x.NIK] = len(out)
+			out = append(out, x)
+			continue
+		}
+		if x.WorkDate.After(out[i].WorkDate) {
+			out[i] = x
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].NIK < out[j].NIK })
+	return out
 }

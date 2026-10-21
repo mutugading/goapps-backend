@@ -105,5 +105,6 @@ func (h *PreviewHandler) Handle(ctx context.Context, q PreviewQuery) (*Result, e
 
 	drillCtx := BuildDrillContext(d, filters)
 	result := Shape(d, rows, kpis, filters, drillCtx)
+	addEmployeeOTRanges(&result, d, filters, now)
 	return &result, nil
 }

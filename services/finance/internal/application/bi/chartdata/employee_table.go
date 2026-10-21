@@ -24,9 +24,16 @@ const (
 // empSep separates NIK, dept and name inside AggRow.Category (unit separator, never in real data).
 const empSep = "\x1f"
 
-// isEmployeeTable reports whether the dashboard uses the employee table planner.
+// isEmployeeTable reports whether the dashboard uses an employee table planner (employee_week,
+// employee_ot). Both list NIKs, so both are gated as employee level (HD-07, HD-18).
 func isEmployeeTable(d *dashboarddomain.Dashboard) bool {
-	return d.ChartConfig().TableMode == tableModeEmployeeWeek && IsHRType(d.FilterType())
+	m := d.ChartConfig().TableMode
+	return (m == tableModeEmployeeWeek || m == tableModeEmployeeOT) && IsHRType(d.FilterType())
+}
+
+// isEmployeeOT reports whether the dashboard uses the Employee Overtime planner (HD-18).
+func isEmployeeOT(d *dashboarddomain.Dashboard) bool {
+	return isEmployeeTable(d) && d.ChartConfig().TableMode == tableModeEmployeeOT
 }
 
 // planEmployeeTable builds the R2 employee table (H018) from bi_fact_metric, because the MVs drop

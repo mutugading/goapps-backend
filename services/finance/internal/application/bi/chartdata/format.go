@@ -100,6 +100,10 @@ func Shape(d *dashboarddomain.Dashboard, rows []factmetric.AggRow, kpis []factme
 	// Multi-metric detection: when the dashboard has metric_filter.include_metrics set,
 	// AggRows come from planMultiMetric() where Category = metric_name.
 	// Route to shapeMultiMetric() to produce one Series per metric.
+	// Employee Overtime (HD-18): table, or two daily series when drilled into a NIK.
+	if isEmployeeOT(d) {
+		return shapeEmployeeOTResult(d, rows, formattedKPIs, f, drillContext, numFmt, decimals)
+	}
 	// Employee table (H018): one row per NIK, one Series per column.
 	if isEmployeeTable(d) && len(f.DrillPath) == 0 {
 		series, cats := shapeEmployeeTable(rows, numFmt, decimals)

@@ -28,6 +28,11 @@ type ViewerFilters struct {
 	DrillPath    []string // depth 0 = aggregate, 1 = into group_2, 2 = into group_3
 	Group1Filter []string // selected group_1 values from filter chips; empty = show all
 	Group2Filter []string // selected group_2 values from filter chips; empty = show all
+	// GroupBy / GroupFilter drive the employee_ot table (HD-18): the group-by key (DIVISION, DEPT)
+	// and the selected values of that group. They replace Group1Filter in that mode and are part
+	// of the cache hash like every other field.
+	GroupBy     string
+	GroupFilter []string
 	// ForceTrend, when true, overrides the chart_config x_axis_field and forces isTrend=true
 	// in Plan(). Used by the monthly-detail BFF to fetch time-series data from dashboards
 	// (e.g. EBITDA) whose chart_config is categorical (waterfall), not period-grouped.
@@ -59,7 +64,10 @@ func Plan(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time) (factmet
 		return planComputedRatio(d, f, now, cr.Numerator, cr.Denominator, cr.Scale, cr.GroupBy)
 	}
 
-	// Employee table (H018): one row per employee, read from bi_fact_metric directly.
+	// Employee tables (H018, HD-18): one row per employee, read from bi_fact_metric directly.
+	if isEmployeeOT(d) {
+		return planEmployeeOT(d, f, now)
+	}
 	if isEmployeeTable(d) {
 		return planEmployeeTable(d, f, now)
 	}
