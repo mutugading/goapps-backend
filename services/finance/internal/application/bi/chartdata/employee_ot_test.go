@@ -89,6 +89,9 @@ func TestEmployeeOT_GroupFilterIsBound(t *testing.T) {
 	if p.Args[8] != evil || p.Args[9] != "QA" {
 		t.Errorf("args = %v", p.Args)
 	}
+	if _, err := chartdata.Plan(d, chartdata.ViewerFilters{PeriodPreset: "THIS_MONTH", GroupFilter: []string{"QA"}}, otNow); !errors.Is(err, factmetric.ErrInvalidPlan) {
+		t.Errorf("filter without group_by: %v", err)
+	}
 	many := make([]string, 501)
 	if _, err := chartdata.Plan(d, chartdata.ViewerFilters{PeriodPreset: "THIS_MONTH", GroupBy: "DEPT", GroupFilter: many}, otNow); !errors.Is(err, factmetric.ErrInvalidPlan) {
 		t.Errorf("too many filter values: %v", err)
@@ -137,6 +140,13 @@ func TestResolveEmployeeOTWindows(t *testing.T) {
 		{"L12M", "L12M", "2026-10-21", "2025-11-25", "2026-10-25", "2026-09-26", "2026-10-19", "2025-10-26"},
 		{"THIS_QTR memuat periode berjalan", "THIS_QTR", "2026-10-21", "2026-10-25", "2026-10-25", "2026-09-26", "2026-10-19", "2026-09-26"},
 		{"THIS_YEAR", "THIS_YEAR", "2026-10-21", "2026-01-25", "2026-10-25", "2026-09-26", "2026-10-19", "2025-12-26"},
+		// From the 26th the running period belongs to the next month (K3): 28 Dec 2026 is period 202701,
+		// so THIS_YEAR / THIS_QTR count periods of 2027 / Q1-2027, never 13 periods across years.
+		{"THIS_YEAR setelah tgl 26 Des = tahun periode berjalan", "THIS_YEAR", "2026-12-28", "2027-01-25", "2027-01-25", "2026-12-26", "2026-12-28", "2026-12-26"},
+		{"THIS_QTR setelah tgl 26 Des", "THIS_QTR", "2026-12-28", "2027-01-25", "2027-01-25", "2026-12-26", "2026-12-28", "2026-12-26"},
+		{"THIS_QTR setelah tgl 26 Sep = Q4", "THIS_QTR", "2026-09-28", "2026-10-25", "2026-10-25", "2026-09-26", "2026-09-28", "2026-09-26"},
+		{"THIS_QTR akhir kuartal", "THIS_QTR", "2026-12-20", "2026-10-25", "2026-12-25", "2026-11-26", "2026-12-14", "2026-09-26"},
+		{"hari ini tgl 26", "THIS_MONTH", "2026-10-26", "2026-11-25", "2026-11-25", "2026-10-26", "2026-10-26", "2026-10-26"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -236,7 +246,8 @@ func TestEmployeeOT_DrillDays(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Args[0] != "N1" || p.Args[2] != isoDay("2026-11-26") || p.Args[3] != isoDay("2026-12-25") ||
+	// ACTUAL starts at the R2 Monday (23 Nov) so the week days before the 26th are not shown as 0.
+	if p.Args[0] != "N1" || p.Args[2] != isoDay("2026-11-23") || p.Args[3] != isoDay("2026-12-25") ||
 		p.Args[5] != isoDay("2026-11-23") || p.Args[6] != isoDay("2026-11-29") || !strings.Contains(p.SQL, "'DAILY'") {
 		t.Errorf("drill args = %v", p.Args)
 	}

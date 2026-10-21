@@ -86,7 +86,7 @@ ON CONFLICT (nik) DO UPDATE SET emp_sys_id = EXCLUDED.emp_sys_id, emp_name = EXC
 }
 
 // latestPerNIK returns, per NIK, the row with the latest work_date (HD-18): the employee's current
-// name, division and dept. Ties keep the first row read. Rows with empty NIK are skipped; the
+// name, division and dept. On a tie the row read last wins, like the stg_id DESC backfill (000555). Rows with empty NIK are skipped; the
 // result is ordered by NIK so the upserts are deterministic.
 func latestPerNIK(rows []oracleinfra.OTDailyRow) []oracleinfra.OTDailyRow {
 	idx := make(map[string]int, len(rows))
@@ -101,7 +101,7 @@ func latestPerNIK(rows []oracleinfra.OTDailyRow) []oracleinfra.OTDailyRow {
 			out = append(out, x)
 			continue
 		}
-		if x.WorkDate.After(out[i].WorkDate) {
+		if !x.WorkDate.Before(out[i].WorkDate) {
 			out[i] = x
 		}
 	}

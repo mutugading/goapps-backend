@@ -30,11 +30,10 @@ const (
 	GroupByCompany  = "COMPANY"
 )
 
-// Fact types and grain read by the Employee Overtime table besides the employee_week ones.
+// Fact types read by the Employee Overtime table besides the employee_week ones.
 const (
 	TypeHoursName = "HR_OT_HOURS"
 	TypeWeekName  = "HR_OT_WEEK"
-	grainMonthly  = "MONTHLY"
 )
 
 // employeeOTConfigKey is the Config key of the Employee Overtime response block.
@@ -58,12 +57,6 @@ var employeeOTGroupExpr = map[string]string{
 // bi_hr_employee.company is loaded (HD-19, H026).
 var employeeOTGroupOptions = []string{GroupByDivision, GroupByDept}
 
-// employeeOTPresets are the period-based presets the table accepts (HD-18); week/day presets
-// and CUSTOM are rejected because the two windows are derived from payroll periods.
-var employeeOTPresets = map[string]struct{}{
-	"THIS_MONTH": {}, "LAST_MONTH": {}, "THIS_QTR": {}, "THIS_YEAR": {}, "L12M": {},
-}
-
 // EmployeeOTWindows are the two windows derived from one preset (HD-18).
 type EmployeeOTWindows struct {
 	PeriodFrom time.Time // first fact date (25th) of the R1 window, inclusive
@@ -71,21 +64,33 @@ type EmployeeOTWindows struct {
 	FirstStart time.Time // 26th that opens the first payroll period (header label)
 	LastStart  time.Time // 26th that opens the last payroll period (daily drill)
 	Week       time.Time // Monday of the R2 week: its Sunday falls in the last period (K10)
+	DayFrom    time.Time // first day of the NIK→day drill: min(LastStart, Week)
 }
 
 // ResolveEmployeeOTWindows resolves the R1 period window and the R2 week for a preset. today is
-// the WIB date. The last period is the payroll period containing the preset's end (THIS_QTR and
-// THIS_YEAR therefore include the running period). The R2 week is the latest week whose Sunday is
-// inside the last period and whose Monday is not after today, so it may be partial (HD-17).
+// the WIB date. Every preset is anchored on the running payroll period (the one containing today)
+// and counts payroll periods by the month of their closing 25th (label YYYYMM, K3): THIS_MONTH =
+// running period, LAST_MONTH = the one before, THIS_QTR / THIS_YEAR = periods whose 25th is in the
+// quarter / year of the running period, L12M = the last 12 periods. The R2 week is the latest week
+// whose Sunday is inside the last period and whose Monday is not after today, so it may be partial
+// (HD-17). DayFrom starts the NIK→day drill at whichever comes first: the last period or the week.
 func ResolveEmployeeOTWindows(preset string, today time.Time) (EmployeeOTWindows, error) {
-	if _, ok := employeeOTPresets[preset]; !ok {
-		return EmployeeOTWindows{}, fmt.Errorf("%w: preset %q not allowed for employee_ot (period presets only)", factmetric.ErrInvalidPlan, preset)
-	}
-	p := ResolvePeriodCal(preset, time.Time{}, time.Time{}, grainMonthly, PayrollCalendar, today)
-	last := payrollEnd(p.To)
-	first := payrollEnd(p.From)
-	if first.After(last) {
+	last := payrollEnd(today)
+	var first time.Time
+	switch preset {
+	case "THIS_MONTH":
 		first = last
+	case "LAST_MONTH":
+		last = last.AddDate(0, -1, 0)
+		first = last
+	case "THIS_QTR":
+		first = time.Date(last.Year(), ((last.Month()-1)/3)*3+1, 25, 0, 0, 0, 0, last.Location())
+	case "THIS_YEAR":
+		first = time.Date(last.Year(), time.January, 25, 0, 0, 0, 0, last.Location())
+	case "L12M":
+		first = last.AddDate(0, -11, 0)
+	default:
+		return EmployeeOTWindows{}, fmt.Errorf("%w: preset %q not allowed for employee_ot (period presets only)", factmetric.ErrInvalidPlan, preset)
 	}
 	lastStart := payrollStart(last)
 	sunday := last.AddDate(0, 0, -int(last.Weekday())) // latest Sunday <= last (Sunday = 0)
@@ -93,7 +98,12 @@ func ResolveEmployeeOTWindows(preset string, today time.Time) (EmployeeOTWindows
 	if m := mondayOf(today); m.Before(week) {
 		week = m
 	}
-	return EmployeeOTWindows{PeriodFrom: first, PeriodTo: last, FirstStart: payrollStart(first), LastStart: lastStart, Week: week}, nil
+	dayFrom := lastStart
+	if week.Before(dayFrom) {
+		dayFrom = week
+	}
+	return EmployeeOTWindows{PeriodFrom: first, PeriodTo: last, FirstStart: payrollStart(first), LastStart: lastStart,
+		Week: week, DayFrom: dayFrom}, nil
 }
 
 // employeeOTPreset is the viewer preset, or the dashboard default when none is sent.
@@ -137,6 +147,9 @@ func planEmployeeOT(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time
 	if err != nil {
 		return factmetric.PlannedQuery{}, err
 	}
+	if len(f.GroupFilter) > 0 && groupBy == "" {
+		return factmetric.PlannedQuery{}, fmt.Errorf("%w: group filter needs a group_by", factmetric.ErrInvalidPlan)
+	}
 	if len(f.GroupFilter) > employeeOTMaxGroupFilter {
 		return factmetric.PlannedQuery{}, fmt.Errorf("%w: too many group filter values", factmetric.ErrInvalidPlan)
 	}
@@ -166,7 +179,7 @@ func planEmployeeOT(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time
   WHERE (a.col = '` + colPeriodHours + `' OR (a.col = '` + colWeekHours + `' AND a.v > 0))` + groupCond + `
   GROUP BY a.nik
   ORDER BY SUM(CASE WHEN a.col = '` + colPeriodHours + `' THEN a.v ELSE 0 END) DESC,
-           SUM(CASE WHEN a.col = '` + colWeekHours + `' THEN a.v ELSE 0 END) DESC, a.nik
+           SUM(CASE WHEN a.col = '` + colWeekHours + `' THEN a.v ELSE 0 END) DESC, a.nik COLLATE "C"
   LIMIT $8
 )
 SELECT a.nik || chr(31) || ` + expr + ` || chr(31) || COALESCE(e.emp_name, '') || chr(31) || COALESCE(e.division, '') || chr(31) || COALESCE(e.dept_name, '') AS category,
@@ -176,10 +189,11 @@ LEFT JOIN bi_hr_employee e ON e.nik = a.nik`
 	return factmetric.PlannedQuery{SQL: sql, Args: args, TargetTable: "bi_fact_metric"}, nil
 }
 
-// planEmployeeOTDays is the NIK→day drill: actual OT per day of the last payroll period
-// (ACTUAL) and limit hours per day of the R2 week (LIMIT).
+// planEmployeeOTDays is the NIK→day drill: actual OT per day from DayFrom to the end of the last
+// payroll period (ACTUAL; covers the R2 week days before the 26th too) and limit hours per day of
+// the R2 week (LIMIT).
 func planEmployeeOTDays(nik string, w EmployeeOTWindows) factmetric.PlannedQuery {
-	args := []any{nik, TypeHoursName, w.LastStart, w.PeriodTo, TypeWeekDailyName, w.Week, w.Week.AddDate(0, 0, 6)}
+	args := []any{nik, TypeHoursName, w.DayFrom, w.PeriodTo, TypeWeekDailyName, w.Week, w.Week.AddDate(0, 0, 6)}
 	sql := `SELECT '` + colDayActual + `'::text AS category, periode_date, TO_CHAR(periode_date, 'YYYY-MM-DD')::text AS periode_label,
        SUM(value) AS value, 0::numeric AS prev_value, 0::int AS order_seq
 FROM bi_fact_metric
@@ -267,7 +281,8 @@ func employeeOTSubtotals(emps []*employeeOTRow) []any {
 
 // shapeEmployeeOT turns planEmployeeOT rows into one Series per column over NIK categories,
 // truncated to employeeOTMaxRows, and the "employee_ot" block of the response config: group-by,
-// group options, per-group subtotals and the truncated flag. Missing columns are 0.
+// group options, per-group subtotals and the truncated flag. Missing columns are 0. When truncated,
+// subtotals (and the filter values the FE derives from the rows) cover the listed rows only.
 func shapeEmployeeOT(rows []factmetric.AggRow, f ViewerFilters, numFmt chart.NumberFormat, decimals int) ([]Series, []string, map[string]any) {
 	emps := collectEmployeeOT(rows)
 	truncated := len(emps) > employeeOTMaxRows
@@ -310,7 +325,8 @@ func shapeEmployeeOT(rows []factmetric.AggRow, f ViewerFilters, numFmt chart.Num
 	return series, niks, block
 }
 
-// rankBefore is the SQL row-limit order: period hours, week hours (both descending), then NIK.
+// rankBefore is the SQL row-limit order: period hours, week hours (both descending), then NIK
+// byte order (COLLATE "C" in SQL), so the dropped extra row is the one SQL ranked last.
 func rankBefore(a, b *employeeOTRow) bool {
 	if a.vals[colPeriodHours] != b.vals[colPeriodHours] {
 		return a.vals[colPeriodHours] > b.vals[colPeriodHours]
@@ -396,8 +412,8 @@ func addEmployeeOTRanges(r *Result, d *dashboarddomain.Dashboard, f ViewerFilter
 	}
 	block["ranges"] = map[string]any{
 		"period_from": w.FirstStart.Format(time.DateOnly), "period_to": w.PeriodTo.Format(time.DateOnly),
-		"last_period_from": w.LastStart.Format(time.DateOnly),
-		"week_from":        w.Week.Format(time.DateOnly), "week_to": w.Week.AddDate(0, 0, 6).Format(time.DateOnly),
+		"last_period_from": w.LastStart.Format(time.DateOnly), "day_from": w.DayFrom.Format(time.DateOnly),
+		"week_from": w.Week.Format(time.DateOnly), "week_to": w.Week.AddDate(0, 0, 6).Format(time.DateOnly),
 		"week_label": PeriodLabel(w.Week, grainWeekly),
 	}
 }
