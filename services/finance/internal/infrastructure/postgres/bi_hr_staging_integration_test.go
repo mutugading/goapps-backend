@@ -17,7 +17,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/postgres"
 )
 
-// Gated by INTEGRATION_TEST=true. Applies migration 000550 (idempotent) and verifies the
+// Gated by INTEGRATION_TEST=true. Applies migrations 000550 and 000557 (idempotent) and verifies the
 // replace-in-window semantics (HD-04): rows inside the window are replaced, rows outside kept.
 func TestBiHRStagingRepository_ReplaceOTDaily(t *testing.T) {
 	if os.Getenv("INTEGRATION_TEST") != "true" {
@@ -33,10 +33,12 @@ func TestBiHRStagingRepository_ReplaceOTDaily(t *testing.T) {
 	require.NoError(t, waitForDB(raw, 30*time.Second))
 	defer func() { _ = raw.Close() }()
 
-	ddl, err := os.ReadFile("../../../migrations/postgres/000550_create_bi_hr_staging_ot.up.sql")
-	require.NoError(t, err)
-	_, err = raw.ExecContext(ctx, string(ddl))
-	require.NoError(t, err)
+	for _, m := range []string{"000550_create_bi_hr_staging_ot", "000557_bi_hr_company"} {
+		ddl, err := os.ReadFile("../../../migrations/postgres/" + m + ".up.sql")
+		require.NoError(t, err)
+		_, err = raw.ExecContext(ctx, string(ddl))
+		require.NoError(t, err)
+	}
 	var srcID uuid.UUID
 	require.NoError(t, raw.QueryRowContext(ctx,
 		`SELECT source_id FROM bi_data_source WHERE source_code = 'HRIS_ORACLE'`).Scan(&srcID))
@@ -78,17 +80,26 @@ func TestBiHRStagingRepository_ReplaceOTDaily(t *testing.T) {
 	// skipped as partial; the zero-hour 12-26 row anchors it.
 	// The latest work_date carries the current division/dept (HD-18), even when read first.
 	latest := row("1999-01-05", "Change Off", "7.5")
-	latest.Division, latest.DeptName = "DIV-NEW", "Dept"
+	latest.Division, latest.DeptName, latest.CompID, latest.CompName = "DIV-NEW", "Dept", "MGT", "PT. Mutu Gading Tekstil"
 	older := row("1999-01-04", "Normal", "2.25")
 	older.Division, older.DeptName = "DIV-OLD", "Dept Lama"
 	n, err := repo.ReplaceOTDaily(ctx, d("1998-12-26"), d("1999-01-10"),
 		[]oracleinfra.OTDailyRow{latest, zero("1998-12-26"), older}, srcID)
 	require.NoError(t, err)
 	require.Equal(t, 3, n)
-	var div, dept string
-	require.NoError(t, raw.QueryRowContext(ctx, `SELECT COALESCE(division, ''), COALESCE(dept_name, '') FROM bi_hr_employee WHERE nik = $1`, marker).Scan(&div, &dept))
+	var div, dept, compID, comp string
+	require.NoError(t, raw.QueryRowContext(ctx, `SELECT COALESCE(division, ''), COALESCE(dept_name, ''), COALESCE(company_id, ''), COALESCE(company, '')
+FROM bi_hr_employee WHERE nik = $1`, marker).Scan(&div, &dept, &compID, &comp))
 	require.Equal(t, "DIV-NEW", div)
 	require.Equal(t, "Dept", dept)
+	require.Equal(t, "MGT", compID)
+	require.Equal(t, "PT. Mutu Gading Tekstil", comp)
+	var stgComp, nullComp int // HD-19: company kept per staging row; empty -> NULL
+	require.NoError(t, raw.QueryRowContext(ctx, `SELECT COUNT(*) FILTER (WHERE company_id = 'MGT' AND company = 'PT. Mutu Gading Tekstil'),
+       COUNT(*) FILTER (WHERE company_id IS NULL AND company IS NULL)
+FROM bi_hr_stg_ot_daily WHERE nik = $1`, marker).Scan(&stgComp, &nullComp))
+	require.Equal(t, 1, stgComp)
+	require.Equal(t, 2, nullComp)
 
 	// Second run over a sub-window: the 01-05 row is replaced, 01-04 (outside) kept.
 	n, err = repo.ReplaceOTDaily(ctx, d("1999-01-05"), d("1999-01-10"),

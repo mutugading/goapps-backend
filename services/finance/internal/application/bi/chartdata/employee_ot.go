@@ -51,10 +51,11 @@ var employeeOTGroupExpr = map[string]string{
 	"":              "''",
 	GroupByDivision: "COALESCE(e.division, '')",
 	GroupByDept:     "COALESCE(e.dept_name, '')",
+	GroupByCompany:  "COALESCE(e.company, '')",
 }
 
-// employeeOTGroupOptions lists the group-by keys offered to the viewer. COMPANY joins once
-// bi_hr_employee.company is loaded (HD-19, H026).
+// employeeOTGroupOptions lists the group-by keys always offered to the viewer. COMPANY is added
+// only when a listed employee has a company in bi_hr_employee (HD-19, H026).
 var employeeOTGroupOptions = []string{GroupByDivision, GroupByDept}
 
 // EmployeeOTWindows are the two windows derived from one preset (HD-18).
@@ -120,9 +121,6 @@ func normalizeEmployeeOTGroupBy(g string) (string, error) {
 	if _, ok := employeeOTGroupExpr[k]; ok {
 		return k, nil
 	}
-	if k == GroupByCompany {
-		return "", fmt.Errorf("%w: group_by COMPANY not available yet", factmetric.ErrInvalidPlan)
-	}
 	return "", fmt.Errorf("%w: group_by %q not allowed", factmetric.ErrInvalidPlan, g)
 }
 
@@ -182,7 +180,7 @@ func planEmployeeOT(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time
            SUM(CASE WHEN a.col = '` + colWeekHours + `' THEN a.v ELSE 0 END) DESC, a.nik COLLATE "C"
   LIMIT $8
 )
-SELECT a.nik || chr(31) || ` + expr + ` || chr(31) || COALESCE(e.emp_name, '') || chr(31) || COALESCE(e.division, '') || chr(31) || COALESCE(e.dept_name, '') AS category,
+SELECT a.nik || chr(31) || ` + expr + ` || chr(31) || COALESCE(e.emp_name, '') || chr(31) || COALESCE(e.division, '') || chr(31) || COALESCE(e.dept_name, '') || chr(31) || COALESCE(e.company, '') AS category,
        NULL::date AS periode_date, a.col AS periode_label, a.v AS value, 0::numeric AS prev_value, 0::int AS order_seq
 FROM a JOIN n ON n.nik = a.nik
 LEFT JOIN bi_hr_employee e ON e.nik = a.nik`
@@ -213,24 +211,24 @@ ORDER BY 2, 1`
 
 // employeeOTRow is one employee of the table with its group and column values.
 type employeeOTRow struct {
-	nik, group, name, division, dept string
-	vals                             map[string]float64
+	nik, group, name, division, dept, company string
+	vals                                      map[string]float64
 }
 
 // employeeOTColumns are the table columns in display order.
 var employeeOTColumns = []string{colPeriodHours, colWeekHours, colExcess, colChronic}
 
-// collectEmployeeOT folds (nik|group|name|division|dept, column, value) rows into employees.
+// collectEmployeeOT folds (nik|group|name|division|dept|company, column, value) rows into employees.
 func collectEmployeeOT(rows []factmetric.AggRow) []*employeeOTRow {
 	byNIK := map[string]*employeeOTRow{}
 	out := make([]*employeeOTRow, 0)
 	for _, r := range rows {
-		parts := strings.SplitN(r.Category, empSep, 5)
+		parts := strings.SplitN(r.Category, empSep, 6)
 		e := byNIK[parts[0]]
 		if e == nil {
 			e = &employeeOTRow{nik: parts[0], vals: map[string]float64{}}
-			if len(parts) == 5 {
-				e.group, e.name, e.division, e.dept = parts[1], parts[2], parts[3], parts[4]
+			if len(parts) == 6 {
+				e.group, e.name, e.division, e.dept, e.company = parts[1], parts[2], parts[3], parts[4], parts[5]
 			}
 			byNIK[parts[0]] = e
 			out = append(out, e)
@@ -306,14 +304,20 @@ func shapeEmployeeOT(rows []factmetric.AggRow, f ViewerFilters, numFmt chart.Num
 		for _, e := range emps {
 			v := e.vals[c]
 			pts = append(pts, DataPoint{Category: e.nik, Value: v, Label: chart.Format(v, cf, cd),
-				Meta: map[string]any{"name": e.name, "group": e.group, "division": e.division, "dept": e.dept}})
+				Meta: map[string]any{"name": e.name, "group": e.group, "division": e.division, "dept": e.dept, "company": e.company}})
 		}
 		series = append(series, Series{Name: c, Points: pts})
 	}
 	groupBy, _ := normalizeEmployeeOTGroupBy(f.GroupBy) //nolint:errcheck // validated by the planner
-	opts := make([]any, 0, len(employeeOTGroupOptions))
+	opts := make([]any, 0, len(employeeOTGroupOptions)+1)
 	for _, o := range employeeOTGroupOptions {
 		opts = append(opts, o)
+	}
+	for _, e := range emps {
+		if e.company != "" {
+			opts = append(opts, GroupByCompany)
+			break
+		}
 	}
 	block := map[string]any{
 		"group_by":      groupBy,

@@ -63,12 +63,12 @@ func TestEmployeeOT_GatedWithoutPermission(t *testing.T) {
 
 func TestEmployeeOT_GroupByWhitelist(t *testing.T) {
 	d := employeeOTDashboard(t)
-	for _, g := range []string{"", "DIVISION", "dept", " Dept "} {
+	for _, g := range []string{"", "DIVISION", "dept", " Dept ", "company"} {
 		if _, err := chartdata.Plan(d, chartdata.ViewerFilters{PeriodPreset: "THIS_MONTH", GroupBy: g}, otNow); err != nil {
 			t.Errorf("group_by %q: %v", g, err)
 		}
 	}
-	for _, g := range []string{"COMPANY", "group_1", "e.nik", "DEPT; DROP TABLE bi_fact_metric--", "1) OR (1=1"} {
+	for _, g := range []string{"group_1", "e.nik", "DEPT; DROP TABLE bi_fact_metric--", "1) OR (1=1"} {
 		_, err := chartdata.Plan(d, chartdata.ViewerFilters{PeriodPreset: "THIS_MONTH", GroupBy: g}, otNow)
 		if !errors.Is(err, factmetric.ErrInvalidPlan) {
 			t.Errorf("group_by %q: want ErrInvalidPlan, got %v", g, err)
@@ -180,8 +180,12 @@ func TestEmployeeOT_PlanArgsCrossingWeek(t *testing.T) {
 }
 
 func otRow(nik, group, col string, v float64) factmetric.AggRow {
+	return otRowCompany(nik, group, "", col, v)
+}
+
+func otRowCompany(nik, group, company, col string, v float64) factmetric.AggRow {
 	sep := "\x1f"
-	return factmetric.AggRow{Category: nik + sep + group + sep + "Nama " + nik + sep + "DIV" + sep + group, PeriodLabel: col, Value: v}
+	return factmetric.AggRow{Category: nik + sep + group + sep + "Nama " + nik + sep + "DIV" + sep + group + sep + company, PeriodLabel: col, Value: v}
 }
 
 func TestShapeEmployeeOT_UnionZeroColumnsAndSubtotals(t *testing.T) {
@@ -219,7 +223,36 @@ func TestShapeEmployeeOT_UnionZeroColumnsAndSubtotals(t *testing.T) {
 	}
 	opts := block["group_options"].([]any)
 	if len(opts) != 2 || opts[0] != "DIVISION" || opts[1] != "DEPT" {
-		t.Errorf("group_options = %v (COMPANY must be absent, HD-19)", opts)
+		t.Errorf("group_options = %v (COMPANY must be absent without company data, HD-19)", opts)
+	}
+}
+
+func TestShapeEmployeeOT_CompanyOptionWhenLoaded(t *testing.T) {
+	rows := []factmetric.AggRow{
+		otRowCompany("N1", "PT. Mutu Gading Tekstil", "PT. Mutu Gading Tekstil", "PERIOD_HOURS", 40),
+		otRowCompany("N2", "", "", "PERIOD_HOURS", 10),
+	}
+	series, _, block := chartdata.ShapeEmployeeOTForTest(rows, chartdata.ViewerFilters{GroupBy: "company"})
+	opts := block["group_options"].([]any)
+	if len(opts) != 3 || opts[2] != "COMPANY" {
+		t.Errorf("group_options = %v (COMPANY must be offered once loaded, HD-19)", opts)
+	}
+	if block["group_by"] != "COMPANY" {
+		t.Errorf("group_by = %v", block["group_by"])
+	}
+	if series[0].Points[1].Meta["company"] != "PT. Mutu Gading Tekstil" || series[0].Points[0].Meta["company"] != "" {
+		t.Errorf("meta = %v / %v", series[0].Points[0].Meta, series[0].Points[1].Meta)
+	}
+}
+
+func TestEmployeeOT_GroupByCompanyUsesEmployeeCompany(t *testing.T) {
+	p, err := chartdata.Plan(employeeOTDashboard(t), chartdata.ViewerFilters{PeriodPreset: "THIS_MONTH", GroupBy: "COMPANY",
+		GroupFilter: []string{"PT. Mutu Gading Tekstil"}}, otNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(p.SQL, "COALESCE(e.company, '')") || strings.Contains(p.SQL, "Mutu Gading") {
+		t.Errorf("company group must be a bound filter on e.company:\n%s", p.SQL)
 	}
 }
 

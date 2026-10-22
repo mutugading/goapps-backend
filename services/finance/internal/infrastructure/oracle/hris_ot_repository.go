@@ -29,6 +29,8 @@ type OTDailyRow struct {
 	ActualHours   decimal.Decimal
 	CalcHours     decimal.Decimal
 	LimitHours    decimal.Decimal
+	CompID        string // HD-19: company code (HMEMD_HMCOMP_COMP_ID)
+	CompName      string // HD-19: company name; empty when the master row is missing
 }
 
 // HRISOTRepository reads HRIS views through the read-only BI_HR_RO connection.
@@ -45,7 +47,8 @@ const otDailyQuery = `SELECT
 	WORK_DATE, WEEK_START, ATT_PERIOD, WEEK_ATT_PERIOD,
 	TO_CHAR(EMP_SYS_ID), NIK, EMP_NAME, DIVISION, TO_CHAR(DEPT_ID), DEPT_NAME, SCHEDULE_CODE, OT_TYPE,
 	TO_CHAR(OT_TIER_1,'TM9','NLS_NUMERIC_CHARACTERS=''.,'''), TO_CHAR(OT_TIER_2,'TM9','NLS_NUMERIC_CHARACTERS=''.,'''), TO_CHAR(OT_TIER_3,'TM9','NLS_NUMERIC_CHARACTERS=''.,'''),
-	TO_CHAR(OT_ACTUAL_HOURS,'TM9','NLS_NUMERIC_CHARACTERS=''.,'''), TO_CHAR(OT_CALC_HOURS,'TM9','NLS_NUMERIC_CHARACTERS=''.,'''), TO_CHAR(OT_LIMIT_HOURS,'TM9','NLS_NUMERIC_CHARACTERS=''.,''')
+	TO_CHAR(OT_ACTUAL_HOURS,'TM9','NLS_NUMERIC_CHARACTERS=''.,'''), TO_CHAR(OT_CALC_HOURS,'TM9','NLS_NUMERIC_CHARACTERS=''.,'''), TO_CHAR(OT_LIMIT_HOURS,'TM9','NLS_NUMERIC_CHARACTERS=''.,'''),
+	COMP_ID, COMP_NAME
 FROM MGTHRIS.VIEW_BI_OT_DAILY
 WHERE WORK_DATE BETWEEN :1 AND :2`
 
@@ -63,14 +66,16 @@ func (r *HRISOTRepository) FetchOTDaily(ctx context.Context, d1, d2 time.Time) (
 			x                                                    OTDailyRow
 			sysID, nik, name, div, dept, deptName, sched, otType sql.NullString
 			t1, t2, t3, act, calc, lim                           sql.NullString
+			compID, compName                                     sql.NullString
 		)
 		if err := rows.Scan(&x.WorkDate, &x.WeekStart, &x.AttPeriod, &x.WeekAttPeriod,
 			&sysID, &nik, &name, &div, &dept, &deptName, &sched, &otType,
-			&t1, &t2, &t3, &act, &calc, &lim); err != nil {
+			&t1, &t2, &t3, &act, &calc, &lim, &compID, &compName); err != nil {
 			return nil, fmt.Errorf("scan VIEW_BI_OT_DAILY: %w", err)
 		}
 		x.EmpSysID, x.NIK, x.EmpName, x.Division = sysID.String, nik.String, name.String, div.String
 		x.DeptID, x.DeptName, x.ScheduleCode, x.OTType = dept.String, deptName.String, sched.String, otType.String
+		x.CompID, x.CompName = compID.String, compName.String
 		for _, p := range []struct {
 			dst *decimal.Decimal
 			src sql.NullString

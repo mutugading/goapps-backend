@@ -51,12 +51,14 @@ func (r *BiHRStagingRepository) ReplaceOTDaily(
 
 	const ins = `INSERT INTO bi_hr_stg_ot_daily (
     work_date, week_start, att_period, week_att_period, emp_sys_id, nik, division, dept_id, dept_name,
-    schedule_code, ot_type, ot_tier_1, ot_tier_2, ot_tier_3, ot_actual_hours, ot_calc_hours, ot_limit_hours
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`
-	const emp = `INSERT INTO bi_hr_employee (nik, emp_sys_id, emp_name, division, dept_id, dept_name, updated_at)
-VALUES ($1,$2,$3,$4,$5,$6,NOW())
+    schedule_code, ot_type, ot_tier_1, ot_tier_2, ot_tier_3, ot_actual_hours, ot_calc_hours, ot_limit_hours,
+    company_id, company
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NULLIF($18,''),NULLIF($19,''))`
+	const emp = `INSERT INTO bi_hr_employee (nik, emp_sys_id, emp_name, division, dept_id, dept_name, company_id, company, updated_at)
+VALUES ($1,$2,$3,$4,$5,$6,NULLIF($7,''),NULLIF($8,''),NOW())
 ON CONFLICT (nik) DO UPDATE SET emp_sys_id = EXCLUDED.emp_sys_id, emp_name = EXCLUDED.emp_name,
-    division = EXCLUDED.division, dept_id = EXCLUDED.dept_id, dept_name = EXCLUDED.dept_name, updated_at = NOW()`
+    division = EXCLUDED.division, dept_id = EXCLUDED.dept_id, dept_name = EXCLUDED.dept_name,
+    company_id = EXCLUDED.company_id, company = EXCLUDED.company, updated_at = NOW()`
 
 	inserted := 0
 	for _, x := range rows {
@@ -66,13 +68,13 @@ ON CONFLICT (nik) DO UPDATE SET emp_sys_id = EXCLUDED.emp_sys_id, emp_name = EXC
 		if _, err = tx.ExecContext(ctx, ins,
 			x.WorkDate, x.WeekStart, x.AttPeriod, x.WeekAttPeriod, x.EmpSysID, x.NIK, x.Division, x.DeptID, x.DeptName,
 			x.ScheduleCode, x.OTType, x.Tier1.String(), x.Tier2.String(), x.Tier3.String(),
-			x.ActualHours.String(), x.CalcHours.String(), x.LimitHours.String()); err != nil {
+			x.ActualHours.String(), x.CalcHours.String(), x.LimitHours.String(), x.CompID, x.CompName); err != nil {
 			return 0, fmt.Errorf("insert staging OT: %w", err)
 		}
 		inserted++
 	}
 	for _, x := range latestPerNIK(rows) {
-		if _, err = tx.ExecContext(ctx, emp, x.NIK, x.EmpSysID, x.EmpName, x.Division, x.DeptID, x.DeptName); err != nil {
+		if _, err = tx.ExecContext(ctx, emp, x.NIK, x.EmpSysID, x.EmpName, x.Division, x.DeptID, x.DeptName, x.CompID, x.CompName); err != nil {
 			return 0, fmt.Errorf("upsert employee: %w", err)
 		}
 	}
@@ -86,7 +88,7 @@ ON CONFLICT (nik) DO UPDATE SET emp_sys_id = EXCLUDED.emp_sys_id, emp_name = EXC
 }
 
 // latestPerNIK returns, per NIK, the row with the latest work_date (HD-18): the employee's current
-// name, division and dept. On a tie the row read last wins, like the stg_id DESC backfill (000555). Rows with empty NIK are skipped; the
+// name, division, dept and company (HD-19). On a tie the row read last wins, like the stg_id DESC backfill (000555). Rows with empty NIK are skipped; the
 // result is ordered by NIK so the upserts are deterministic.
 func latestPerNIK(rows []oracleinfra.OTDailyRow) []oracleinfra.OTDailyRow {
 	idx := make(map[string]int, len(rows))
