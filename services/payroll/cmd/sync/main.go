@@ -31,7 +31,7 @@ func migrate(args []string) error {
 	company := fs.Int("company", 1, "pyr_company.pco_company_id")
 	validFrom := fs.Int("valid-from", 202001, "pc_valid_from komponen legacy (yymm)")
 	expM := fs.Int("expect-master", 0, "jumlah baris master yang diharapkan (133 di produksi)")
-	expT := fs.Int("expect-template", 0, "jumlah baris template yang diharapkan (748 di produksi)")
+	expT := fs.Int("expect-template", 0, "jumlah baris template yang diharapkan (762 di produksi, D-23)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

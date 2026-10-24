@@ -16,7 +16,7 @@ type Options struct {
 	CompanyID      int16
 	ValidFrom      int // yymm for pc_valid_from of legacy components
 	ExpectMaster   int // 0 = tidak dicek; produksi 133 (08§2)
-	ExpectTemplate int // 0 = tidak dicek; produksi 748 (08§2)
+	ExpectTemplate int // 0 = tidak dicek; produksi 762 (D-23)
 }
 
 // TableReport is one line of the load report (08§6: row count + checksum per table).
