@@ -121,11 +121,11 @@ func computeCrossRatioKPI(
 	effPeriod := resolveKPIPeriod(k.Period, selected, now, d.PeriodGrain().String(), d.PeriodCalendar().String())
 
 	grain := d.PeriodGrain().String()
-	buildQuery := func(typ, group1 string) factmetric.PlannedQuery {
+	buildQuery := func(typ, group1 string, per PeriodRange) factmetric.PlannedQuery {
 		if typ == "" {
 			typ = d.FilterType()
 		}
-		args := []any{typ, grain, effPeriod.From, effPeriod.To}
+		args := []any{typ, grain, per.From, per.To}
 		conds := ""
 		switch {
 		case group1 != "":
@@ -150,33 +150,53 @@ func computeCrossRatioKPI(
 		return factmetric.PlannedQuery{SQL: sql, Args: args, TargetTable: "bi_fact_metric"}
 	}
 
-	numRows, err := repo.QueryAggregate(ctx, buildQuery(k.CrossRatioNumeratorType, k.CrossRatioNumeratorGroup1))
-	if err != nil {
-		return factmetric.KpiRow{Label: k.Label}, fmt.Errorf("cross ratio numerator: %w", err)
-	}
-
-	denRows, err := repo.QueryAggregate(ctx, buildQuery(k.CrossRatioDenominatorType, k.CrossRatioDenominatorGroup1))
-	if err != nil {
-		return factmetric.KpiRow{Label: k.Label}, fmt.Errorf("cross ratio denominator: %w", err)
-	}
-
-	var num, den float64
-	if len(numRows) > 0 {
-		num = numRows[0].Value
-	}
-	if len(denRows) > 0 {
-		den = denRows[0].Value
-	}
-
-	var ratio float64
-	if den != 0 {
+	ratioFor := func(per PeriodRange) (float64, error) {
+		numRows, err := repo.QueryAggregate(ctx, buildQuery(k.CrossRatioNumeratorType, k.CrossRatioNumeratorGroup1, per))
+		if err != nil {
+			return 0, fmt.Errorf("cross ratio numerator: %w", err)
+		}
+		denRows, err := repo.QueryAggregate(ctx, buildQuery(k.CrossRatioDenominatorType, k.CrossRatioDenominatorGroup1, per))
+		if err != nil {
+			return 0, fmt.Errorf("cross ratio denominator: %w", err)
+		}
+		var num, den float64
+		if len(numRows) > 0 {
+			num = numRows[0].Value
+		}
+		if len(denRows) > 0 {
+			den = denRows[0].Value
+		}
+		if den == 0 {
+			return 0, nil
+		}
 		scale := k.CrossRatioScale
 		if scale == 0 {
 			scale = 1
 		}
-		ratio = num / den * scale
+		return num / den * scale, nil
 	}
-	return factmetric.KpiRow{Label: k.Label, Value: ratio}, nil
+
+	ratio, err := ratioFor(effPeriod)
+	if err != nil {
+		return factmetric.KpiRow{Label: k.Label}, err
+	}
+	row := factmetric.KpiRow{Label: k.Label, Value: ratio}
+	if k.Compare != "none" && k.Compare != "" {
+		cmpPeriod, cmpLabel := compareRange(effPeriod, k.Compare, grain, d.PeriodCalendar().String())
+		if !cmpPeriod.From.IsZero() {
+			cmpVal, err := ratioFor(cmpPeriod)
+			if err != nil {
+				return factmetric.KpiRow{Label: k.Label}, err
+			}
+			row.CompareValue = cmpVal
+			row.ComparePeriodLabel = cmpLabel
+			row.DeltaAbs = ratio - cmpVal
+			if cmpVal != 0 {
+				row.DeltaPct = (ratio - cmpVal) / abs(cmpVal) * 100
+			}
+		}
+	}
+	return row, nil
 }
 
 // runKPIScalar returns a single aggregated value for the given KPI definition + period.

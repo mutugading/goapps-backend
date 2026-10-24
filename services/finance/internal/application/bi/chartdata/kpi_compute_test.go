@@ -221,6 +221,37 @@ func TestComputeKPIs_CrossRatio_ComputesRatio(t *testing.T) {
 	}
 }
 
+func TestComputeKPIs_CrossRatio_MoMCompare(t *testing.T) {
+	d := dashboardWithKPIs(t, []map[string]any{
+		{
+			"label":               "NP Margin",
+			"agg":                 "cross_ratio",
+			"numerator_group_1":   "NET PROFIT",
+			"denominator_group_1": "EBITDA",
+			"scale":               float64(100),
+			"format":              "percent",
+			"period":              "l12m",
+			"compare":             "MoM",
+		},
+	})
+	// Current: 300/1000 = 30; compare period: 200/1000 = 20.
+	repo := &scriptedFactRepo{values: []float64{300, 1000, 200, 1000}}
+	now := time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC)
+	period := chartdata.ResolvePeriod("L12M", time.Time{}, time.Time{}, "MONTHLY", now)
+
+	rows, err := chartdata.ComputeKPIs(context.Background(), repo, d, period, now, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repo.calls != 4 {
+		t.Fatalf("want 4 queries (2 per period), got %d", repo.calls)
+	}
+	r := rows[0]
+	if r.Value != 30 || r.CompareValue != 20 || r.DeltaAbs != 10 || r.DeltaPct != 50 {
+		t.Errorf("got value=%v compare=%v abs=%v pct=%v", r.Value, r.CompareValue, r.DeltaAbs, r.DeltaPct)
+	}
+}
+
 func TestComputeKPIs_CrossRatio_ZeroDenominator_ReturnsZero(t *testing.T) {
 	d := dashboardWithKPIs(t, []map[string]any{
 		{
