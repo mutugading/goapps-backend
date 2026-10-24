@@ -839,10 +839,11 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 				log.Warn().Err(cErr).Msg("Failed to close Oracle HRIS connection")
 			}
 		}()
+		hrStaging := postgres.NewBiHRStagingRepository(db)
 		biETLRouter.Register(bietl.SourceHRISOracle, bietl.NewHRISLoader(
 			oracleinfra.NewHRISOTRepository(hrisClient),
-			postgres.NewBiHRStagingRepository(db),
-		))
+			hrStaging,
+		).WithATT(oracleinfra.NewHRISATTRepository(hrisClient), hrStaging))
 	}
 	var biETLRunner jobapp.BIETLRunner = biETLRouter
 

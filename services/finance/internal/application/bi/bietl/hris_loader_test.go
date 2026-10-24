@@ -82,3 +82,38 @@ func TestHRISLoader_Load(t *testing.T) {
 	_, err = l.Load(context.Background(), "NOPE", "", uuid.Nil)
 	assert.Error(t, err)
 }
+
+type fakeATT struct{ d1, d2 time.Time }
+
+func (f *fakeATT) FetchATTDaily(_ context.Context, d1, d2 time.Time) ([]oracleinfra.ATTDailyRow, error) {
+	f.d1, f.d2 = d1, d2
+	return []oracleinfra.ATTDailyRow{{NIK: "1"}}, nil
+}
+
+type fakeATTStg struct {
+	d1, d2 time.Time
+	src    uuid.UUID
+}
+
+func (f *fakeATTStg) ReplaceATTDaily(_ context.Context, d1, d2 time.Time, rows []oracleinfra.ATTDailyRow, src uuid.UUID) (int, error) {
+	f.d1, f.d2, f.src = d1, d2, src
+	return len(rows), nil
+}
+
+func TestHRISLoader_LoadATT(t *testing.T) {
+	src, stg := &fakeATT{}, &fakeATTStg{}
+	l := NewHRISLoader(&fakeOT{}, &fakeStg{}).WithATT(src, stg)
+	l.now = func() time.Time { return day("2026-10-15") }
+
+	srcID := uuid.New()
+	n, err := l.Load(context.Background(), TargetHRATTStaging, "", srcID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+	assert.Equal(t, srcID, stg.src)
+	assert.Equal(t, src.d1, stg.d1)
+	assert.Equal(t, "2026-10-14", stg.d2.Format("2006-01-02"))
+
+	// Without ATT wiring the target fails clearly instead of panicking.
+	_, err = NewHRISLoader(&fakeOT{}, &fakeStg{}).Load(context.Background(), TargetHRATTStaging, "", srcID)
+	assert.Error(t, err)
+}

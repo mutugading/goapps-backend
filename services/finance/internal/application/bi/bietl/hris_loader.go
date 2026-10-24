@@ -26,17 +26,39 @@ type OTStaging interface {
 	ReplaceOTDaily(ctx context.Context, d1, d2 time.Time, rows []oracleinfra.OTDailyRow, sourceID uuid.UUID) (int, error)
 }
 
+// TargetHRATTStaging is the job target_type that loads VIEW_BI_ATT_DAILY into bi_hr_stg_att_daily
+// and aggregates HR_HEADCOUNT (H016, HD-12).
+const TargetHRATTStaging = "HR_ATT_STAGING"
+
+// ATTSource fetches attendance view rows from Oracle HRIS.
+type ATTSource interface {
+	FetchATTDaily(ctx context.Context, d1, d2 time.Time) ([]oracleinfra.ATTDailyRow, error)
+}
+
+// ATTStaging replaces the attendance staging window and re-aggregates headcount in one transaction.
+type ATTStaging interface {
+	ReplaceATTDaily(ctx context.Context, d1, d2 time.Time, rows []oracleinfra.ATTDailyRow, sourceID uuid.UUID) (int, error)
+}
+
 // HRISLoader loads HRIS views into staging (HD-03/HD-04). Job start/end/status are logged in
 // bi_job_log by the job handler; this loader never logs employee names.
 type HRISLoader struct {
 	ot      OTSource
 	staging OTStaging
+	att     ATTSource
+	attStg  ATTStaging
 	now     func() time.Time
 }
 
 // NewHRISLoader constructs an HRISLoader.
 func NewHRISLoader(ot OTSource, staging OTStaging) *HRISLoader {
 	return &HRISLoader{ot: ot, staging: staging, now: time.Now}
+}
+
+// WithATT enables the HR_ATT_STAGING target (H016).
+func (l *HRISLoader) WithATT(src ATTSource, stg ATTStaging) *HRISLoader {
+	l.att, l.attStg = src, stg
+	return l
 }
 
 // Load implements Runner.
@@ -49,6 +71,16 @@ func (l *HRISLoader) Load(ctx context.Context, targetType, _ string, sourceID uu
 			return 0, fmt.Errorf("fetch OT daily: %w", err)
 		}
 		return l.staging.ReplaceOTDaily(ctx, d1, d2, rows, sourceID)
+	case TargetHRATTStaging:
+		if l.att == nil || l.attStg == nil {
+			return 0, fmt.Errorf("HRIS target_type %q not configured", targetType)
+		}
+		d1, d2 := HRISWindow(l.now())
+		rows, err := l.att.FetchATTDaily(ctx, d1, d2)
+		if err != nil {
+			return 0, fmt.Errorf("fetch ATT daily: %w", err)
+		}
+		return l.attStg.ReplaceATTDaily(ctx, d1, d2, rows, sourceID)
 	default:
 		return 0, fmt.Errorf("unsupported HRIS target_type %q", targetType)
 	}
