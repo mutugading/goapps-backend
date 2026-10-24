@@ -22,8 +22,11 @@ func TestCompanyKeys_SameDivisionTwoCompanies(t *testing.T) {
 	stmts := []string{
 		`INSERT INTO payroll.pyr_employee (pe_company_id, pe_nik, pe_division, pe_nama, pe_orion_sub_acnt) VALUES (2,'S1','SOLO','Other S1','x')`,
 		`INSERT INTO payroll.pyr_component_master (pcm_type, pcm_id, pcm_name) VALUES ('Tunjangan',1,'T1')`,
-		`INSERT INTO payroll.pyr_employee_component (pec_company_id, pec_nik, pec_division, pec_type, pec_id, pec_amount) VALUES
-		   (1,'S1','SOLO','Tunjangan',1,1), (2,'S1','SOLO','Tunjangan',1,1)`,
+		// Attachments are keyed by component sysid (D-20); each company owns its own component row.
+		`INSERT INTO payroll.pyr_component (pc_company_id, pc_code, pc_type, pc_name, pc_valid_from, pc_status) VALUES
+		   (1,'T901','Tunjangan','T901',202601,'ACTIVE'), (2,'T901','Tunjangan','T901',202601,'ACTIVE')`,
+		`INSERT INTO payroll.pyr_employee_component (pec_company_id, pec_nik, pec_division, pec_component_sysid, pec_amount)
+		   SELECT pc_company_id,'S1','SOLO',pc_sysid,1 FROM payroll.pyr_component WHERE pc_code='T901'`,
 		`INSERT INTO payroll.pyr_attd_days (pad_company_id, pad_yymm, pad_division, pad_days) VALUES (1,202609,'SOLO',25), (2,202609,'SOLO',25)`,
 		`INSERT INTO payroll.pyr_period (pp_company_id, pp_yymm, pp_division, pp_date_from, pp_date_to, pp_status) VALUES
 		   (2,202609,'SOLO','2026-09-01','2026-09-30','CLOSED')`,

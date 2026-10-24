@@ -786,6 +786,183 @@ func local_request_PayrollService_PutComponentTemplate_0(ctx context.Context, ma
 	return msg, metadata, err
 }
 
+var filter_PayrollService_GetEmployeeComponents_0 = &utilities.DoubleArray{Encoding: map[string]int{"nik": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
+
+func request_PayrollService_GetEmployeeComponents_0(ctx context.Context, marshaler runtime.Marshaler, client PayrollServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq GetEmployeeComponentsRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	io.Copy(io.Discard, req.Body)
+	val, ok := pathParams["nik"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "nik")
+	}
+	protoReq.Nik, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "nik", err)
+	}
+	if err := req.ParseForm(); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_PayrollService_GetEmployeeComponents_0); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	msg, err := client.GetEmployeeComponents(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_PayrollService_GetEmployeeComponents_0(ctx context.Context, marshaler runtime.Marshaler, server PayrollServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq GetEmployeeComponentsRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	val, ok := pathParams["nik"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "nik")
+	}
+	protoReq.Nik, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "nik", err)
+	}
+	if err := req.ParseForm(); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_PayrollService_GetEmployeeComponents_0); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	msg, err := server.GetEmployeeComponents(ctx, &protoReq)
+	return msg, metadata, err
+}
+
+func request_PayrollService_PutEmployeeComponents_0(ctx context.Context, marshaler runtime.Marshaler, client PayrollServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq PutEmployeeComponentsRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	val, ok := pathParams["nik"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "nik")
+	}
+	protoReq.Nik, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "nik", err)
+	}
+	msg, err := client.PutEmployeeComponents(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_PayrollService_PutEmployeeComponents_0(ctx context.Context, marshaler runtime.Marshaler, server PayrollServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq PutEmployeeComponentsRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	val, ok := pathParams["nik"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "nik")
+	}
+	protoReq.Nik, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "nik", err)
+	}
+	msg, err := server.PutEmployeeComponents(ctx, &protoReq)
+	return msg, metadata, err
+}
+
+func request_PayrollService_PreviewLevelChange_0(ctx context.Context, marshaler runtime.Marshaler, client PayrollServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq PreviewLevelChangeRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	val, ok := pathParams["nik"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "nik")
+	}
+	protoReq.Nik, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "nik", err)
+	}
+	msg, err := client.PreviewLevelChange(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_PayrollService_PreviewLevelChange_0(ctx context.Context, marshaler runtime.Marshaler, server PayrollServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq PreviewLevelChangeRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	val, ok := pathParams["nik"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "nik")
+	}
+	protoReq.Nik, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "nik", err)
+	}
+	msg, err := server.PreviewLevelChange(ctx, &protoReq)
+	return msg, metadata, err
+}
+
+func request_PayrollService_ApplyLevelChange_0(ctx context.Context, marshaler runtime.Marshaler, client PayrollServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq ApplyLevelChangeRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	val, ok := pathParams["nik"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "nik")
+	}
+	protoReq.Nik, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "nik", err)
+	}
+	msg, err := client.ApplyLevelChange(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_PayrollService_ApplyLevelChange_0(ctx context.Context, marshaler runtime.Marshaler, server PayrollServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq ApplyLevelChangeRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	val, ok := pathParams["nik"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "nik")
+	}
+	protoReq.Nik, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "nik", err)
+	}
+	msg, err := server.ApplyLevelChange(ctx, &protoReq)
+	return msg, metadata, err
+}
+
 // RegisterPayrollServiceHandlerServer registers the http handlers for service PayrollService to "mux".
 // UnaryRPC     :call PayrollServiceServer directly.
 // StreamingRPC :currently unsupported pending https://github.com/grpc/grpc-go/issues/906.
@@ -1212,6 +1389,86 @@ func RegisterPayrollServiceHandlerServer(ctx context.Context, mux *runtime.Serve
 		}
 		forward_PayrollService_PutComponentTemplate_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
+	mux.Handle(http.MethodGet, pattern_PayrollService_GetEmployeeComponents_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/payroll.v1.PayrollService/GetEmployeeComponents", runtime.WithHTTPPathPattern("/api/v1/payroll/employees/{nik}/components"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_PayrollService_GetEmployeeComponents_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_PayrollService_GetEmployeeComponents_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodPut, pattern_PayrollService_PutEmployeeComponents_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/payroll.v1.PayrollService/PutEmployeeComponents", runtime.WithHTTPPathPattern("/api/v1/payroll/employees/{nik}/components"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_PayrollService_PutEmployeeComponents_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_PayrollService_PutEmployeeComponents_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodPost, pattern_PayrollService_PreviewLevelChange_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/payroll.v1.PayrollService/PreviewLevelChange", runtime.WithHTTPPathPattern("/api/v1/payroll/employees/{nik}/level-change:preview"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_PayrollService_PreviewLevelChange_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_PayrollService_PreviewLevelChange_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodPost, pattern_PayrollService_ApplyLevelChange_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/payroll.v1.PayrollService/ApplyLevelChange", runtime.WithHTTPPathPattern("/api/v1/payroll/employees/{nik}/level-change"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_PayrollService_ApplyLevelChange_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_PayrollService_ApplyLevelChange_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
 
 	return nil
 }
@@ -1609,53 +1866,129 @@ func RegisterPayrollServiceHandlerClient(ctx context.Context, mux *runtime.Serve
 		}
 		forward_PayrollService_PutComponentTemplate_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
+	mux.Handle(http.MethodGet, pattern_PayrollService_GetEmployeeComponents_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/payroll.v1.PayrollService/GetEmployeeComponents", runtime.WithHTTPPathPattern("/api/v1/payroll/employees/{nik}/components"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_PayrollService_GetEmployeeComponents_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_PayrollService_GetEmployeeComponents_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodPut, pattern_PayrollService_PutEmployeeComponents_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/payroll.v1.PayrollService/PutEmployeeComponents", runtime.WithHTTPPathPattern("/api/v1/payroll/employees/{nik}/components"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_PayrollService_PutEmployeeComponents_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_PayrollService_PutEmployeeComponents_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodPost, pattern_PayrollService_PreviewLevelChange_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/payroll.v1.PayrollService/PreviewLevelChange", runtime.WithHTTPPathPattern("/api/v1/payroll/employees/{nik}/level-change:preview"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_PayrollService_PreviewLevelChange_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_PayrollService_PreviewLevelChange_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodPost, pattern_PayrollService_ApplyLevelChange_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/payroll.v1.PayrollService/ApplyLevelChange", runtime.WithHTTPPathPattern("/api/v1/payroll/employees/{nik}/level-change"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_PayrollService_ApplyLevelChange_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_PayrollService_ApplyLevelChange_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
 	return nil
 }
 
 var (
-	pattern_PayrollService_CreateCurrency_0       = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "payroll", "currencies"}, ""))
-	pattern_PayrollService_ListCurrencies_0       = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "payroll", "currencies"}, ""))
-	pattern_PayrollService_UpdateCurrency_0       = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"api", "v1", "payroll", "currencies", "code"}, ""))
-	pattern_PayrollService_CreateCompany_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "payroll", "companies"}, ""))
-	pattern_PayrollService_GetCompany_0           = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"api", "v1", "payroll", "companies", "company_id"}, ""))
-	pattern_PayrollService_ListCompanies_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "payroll", "companies"}, ""))
-	pattern_PayrollService_UpdateCompany_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"api", "v1", "payroll", "companies", "company_id"}, ""))
-	pattern_PayrollService_CreateDivision_0       = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5}, []string{"api", "v1", "payroll", "companies", "company_id", "divisions"}, ""))
-	pattern_PayrollService_ListDivisions_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5}, []string{"api", "v1", "payroll", "companies", "company_id", "divisions"}, ""))
-	pattern_PayrollService_UpdateDivision_0       = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5, 1, 0, 4, 1, 5, 6}, []string{"api", "v1", "payroll", "companies", "company_id", "divisions", "code"}, ""))
-	pattern_PayrollService_CreateEmployee_0       = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "payroll", "employees"}, ""))
-	pattern_PayrollService_GetEmployee_0          = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"api", "v1", "payroll", "employees", "nik"}, ""))
-	pattern_PayrollService_ListEmployees_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "payroll", "employees"}, ""))
-	pattern_PayrollService_UpdateEmployee_0       = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 4}, []string{"api", "v1", "payroll", "employees", "id"}, ""))
-	pattern_PayrollService_CreateComponent_0      = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "payroll", "components"}, ""))
-	pattern_PayrollService_GetComponent_0         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"api", "v1", "payroll", "components", "sysid"}, ""))
-	pattern_PayrollService_ListComponents_0       = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "payroll", "components"}, ""))
-	pattern_PayrollService_UpdateComponent_0      = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"api", "v1", "payroll", "components", "sysid"}, ""))
-	pattern_PayrollService_RetireComponent_0      = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"api", "v1", "payroll", "components", "sysid"}, "retire"))
-	pattern_PayrollService_GetComponentTemplate_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"api", "v1", "payroll", "component-templates", "level"}, ""))
-	pattern_PayrollService_PutComponentTemplate_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"api", "v1", "payroll", "component-templates", "level"}, ""))
+	pattern_PayrollService_CreateCurrency_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "payroll", "currencies"}, ""))
+	pattern_PayrollService_ListCurrencies_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "payroll", "currencies"}, ""))
+	pattern_PayrollService_UpdateCurrency_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"api", "v1", "payroll", "currencies", "code"}, ""))
+	pattern_PayrollService_CreateCompany_0         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "payroll", "companies"}, ""))
+	pattern_PayrollService_GetCompany_0            = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"api", "v1", "payroll", "companies", "company_id"}, ""))
+	pattern_PayrollService_ListCompanies_0         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "payroll", "companies"}, ""))
+	pattern_PayrollService_UpdateCompany_0         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"api", "v1", "payroll", "companies", "company_id"}, ""))
+	pattern_PayrollService_CreateDivision_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5}, []string{"api", "v1", "payroll", "companies", "company_id", "divisions"}, ""))
+	pattern_PayrollService_ListDivisions_0         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5}, []string{"api", "v1", "payroll", "companies", "company_id", "divisions"}, ""))
+	pattern_PayrollService_UpdateDivision_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5, 1, 0, 4, 1, 5, 6}, []string{"api", "v1", "payroll", "companies", "company_id", "divisions", "code"}, ""))
+	pattern_PayrollService_CreateEmployee_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "payroll", "employees"}, ""))
+	pattern_PayrollService_GetEmployee_0           = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"api", "v1", "payroll", "employees", "nik"}, ""))
+	pattern_PayrollService_ListEmployees_0         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "payroll", "employees"}, ""))
+	pattern_PayrollService_UpdateEmployee_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 4}, []string{"api", "v1", "payroll", "employees", "id"}, ""))
+	pattern_PayrollService_CreateComponent_0       = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "payroll", "components"}, ""))
+	pattern_PayrollService_GetComponent_0          = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"api", "v1", "payroll", "components", "sysid"}, ""))
+	pattern_PayrollService_ListComponents_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "payroll", "components"}, ""))
+	pattern_PayrollService_UpdateComponent_0       = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"api", "v1", "payroll", "components", "sysid"}, ""))
+	pattern_PayrollService_RetireComponent_0       = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"api", "v1", "payroll", "components", "sysid"}, "retire"))
+	pattern_PayrollService_GetComponentTemplate_0  = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"api", "v1", "payroll", "component-templates", "level"}, ""))
+	pattern_PayrollService_PutComponentTemplate_0  = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"api", "v1", "payroll", "component-templates", "level"}, ""))
+	pattern_PayrollService_GetEmployeeComponents_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5}, []string{"api", "v1", "payroll", "employees", "nik", "components"}, ""))
+	pattern_PayrollService_PutEmployeeComponents_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5}, []string{"api", "v1", "payroll", "employees", "nik", "components"}, ""))
+	pattern_PayrollService_PreviewLevelChange_0    = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5}, []string{"api", "v1", "payroll", "employees", "nik", "level-change"}, "preview"))
+	pattern_PayrollService_ApplyLevelChange_0      = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5}, []string{"api", "v1", "payroll", "employees", "nik", "level-change"}, ""))
 )
 
 var (
-	forward_PayrollService_CreateCurrency_0       = runtime.ForwardResponseMessage
-	forward_PayrollService_ListCurrencies_0       = runtime.ForwardResponseMessage
-	forward_PayrollService_UpdateCurrency_0       = runtime.ForwardResponseMessage
-	forward_PayrollService_CreateCompany_0        = runtime.ForwardResponseMessage
-	forward_PayrollService_GetCompany_0           = runtime.ForwardResponseMessage
-	forward_PayrollService_ListCompanies_0        = runtime.ForwardResponseMessage
-	forward_PayrollService_UpdateCompany_0        = runtime.ForwardResponseMessage
-	forward_PayrollService_CreateDivision_0       = runtime.ForwardResponseMessage
-	forward_PayrollService_ListDivisions_0        = runtime.ForwardResponseMessage
-	forward_PayrollService_UpdateDivision_0       = runtime.ForwardResponseMessage
-	forward_PayrollService_CreateEmployee_0       = runtime.ForwardResponseMessage
-	forward_PayrollService_GetEmployee_0          = runtime.ForwardResponseMessage
-	forward_PayrollService_ListEmployees_0        = runtime.ForwardResponseMessage
-	forward_PayrollService_UpdateEmployee_0       = runtime.ForwardResponseMessage
-	forward_PayrollService_CreateComponent_0      = runtime.ForwardResponseMessage
-	forward_PayrollService_GetComponent_0         = runtime.ForwardResponseMessage
-	forward_PayrollService_ListComponents_0       = runtime.ForwardResponseMessage
-	forward_PayrollService_UpdateComponent_0      = runtime.ForwardResponseMessage
-	forward_PayrollService_RetireComponent_0      = runtime.ForwardResponseMessage
-	forward_PayrollService_GetComponentTemplate_0 = runtime.ForwardResponseMessage
-	forward_PayrollService_PutComponentTemplate_0 = runtime.ForwardResponseMessage
+	forward_PayrollService_CreateCurrency_0        = runtime.ForwardResponseMessage
+	forward_PayrollService_ListCurrencies_0        = runtime.ForwardResponseMessage
+	forward_PayrollService_UpdateCurrency_0        = runtime.ForwardResponseMessage
+	forward_PayrollService_CreateCompany_0         = runtime.ForwardResponseMessage
+	forward_PayrollService_GetCompany_0            = runtime.ForwardResponseMessage
+	forward_PayrollService_ListCompanies_0         = runtime.ForwardResponseMessage
+	forward_PayrollService_UpdateCompany_0         = runtime.ForwardResponseMessage
+	forward_PayrollService_CreateDivision_0        = runtime.ForwardResponseMessage
+	forward_PayrollService_ListDivisions_0         = runtime.ForwardResponseMessage
+	forward_PayrollService_UpdateDivision_0        = runtime.ForwardResponseMessage
+	forward_PayrollService_CreateEmployee_0        = runtime.ForwardResponseMessage
+	forward_PayrollService_GetEmployee_0           = runtime.ForwardResponseMessage
+	forward_PayrollService_ListEmployees_0         = runtime.ForwardResponseMessage
+	forward_PayrollService_UpdateEmployee_0        = runtime.ForwardResponseMessage
+	forward_PayrollService_CreateComponent_0       = runtime.ForwardResponseMessage
+	forward_PayrollService_GetComponent_0          = runtime.ForwardResponseMessage
+	forward_PayrollService_ListComponents_0        = runtime.ForwardResponseMessage
+	forward_PayrollService_UpdateComponent_0       = runtime.ForwardResponseMessage
+	forward_PayrollService_RetireComponent_0       = runtime.ForwardResponseMessage
+	forward_PayrollService_GetComponentTemplate_0  = runtime.ForwardResponseMessage
+	forward_PayrollService_PutComponentTemplate_0  = runtime.ForwardResponseMessage
+	forward_PayrollService_GetEmployeeComponents_0 = runtime.ForwardResponseMessage
+	forward_PayrollService_PutEmployeeComponents_0 = runtime.ForwardResponseMessage
+	forward_PayrollService_PreviewLevelChange_0    = runtime.ForwardResponseMessage
+	forward_PayrollService_ApplyLevelChange_0      = runtime.ForwardResponseMessage
 )

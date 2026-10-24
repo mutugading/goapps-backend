@@ -19,27 +19,31 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	PayrollService_CreateCurrency_FullMethodName       = "/payroll.v1.PayrollService/CreateCurrency"
-	PayrollService_ListCurrencies_FullMethodName       = "/payroll.v1.PayrollService/ListCurrencies"
-	PayrollService_UpdateCurrency_FullMethodName       = "/payroll.v1.PayrollService/UpdateCurrency"
-	PayrollService_CreateCompany_FullMethodName        = "/payroll.v1.PayrollService/CreateCompany"
-	PayrollService_GetCompany_FullMethodName           = "/payroll.v1.PayrollService/GetCompany"
-	PayrollService_ListCompanies_FullMethodName        = "/payroll.v1.PayrollService/ListCompanies"
-	PayrollService_UpdateCompany_FullMethodName        = "/payroll.v1.PayrollService/UpdateCompany"
-	PayrollService_CreateDivision_FullMethodName       = "/payroll.v1.PayrollService/CreateDivision"
-	PayrollService_ListDivisions_FullMethodName        = "/payroll.v1.PayrollService/ListDivisions"
-	PayrollService_UpdateDivision_FullMethodName       = "/payroll.v1.PayrollService/UpdateDivision"
-	PayrollService_CreateEmployee_FullMethodName       = "/payroll.v1.PayrollService/CreateEmployee"
-	PayrollService_GetEmployee_FullMethodName          = "/payroll.v1.PayrollService/GetEmployee"
-	PayrollService_ListEmployees_FullMethodName        = "/payroll.v1.PayrollService/ListEmployees"
-	PayrollService_UpdateEmployee_FullMethodName       = "/payroll.v1.PayrollService/UpdateEmployee"
-	PayrollService_CreateComponent_FullMethodName      = "/payroll.v1.PayrollService/CreateComponent"
-	PayrollService_GetComponent_FullMethodName         = "/payroll.v1.PayrollService/GetComponent"
-	PayrollService_ListComponents_FullMethodName       = "/payroll.v1.PayrollService/ListComponents"
-	PayrollService_UpdateComponent_FullMethodName      = "/payroll.v1.PayrollService/UpdateComponent"
-	PayrollService_RetireComponent_FullMethodName      = "/payroll.v1.PayrollService/RetireComponent"
-	PayrollService_GetComponentTemplate_FullMethodName = "/payroll.v1.PayrollService/GetComponentTemplate"
-	PayrollService_PutComponentTemplate_FullMethodName = "/payroll.v1.PayrollService/PutComponentTemplate"
+	PayrollService_CreateCurrency_FullMethodName        = "/payroll.v1.PayrollService/CreateCurrency"
+	PayrollService_ListCurrencies_FullMethodName        = "/payroll.v1.PayrollService/ListCurrencies"
+	PayrollService_UpdateCurrency_FullMethodName        = "/payroll.v1.PayrollService/UpdateCurrency"
+	PayrollService_CreateCompany_FullMethodName         = "/payroll.v1.PayrollService/CreateCompany"
+	PayrollService_GetCompany_FullMethodName            = "/payroll.v1.PayrollService/GetCompany"
+	PayrollService_ListCompanies_FullMethodName         = "/payroll.v1.PayrollService/ListCompanies"
+	PayrollService_UpdateCompany_FullMethodName         = "/payroll.v1.PayrollService/UpdateCompany"
+	PayrollService_CreateDivision_FullMethodName        = "/payroll.v1.PayrollService/CreateDivision"
+	PayrollService_ListDivisions_FullMethodName         = "/payroll.v1.PayrollService/ListDivisions"
+	PayrollService_UpdateDivision_FullMethodName        = "/payroll.v1.PayrollService/UpdateDivision"
+	PayrollService_CreateEmployee_FullMethodName        = "/payroll.v1.PayrollService/CreateEmployee"
+	PayrollService_GetEmployee_FullMethodName           = "/payroll.v1.PayrollService/GetEmployee"
+	PayrollService_ListEmployees_FullMethodName         = "/payroll.v1.PayrollService/ListEmployees"
+	PayrollService_UpdateEmployee_FullMethodName        = "/payroll.v1.PayrollService/UpdateEmployee"
+	PayrollService_CreateComponent_FullMethodName       = "/payroll.v1.PayrollService/CreateComponent"
+	PayrollService_GetComponent_FullMethodName          = "/payroll.v1.PayrollService/GetComponent"
+	PayrollService_ListComponents_FullMethodName        = "/payroll.v1.PayrollService/ListComponents"
+	PayrollService_UpdateComponent_FullMethodName       = "/payroll.v1.PayrollService/UpdateComponent"
+	PayrollService_RetireComponent_FullMethodName       = "/payroll.v1.PayrollService/RetireComponent"
+	PayrollService_GetComponentTemplate_FullMethodName  = "/payroll.v1.PayrollService/GetComponentTemplate"
+	PayrollService_PutComponentTemplate_FullMethodName  = "/payroll.v1.PayrollService/PutComponentTemplate"
+	PayrollService_GetEmployeeComponents_FullMethodName = "/payroll.v1.PayrollService/GetEmployeeComponents"
+	PayrollService_PutEmployeeComponents_FullMethodName = "/payroll.v1.PayrollService/PutEmployeeComponents"
+	PayrollService_PreviewLevelChange_FullMethodName    = "/payroll.v1.PayrollService/PreviewLevelChange"
+	PayrollService_ApplyLevelChange_FullMethodName      = "/payroll.v1.PayrollService/ApplyLevelChange"
 )
 
 // PayrollServiceClient is the client API for PayrollService service.
@@ -82,6 +86,11 @@ type PayrollServiceClient interface {
 	RetireComponent(ctx context.Context, in *RetireComponentRequest, opts ...grpc.CallOption) (*RetireComponentResponse, error)
 	GetComponentTemplate(ctx context.Context, in *GetComponentTemplateRequest, opts ...grpc.CallOption) (*GetComponentTemplateResponse, error)
 	PutComponentTemplate(ctx context.Context, in *PutComponentTemplateRequest, opts ...grpc.CallOption) (*PutComponentTemplateResponse, error)
+	// ── Employee components + level-change (T008b) ─────────────────────────────
+	GetEmployeeComponents(ctx context.Context, in *GetEmployeeComponentsRequest, opts ...grpc.CallOption) (*GetEmployeeComponentsResponse, error)
+	PutEmployeeComponents(ctx context.Context, in *PutEmployeeComponentsRequest, opts ...grpc.CallOption) (*PutEmployeeComponentsResponse, error)
+	PreviewLevelChange(ctx context.Context, in *PreviewLevelChangeRequest, opts ...grpc.CallOption) (*PreviewLevelChangeResponse, error)
+	ApplyLevelChange(ctx context.Context, in *ApplyLevelChangeRequest, opts ...grpc.CallOption) (*ApplyLevelChangeResponse, error)
 }
 
 type payrollServiceClient struct {
@@ -302,6 +311,46 @@ func (c *payrollServiceClient) PutComponentTemplate(ctx context.Context, in *Put
 	return out, nil
 }
 
+func (c *payrollServiceClient) GetEmployeeComponents(ctx context.Context, in *GetEmployeeComponentsRequest, opts ...grpc.CallOption) (*GetEmployeeComponentsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetEmployeeComponentsResponse)
+	err := c.cc.Invoke(ctx, PayrollService_GetEmployeeComponents_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) PutEmployeeComponents(ctx context.Context, in *PutEmployeeComponentsRequest, opts ...grpc.CallOption) (*PutEmployeeComponentsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PutEmployeeComponentsResponse)
+	err := c.cc.Invoke(ctx, PayrollService_PutEmployeeComponents_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) PreviewLevelChange(ctx context.Context, in *PreviewLevelChangeRequest, opts ...grpc.CallOption) (*PreviewLevelChangeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PreviewLevelChangeResponse)
+	err := c.cc.Invoke(ctx, PayrollService_PreviewLevelChange_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) ApplyLevelChange(ctx context.Context, in *ApplyLevelChangeRequest, opts ...grpc.CallOption) (*ApplyLevelChangeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ApplyLevelChangeResponse)
+	err := c.cc.Invoke(ctx, PayrollService_ApplyLevelChange_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PayrollServiceServer is the server API for PayrollService service.
 // All implementations must embed UnimplementedPayrollServiceServer
 // for forward compatibility.
@@ -342,6 +391,11 @@ type PayrollServiceServer interface {
 	RetireComponent(context.Context, *RetireComponentRequest) (*RetireComponentResponse, error)
 	GetComponentTemplate(context.Context, *GetComponentTemplateRequest) (*GetComponentTemplateResponse, error)
 	PutComponentTemplate(context.Context, *PutComponentTemplateRequest) (*PutComponentTemplateResponse, error)
+	// ── Employee components + level-change (T008b) ─────────────────────────────
+	GetEmployeeComponents(context.Context, *GetEmployeeComponentsRequest) (*GetEmployeeComponentsResponse, error)
+	PutEmployeeComponents(context.Context, *PutEmployeeComponentsRequest) (*PutEmployeeComponentsResponse, error)
+	PreviewLevelChange(context.Context, *PreviewLevelChangeRequest) (*PreviewLevelChangeResponse, error)
+	ApplyLevelChange(context.Context, *ApplyLevelChangeRequest) (*ApplyLevelChangeResponse, error)
 	mustEmbedUnimplementedPayrollServiceServer()
 }
 
@@ -414,6 +468,18 @@ func (UnimplementedPayrollServiceServer) GetComponentTemplate(context.Context, *
 }
 func (UnimplementedPayrollServiceServer) PutComponentTemplate(context.Context, *PutComponentTemplateRequest) (*PutComponentTemplateResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method PutComponentTemplate not implemented")
+}
+func (UnimplementedPayrollServiceServer) GetEmployeeComponents(context.Context, *GetEmployeeComponentsRequest) (*GetEmployeeComponentsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetEmployeeComponents not implemented")
+}
+func (UnimplementedPayrollServiceServer) PutEmployeeComponents(context.Context, *PutEmployeeComponentsRequest) (*PutEmployeeComponentsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PutEmployeeComponents not implemented")
+}
+func (UnimplementedPayrollServiceServer) PreviewLevelChange(context.Context, *PreviewLevelChangeRequest) (*PreviewLevelChangeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PreviewLevelChange not implemented")
+}
+func (UnimplementedPayrollServiceServer) ApplyLevelChange(context.Context, *ApplyLevelChangeRequest) (*ApplyLevelChangeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ApplyLevelChange not implemented")
 }
 func (UnimplementedPayrollServiceServer) mustEmbedUnimplementedPayrollServiceServer() {}
 func (UnimplementedPayrollServiceServer) testEmbeddedByValue()                        {}
@@ -814,6 +880,78 @@ func _PayrollService_PutComponentTemplate_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PayrollService_GetEmployeeComponents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetEmployeeComponentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).GetEmployeeComponents(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_GetEmployeeComponents_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).GetEmployeeComponents(ctx, req.(*GetEmployeeComponentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_PutEmployeeComponents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PutEmployeeComponentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).PutEmployeeComponents(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_PutEmployeeComponents_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).PutEmployeeComponents(ctx, req.(*PutEmployeeComponentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_PreviewLevelChange_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PreviewLevelChangeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).PreviewLevelChange(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_PreviewLevelChange_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).PreviewLevelChange(ctx, req.(*PreviewLevelChangeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_ApplyLevelChange_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApplyLevelChangeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).ApplyLevelChange(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_ApplyLevelChange_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).ApplyLevelChange(ctx, req.(*ApplyLevelChangeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PayrollService_ServiceDesc is the grpc.ServiceDesc for PayrollService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -904,6 +1042,22 @@ var PayrollService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PutComponentTemplate",
 			Handler:    _PayrollService_PutComponentTemplate_Handler,
+		},
+		{
+			MethodName: "GetEmployeeComponents",
+			Handler:    _PayrollService_GetEmployeeComponents_Handler,
+		},
+		{
+			MethodName: "PutEmployeeComponents",
+			Handler:    _PayrollService_PutEmployeeComponents_Handler,
+		},
+		{
+			MethodName: "PreviewLevelChange",
+			Handler:    _PayrollService_PreviewLevelChange_Handler,
+		},
+		{
+			MethodName: "ApplyLevelChange",
+			Handler:    _PayrollService_ApplyLevelChange_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -33,11 +33,13 @@ type Service struct {
 	enc   string
 	hmac  []byte
 	comp  component.Repository
+	att   component.AttachmentRepository
+	now   func() time.Time // injectable clock; defaults to time.Now
 }
 
 // NewService creates a Service. encKey/hmacKey protect PII columns (D-17).
 func NewService(db TxRunner, repo domain.Repository, w audit.Writer, encKey, hmacKey string) *Service {
-	return &Service{db: db, repo: repo, audit: w, enc: encKey, hmac: []byte(hmacKey)}
+	return &Service{db: db, repo: repo, audit: w, enc: encKey, hmac: []byte(hmacKey), now: time.Now}
 }
 
 // Caller carries per-request facts the delivery layer extracts from the context.
@@ -387,6 +389,9 @@ func (s *Service) CreateEmployee(ctx context.Context, e domain.Employee, sec Emp
 		if out, e2 = s.repo.CreateEmployee(ctx, tx, e, sec.NPWP, sec.KTP, sec.BankAcnt, actor, s.pii(cl)); e2 != nil {
 			return toAppErr(e2, "karyawan")
 		}
+		if e2 = s.attachFromLevel(ctx, tx, out, actor); e2 != nil {
+			return e2
+		}
 		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: out.CompanyID, Division: out.Division, Action: "CREATE",
 			Entity: "pyr_employee", EntityKey: strconv.FormatInt(out.ID, 10), After: out, IP: cl.IP})
 	})
@@ -456,6 +461,14 @@ func (s *Service) UpdateEmployee(ctx context.Context, id int64, e domain.Employe
 		before, e2 := s.repo.GetEmployeeByID(ctx, tx, id, domain.PII{EncKey: s.enc, HMACKey: s.hmac})
 		if e2 != nil {
 			return toAppErr(e2, "karyawan")
+		}
+		// 07§1: PUT /employees/{nik} is "tanpa level"; a level change must go through level-change
+		// so components stay in sync with the level (02§5.1). Empty keeps the stored level.
+		if e.Level == "" {
+			e.Level = before.Level
+		}
+		if s.att != nil && e.Level != before.Level {
+			return validation("level", "level tidak dapat diubah lewat update karyawan; gunakan level-change")
 		}
 		if out, e2 = s.repo.UpdateEmployee(ctx, tx, id, e, sec.NPWP, sec.KTP, sec.BankAcnt, actor, ifMatch, s.pii(cl)); e2 != nil {
 			return toAppErr(e2, "karyawan")

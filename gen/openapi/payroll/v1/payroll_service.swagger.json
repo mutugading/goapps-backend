@@ -792,9 +792,190 @@
           "PayrollService"
         ]
       }
+    },
+    "/api/v1/payroll/employees/{nik}/components": {
+      "get": {
+        "summary": "── Employee components + level-change (T008b) ─────────────────────────────",
+        "operationId": "PayrollService_GetEmployeeComponents",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetEmployeeComponentsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "nik",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "companyId",
+            "description": "0 = any company in scope.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "division",
+            "description": "Empty = any division in scope.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      },
+      "put": {
+        "operationId": "PayrollService_PutEmployeeComponents",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1PutEmployeeComponentsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "nik",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PayrollServicePutEmployeeComponentsBody"
+            }
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
+    "/api/v1/payroll/employees/{nik}/level-change": {
+      "post": {
+        "operationId": "PayrollService_ApplyLevelChange",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ApplyLevelChangeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "nik",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PayrollServiceApplyLevelChangeBody"
+            }
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
+    "/api/v1/payroll/employees/{nik}/level-change:preview": {
+      "post": {
+        "operationId": "PayrollService_PreviewLevelChange",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1PreviewLevelChangeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "nik",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PayrollServicePreviewLevelChangeBody"
+            }
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
     }
   },
   "definitions": {
+    "PayrollServiceApplyLevelChangeBody": {
+      "type": "object",
+      "properties": {
+        "companyId": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "division": {
+          "type": "string"
+        },
+        "newLevel": {
+          "type": "string"
+        },
+        "effectiveYymm": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "ifMatch": {
+          "type": "string",
+          "description": "Employee etag."
+        }
+      }
+    },
     "PayrollServiceCreateDivisionBody": {
       "type": "object",
       "properties": {
@@ -803,6 +984,25 @@
         },
         "name": {
           "type": "string"
+        }
+      }
+    },
+    "PayrollServicePreviewLevelChangeBody": {
+      "type": "object",
+      "properties": {
+        "companyId": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "division": {
+          "type": "string"
+        },
+        "newLevel": {
+          "type": "string"
+        },
+        "effectiveYymm": {
+          "type": "integer",
+          "format": "int32"
         }
       }
     },
@@ -818,6 +1018,26 @@
         }
       },
       "description": "PutComponentTemplateRequest replaces the whole template of a level."
+    },
+    "PayrollServicePutEmployeeComponentsBody": {
+      "type": "object",
+      "properties": {
+        "companyId": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "division": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1EmployeeComponentInput"
+          }
+        }
+      },
+      "description": "PutEmployeeComponentsRequest replaces the attachment set of one employee.\nListed components that are not attached yet become MANUAL; attached ones keep\ntheir source. Components that are not listed are detached."
     },
     "PayrollServiceRetireComponentBody": {
       "type": "object",
@@ -917,6 +1137,30 @@
           "items": {
             "type": "object",
             "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1ApplyLevelChangeResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Employee"
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ComponentChange"
+          }
+        },
+        "skippedManual": {
+          "type": "array",
+          "items": {
+            "type": "string"
           }
         }
       }
@@ -1082,6 +1326,34 @@
           "type": "string"
         }
       }
+    },
+    "v1ComponentChange": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "description": "ADD, REMOVE or CHANGE."
+        },
+        "componentSysid": {
+          "type": "string",
+          "format": "int64"
+        },
+        "componentCode": {
+          "type": "string"
+        },
+        "componentName": {
+          "type": "string"
+        },
+        "before": {
+          "$ref": "#/definitions/v1EmployeeComponent",
+          "description": "Unset for ADD."
+        },
+        "after": {
+          "$ref": "#/definitions/v1EmployeeComponent",
+          "description": "Unset for REMOVE."
+        }
+      },
+      "description": "ComponentChange is one line of a level-change diff."
     },
     "v1ComponentInput": {
       "type": "object",
@@ -1452,6 +1724,93 @@
       },
       "description": "Employee is the payroll master row (pyr_employee). `id` is the stable\ninternal key; `nik` may change over time (13 §3.1)."
     },
+    "v1EmployeeComponent": {
+      "type": "object",
+      "properties": {
+        "componentSysid": {
+          "type": "string",
+          "format": "int64"
+        },
+        "componentCode": {
+          "type": "string"
+        },
+        "componentName": {
+          "type": "string"
+        },
+        "sts": {
+          "type": "string",
+          "description": "\"F\" fixed or \"D\" daily."
+        },
+        "tax": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "amount": {
+          "type": "string",
+          "description": "Decimal string, up to 6 decimals."
+        },
+        "taxPaidCompany": {
+          "type": "string",
+          "description": "\"Y\", \"N\" or empty."
+        },
+        "frzFlag": {
+          "type": "integer",
+          "format": "int32",
+          "description": "2 = active, 1 = frozen."
+        },
+        "source": {
+          "type": "string",
+          "description": "TEMPLATE or MANUAL."
+        },
+        "validFrom": {
+          "type": "integer",
+          "format": "int32",
+          "description": "yymm, 0 = open."
+        },
+        "validTo": {
+          "type": "integer",
+          "format": "int32",
+          "description": "yymm, 0 = open."
+        }
+      }
+    },
+    "v1EmployeeComponentInput": {
+      "type": "object",
+      "properties": {
+        "componentSysid": {
+          "type": "string",
+          "format": "int64"
+        },
+        "sts": {
+          "type": "string",
+          "description": "Empty = component default_sts."
+        },
+        "tax": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "amount": {
+          "type": "string",
+          "description": "Validated in the application layer (decimal, max 6 decimals)."
+        },
+        "taxPaidCompany": {
+          "type": "string"
+        },
+        "frzFlag": {
+          "type": "integer",
+          "format": "int32",
+          "description": "0 = default 2 (active)."
+        },
+        "validFrom": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "validTo": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
     "v1EmployeeInput": {
       "type": "object",
       "properties": {
@@ -1606,6 +1965,25 @@
         }
       }
     },
+    "v1GetEmployeeComponentsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "employeeId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1EmployeeComponent"
+          }
+        }
+      }
+    },
     "v1GetEmployeeResponse": {
       "type": "object",
       "properties": {
@@ -1700,6 +2078,34 @@
         }
       }
     },
+    "v1PreviewLevelChangeResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "currentLevel": {
+          "type": "string"
+        },
+        "newLevel": {
+          "type": "string"
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ComponentChange"
+          }
+        },
+        "skippedManual": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Template components the employee already holds as MANUAL; left untouched."
+        }
+      }
+    },
     "v1PutComponentTemplateResponse": {
       "type": "object",
       "properties": {
@@ -1714,6 +2120,25 @@
           "items": {
             "type": "object",
             "$ref": "#/definitions/v1TemplateItem"
+          }
+        }
+      }
+    },
+    "v1PutEmployeeComponentsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "employeeId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1EmployeeComponent"
           }
         }
       }

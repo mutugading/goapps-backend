@@ -128,7 +128,7 @@ func setup() (func(), error) {
 		return fail(err)
 	}
 	appDB = postgres.NewDBFromSQL(rawApp)
-	handler = grpcdelivery.NewMasterHandler(app.NewService(appDB, postgres.NewMasterRepository(), auditinfra.NewWriter(), encKey, hmacKey).WithComponents(postgres.NewComponentRepository()))
+	handler = grpcdelivery.NewMasterHandler(app.NewService(appDB, postgres.NewMasterRepository(), auditinfra.NewWriter(), encKey, hmacKey).WithComponents(postgres.NewComponentRepository()).WithAttachments(postgres.NewAttachmentRepository()))
 	return cleanup, nil
 }
 
