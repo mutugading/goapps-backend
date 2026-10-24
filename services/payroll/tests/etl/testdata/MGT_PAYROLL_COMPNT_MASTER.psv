@@ -1,0 +1,5 @@
+MPCM_TYPE|MPCM_ID|MPCM_NAME|MPCM_STS|MPCM_TAX|MPCM_SERIAL|MPCM_FIX_INCOME|MPCM_TAX_PAID_COMPANY|MPCM_TAX_SUBSIDY
+Tunjangan|1|Gaji Pokok|F|2|1|Y|N|N
+Tunjangan|6|OT In Work|D|2|6||N|N
+Tunjangan|34|Tunjangan Shift Opr|D|2|34||N|Y
+Potongan|32|Pinjaman Pokok|F|1|132||N|N
