@@ -15,6 +15,7 @@ import (
 
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/apperr"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/audit"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/component"
 	domain "github.com/mutugading/goapps-backend/services/payroll/internal/domain/master"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/scope"
 )
@@ -31,6 +32,7 @@ type Service struct {
 	audit audit.Writer
 	enc   string
 	hmac  []byte
+	comp  component.Repository
 }
 
 // NewService creates a Service. encKey/hmacKey protect PII columns (D-17).

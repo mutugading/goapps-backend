@@ -168,19 +168,20 @@ func TestValidateAccessToken_RejectsWeakTokens(t *testing.T) {
 func TestMasterRPCPermissionMap(t *testing.T) {
 	const svc = "/payroll.v1.PayrollService/"
 	methods := []string{"CreateCurrency", "ListCurrencies", "UpdateCurrency", "CreateCompany", "GetCompany", "ListCompanies",
-		"UpdateCompany", "CreateDivision", "ListDivisions", "UpdateDivision", "CreateEmployee", "GetEmployee", "ListEmployees", "UpdateEmployee"}
-	if len(methods) != 14 {
-		t.Fatal("expected 14 master RPCs")
+		"UpdateCompany", "CreateDivision", "ListDivisions", "UpdateDivision", "CreateEmployee", "GetEmployee", "ListEmployees", "UpdateEmployee",
+		"CreateComponent", "GetComponent", "ListComponents", "UpdateComponent", "RetireComponent", "GetComponentTemplate", "PutComponentTemplate"}
+	if len(methods) != 21 {
+		t.Fatal("expected 21 master RPCs")
 	}
 	viewOnly := context.WithValue(context.Background(), AuthPermissionsKey,
-		[]string{permEmployeeView, permCompanyView, permCurrencyView})
+		[]string{permEmployeeView, permCompanyView, permCurrencyView, permComponentView, permTemplateView})
 	for _, m := range methods {
 		perm, ok := rpcPermissions[svc+m]
 		if !ok || perm == "" {
 			t.Errorf("%s is not mapped", m)
 			continue
 		}
-		isRead := strings.HasPrefix(m, "Get") || strings.HasPrefix(m, "List")
+		isRead := strings.HasPrefix(m, "Get") || strings.HasPrefix(m, "List") // Retire/Put/Create are writes
 		if got := HasPermission(viewOnly, perm); got != isRead {
 			t.Errorf("%s: view-only user allowed=%v, want %v (perm %s)", m, got, isRead, perm)
 		}

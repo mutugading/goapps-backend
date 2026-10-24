@@ -251,6 +251,276 @@
         ]
       }
     },
+    "/api/v1/payroll/component-templates/{level}": {
+      "get": {
+        "operationId": "PayrollService_GetComponentTemplate",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetComponentTemplateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "level",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      },
+      "put": {
+        "operationId": "PayrollService_PutComponentTemplate",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1PutComponentTemplateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "level",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PayrollServicePutComponentTemplateBody"
+            }
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
+    "/api/v1/payroll/components": {
+      "get": {
+        "operationId": "PayrollService_ListComponents",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListComponentsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "companyId",
+            "description": "0 = all companies in scope.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "q",
+            "description": "Code or name.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "description": "0 = 50.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      },
+      "post": {
+        "summary": "── Master: Component (sysid) + template per level (T008) ──────────────────",
+        "operationId": "PayrollService_CreateComponent",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateComponentResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateComponentRequest"
+            }
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
+    "/api/v1/payroll/components/{sysid}": {
+      "get": {
+        "operationId": "PayrollService_GetComponent",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetComponentResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sysid",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      },
+      "put": {
+        "operationId": "PayrollService_UpdateComponent",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateComponentResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sysid",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PayrollServiceUpdateComponentBody"
+            }
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
+    "/api/v1/payroll/components/{sysid}:retire": {
+      "post": {
+        "summary": "No DELETE: a sysid is never reused; unused components are retired.",
+        "operationId": "PayrollService_RetireComponent",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RetireComponentResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sysid",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PayrollServiceRetireComponentBody"
+            }
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
     "/api/v1/payroll/currencies": {
       "get": {
         "operationId": "PayrollService_ListCurrencies",
@@ -536,6 +806,27 @@
         }
       }
     },
+    "PayrollServicePutComponentTemplateBody": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1TemplateItem"
+          }
+        }
+      },
+      "description": "PutComponentTemplateRequest replaces the whole template of a level."
+    },
+    "PayrollServiceRetireComponentBody": {
+      "type": "object",
+      "properties": {
+        "ifMatch": {
+          "type": "string"
+        }
+      }
+    },
     "PayrollServiceUpdateCompanyBody": {
       "type": "object",
       "properties": {
@@ -547,6 +838,17 @@
         },
         "active": {
           "type": "boolean"
+        },
+        "ifMatch": {
+          "type": "string"
+        }
+      }
+    },
+    "PayrollServiceUpdateComponentBody": {
+      "type": "object",
+      "properties": {
+        "input": {
+          "$ref": "#/definitions/v1ComponentInput"
         },
         "ifMatch": {
           "type": "string"
@@ -695,6 +997,148 @@
         }
       }
     },
+    "v1Component": {
+      "type": "object",
+      "properties": {
+        "sysid": {
+          "type": "string",
+          "format": "int64"
+        },
+        "companyId": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "code": {
+          "type": "string",
+          "description": "Unique per company, e.g. \"T001\", \"P032\"."
+        },
+        "type": {
+          "type": "string",
+          "description": "\"T\" (tunjangan) or \"P\" (potongan)."
+        },
+        "name": {
+          "type": "string"
+        },
+        "scopeDivisions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Empty = all divisions of the company."
+        },
+        "currency": {
+          "type": "string",
+          "description": "Empty = follows the employee's pay currency."
+        },
+        "defaultSts": {
+          "type": "string",
+          "description": "\"F\" fixed or \"D\" daily."
+        },
+        "taxClass": {
+          "type": "string",
+          "description": "NONE|TAXABLE|TAX_PAID_COMPANY|NON_TAXABLE_BENEFIT."
+        },
+        "subsidyEligible": {
+          "type": "boolean"
+        },
+        "fixIncome": {
+          "type": "string",
+          "description": "Y|A|H|N or empty."
+        },
+        "includeInEstimate": {
+          "type": "boolean"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "e.g. \"bpjs_base\"."
+        },
+        "serial": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Payslip order, 0 = unset."
+        },
+        "baseComponentSysid": {
+          "type": "string",
+          "format": "int64",
+          "description": "0 = none."
+        },
+        "status": {
+          "type": "string",
+          "description": "DRAFT|ACTIVE|RETIRED."
+        },
+        "validFrom": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "validTo": {
+          "type": "integer",
+          "format": "int32",
+          "description": "0 = open-ended."
+        },
+        "etag": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ComponentInput": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "scopeDivisions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "currency": {
+          "type": "string"
+        },
+        "defaultSts": {
+          "type": "string"
+        },
+        "taxClass": {
+          "type": "string"
+        },
+        "subsidyEligible": {
+          "type": "boolean"
+        },
+        "fixIncome": {
+          "type": "string"
+        },
+        "includeInEstimate": {
+          "type": "boolean"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "serial": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "baseComponentSysid": {
+          "type": "string",
+          "format": "int64"
+        },
+        "validFrom": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "validTo": {
+          "type": "integer",
+          "format": "int32",
+          "description": "0 = open-ended."
+        }
+      },
+      "description": "ComponentInput carries the writable fields shared by create and update.\n`company_id`, `code` and `type` are fixed at creation."
+    },
     "v1CreateCompanyRequest": {
       "type": "object",
       "properties": {
@@ -721,6 +1165,35 @@
         },
         "data": {
           "$ref": "#/definitions/v1Company"
+        }
+      }
+    },
+    "v1CreateComponentRequest": {
+      "type": "object",
+      "properties": {
+        "companyId": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "code": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "input": {
+          "$ref": "#/definitions/v1ComponentInput"
+        }
+      }
+    },
+    "v1CreateComponentResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Component"
         }
       }
     },
@@ -1104,6 +1577,35 @@
         }
       }
     },
+    "v1GetComponentResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Component"
+        }
+      }
+    },
+    "v1GetComponentTemplateResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "level": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1TemplateItem"
+          }
+        }
+      }
+    },
     "v1GetEmployeeResponse": {
       "type": "object",
       "properties": {
@@ -1127,6 +1629,25 @@
             "type": "object",
             "$ref": "#/definitions/v1Company"
           }
+        }
+      }
+    },
+    "v1ListComponentsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Component"
+          }
+        },
+        "nextCursor": {
+          "type": "string",
+          "description": "Empty = last page."
         }
       }
     },
@@ -1179,6 +1700,67 @@
         }
       }
     },
+    "v1PutComponentTemplateResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "level": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1TemplateItem"
+          }
+        }
+      }
+    },
+    "v1RetireComponentResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Component"
+        }
+      }
+    },
+    "v1TemplateItem": {
+      "type": "object",
+      "properties": {
+        "componentSysid": {
+          "type": "string",
+          "format": "int64"
+        },
+        "sts": {
+          "type": "string",
+          "description": "Empty = component default_sts."
+        },
+        "tax": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "amount": {
+          "type": "string",
+          "description": "Decimal rate or amount; empty = 0. Validated in the application layer."
+        },
+        "taxPaidCompany": {
+          "type": "string"
+        },
+        "componentCode": {
+          "type": "string",
+          "description": "Read-only echo of the component for display."
+        },
+        "componentName": {
+          "type": "string"
+        }
+      },
+      "description": "TemplateItem is one component a level receives on create / level-change."
+    },
     "v1UpdateCompanyResponse": {
       "type": "object",
       "properties": {
@@ -1187,6 +1769,17 @@
         },
         "data": {
           "$ref": "#/definitions/v1Company"
+        }
+      }
+    },
+    "v1UpdateComponentResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Component"
         }
       }
     },

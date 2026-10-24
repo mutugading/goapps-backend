@@ -104,7 +104,7 @@ func startServers(ctx context.Context, cfg *config.Config) error {
 		return err
 	}
 
-	masterSvc := masterapp.NewService(db, postgres.NewMasterRepository(), auditinfra.NewWriter(), cfg.PII.EncKey, cfg.PII.HMACKey)
+	masterSvc := masterapp.NewService(db, postgres.NewMasterRepository(), auditinfra.NewWriter(), cfg.PII.EncKey, cfg.PII.HMACKey).WithComponents(postgres.NewComponentRepository())
 	payrollv1.RegisterPayrollServiceServer(grpcServer.GRPCServer(), grpcdelivery.NewMasterHandler(masterSvc))
 
 	// Start gRPC server.

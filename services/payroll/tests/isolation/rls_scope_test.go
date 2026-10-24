@@ -343,7 +343,7 @@ func TestI19_InsertOutsideScopeRejected(t *testing.T) {
 // needs a reason: it must not carry employee, run or company-specific data.
 var globalTables = []string{
 	"payroll.pyr_batal_premi", "payroll.pyr_company", "payroll.pyr_component_master",
-	"payroll.pyr_component_template", "payroll.pyr_currency", "payroll.pyr_division_ref",
+	"payroll.pyr_currency", "payroll.pyr_division_ref",
 	"payroll.pyr_fx_rate", "payroll.pyr_holiday", "payroll.pyr_level_rule",
 	"payroll.pyr_rule_set", "payroll.pyr_static_value",
 }
