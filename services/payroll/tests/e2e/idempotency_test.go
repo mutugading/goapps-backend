@@ -2,7 +2,9 @@ package e2e
 
 import (
 	"context"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/idempotency"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/postgres"
@@ -114,5 +116,46 @@ func TestIdempotencyStore(t *testing.T) {
 	var n int
 	if err := appDB.QueryRowContext(ctx, `SELECT count(*) FROM payroll.pyr_idempotency_key`).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("no session user must see 0 rows, got %d (%v)", n, err)
+	}
+}
+
+// T007f: purge removes keys expired beyond the grace window for every user, keeps the rest.
+func TestIdempotencyPurge(t *testing.T) {
+	ctx := context.Background()
+	st := postgres.NewIdempotencyStore(appDB)
+	m := "/payroll.v1.PayrollService/CreateCompany"
+	for _, k := range []idempotency.Key{
+		{UserID: userRW, Method: m, Key: "p-old"}, {UserID: userRO, Method: m, Key: "p-old"},
+		{UserID: userRW, Method: m, Key: "p-recent"}, {UserID: userRW, Method: m, Key: "p-live"},
+	} {
+		if _, _, _, err := st.Begin(ctx, k, hashA, hashA); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for key, age := range map[string]string{"p-old": "2 days", "p-recent": "1 hour"} {
+		if _, err := ownDB.ExecContext(ctx, `UPDATE payroll.pyr_idempotency_key SET pik_expires_at = now() - $1::interval
+			WHERE pik_key = $2`, age, key); err != nil {
+			t.Fatal(err)
+		}
+	}
+	n, err := st.Purge(ctx, 24*time.Hour)
+	if err != nil || n < 2 {
+		t.Fatalf("Purge = %d, %v; want >= 2 (both users' p-old)", n, err)
+	}
+	var left []string
+	rows, err := ownDB.QueryContext(ctx, `SELECT pik_key FROM payroll.pyr_idempotency_key WHERE pik_key LIKE 'p-%' ORDER BY 1`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var k string
+		if err := rows.Scan(&k); err != nil {
+			t.Fatal(err)
+		}
+		left = append(left, k)
+	}
+	if strings.Join(left, ",") != "p-live,p-recent" {
+		t.Fatalf("left = %v, want [p-live p-recent]", left)
 	}
 }

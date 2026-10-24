@@ -5,6 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/idempotency"
 )
@@ -116,4 +119,38 @@ WHERE pik_user_id = $1 AND pik_method = $2 AND pik_key = $3 AND pik_claim_id = $
 		}
 		return nil
 	})
+}
+
+// Purge deletes keys that expired more than grace ago, across all users
+// (SECURITY DEFINER function, T007f), and returns how many rows went.
+func (s *IdempotencyStore) Purge(ctx context.Context, grace time.Duration) (int64, error) {
+	var n int64
+	err := s.db.QueryRowContext(ctx, `SELECT payroll.fn_purge_idempotency(make_interval(secs => $1))`,
+		grace.Seconds()).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("failed to purge idempotency keys: %w", err)
+	}
+	return n, nil
+}
+
+// RunPurgeLoop purges expired keys every interval until ctx is done. Failures
+// are logged and retried on the next tick.
+func (s *IdempotencyStore) RunPurgeLoop(ctx context.Context, interval, grace time.Duration) {
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			n, err := s.Purge(ctx, grace)
+			if err != nil {
+				log.Error().Err(err).Msg("idempotency purge failed")
+				continue
+			}
+			if n > 0 {
+				log.Info().Int64("rows", n).Msg("idempotency keys purged")
+			}
+		}
+	}
 }

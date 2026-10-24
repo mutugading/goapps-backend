@@ -96,7 +96,10 @@ func startServers(ctx context.Context, cfg *config.Config) error {
 		}
 	}()
 
-	grpcServer, err := grpcdelivery.NewServer(&cfg.Server, &cfg.JWT, postgres.NewScopeResolver(db), postgres.NewIdempotencyStore(db))
+	idemStore := postgres.NewIdempotencyStore(db)
+	go idemStore.RunPurgeLoop(ctx, time.Hour, 24*time.Hour) // expired Idempotency-Keys (D-19, T007f)
+
+	grpcServer, err := grpcdelivery.NewServer(&cfg.Server, &cfg.JWT, postgres.NewScopeResolver(db), idemStore)
 	if err != nil {
 		return err
 	}
