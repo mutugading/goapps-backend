@@ -67,6 +67,13 @@ func (ComponentRepository) Get(ctx context.Context, tx *sql.Tx, sysid int64) (co
 	return out, err
 }
 
+// InUse asks the SECURITY DEFINER fn_component_in_use, which sees every division (T008c).
+func (ComponentRepository) InUse(ctx context.Context, tx *sql.Tx, sysid int64) (component.Usage, error) {
+	var u component.Usage
+	err := tx.QueryRowContext(ctx, `SELECT attachments, closed_run FROM payroll.fn_component_in_use($1)`, sysid).Scan(&u.Attachments, &u.ClosedRun)
+	return u, err
+}
+
 // Lock takes a row lock for the audit before-image.
 func (ComponentRepository) Lock(ctx context.Context, tx *sql.Tx, sysid int64) error {
 	var one int
@@ -162,7 +169,7 @@ func (ComponentRepository) GetTemplate(ctx context.Context, tx *sql.Tx, level st
 	    COALESCE(trim_scale(t.pct_amount)::text,''), COALESCE(t.pct_tax_paid_company,''), c.pc_code, c.pc_name
 	  FROM payroll.pyr_component_template t
 	  JOIN payroll.pyr_component c ON c.pc_sysid = t.pct_component_sysid
-	  WHERE t.pct_template=$1 ORDER BY c.pc_serial NULLS LAST, c.pc_sysid`, level)
+	  WHERE t.pct_template=$1 AND c.pc_status <> 'RETIRED' ORDER BY c.pc_serial NULLS LAST, c.pc_sysid`, level)
 	if err != nil {
 		return nil, err
 	}

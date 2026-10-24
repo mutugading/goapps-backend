@@ -68,6 +68,16 @@ type TemplateItem struct {
 	Code, Name     string
 }
 
+// Usage tells whether a component is already used: attachments in any division, or
+// salary detail of a CLOSED period (T008c).
+type Usage struct {
+	Attachments int64
+	ClosedRun   bool
+}
+
+// Used reports whether the component is referenced by data that must stay stable.
+func (u Usage) Used() bool { return u.Attachments > 0 || u.ClosedRun }
+
 // Repository persists components and templates inside the caller's ScopedTx.
 type Repository interface {
 	Create(ctx context.Context, tx *sql.Tx, c Component) (Component, error)
@@ -77,6 +87,8 @@ type Repository interface {
 	// SetStatus changes the status under If-Match and bumps the version.
 	SetStatus(ctx context.Context, tx *sql.Tx, sysid int64, status string, ifMatch int) (Component, error)
 	Lock(ctx context.Context, tx *sql.Tx, sysid int64) error
+	// InUse counts usage across all divisions of the company (not limited by the caller's scope).
+	InUse(ctx context.Context, tx *sql.Tx, sysid int64) (Usage, error)
 	// MissingDivisions returns the divisions that do not exist in the company.
 	MissingDivisions(ctx context.Context, tx *sql.Tx, companyID int16, divisions []string) ([]string, error)
 

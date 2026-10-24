@@ -45,8 +45,11 @@ func validateComponent(c component.Component) error {
 	return nil
 }
 
-// checkRefs verifies scope divisions and the base component inside tx.
-func (s *Service) checkRefs(ctx context.Context, tx *sql.Tx, c component.Component) error {
+const maxBaseChain = 32 // guards the cycle walk against a corrupt chain.
+
+// checkRefs verifies scope divisions and the base component inside tx. prevBase is the base the
+// component had before (0 on create): a base that is RETIRED is only tolerated when unchanged.
+func (s *Service) checkRefs(ctx context.Context, tx *sql.Tx, c component.Component, prevBase int64) error {
 	missing, err := s.comp.MissingDivisions(ctx, tx, c.CompanyID, c.ScopeDivisions)
 	if err != nil {
 		return err
@@ -64,7 +67,76 @@ func (s *Service) checkRefs(ctx context.Context, tx *sql.Tx, c component.Compone
 	if base.CompanyID != c.CompanyID {
 		return validation("base_component_sysid", "komponen pasangan harus se-company")
 	}
-	return nil
+	if base.Status == component.StatusRetired && c.BaseSysid != prevBase {
+		return validation("base_component_sysid", "komponen pasangan RETIRED: "+base.Code)
+	}
+	return s.checkBaseCycle(ctx, tx, c, base)
+}
+
+// checkBaseCycle follows the base chain from base and rejects a path that returns to c (A<->B, A->B->C->A).
+func (s *Service) checkBaseCycle(ctx context.Context, tx *sql.Tx, c component.Component, base component.Component) error {
+	cur := base
+	for i := 0; i < maxBaseChain; i++ {
+		if cur.BaseSysid == 0 {
+			return nil
+		}
+		if cur.BaseSysid == c.Sysid && c.Sysid != 0 {
+			return validation("base_component_sysid", "siklus komponen pasangan terdeteksi lewat "+cur.Code)
+		}
+		next, err := s.comp.Get(ctx, tx, cur.BaseSysid)
+		if err != nil {
+			return nil //nolint:nilerr // an invisible/missing link ends the walk; it cannot loop back to c within scope
+		}
+		cur = next
+	}
+	return validation("base_component_sysid", "rantai komponen pasangan terlalu panjang atau berputar")
+}
+
+// sameSet compares two string lists ignoring order.
+func sameSet(a, b []string) bool {
+	x, y := slices.Clone(a), slices.Clone(b)
+	slices.Sort(x)
+	slices.Sort(y)
+	return slices.Equal(x, y)
+}
+
+// guardedChanges lists the fields of a used component that must not change (T008c): they alter how
+// existing attachments and CLOSED runs read.
+func guardedChanges(before, after component.Component) []string {
+	var out []string
+	if before.TaxClass != after.TaxClass {
+		out = append(out, "tax_class")
+	}
+	if before.Currency != after.Currency {
+		out = append(out, "currency")
+	}
+	if before.ValidFrom != after.ValidFrom {
+		out = append(out, "valid_from")
+	}
+	if before.ValidTo != after.ValidTo {
+		out = append(out, "valid_to")
+	}
+	if !sameSet(before.ScopeDivisions, after.ScopeDivisions) {
+		out = append(out, "scope_divisions")
+	}
+	return out
+}
+
+// guardUsed refuses changes of guarded fields once the component is attached or booked in a CLOSED run.
+func (s *Service) guardUsed(ctx context.Context, tx *sql.Tx, before, after component.Component) error {
+	changed := guardedChanges(before, after)
+	if len(changed) == 0 {
+		return nil
+	}
+	u, err := s.comp.InUse(ctx, tx, before.Sysid)
+	if err != nil {
+		return err
+	}
+	if !u.Used() {
+		return nil
+	}
+	return apperr.New(apperr.CodeConflict, "komponen sudah dipakai; field tidak boleh diubah: "+strings.Join(changed, ", "),
+		map[string]string{"fields": strings.Join(changed, ","), "attachments": strconv.FormatInt(u.Attachments, 10), "closed_run": strconv.FormatBool(u.ClosedRun)})
 }
 
 // CreateComponent creates an ACTIVE component (no activation flow in 07; D-20).
@@ -77,7 +149,7 @@ func (s *Service) CreateComponent(ctx context.Context, c component.Component, ip
 	}
 	c.Status = component.StatusActive
 	err = s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
-		if e := s.checkRefs(ctx, tx, c); e != nil {
+		if e := s.checkRefs(ctx, tx, c, 0); e != nil {
 			return e
 		}
 		var e error
@@ -155,7 +227,10 @@ func (s *Service) UpdateComponent(ctx context.Context, c component.Component, if
 		if e = validateComponent(c); e != nil {
 			return e
 		}
-		if e = s.checkRefs(ctx, tx, c); e != nil {
+		if e = s.checkRefs(ctx, tx, c, before.BaseSysid); e != nil {
+			return e
+		}
+		if e = s.guardUsed(ctx, tx, before, c); e != nil {
 			return e
 		}
 		if out, e = s.comp.Update(ctx, tx, c, ifMatch); e != nil {
