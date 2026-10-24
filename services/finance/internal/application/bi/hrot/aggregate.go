@@ -15,6 +15,10 @@ const (
 	TypeHours  = "HR_OT_HOURS"  // group_1 dept, group_2 OT type, group_3 NIK; jam aktual
 	TypeDQ     = "HR_OT_DQ"     // group_1 dept, group_2 OT type, group_3 NIK; |calc − tier 1+2+3|
 	TypePareto = "HR_OT_PARETO" // group_1 TOP_10PCT / TOTAL; MONTHLY only, ratio at query time (HD-08)
+	// TypeEmpCount = distinct NIK with OT hours > 0 per dept; MONTHLY only. Numerator of the R1 KPI
+	// "% karyawan lembur" (÷ HR_HEADCOUNT at query time, HD-08). Each NIK counts in one dept per
+	// period, so summing across depts gives the company count (H032).
+	TypeEmpCount = "HR_OT_EMP_COUNT"
 
 	GrainDaily   = "DAILY"
 	GrainMonthly = "MONTHLY"
@@ -113,10 +117,16 @@ func Aggregate(rows []Row, currentDept map[string]string, d1, d2, loadedFrom tim
 		complete := !PayrollPeriodStart(r.WorkDate).Before(loadedFrom)
 		acc.addRow(r, deptOf(r, currentDept), inWindow, complete)
 	}
+	countDept := empCountDept(rows, currentDept)
 	for pEnd, emp := range acc.perEmp {
 		top, total := paretoTop10(emp)
 		acc.add(key{TypePareto, ParetoTop, "", "", GrainMonthly, pEnd}, top)
 		acc.add(key{TypePareto, ParetoTotal, "", "", GrainMonthly, pEnd}, total)
+		for nik, h := range emp {
+			if h.IsPositive() {
+				acc.add(key{TypeEmpCount, countDept[nik], "", "", GrainMonthly, pEnd}, decimal.NewFromInt(1))
+			}
+		}
 	}
 
 	facts := acc.facts()
@@ -137,9 +147,31 @@ func deptOf(r Row, currentDept map[string]string) string {
 	return clip(dept)
 }
 
+// empCountDept returns NIK → dept for HR_OT_EMP_COUNT, the same rule as HR_HEADCOUNT
+// (hratt.Aggregate) so numerator and denominator share a dept: the current dept (K15), else the
+// staging dept of the latest row passed in (ties: greatest dept name, so reruns are identical).
+func empCountDept(rows []Row, currentDept map[string]string) map[string]string {
+	type pick struct {
+		date time.Time
+		dept string
+	}
+	latest := map[string]pick{}
+	for _, r := range rows {
+		cur, ok := latest[r.NIK]
+		if !ok || r.WorkDate.After(cur.date) || (r.WorkDate.Equal(cur.date) && r.StagingDept > cur.dept) {
+			latest[r.NIK] = pick{r.WorkDate, r.StagingDept}
+		}
+	}
+	out := make(map[string]string, len(latest))
+	for nik, p := range latest {
+		out[nik] = deptOf(Row{NIK: nik, StagingDept: p.dept}, currentDept)
+	}
+	return out
+}
+
 type accumulator struct {
 	sums   map[key]decimal.Decimal
-	perEmp map[time.Time]map[string]decimal.Decimal // period end → NIK → hours (Pareto)
+	perEmp map[time.Time]map[string]decimal.Decimal // period end → NIK → hours (Pareto, emp count)
 }
 
 func (a *accumulator) add(k key, v decimal.Decimal) {

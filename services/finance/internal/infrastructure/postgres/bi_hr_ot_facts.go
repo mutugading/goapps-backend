@@ -13,7 +13,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/bi/hrot"
 )
 
-// replaceOTFacts recomputes the R1 facts (HR_OT_HOURS, HR_OT_DQ, HR_OT_PARETO) of every payroll
+// replaceOTFacts recomputes the R1 facts (HR_OT_HOURS, HR_OT_DQ, HR_OT_PARETO, HR_OT_EMP_COUNT) of every payroll
 // period touched by [d1, d2] from staging, inside the caller's transaction (HD-03/HD-04): facts of
 // those periods are deleted and re-inserted, so rows removed at the source disappear from the facts.
 // Department = current dept from bi_hr_employee (K15); older facts are restated to it (HD-15).
@@ -37,11 +37,11 @@ func replaceOTFacts(ctx context.Context, tx *sql.Tx, d1, d2 time.Time, sourceID 
 	loadedFrom = time.Date(loadedFrom.Year(), loadedFrom.Month(), loadedFrom.Day(), 0, 0, 0, 0, time.UTC)
 
 	if _, err = tx.ExecContext(ctx, `DELETE FROM bi_fact_metric
-WHERE type IN ($1, $2, $3) AND scenario = 'ACTUAL'
+WHERE type IN ($1, $2, $3, $9) AND scenario = 'ACTUAL'
   AND ((periode_grain = $4 AND periode_date BETWEEN $6 AND $7)
     OR (periode_grain = $5 AND periode_date BETWEEN $8 AND $7))`,
 		hrot.TypeHours, hrot.TypeDQ, hrot.TypePareto, hrot.GrainDaily, hrot.GrainMonthly,
-		from, to, hrot.PayrollPeriodEnd(d1)); err != nil {
+		from, to, hrot.PayrollPeriodEnd(d1), hrot.TypeEmpCount); err != nil {
 		return fmt.Errorf("delete OT facts: %w", err)
 	}
 
@@ -49,7 +49,7 @@ WHERE type IN ($1, $2, $3) AND scenario = 'ACTUAL'
     type, group_1, group_2, group_3, periode_grain, periode_date, periode_label,
     value, display_value, uom, scenario, metric_name, metric_category, agg_method,
     source_id, dimension_key, is_active
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::numeric,$8::numeric,'HOURS','ACTUAL','VALUE','VOLUME','SUM',$9,'',TRUE)`)
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::numeric,$8::numeric,$9,'ACTUAL','VALUE',$10,$11,$12,'',TRUE)`)
 	if err != nil {
 		return fmt.Errorf("prepare OT fact insert: %w", err)
 	}
@@ -60,8 +60,9 @@ WHERE type IN ($1, $2, $3) AND scenario = 'ACTUAL'
 	}()
 
 	for _, f := range hrot.Aggregate(rows, dept, from, to, loadedFrom) {
+		uom, category, agg := hrFactUnit(f.Type)
 		if _, err = stmt.ExecContext(ctx, f.Type, f.Group1, biNullableString(f.Group2), biNullableString(f.Group3),
-			f.Grain, f.PeriodDate, f.PeriodLabel, f.Value.String(), sourceID); err != nil {
+			f.Grain, f.PeriodDate, f.PeriodLabel, f.Value.String(), uom, category, agg, sourceID); err != nil {
 			return fmt.Errorf("insert OT fact: %w", err)
 		}
 	}

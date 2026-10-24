@@ -50,7 +50,7 @@ func TestBiHRStagingRepository_ReplaceOTDaily(t *testing.T) {
 			`DELETE FROM bi_hr_stg_ot_daily WHERE nik = $1`,
 			`DELETE FROM bi_hr_employee WHERE nik = $1`,
 			`DELETE FROM bi_fact_metric WHERE type LIKE 'HR_OT_%' AND group_3 = $1`,
-			`DELETE FROM bi_fact_metric WHERE type = 'HR_OT_PARETO' AND periode_date < '2000-01-01' AND $1 <> ''`,
+			`DELETE FROM bi_fact_metric WHERE type IN ('HR_OT_PARETO', 'HR_OT_EMP_COUNT') AND periode_date < '2000-01-01' AND $1 <> ''`,
 		} {
 			if _, cErr := raw.ExecContext(ctx, q, marker); cErr != nil {
 				t.Logf("cleanup: %v", cErr)
@@ -145,12 +145,24 @@ FROM bi_fact_metric WHERE type LIKE 'HR_OT_%' AND group_3 = $1
 		"HR_OT_DQ MONTHLY 199901 Normal":      "2.375",
 	}
 	require.Equal(t, want, facts())
+	// H032: one employee with OT in period 199901 → HR_OT_EMP_COUNT 1 under the current dept, uom PERSON.
+	empCount := func() (string, string) {
+		var v, uom string
+		require.NoError(t, raw.QueryRowContext(ctx, `SELECT COALESCE(SUM(value), 0)::text, COALESCE(MAX(group_1||'/'||uom), '')
+FROM bi_fact_metric WHERE type = 'HR_OT_EMP_COUNT' AND periode_grain = 'MONTHLY' AND periode_date = '1999-01-25'`).Scan(&v, &uom))
+		return decimal.RequireFromString(v).String(), uom
+	}
+	n1, u1 := empCount()
+	require.Equal(t, "1", n1)
+	require.Equal(t, "Dept/PERSON", u1)
 
 	// Idempotent: the same run twice yields identical facts (ACCEPTANCE 1.1).
 	_, err = repo.ReplaceOTDaily(ctx, d("1999-01-05"), d("1999-01-10"),
 		[]oracleinfra.OTDailyRow{row("1999-01-06", "Normal", "3.125")}, srcID)
 	require.NoError(t, err)
 	require.Equal(t, want, facts())
+	n1, _ = empCount()
+	require.Equal(t, "1", n1)
 
 	// H012: R2 week 1999-W01 (Mon 01-04) = 2.25 + 3.125 counted hours; week 1998-W51 (Mon 12-21)
 	// starts before staging does and is skipped; the removed 01-05 day fact is gone.

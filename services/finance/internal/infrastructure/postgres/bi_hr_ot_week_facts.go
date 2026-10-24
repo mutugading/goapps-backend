@@ -87,7 +87,7 @@ func insertHRFacts(ctx context.Context, tx *sql.Tx, facts []hrot.Fact, sourceID 
 // is a running count, so it is not summable across weeks (LAST).
 func hrFactUnit(factType string) (uom, category, agg string) {
 	switch factType {
-	case hrot.TypeWeekStatus, hrot.TypeWeekBucket:
+	case hrot.TypeWeekStatus, hrot.TypeWeekBucket, hrot.TypeEmpCount:
 		return "PERSON", "COUNT", hrAggSum
 	case hrot.TypeChronic:
 		return "WEEKS", "COUNT", "LAST"

@@ -131,7 +131,37 @@ func TestAggregate_PartialPeriodSkipsMonthly(t *testing.T) {
 		"HR_OT_HOURS MONTHLY 202609 D":          "2",
 		"HR_OT_PARETO MONTHLY 202609 TOP_10PCT": "2",
 		"HR_OT_PARETO MONTHLY 202609 TOTAL":     "2",
+		"HR_OT_EMP_COUNT MONTHLY 202609 D":      "1",
 	}, got)
+}
+
+func TestAggregate_EmpCount(t *testing.T) {
+	// Period 202611 (10-26..11-25): A has OT on two days and two types (counted once), B only zero
+	// hours (not counted), C has no current dept and is counted under the dept of its latest row in
+	// the load (also for the earlier period, like HR_HEADCOUNT), E has a current dept and staging
+	// rows in two depts (counted once, under the current dept).
+	rows := []Row{
+		{WorkDate: day("2026-10-27"), NIK: "A", StagingDept: "X", OTType: "Normal", Tier1: dec("1"), CalcHours: dec("1")},
+		{WorkDate: day("2026-10-28"), NIK: "A", StagingDept: "X", OTType: "Off", Tier2: dec("2"), CalcHours: dec("2")},
+		{WorkDate: day("2026-10-27"), NIK: "B", StagingDept: "X", OTType: "Normal", CalcHours: dec("0")},
+		{WorkDate: day("2026-10-27"), NIK: "C", StagingDept: "OLD", OTType: "Normal", Tier1: dec("1"), CalcHours: dec("1")},
+		{WorkDate: day("2026-11-02"), NIK: "C", StagingDept: "NEW", OTType: "Normal", Tier1: dec("1"), CalcHours: dec("1")},
+		{WorkDate: day("2026-10-27"), NIK: "E", StagingDept: "P", OTType: "Normal", Tier1: dec("1"), CalcHours: dec("1")},
+		{WorkDate: day("2026-10-28"), NIK: "E", StagingDept: "Q", OTType: "Normal", Tier1: dec("1"), CalcHours: dec("1")},
+		{WorkDate: day("2026-12-01"), NIK: "C", StagingDept: "LATEST", OTType: "Normal", CalcHours: dec("0")},
+		// Period 202610 starts before staging (loadedFrom): no count.
+		{WorkDate: day("2026-10-20"), NIK: "D", StagingDept: "X", OTType: "Normal", Tier1: dec("1"), CalcHours: dec("1")},
+	}
+	got := map[string]string{}
+	for _, f := range Aggregate(rows, map[string]string{"A": "CUR", "B": "CUR", "E": "CUR"}, day("2026-10-20"), day("2026-12-25"), day("2026-10-20")) {
+		if f.Type == TypeEmpCount {
+			assert.Equal(t, GrainMonthly, f.Grain)
+			assert.Empty(t, f.Group2)
+			assert.Empty(t, f.Group3)
+			got[f.PeriodLabel+" "+f.Group1] = f.Value.String()
+		}
+	}
+	assert.Equal(t, map[string]string{"202611 CUR": "2", "202611 LATEST": "1"}, got)
 }
 
 func TestAggregate_ChangeOffSpacing(t *testing.T) {
