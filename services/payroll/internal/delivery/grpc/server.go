@@ -50,7 +50,8 @@ func NewServer(cfg *config.ServerConfig, jwtCfg *config.JWTConfig, resolver scop
 		TimeoutInterceptor(60*time.Second), // 7. Enforce timeout
 		AuthInterceptor(jwtCfg, resolver),  // 8. JWT + payroll scope
 		PermissionInterceptor(),            // 9. RBAC permission check
-		validation,                         // 10. buf.validate request constraints
+		IfMatchInterceptor(),               // 10. If-Match header -> if_match (D-16)
+		validation,                         // 11. buf.validate request constraints
 	)
 
 	opts := []grpc.ServerOption{

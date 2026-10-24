@@ -73,9 +73,14 @@ func wrapErrorInResponse(fullMethod string, grpcErr error) proto.Message {
 	}
 
 	st := status.Convert(grpcErr)
+	httpStatus := grpcCodeToHTTPStatus(st.Code())
+	if code, ok := CodeFromError(grpcErr); ok {
+		// Exact 07 status (e.g. 422 business rule) instead of the coarse gRPC mapping.
+		httpStatus = code.HTTPStatus()
+	}
 	base := &commonv1.BaseResponse{
 		IsSuccess:  false,
-		StatusCode: fmt.Sprintf("%d", grpcCodeToHTTPStatus(st.Code())),
+		StatusCode: fmt.Sprintf("%d", httpStatus),
 		Message:    st.Message(),
 	}
 

@@ -15,13 +15,11 @@ import (
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/config"
 )
 
-// Server represents the HTTP server.
-//
-// It does not yet proxy any gRPC-Gateway routes or serve Swagger -- those are
-// wired once `payroll/v1` proto exists (T004). For now it only exposes health,
-// readiness, liveness and metrics so the service is observable standalone.
+// Server represents the HTTP server. It proxies PayrollService through
+// gRPC-Gateway (T007b) and exposes health, readiness, liveness and metrics.
 type Server struct {
 	server         *http.Server
+	grpcTarget     string
 	config         *config.ServerConfig
 	allowedOrigins []string
 	corsMaxAge     int
@@ -31,6 +29,7 @@ type Server struct {
 func NewServer(cfg *config.ServerConfig, opts ...Option) *Server {
 	s := &Server{
 		config:         cfg,
+		grpcTarget:     fmt.Sprintf("localhost:%d", cfg.GRPCPort),
 		allowedOrigins: []string{"http://localhost:3000"},
 		corsMaxAge:     300,
 	}
@@ -56,8 +55,16 @@ func WithCORS(origins []string, maxAge int) Option {
 }
 
 // Start starts the HTTP server.
-func (s *Server) Start(_ context.Context) error {
+func (s *Server) Start(ctx context.Context) error {
+	gwMux, err := NewGatewayMux(ctx, s.grpcTarget)
+	if err != nil {
+		return err
+	}
+
 	mux := http.NewServeMux()
+
+	// API routes (gRPC-Gateway).
+	mux.Handle("/api/", gwMux)
 
 	// Health check endpoints.
 	mux.HandleFunc("/healthz", s.healthHandler)
@@ -71,8 +78,8 @@ func (s *Server) Start(_ context.Context) error {
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   s.allowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Request-ID", "X-Requested-With"},
-		ExposedHeaders:   []string{"X-Request-ID"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Request-ID", "X-Requested-With", "If-Match", "Idempotency-Key"},
+		ExposedHeaders:   []string{"X-Request-ID", "ETag"},
 		AllowCredentials: true,
 		MaxAge:           s.corsMaxAge,
 	}).Handler(mux)
