@@ -399,6 +399,9 @@ ORDER BY periode_date`, label, label, a.Source, strings.Join(dateConds, " AND ")
 
 	// Categorical chart: one row per distinct category, summed over the window.
 	categoryExpr := "COALESCE(" + a.CategoryCol + ", '')"
+	if a.CategoryCol == colGroup3 && IsHRType(a.Type) {
+		categoryExpr = employeeLabelExpr(a.CategoryCol)
+	}
 	orderExpr := "0"
 	if a.OrderCol != "" {
 		orderExpr = "COALESCE(MAX(" + a.OrderCol + "), 0)"
@@ -413,6 +416,13 @@ ORDER BY order_seq NULLS LAST, category`,
 		categoryExpr, orderExpr, a.Source, strings.Join(dateConds, " AND "), a.CategoryCol)
 
 	return factmetric.PlannedQuery{SQL: sql, Args: args, TargetTable: a.Source}, nil
+}
+
+// employeeLabelExpr renders an HR group_3 (NIK) as "NIK — Nama" using bi_hr_employee (HD-07). The name
+// is looked up at query time; a NIK without an employee row stays a bare NIK. col is a whitelisted
+// column name, never user input. The level is already gated by workforceemployee.view.
+func employeeLabelExpr(col string) string {
+	return "COALESCE(" + col + ", '') || COALESCE(' — ' || NULLIF((SELECT e.emp_name FROM bi_hr_employee e WHERE e.nik = " + col + " LIMIT 1), ''), '')"
 }
 
 // buildTrendComparePlan assembles a CTE query: `cur` aggregates the current window per

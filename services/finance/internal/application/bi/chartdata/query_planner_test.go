@@ -73,6 +73,38 @@ func TestPlan_DrillLevels_SelectCorrectSource(t *testing.T) {
 	}
 }
 
+// HD-07: HR employee level (group_3 = NIK) is labelled "NIK — Nama" via bi_hr_employee; other types keep group_3.
+func TestPlan_EmployeeLevel_LabelsNIKWithName(t *testing.T) {
+	now := time.Date(2026, 5, 15, 0, 0, 0, 0, time.UTC)
+	mk := func(filterType string) *dashboarddomain.Dashboard {
+		d, err := dashboarddomain.NewDashboard(dashboarddomain.NewDashboardParams{
+			Code: "TEST_EMP", Title: "Test", FilterType: filterType, PeriodGrain: "MONTHLY", DefaultPeriod: "L12M",
+			ChartType: "waterfall", ChartConfigRaw: map[string]any{"x_axis_field": "group_2", "y_axis_field": "display_value"},
+			MaxDrillLevel: 3, CacheTTLSec: 60, GroupID: uuid.New(), IsActive: true, CreatedBy: uuid.New(),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d
+	}
+	f := chartdata.ViewerFilters{PeriodPreset: "L12M", DrillPath: []string{"Spinning", "Normal"}}
+
+	hr, err := chartdata.Plan(mk("HR_OT_HOURS"), f, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(hr.SQL, "bi_hr_employee") || !strings.Contains(hr.SQL, "emp_name") {
+		t.Errorf("HR level 3 must label NIK with name, got SQL:\n%s", hr.SQL)
+	}
+	other, err := chartdata.Plan(mk("MIS"), f, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(other.SQL, "bi_hr_employee") {
+		t.Errorf("non-HR level 3 must not join employees, got SQL:\n%s", other.SQL)
+	}
+}
+
 func TestPlan_DrillTooDeep(t *testing.T) {
 	now := time.Now().UTC()
 	d := newDashboard(t, "waterfall", "", 1)
