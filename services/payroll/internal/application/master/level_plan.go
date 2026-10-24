@@ -2,6 +2,7 @@ package master
 
 import (
 	"cmp"
+	"errors"
 	"slices"
 
 	"github.com/shopspring/decimal"
@@ -32,6 +33,7 @@ func ruleCodes() []string {
 type levelPlan struct {
 	Changes       []component.Change
 	SkippedManual []string // codes of template components held as MANUAL; untouched.
+	Missing       []string // rule components absent in the company (lenient mode only).
 }
 
 func sameDecimal(a, b string) bool {
@@ -55,24 +57,46 @@ func sameAttachment(a, b component.Attachment) bool {
 // template plus the per-level overrides of pyr_level_rule (02§5.1, D-21). catalog
 // maps code to component and must hold every code of ruleCodes() when rule is set.
 func desiredFromTemplate(template []component.Attachment, rule *component.LevelRule, catalog map[string]component.CatalogEntry) (map[int64]component.Attachment, error) {
-	want := make(map[int64]component.Attachment, len(template))
+	want, _, err := desire(template, rule, catalog, false)
+	return want, err
+}
+
+// errRuleComponentMissing marks a rule component absent from the company catalog.
+var errRuleComponentMissing = errors.New("komponen aturan level tidak ada")
+
+// desire is desiredFromTemplate with an optional lenient mode (D-21): a rule component
+// the company lacks is skipped and its code returned in missing, instead of failing.
+func desire(template []component.Attachment, rule *component.LevelRule, catalog map[string]component.CatalogEntry, lenient bool) (want map[int64]component.Attachment, missing []string, err error) {
+	want = make(map[int64]component.Attachment, len(template))
 	for _, t := range template {
 		t.Source, t.Frz = component.SourceTemplate, 2
 		want[t.Sysid] = t
 	}
 	if rule == nil {
-		return want, nil
+		return want, nil, nil
 	}
-	if err := applyLevelRule(want, rule, catalog); err != nil {
-		return nil, err
+	missing, err = applyLevelRule(want, rule, catalog, lenient)
+	if errors.Is(err, errRuleComponentMissing) {
+		return nil, nil, validation("level", err.Error())
 	}
-	return want, nil
+	if err != nil {
+		return nil, nil, err
+	}
+	return want, missing, nil
 }
+
+// missingError is the validation error of a missing rule component; it matches errRuleComponentMissing.
+type missingError struct{ code string }
+
+func (m missingError) Error() string {
+	return "komponen " + m.code + " yang dibutuhkan aturan level tidak ada/aktif di company ini"
+}
+func (m missingError) Is(t error) bool { return t == errRuleComponentMissing }
 
 func ruleEntry(catalog map[string]component.CatalogEntry, code string) (component.Attachment, error) {
 	c, ok := catalog[code]
 	if !ok {
-		return component.Attachment{}, validation("level", "komponen "+code+" yang dibutuhkan aturan level tidak ada/aktif di company ini")
+		return component.Attachment{}, missingError{code}
 	}
 	return component.Attachment{Sysid: c.Sysid, Code: c.Code, Name: c.Name, Sts: c.DefaultSts, Source: component.SourceTemplate}, nil
 }
@@ -110,9 +134,19 @@ func setFrz(want map[int64]component.Attachment, catalog map[string]component.Ca
 	}
 }
 
-func applyStaff(want map[int64]component.Attachment, rule *component.LevelRule, catalog map[string]component.CatalogEntry) error {
+// collect records a missing rule component (lenient) or fails (strict).
+func collect(missing *[]string, err error, lenient bool) error {
+	var m missingError
+	if err != nil && lenient && errors.As(err, &m) {
+		*missing = append(*missing, m.code)
+		return nil
+	}
+	return err
+}
+
+func applyStaff(want map[int64]component.Attachment, rule *component.LevelRule, catalog map[string]component.CatalogEntry, lenient bool, missing *[]string) error {
 	dropRule(want, catalog, codeOtinwork, codeTunjShiftN)
-	if err := upsertRule(want, catalog, codeTunjShiftS, rule.TunjshiftRate, rule.TunjshiftSts); err != nil {
+	if err := collect(missing, upsertRule(want, catalog, codeTunjShiftS, rule.TunjshiftRate, rule.TunjshiftSts), lenient); err != nil {
 		return err
 	}
 	for _, code := range nonStaffDrop {
@@ -121,27 +155,28 @@ func applyStaff(want map[int64]component.Attachment, rule *component.LevelRule, 
 	return nil
 }
 
-func applyNonStaff(want map[int64]component.Attachment, rule *component.LevelRule, catalog map[string]component.CatalogEntry) error {
+func applyNonStaff(want map[int64]component.Attachment, rule *component.LevelRule, catalog map[string]component.CatalogEntry, lenient bool, missing *[]string) error {
 	dropRule(want, catalog, nonStaffDrop...)
 	dropRule(want, catalog, codeTunjShiftS)
-	if err := upsertRule(want, catalog, codeOtinwork, rule.OtinworkRate, rule.OtinworkSts); err != nil {
+	if err := collect(missing, upsertRule(want, catalog, codeOtinwork, rule.OtinworkRate, rule.OtinworkSts), lenient); err != nil {
 		return err
 	}
-	return upsertRule(want, catalog, codeTunjShiftN, rule.TunjshiftRate, rule.TunjshiftSts)
+	return collect(missing, upsertRule(want, catalog, codeTunjShiftN, rule.TunjshiftRate, rule.TunjshiftSts), lenient)
 }
 
 // applyLevelRule mirrors the trigger: non-staff upsert T6/T34 and drop T2/T3/T4;
 // staff upsert T35 and drop T6/T34 (T2/T3/T4 become active); T36 follows SHIFTADJ.
-func applyLevelRule(want map[int64]component.Attachment, rule *component.LevelRule, catalog map[string]component.CatalogEntry) error {
+// Lenient mode (CreateEmployee, D-21) skips absent rule components and reports them.
+func applyLevelRule(want map[int64]component.Attachment, rule *component.LevelRule, catalog map[string]component.CatalogEntry, lenient bool) (missing []string, err error) {
 	apply := applyNonStaff
 	if rule.Group == staffGroup {
 		apply = applyStaff
 	}
-	if err := apply(want, rule, catalog); err != nil {
-		return err
+	if err = apply(want, rule, catalog, lenient, &missing); err != nil {
+		return nil, err
 	}
 	setFrz(want, catalog, codeShiftAdj, rule.ShiftadjSts)
-	return nil
+	return missing, nil
 }
 
 // planLevel diffs current attachments against want. MANUAL rows are never changed

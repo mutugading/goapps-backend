@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"strconv"
 
+	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/apperr"
@@ -245,7 +246,8 @@ func (s *Service) currentYYMM() int {
 }
 
 // buildLevelPlan computes the diff of moving an employee to newLevel inside tx.
-func (s *Service) buildLevelPlan(ctx context.Context, tx *sql.Tx, e domain.Employee, newLevel string, yymm int) (levelPlan, error) {
+// lenient (CreateEmployee, D-21) skips rule components the company lacks and reports them in Missing.
+func (s *Service) buildLevelPlan(ctx context.Context, tx *sql.Tx, e domain.Employee, newLevel string, yymm int, lenient bool) (levelPlan, error) {
 	k := keyOf(e)
 	current, err := s.att.List(ctx, tx, k)
 	if err != nil {
@@ -266,21 +268,31 @@ func (s *Service) buildLevelPlan(ctx context.Context, tx *sql.Tx, e domain.Emplo
 	if err != nil {
 		return levelPlan{}, err
 	}
-	want, err := desiredFromTemplate(template, rule, catalog)
+	want, missing, err := desire(template, rule, catalog, lenient)
 	if err != nil {
 		return levelPlan{}, err
 	}
-	return planLevel(current, want, yymm), nil
+	p := planLevel(current, want, yymm)
+	p.Missing = missing
+	return p, nil
 }
 
 // PreviewLevelChange returns the diff without writing anything.
 func (s *Service) PreviewLevelChange(ctx context.Context, nik string, companyID int16, division, newLevel string, yymm int) (out LevelChange, err error) {
+	if !validYYMM(yymm) {
+		return out, validation("effective_yymm", "effective_yymm harus yymm yang valid")
+	}
 	err = s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
 		e, e2 := s.resolveEmployee(ctx, tx, nik, companyID, division, false)
 		if e2 != nil {
 			return e2
 		}
-		p, e2 := s.buildLevelPlan(ctx, tx, e, newLevel, yymm)
+		if blocked, e3 := s.att.PeriodLockedFrom(ctx, tx, keyOf(e), yymm); e3 != nil {
+			return e3
+		} else if blocked != 0 {
+			return apperr.PeriodClosed(blocked, e.Division)
+		}
+		p, e2 := s.buildLevelPlan(ctx, tx, e, newLevel, yymm, false)
 		if e2 != nil {
 			return e2
 		}
@@ -293,18 +305,28 @@ func (s *Service) PreviewLevelChange(ctx context.Context, nik string, companyID 
 // ApplyLevelChange applies the diff under the employee If-Match (replaces TRG_EMP_MAST UPDATE).
 // The effective period must not be CLOSED. Replaced/removed rows are snapshotted to _hist.
 func (s *Service) ApplyLevelChange(ctx context.Context, nik string, companyID int16, division, newLevel string, yymm, ifMatch int, cl Caller) (emp domain.Employee, lc LevelChange, err error) {
+	if !validYYMM(yymm) {
+		return emp, lc, validation("effective_yymm", "effective_yymm harus yymm yang valid")
+	}
 	err = s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
 		e, e2 := s.resolveEmployee(ctx, tx, nik, companyID, division, true)
 		if e2 != nil {
 			return e2
 		}
 		k := keyOf(e)
-		if closed, e3 := s.att.PeriodClosed(ctx, tx, k, yymm); e3 != nil {
-			return e3
-		} else if closed {
-			return apperr.PeriodClosed(yymm, e.Division)
+		// Same level: nothing to change, no version bump, no audit. Deliberately before the If-Match
+		// and period checks, since nothing is written.
+		if newLevel == e.Level {
+			emp = e
+			lc = LevelChange{CurrentLevel: e.Level, NewLevel: newLevel}
+			return nil
 		}
-		p, e2 := s.buildLevelPlan(ctx, tx, e, newLevel, yymm)
+		if blocked, e3 := s.att.PeriodLockedFrom(ctx, tx, k, yymm); e3 != nil {
+			return e3
+		} else if blocked != 0 {
+			return apperr.PeriodClosed(blocked, e.Division)
+		}
+		p, e2 := s.buildLevelPlan(ctx, tx, e, newLevel, yymm, false)
 		if e2 != nil {
 			return e2
 		}
@@ -360,12 +382,23 @@ func (s *Service) attachFromLevel(ctx context.Context, tx *sql.Tx, e domain.Empl
 			}
 		}
 	}
-	p, err := s.buildLevelPlan(ctx, tx, e, e.Level, yymm)
+	// A CLOSED join period must not receive valid_from (04§9): leave it unset instead. Only CLOSED is
+	// checked here (DRAFT/APPROVED still accept a new attachment); level-change is stricter (non-OPEN).
+	if closed, err := s.att.PeriodClosed(ctx, tx, keyOf(e), yymm); err != nil {
+		return err
+	} else if closed {
+		yymm = 0
+	}
+	p, err := s.buildLevelPlan(ctx, tx, e, e.Level, yymm, true)
 	if err == errLevelEmpty { //nolint:errorlint // sentinel compared by identity; apperr.Is matches by code
 		return nil // level has no template/rule: nothing to attach.
 	}
 	if err != nil {
 		return err
+	}
+	if len(p.Missing) > 0 {
+		log.Warn().Int16("company_id", e.CompanyID).Str("nik", e.NIK).Str("level", e.Level).
+			Strs("missing", p.Missing).Msg("level rule components absent in company; skipped (D-21)")
 	}
 	return s.writePlan(ctx, tx, keyOf(e), p, yymm, actor)
 }

@@ -103,3 +103,37 @@ func TestPlanLevel_IdenticalAttachmentsNoChange(t *testing.T) {
 		t.Fatalf("changes = %+v, want none (100 == 100.000)", p.Changes)
 	}
 }
+
+// D-21: CreateEmployee is lenient. Rule components the company lacks are skipped and reported,
+// level-change (strict) still fails on them.
+func TestDesire_LenientSkipsMissingRuleComponents(t *testing.T) {
+	rule := &component.LevelRule{Level: "SHIFT-I", Group: "SHIFT", OtinworkRate: "0.0877", OtinworkSts: 2, TunjshiftSts: 2, TunjshiftRate: "2200"}
+	template := []component.Attachment{att(2, "T002", "100", "", 2)}
+	catalog := map[string]component.CatalogEntry{"T034": entry(34, "T034")} // T006 absent
+	want, missing, err := desire(template, rule, catalog, true)
+	if err != nil {
+		t.Fatalf("lenient: %v", err)
+	}
+	if len(missing) != 1 || missing[0] != "T006" {
+		t.Fatalf("missing = %v, want [T006]", missing)
+	}
+	if _, ok := want[34]; !ok {
+		t.Fatalf("T034 not attached: %v", want)
+	}
+	if _, _, err := desire(template, rule, catalog, false); err == nil {
+		t.Fatal("strict mode must fail on a missing rule component")
+	}
+	// Empty catalog (new company): nothing fails, nothing from the rule is attached.
+	if _, missing, err = desire(nil, rule, map[string]component.CatalogEntry{}, true); err != nil || len(missing) != 2 {
+		t.Fatalf("empty catalog: missing=%v err=%v", missing, err)
+	}
+}
+
+// Staff levels (T35) skip too when the company lacks the component.
+func TestDesire_LenientStaffMissingT035(t *testing.T) {
+	rule := &component.LevelRule{Level: "STAFF", Group: "STAFF", TunjshiftSts: 1, TunjshiftRate: "3300"}
+	_, missing, err := desire(nil, rule, map[string]component.CatalogEntry{}, true)
+	if err != nil || len(missing) != 1 || missing[0] != "T035" {
+		t.Fatalf("missing=%v err=%v", missing, err)
+	}
+}

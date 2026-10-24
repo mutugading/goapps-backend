@@ -182,3 +182,11 @@ func (AttachmentRepository) PeriodClosed(ctx context.Context, tx *sql.Tx, k comp
 	  WHERE pp_company_id=$1 AND pp_yymm=$2 AND pp_division=$3 AND pp_status='CLOSED')`, k.CompanyID, yymm, k.Division).Scan(&closed)
 	return closed, err
 }
+
+// PeriodLockedFrom returns the first period at or after from that is not OPEN, or 0.
+func (AttachmentRepository) PeriodLockedFrom(ctx context.Context, tx *sql.Tx, k component.EmployeeKey, from int) (int, error) {
+	var yymm sql.NullInt64
+	err := tx.QueryRowContext(ctx, `SELECT min(pp_yymm) FROM payroll.pyr_period
+	  WHERE pp_company_id=$1 AND pp_division=$2 AND pp_yymm>=$3 AND pp_status<>'OPEN'`, k.CompanyID, k.Division, from).Scan(&yymm)
+	return int(yymm.Int64), err
+}

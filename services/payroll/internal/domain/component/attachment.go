@@ -81,6 +81,9 @@ type AttachmentRepository interface {
 	CatalogBySysid(ctx context.Context, tx *sql.Tx, companyID int16, division string, sysids []int64) (map[int64]CatalogEntry, error)
 	// PeriodClosed reports whether the (company, yymm, division) period is CLOSED (04§9).
 	PeriodClosed(ctx context.Context, tx *sql.Tx, k EmployeeKey, yymm int) (bool, error)
+	// PeriodLockedFrom returns the first yymm >= from whose period of the employee's
+	// company/division is not OPEN (DRAFT/APPROVED/CLOSED), or 0 when none.
+	PeriodLockedFrom(ctx context.Context, tx *sql.Tx, k EmployeeKey, from int) (int, error)
 	Upsert(ctx context.Context, tx *sql.Tx, k EmployeeKey, a Attachment, actor string) error
 	Delete(ctx context.Context, tx *sql.Tx, k EmployeeKey, sysid int64) error
 	// Snapshot copies the current row to the history table at yymm.
