@@ -25,6 +25,8 @@ const (
 	CodeMissingAttdDays   Code = "MISSING_ATTD_DAYS"
 	CodeRuleIncomplete    Code = "RULE_INCOMPLETE"
 	CodeBusinessRule      Code = "BUSINESS_RULE"
+	CodeIdemConflict      Code = "IDEMPOTENCY_KEY_CONFLICT"
+	CodeIdemInProgress    Code = "IDEMPOTENCY_IN_PROGRESS"
 	CodeInternal          Code = "INTERNAL"
 )
 
@@ -78,7 +80,7 @@ func (c Code) HTTPStatus() int {
 		return 403
 	case CodeNotFound:
 		return 404
-	case CodeConflict, CodePeriodClosed, CodePeriodApproved, CodeRunInProgress:
+	case CodeConflict, CodePeriodClosed, CodePeriodApproved, CodeRunInProgress, CodeIdemConflict, CodeIdemInProgress:
 		return 409
 	case CodeVersionMismatch:
 		return 412

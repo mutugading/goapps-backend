@@ -96,7 +96,7 @@ func startServers(ctx context.Context, cfg *config.Config) error {
 		}
 	}()
 
-	grpcServer, err := grpcdelivery.NewServer(&cfg.Server, &cfg.JWT, postgres.NewScopeResolver(db))
+	grpcServer, err := grpcdelivery.NewServer(&cfg.Server, &cfg.JWT, postgres.NewScopeResolver(db), postgres.NewIdempotencyStore(db))
 	if err != nil {
 		return err
 	}

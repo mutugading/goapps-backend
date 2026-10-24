@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 
+	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/idempotency"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/scope"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/config"
 )
@@ -28,7 +29,7 @@ type Server struct {
 
 // NewServer creates a new gRPC server with the interceptor chain, including
 // JWT auth + payroll scope resolution (D-06, D-11) and RBAC permission checks.
-func NewServer(cfg *config.ServerConfig, jwtCfg *config.JWTConfig, resolver scope.Resolver) (*Server, error) {
+func NewServer(cfg *config.ServerConfig, jwtCfg *config.JWTConfig, resolver scope.Resolver, idem idempotency.Store) (*Server, error) {
 	// Create rate limiter (100 requests per second default).
 	rateLimiter := NewRateLimiter(100)
 
@@ -52,6 +53,7 @@ func NewServer(cfg *config.ServerConfig, jwtCfg *config.JWTConfig, resolver scop
 		PermissionInterceptor(),            // 9. RBAC permission check
 		IfMatchInterceptor(),               // 10. If-Match header -> if_match (D-16)
 		validation,                         // 11. buf.validate request constraints
+		IdempotencyInterceptor(idem),       // 12. Idempotency-Key replay (D-19)
 	)
 
 	opts := []grpc.ServerOption{

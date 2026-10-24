@@ -39,33 +39,10 @@ func StructuredErrorInterceptor() grpc.UnaryServerInterceptor {
 // wrapErrorInResponse dynamically creates the correct response message for the
 // given gRPC method and sets its "base" field from the error.
 func wrapErrorInResponse(fullMethod string, grpcErr error) proto.Message {
-	// Parse "/package.Service/Method" -> ["package.Service", "Method"].
-	parts := strings.Split(strings.TrimPrefix(fullMethod, "/"), "/")
-	if len(parts) != 2 {
+	resp := newResponse(fullMethod)
+	if resp == nil {
 		return nil
 	}
-
-	desc, err := protoregistry.GlobalFiles.FindDescriptorByName(protoreflect.FullName(parts[0]))
-	if err != nil {
-		return nil
-	}
-
-	svc, ok := desc.(protoreflect.ServiceDescriptor)
-	if !ok {
-		return nil
-	}
-
-	methodDesc := svc.Methods().ByName(protoreflect.Name(parts[1]))
-	if methodDesc == nil {
-		return nil
-	}
-
-	outputType, err := protoregistry.GlobalTypes.FindMessageByName(methodDesc.Output().FullName())
-	if err != nil {
-		return nil
-	}
-
-	resp := outputType.New().Interface()
 
 	baseFieldDesc := resp.ProtoReflect().Descriptor().Fields().ByName("base")
 	if baseFieldDesc == nil {
@@ -117,4 +94,34 @@ func grpcCodeToHTTPStatus(code codes.Code) int {
 	default:
 		return 500
 	}
+}
+
+// newResponse returns an empty response message of the given gRPC method, or nil.
+func newResponse(fullMethod string) proto.Message {
+	// Parse "/package.Service/Method" -> ["package.Service", "Method"].
+	parts := strings.Split(strings.TrimPrefix(fullMethod, "/"), "/")
+	if len(parts) != 2 {
+		return nil
+	}
+
+	desc, err := protoregistry.GlobalFiles.FindDescriptorByName(protoreflect.FullName(parts[0]))
+	if err != nil {
+		return nil
+	}
+
+	svc, ok := desc.(protoreflect.ServiceDescriptor)
+	if !ok {
+		return nil
+	}
+
+	methodDesc := svc.Methods().ByName(protoreflect.Name(parts[1]))
+	if methodDesc == nil {
+		return nil
+	}
+
+	outputType, err := protoregistry.GlobalTypes.FindMessageByName(methodDesc.Output().FullName())
+	if err != nil {
+		return nil
+	}
+	return outputType.New().Interface()
 }

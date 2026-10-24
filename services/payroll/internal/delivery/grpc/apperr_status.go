@@ -24,7 +24,8 @@ func grpcCode(c apperr.Code) codes.Code {
 		return codes.PermissionDenied
 	case apperr.CodeNotFound:
 		return codes.NotFound
-	case apperr.CodeConflict, apperr.CodePeriodClosed, apperr.CodePeriodApproved, apperr.CodeRunInProgress:
+	case apperr.CodeConflict, apperr.CodePeriodClosed, apperr.CodePeriodApproved, apperr.CodeRunInProgress,
+		apperr.CodeIdemConflict, apperr.CodeIdemInProgress:
 		return codes.AlreadyExists
 	case apperr.CodeVersionMismatch:
 		return codes.FailedPrecondition
