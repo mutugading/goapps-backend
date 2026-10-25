@@ -80,6 +80,9 @@ type EmpComponent struct {
 	TaxPaidCompany bool
 	// TaxSubsidy is pcm_tax_subsidy = Y: the component forms the PPh subsidy basis (P0, 06§6.4).
 	TaxSubsidy bool
+	// SubsidyOT marks an overtime component (provisional v2 basis leaves it out, D-30); the id list
+	// in isOTSubsidyID applies when the master does not set it.
+	SubsidyOT bool
 }
 
 // AttRekap is a frozen attendance recap row (MPAR_* columns), keyed by column name
@@ -229,6 +232,7 @@ func (in Input) Validate() error {
 }
 
 // Line is one calculated component (pyr_salary_detail).
+// Meta is a map, so Line is not comparable: compare fields, never Line values with ==.
 type Line struct {
 	Key    CompKey
 	Amount *decimal.Decimal // already ROUND(0); nil only for legacy NULL results (D10)

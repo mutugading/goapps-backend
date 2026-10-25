@@ -34,9 +34,12 @@ func (pphCompany) Eval(ctx *EvalCtx, _ EmpComponent, _ Params) (*decimal.Decimal
 		return nil, "", ErrNoTaxTable
 	}
 	// THR enters both sides like P1 (D-28c), so P5 stays the difference of what P1 withholds.
-	pAll, _, _, ok1 := terTax(ctx, all.Add(in.Thr.Gross))
-	pOwn, _, _, ok2 := terTax(ctx, own.Add(in.Thr.Gross))
-	if !ok1 || !ok2 {
+	pAll, _, _, ok := terTax(ctx, all.Add(in.Thr.Gross))
+	if !ok {
+		return nil, "", nil
+	}
+	pOwn, _, _, ok := terTax(ctx, own.Add(in.Thr.Gross))
+	if !ok {
 		return nil, "", nil
 	}
 	p := pOwn.Sub(pAll)

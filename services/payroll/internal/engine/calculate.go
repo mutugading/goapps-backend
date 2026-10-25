@@ -51,6 +51,10 @@ func CalculateWith(reg Registry, in Input) (Result, error) {
 	}
 
 	res.Warnings = append(res.Warnings, ctx.warnings...)
+	if in.Rules.LegacyCompat() && in.Subsidy.Override != nil && !hasLine(res.Lines, CompKey{CompP, 0}) {
+		res.Warnings = append(res.Warnings, fmt.Sprintf("%s: %s override %s diabaikan, rule v1 tanpa baris P0",
+			WarnSubsidyOverrideIgnored, in.Emp.NIK, in.Subsidy.Override.Action))
+	}
 	SortLines(res.Lines)
 	h := buildHeader(in, basis, res.Lines)
 	if net := h.TotTunjangan.Sub(h.TotPotongan); len(in.Loans) > 0 && net.IsNegative() {

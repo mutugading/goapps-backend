@@ -96,8 +96,20 @@ type Subsidy struct {
 	LockedYYMM int
 }
 
-// isOTSubsidyID reports the overtime T ids (D-30 lists 6/8/20–31/37/44): the v2 provisional basis of
-// the join month leaves them out.
+// WarnSubsidyOverrideIgnored is the run warning for a P0 override under rule v1 without a P0 row
+// (the legacy gate skips P0, so the override has no effect).
+const WarnSubsidyOverrideIgnored = "SUBSIDY_OVERRIDE_IGNORED"
+
+func hasLine(lines []Line, k CompKey) bool {
+	return slices.ContainsFunc(lines, func(l Line) bool { return l.Key == k })
+}
+
+// isSubsidyOT reports an overtime component: the loader sets SubsidyOT from the component master,
+// the id list (D-30: 6/8/20–31/37/44) stays as the fallback for masters without the flag. The v2
+// provisional basis of the join month leaves them out.
+func (c EmpComponent) isSubsidyOT() bool { return c.SubsidyOT || isOTSubsidyID(c.Key.ID) }
+
+// isOTSubsidyID is the id list of D-30.
 func isOTSubsidyID(id int) bool {
 	return id == 6 || id == 8 || (id >= 20 && id <= 31) || id == 37 || id == 44
 }
@@ -228,7 +240,7 @@ func subsidyBasisV2(ctx *EvalCtx) (decimal.Decimal, string) {
 func provisionalSubsidyBasis(ctx *EvalCtx) decimal.Decimal {
 	var sum decimal.Decimal
 	for _, c := range ctx.In.Components {
-		if c.Key.Type != CompT || !c.Tax || !c.TaxSubsidy || isOTSubsidyID(c.Key.ID) {
+		if c.Key.Type != CompT || !c.Tax || !c.TaxSubsidy || c.isSubsidyOT() {
 			continue
 		}
 		if spec, _ := specFor(c.Key); spec.Code == FormulaFixedOrProrate && c.Sts == stsProrate {

@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/shopspring/decimal"
 )
@@ -113,7 +114,12 @@ func (c *EvalCtx) setMeta(k, v string) {
 }
 
 // warn records a run warning raised by a formula (e.g. PPH_NO_BRACKET).
-func (c *EvalCtx) warn(s string) { c.warnings = append(c.warnings, s) }
+// The same text is kept once, so P1 and P5 on one gross raise a single warning per employee.
+func (c *EvalCtx) warn(s string) {
+	if !slices.Contains(c.warnings, s) {
+		c.warnings = append(c.warnings, s)
+	}
+}
 
 // Line returns an already computed line (e.g. PPh formulas reading T results).
 func (c *EvalCtx) Line(k CompKey) (Line, bool) {
