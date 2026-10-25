@@ -83,10 +83,10 @@ func TestEmployeeOT_GroupFilterIsBound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(p.SQL, evil) || !strings.Contains(p.SQL, "COALESCE(e.dept_name, '') IN ($11,$12)") {
+	if strings.Contains(p.SQL, evil) || !strings.Contains(p.SQL, "COALESCE(e.dept_name, '') IN ($12,$13)") {
 		t.Errorf("filter not bound:\n%s", p.SQL)
 	}
-	if p.Args[10] != evil || p.Args[11] != "QA" {
+	if p.Args[11] != evil || p.Args[12] != "QA" {
 		t.Errorf("args = %v", p.Args)
 	}
 	if _, err := chartdata.Plan(d, chartdata.ViewerFilters{PeriodPreset: "THIS_MONTH", GroupFilter: []string{"QA"}}, otNow); !errors.Is(err, factmetric.ErrInvalidPlan) {
@@ -191,20 +191,20 @@ func otRowCompany(nik, group, company, col string, v float64) factmetric.AggRow 
 func TestShapeEmployeeOT_UnionZeroColumnsAndSubtotals(t *testing.T) {
 	rows := []factmetric.AggRow{
 		otRow("N1", "PRD", "PERIOD_HOURS", 40), // R1 only: week columns 0
-		otRow("N2", "PRD", "WEEK_HOURS", 16),   // R2 only: period hours 0
+		otRow("N2", "PRD", "W:2026-10-19", 16), // R2 only: period hours 0
 		otRow("N2", "PRD", "EXCESS", 2),
 		otRow("N2", "PRD", "CHRONIC", 3),
 		otRow("N3", "QA", "PERIOD_HOURS", 10),
-		otRow("N3", "QA", "WEEK_HOURS", 5),
+		otRow("N3", "QA", "W:2026-10-19", 5),
 	}
 	series, cats, block := chartdata.ShapeEmployeeOTForTest(rows, chartdata.ViewerFilters{GroupBy: "dept"})
 	if strings.Join(cats, ",") != "N1,N2,N3" {
 		t.Fatalf("cats = %v", cats)
 	}
-	if len(series) != 4 || series[0].Name != "PERIOD_HOURS" || series[3].Name != "CHRONIC" {
+	if len(series) != 5 || series[0].Name != "PERIOD_HOURS" || series[3].Name != "CHRONIC" || series[4].Name != "W:2026-10-19" {
 		t.Fatalf("series = %+v", series)
 	}
-	if series[0].Points[1].Value != 0 || series[1].Points[0].Value != 0 || series[3].Points[1].Value != 3 {
+	if series[0].Points[1].Value != 0 || series[4].Points[0].Value != 0 || series[3].Points[1].Value != 3 {
 		t.Errorf("zero fill wrong: %+v", series)
 	}
 	if series[0].Points[0].Meta["group"] != "PRD" || series[0].Points[0].Meta["name"] != "Nama N1" {
@@ -215,7 +215,7 @@ func TestShapeEmployeeOT_UnionZeroColumnsAndSubtotals(t *testing.T) {
 	}
 	subs := block["subtotals"].([]any)
 	prd := subs[0].(map[string]any)
-	if len(subs) != 2 || prd["group"] != "PRD" || prd["employees"] != 2.0 || prd["PERIOD_HOURS"] != 40.0 || prd["WEEK_HOURS"] != 16.0 || prd["EXCESS"] != 2.0 {
+	if len(subs) != 2 || prd["group"] != "PRD" || prd["employees"] != 2.0 || prd["PERIOD_HOURS"] != 40.0 || prd["W:2026-10-19"] != 16.0 || prd["EXCESS"] != 2.0 {
 		t.Errorf("subtotals = %v", subs)
 	}
 	if _, ok := prd["CHRONIC"]; ok {
@@ -430,7 +430,103 @@ func TestEmployeeOT_PrevTotalRespectsGroupFilter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Count(p.SQL, "COALESCE(e.dept_name, '') IN ($11)") != 2 || !strings.Contains(p.SQL, "PREV_TOTAL_EMPLOYEES") {
+	if strings.Count(p.SQL, "COALESCE(e.dept_name, '') IN ($12)") != 2 || !strings.Contains(p.SQL, "PREV_TOTAL_EMPLOYEES") {
 		t.Errorf("group filter must apply to the listed rows and the previous total:\n%s", p.SQL)
+	}
+}
+
+func weekKeys(t *testing.T, preset, today string) []string {
+	t.Helper()
+	w, err := chartdata.ResolveEmployeeOTWindows(preset, isoDay(today))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := make([]string, 0, len(w.Weeks))
+	for _, m := range w.Weeks {
+		out = append(out, m.Format(time.DateOnly))
+	}
+	return out
+}
+
+// HD-25: weeks of the period belong to the period of their Sunday (K10).
+func TestEmployeeOT_WeeksOfPeriod(t *testing.T) {
+	// Period 26 Sep – 25 Oct 2026 has 5 Sundays (27 Sep, 4, 11, 18, 25 Oct); the first week starts Mon 21 Sep.
+	got := strings.Join(weekKeys(t, "LAST_MONTH", "2026-11-10"), ",")
+	if want := "2026-09-21,2026-09-28,2026-10-05,2026-10-12,2026-10-19"; got != want {
+		t.Errorf("5-week period:\n got %s\nwant %s", got, want)
+	}
+	// Period 26 Oct – 25 Nov 2026 has 4 Sundays (1, 8, 15, 22 Nov).
+	got = strings.Join(weekKeys(t, "THIS_MONTH", "2026-11-25"), ",")
+	if want := "2026-10-26,2026-11-02,2026-11-09,2026-11-16"; got != want {
+		t.Errorf("4-week period:\n got %s\nwant %s", got, want)
+	}
+	// The running period only lists weeks that already started (partial last week allowed, HD-17).
+	got = strings.Join(weekKeys(t, "THIS_MONTH", "2026-10-21"), ",")
+	if want := "2026-09-21,2026-09-28,2026-10-05,2026-10-12,2026-10-19"; got != want {
+		t.Errorf("running period: got %s", got)
+	}
+	if got := weekKeys(t, "THIS_MONTH", "2026-10-07"); len(got) != 3 || got[2] != "2026-10-05" {
+		t.Errorf("early in period: %v", got)
+	}
+}
+
+func TestEmployeeOT_PlanWeekWindowAndRanges(t *testing.T) {
+	p, err := chartdata.Plan(employeeOTDashboard(t), chartdata.ViewerFilters{PeriodPreset: "THIS_MONTH"}, otNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Args) != 11 || p.Args[10] != isoDay("2026-09-21") || p.Args[6] != isoDay("2026-10-19") {
+		t.Errorf("week window args = %v", p.Args)
+	}
+	if !strings.Contains(p.SQL, "BETWEEN $11 AND $7") {
+		t.Error("week facts must span the whole R1 window")
+	}
+}
+
+func TestEmployeeOT_WeeksBlockInResponse(t *testing.T) {
+	dash := employeeOTDashboard(t)
+	repo := &mockDashboardRepo{getByCode: func(context.Context, string) (*dashboarddomain.Dashboard, error) { return dash, nil }}
+	h := chartdata.NewGetDataHandler(repo, &mockFactRepo{}, newMockCache(), func(any) string { return "h" }).WithNow(func() time.Time { return otNow })
+	res, err := h.Handle(context.Background(), chartdata.GetDataQuery{
+		DashboardCode: "HR_OT_EMPLOYEES", CanViewWorkforce: true, CanViewEmployee: true,
+		Filters: chartdata.ViewerFilters{PeriodPreset: "THIS_MONTH"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	weeks := res.Config["employee_ot"].(map[string]any)["weeks"].([]any)
+	if len(weeks) != 5 {
+		t.Fatalf("weeks = %v", weeks)
+	}
+	first, last := weeks[0].(map[string]any), weeks[4].(map[string]any)
+	if first["key"] != "W:2026-09-21" || first["label"] != "W1" || first["from"] != "2026-09-21" || first["to"] != "2026-09-27" || first["partial"] != false {
+		t.Errorf("first = %v", first)
+	}
+	if last["label"] != "W5" || last["partial"] != true || last["to"] != "2026-10-25" {
+		t.Errorf("last = %v", last)
+	}
+}
+
+// 14 h exactly is compliant: only EXCESS > 0 counts as a week over (HD-16, HD-25); 14.5 is over.
+func TestShapeEmployeeOT_WeekCellsAndOver(t *testing.T) {
+	rows := []factmetric.AggRow{
+		otRow("N1", "PRD", "PERIOD_HOURS", 30), otRow("N1", "PRD", "W:2026-10-12", 14), otRow("N1", "PRD", "W:2026-10-19", 14),
+		otRow("N2", "PRD", "PERIOD_HOURS", 31), otRow("N2", "PRD", "W:2026-10-12", 14.5), otRow("N2", "PRD", "W:2026-10-19", 16),
+		otRow("N2", "PRD", "EXCESS", 2), otRow("N2", "PRD", "WEEKS_OVER", 2),
+	}
+	series, _, block := chartdata.ShapeEmployeeOTForTest(rows, chartdata.ViewerFilters{})
+	names := []string{}
+	for _, s := range series {
+		names = append(names, s.Name)
+	}
+	if got := strings.Join(names, ","); got != "PERIOD_HOURS,EXCESS,WEEKS_OVER,CHRONIC,W:2026-10-12,W:2026-10-19" {
+		t.Fatalf("series = %s", got)
+	}
+	sum := block["summary"].(map[string]any)
+	if sum["over_limit"] != 1.0 {
+		t.Errorf("only N2 is over: %v", sum)
+	}
+	if series[2].Points[0].Value != 2 || series[2].Points[1].Value != 0 {
+		t.Errorf("weeks over = %+v", series[2].Points)
 	}
 }

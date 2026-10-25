@@ -20,10 +20,14 @@ const tableModeEmployeeOT = "employee_ot"
 const (
 	colPeriodHours = "PERIOD_HOURS" // R1: actual OT hours over the payroll periods of the window
 	colPrevHours   = "PREV_HOURS"   // comparison: OT hours over the previous window of equal length (HD-24)
-	colWeekHours   = "WEEK_HOURS"   // R2: limit hours of the R2 week
+	colWeeksOver   = "WEEKS_OVER"   // number of weeks of the R1 window above the limit (HD-25)
 	colDayActual   = "ACTUAL"       // drill: actual OT hours per day (HR_OT_HOURS DAILY)
 	colDayLimit    = "LIMIT"        // drill: limit hours per day of the R2 week (HR_OT_WEEK_DAILY)
 )
+
+// colWeekPrefix starts the column key of one week: "W:" + the Monday (YYYY-MM-DD). The limit hours of
+// that week (HR_OT_WEEK WEEKLY, HD-25) sit in that column; a week without a row for the NIK is 0.
+const colWeekPrefix = "W:"
 
 // Group-by keys of the Employee Overtime table (HD-18, HD-19).
 const (
@@ -71,14 +75,15 @@ var employeeOTGroupOptions = []string{GroupByDivision, GroupByDept}
 
 // EmployeeOTWindows are the two windows derived from one preset (HD-18).
 type EmployeeOTWindows struct {
-	PeriodFrom time.Time // first fact date (25th) of the R1 window, inclusive
-	PeriodTo   time.Time // last fact date (25th) of the R1 window = end of the last period
-	FirstStart time.Time // 26th that opens the first payroll period (header label)
-	LastStart  time.Time // 26th that opens the last payroll period (daily drill)
-	Week       time.Time // Monday of the R2 week: its Sunday falls in the last period (K10)
-	DayFrom    time.Time // first day of the NIK→day drill: min(LastStart, Week)
-	PrevFrom   time.Time // first fact date (25th) of the comparison window (HD-24)
-	PrevTo     time.Time // last fact date (25th) of the comparison window = the period before PeriodFrom
+	PeriodFrom time.Time   // first fact date (25th) of the R1 window, inclusive
+	PeriodTo   time.Time   // last fact date (25th) of the R1 window = end of the last period
+	FirstStart time.Time   // 26th that opens the first payroll period (header label)
+	LastStart  time.Time   // 26th that opens the last payroll period (daily drill)
+	Week       time.Time   // Monday of the last week: its Sunday falls in the last period (K10)
+	Weeks      []time.Time // Mondays of every week of the R1 window, ascending (HD-25, K10); the last is Week
+	DayFrom    time.Time   // first day of the NIK→day drill: min(LastStart, Week)
+	PrevFrom   time.Time   // first fact date (25th) of the comparison window (HD-24)
+	PrevTo     time.Time   // last fact date (25th) of the comparison window = the period before PeriodFrom
 }
 
 // ResolveEmployeeOTWindows resolves the R1 period window and the R2 week for a preset. today is
@@ -88,6 +93,8 @@ type EmployeeOTWindows struct {
 // quarter / year of the running period, L12M = the last 12 periods. The R2 week is the latest week
 // whose Sunday is inside the last period and whose Monday is not after today, so it may be partial
 // (HD-17). DayFrom starts the NIK→day drill at whichever comes first: the last period or the week.
+// Weeks lists every week of the R1 window: the Sunday falls in [FirstStart, PeriodTo] (K10) and the
+// Monday is not after today (the running week may be partial, HD-17).
 // The comparison window (HD-24) has exactly as many periods as the R1 window and ends right before it.
 func ResolveEmployeeOTWindows(preset string, today time.Time) (EmployeeOTWindows, error) {
 	last := payrollEnd(today)
@@ -117,9 +124,17 @@ func ResolveEmployeeOTWindows(preset string, today time.Time) (EmployeeOTWindows
 	if week.Before(dayFrom) {
 		dayFrom = week
 	}
+	var weeks []time.Time
+	firstSunday := payrollStart(first)
+	firstSunday = firstSunday.AddDate(0, 0, (7-int(firstSunday.Weekday()))%7) // first Sunday >= FirstStart
+	for sun := firstSunday; !sun.After(last); sun = sun.AddDate(0, 0, 7) {
+		if mon := sun.AddDate(0, 0, -6); !mon.After(today) {
+			weeks = append(weeks, mon)
+		}
+	}
 	periods := (last.Year()-first.Year())*12 + int(last.Month()) - int(first.Month()) + 1
 	return EmployeeOTWindows{PeriodFrom: first, PeriodTo: last, FirstStart: payrollStart(first), LastStart: lastStart,
-		Week: week, DayFrom: dayFrom, PrevFrom: first.AddDate(0, -periods, 0), PrevTo: first.AddDate(0, -1, 0)}, nil
+		Week: week, Weeks: weeks, DayFrom: dayFrom, PrevFrom: first.AddDate(0, -periods, 0), PrevTo: first.AddDate(0, -1, 0)}, nil
 }
 
 // employeeOTPreset is the viewer preset, or the dashboard default when none is sent.
@@ -168,6 +183,11 @@ func planEmployeeOT(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time
 	}
 	expr := employeeOTGroupExpr[groupBy]
 	args := []any{TypeHoursName, w.PeriodFrom, w.PeriodTo, TypeWeekName, TypeWeekExcessName, TypeChronicName, w.Week, employeeOTMaxRows + 1, w.PrevFrom, w.PrevTo}
+	firstWeek := w.Week
+	if len(w.Weeks) > 0 {
+		firstWeek = w.Weeks[0]
+	}
+	args = append(args, firstWeek) // $11
 	groupCond := ""
 	if len(f.GroupFilter) > 0 {
 		var conds []string
@@ -187,21 +207,38 @@ func planEmployeeOT(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time
     AND periode_date BETWEEN $9 AND $10 AND COALESCE(group_3, '') <> ''
   GROUP BY group_3
   UNION ALL
-  SELECT group_3, CASE type WHEN $4 THEN '` + colWeekHours + `' WHEN $5 THEN '` + colExcess + `' ELSE '` + colChronic + `' END,
-         CASE WHEN type = $6 THEN MAX(value) ELSE SUM(value) END
+  SELECT group_3, '` + colWeekPrefix + `' || TO_CHAR(periode_date, 'YYYY-MM-DD'), SUM(value)
   FROM bi_fact_metric
-  WHERE type IN ($4, $5, $6) AND periode_grain = 'WEEKLY' AND is_active = TRUE
+  WHERE type = $4 AND periode_grain = 'WEEKLY' AND is_active = TRUE
+    AND periode_date BETWEEN $11 AND $7 AND COALESCE(group_3, '') <> ''
+  GROUP BY group_3, periode_date
+  UNION ALL
+  SELECT group_3, '` + colExcess + `', MAX(value)
+  FROM bi_fact_metric
+  WHERE type = $5 AND periode_grain = 'WEEKLY' AND is_active = TRUE AND value > 0
+    AND periode_date BETWEEN $11 AND $7 AND COALESCE(group_3, '') <> ''
+  GROUP BY group_3
+  UNION ALL
+  SELECT group_3, '` + colWeeksOver + `', COUNT(DISTINCT periode_date)::numeric
+  FROM bi_fact_metric
+  WHERE type = $5 AND periode_grain = 'WEEKLY' AND is_active = TRUE AND value > 0
+    AND periode_date BETWEEN $11 AND $7 AND COALESCE(group_3, '') <> ''
+  GROUP BY group_3
+  UNION ALL
+  SELECT group_3, '` + colChronic + `', MAX(value)
+  FROM bi_fact_metric
+  WHERE type = $6 AND periode_grain = 'WEEKLY' AND is_active = TRUE
     AND periode_date = $7 AND COALESCE(group_3, '') <> ''
-  GROUP BY group_3, type
+  GROUP BY group_3
 ), p AS (
   SELECT a.v FROM a LEFT JOIN bi_hr_employee e ON e.nik = a.nik
   WHERE a.col = '` + colPrevHours + `' AND a.v > 0` + groupCond + `
 ), n AS (
   SELECT a.nik FROM a LEFT JOIN bi_hr_employee e ON e.nik = a.nik
-  WHERE (a.col = '` + colPeriodHours + `' OR (a.col = '` + colWeekHours + `' AND a.v > 0))` + groupCond + `
+  WHERE (a.col = '` + colPeriodHours + `' OR (a.col LIKE '` + colWeekPrefix + `%' AND a.v > 0))` + groupCond + `
   GROUP BY a.nik
   ORDER BY SUM(CASE WHEN a.col = '` + colPeriodHours + `' THEN a.v ELSE 0 END) DESC,
-           SUM(CASE WHEN a.col = '` + colWeekHours + `' THEN a.v ELSE 0 END) DESC, a.nik COLLATE "C"
+           SUM(CASE WHEN a.col LIKE '` + colWeekPrefix + `%' THEN a.v ELSE 0 END) DESC, a.nik COLLATE "C"
   LIMIT $8
 )
 SELECT a.nik || chr(31) || ` + expr + ` || chr(31) || COALESCE(e.emp_name, '') || chr(31) || COALESCE(e.division, '') || chr(31) || COALESCE(e.dept_name, '') || chr(31) || COALESCE(e.company, '') AS category,
@@ -256,7 +293,38 @@ func (e *employeeOTRow) meta() map[string]any {
 }
 
 // employeeOTColumns are the table columns in display order.
-var employeeOTColumns = []string{colPeriodHours, colWeekHours, colExcess, colChronic}
+// The week columns (colWeekPrefix) follow them, ascending by date (HD-25).
+var employeeOTColumns = []string{colPeriodHours, colExcess, colWeeksOver, colChronic}
+
+// isWeekCol reports whether a column key is one week's limit hours.
+func isWeekCol(c string) bool { return strings.HasPrefix(c, colWeekPrefix) }
+
+// weekTotal is the sum of the week columns of the employee (rank tie-break after period hours).
+func (e *employeeOTRow) weekTotal() float64 {
+	var t float64
+	for c, v := range e.vals {
+		if isWeekCol(c) {
+			t += v
+		}
+	}
+	return t
+}
+
+// weekColumns are the distinct week columns present in the rows, ascending.
+func weekColumns(emps []*employeeOTRow) []string {
+	seen := map[string]struct{}{}
+	cols := make([]string, 0)
+	for _, e := range emps {
+		for c := range e.vals {
+			if _, ok := seen[c]; isWeekCol(c) && !ok {
+				seen[c] = struct{}{}
+				cols = append(cols, c)
+			}
+		}
+	}
+	sort.Strings(cols)
+	return cols
+}
 
 // collectEmployeeOT folds (nik|group|name|division|dept|company, column, value) rows into employees.
 func collectEmployeeOT(rows []factmetric.AggRow) []*employeeOTRow {
@@ -309,15 +377,23 @@ func employeeOTSubtotals(emps []*employeeOTRow) []any {
 		if e.vals[colExcess] > 0 {
 			s.over++
 		}
-		for _, c := range []string{colPeriodHours, colWeekHours, colExcess} {
-			s.sums[c] += e.vals[c]
+		for c, v := range e.vals {
+			if c == colPeriodHours || c == colExcess || isWeekCol(c) {
+				s.sums[c] += v
+			}
 		}
 	}
 	out := make([]any, 0, len(order))
 	for _, s := range order {
-		out = append(out, map[string]any{"group": s.group, "employees": s.n,
-			colPeriodHours: s.sums[colPeriodHours], colWeekHours: s.sums[colWeekHours], colExcess: s.sums[colExcess],
-			"avg_period_hours": round1(s.sums[colPeriodHours] / s.n), "over_pct": round1(s.over / s.n * 100)})
+		m := map[string]any{"group": s.group, "employees": s.n,
+			colPeriodHours: s.sums[colPeriodHours], colExcess: s.sums[colExcess],
+			"avg_period_hours": round1(s.sums[colPeriodHours] / s.n), "over_pct": round1(s.over / s.n * 100)}
+		for c, v := range s.sums {
+			if isWeekCol(c) {
+				m[c] = v
+			}
+		}
+		out = append(out, m)
 	}
 	return out
 }
@@ -406,16 +482,21 @@ func shapeEmployeeOT(rows []factmetric.AggRow, f ViewerFilters, numFmt chart.Num
 	for _, e := range emps {
 		niks = append(niks, e.nik)
 	}
-	series := make([]Series, 0, len(employeeOTColumns))
-	for _, c := range employeeOTColumns {
+	cols := append(append([]string{}, employeeOTColumns...), weekColumns(emps)...)
+	series := make([]Series, 0, len(cols))
+	for _, c := range cols {
 		cf, cd := numFmt, decimals
-		if c == colChronic {
+		if c == colChronic || c == colWeeksOver {
 			cf, cd = chart.NumberFormat("raw"), 0
 		}
 		pts := make([]DataPoint, 0, len(emps))
 		for _, e := range emps {
 			v := e.vals[c]
-			pts = append(pts, DataPoint{Category: e.nik, Value: v, Label: chart.Format(v, cf, cd), Meta: e.meta()})
+			pt := DataPoint{Category: e.nik, Value: v, Label: chart.Format(v, cf, cd)}
+			if !isWeekCol(c) { // identity & comparison ride on the fixed columns only: ~52 week series would repeat it per cell
+				pt.Meta = e.meta()
+			}
+			pts = append(pts, pt)
 		}
 		series = append(series, Series{Name: c, Points: pts})
 	}
@@ -441,14 +522,14 @@ func shapeEmployeeOT(rows []factmetric.AggRow, f ViewerFilters, numFmt chart.Num
 	return series, niks, block
 }
 
-// rankBefore is the SQL row-limit order: period hours, week hours (both descending), then NIK
+// rankBefore is the SQL row-limit order: period hours, total week hours (both descending), then NIK
 // byte order (COLLATE "C" in SQL), so the dropped extra row is the one SQL ranked last.
 func rankBefore(a, b *employeeOTRow) bool {
 	if a.vals[colPeriodHours] != b.vals[colPeriodHours] {
 		return a.vals[colPeriodHours] > b.vals[colPeriodHours]
 	}
-	if a.vals[colWeekHours] != b.vals[colWeekHours] {
-		return a.vals[colWeekHours] > b.vals[colWeekHours]
+	if aw, bw := a.weekTotal(), b.weekTotal(); aw != bw {
+		return aw > bw
 	}
 	return a.nik < b.nik
 }
@@ -526,6 +607,7 @@ func addEmployeeOTRanges(r *Result, d *dashboarddomain.Dashboard, f ViewerFilter
 	if err != nil {
 		return
 	}
+	block["weeks"] = employeeOTWeeks(w, wibDate(now))
 	block["ranges"] = map[string]any{
 		"period_from": w.FirstStart.Format(time.DateOnly), "period_to": w.PeriodTo.Format(time.DateOnly),
 		"last_period_from": w.LastStart.Format(time.DateOnly), "day_from": w.DayFrom.Format(time.DateOnly),
@@ -533,4 +615,26 @@ func addEmployeeOTRanges(r *Result, d *dashboarddomain.Dashboard, f ViewerFilter
 		"week_label": PeriodLabel(w.Week, grainWeekly),
 		"prev_from":  payrollStart(w.PrevFrom).Format(time.DateOnly), "prev_to": w.PrevTo.Format(time.DateOnly),
 	}
+}
+
+// employeeOTWeeks describes the week columns of the R1 window for the header (HD-25): the column key,
+// the label "W<n>" counted within the payroll period the Sunday belongs to (K10), the Monday–Sunday
+// range and whether the week is still running (partial, HD-17).
+func employeeOTWeeks(w EmployeeOTWindows, today time.Time) []any {
+	out := make([]any, 0, len(w.Weeks))
+	var curPeriod string
+	n := 0
+	for _, mon := range w.Weeks {
+		sun := mon.AddDate(0, 0, 6)
+		period := PeriodLabel(payrollEnd(sun), "MONTHLY")
+		if period != curPeriod {
+			curPeriod, n = period, 0
+		}
+		n++
+		out = append(out, map[string]any{
+			"key": colWeekPrefix + mon.Format(time.DateOnly), "label": fmt.Sprintf("W%d", n), "period": period,
+			"from": mon.Format(time.DateOnly), "to": sun.Format(time.DateOnly), "partial": sun.After(today),
+		})
+	}
+	return out
 }
