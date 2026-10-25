@@ -531,6 +531,29 @@ func TestShapeEmployeeOT_WeekCellsAndOver(t *testing.T) {
 	}
 }
 
+// Over weeks without a column ride on the row meta (HD-26, H053); they never become series.
+func TestShapeEmployeeOT_HiddenOverInMeta(t *testing.T) {
+	rows := []factmetric.AggRow{
+		otRow("N1", "PRD", "PERIOD_HOURS", 40), otRow("N1", "PRD", "W:2026-10-19", 10),
+		otRow("N1", "PRD", "HO:2026-07-20", 24.6), otRow("N1", "PRD", "HO:2026-06-01", 15),
+		otRow("N1", "PRD", "EXCESS", 10.6),
+	}
+	series, _, _ := chartdata.ShapeEmployeeOTForTest(rows, chartdata.ViewerFilters{})
+	for _, s := range series {
+		if strings.HasPrefix(s.Name, "HO:") {
+			t.Fatalf("hidden over became a series: %s", s.Name)
+		}
+	}
+	m := series[0].Points[0].Meta
+	ho := m["hidden_over"].([]any)
+	if len(ho) != 2 || m["hidden_over_count"] != 2 {
+		t.Fatalf("meta = %v", m)
+	}
+	if first := ho[0].(map[string]any); first["from"] != "2026-07-20" || first["hours"] != 24.6 {
+		t.Errorf("newest first: %v", ho)
+	}
+}
+
 func TestEmployeeOT_ComparePeriod(t *testing.T) {
 	d := employeeOTDashboard(t)
 	t.Run("default tak berubah", func(t *testing.T) {

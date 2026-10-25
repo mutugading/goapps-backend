@@ -29,6 +29,13 @@ const (
 // that week (HR_OT_WEEK WEEKLY, HD-25) sit in that column; a week without a row for the NIK is 0.
 const colWeekPrefix = "W:"
 
+// colHiddenOverPrefix marks the rows of an over-limit week that has no column (HD-26, H053): the value
+// is the week's limit hours. They never become series; shapeEmployeeOT folds them into the row meta.
+const colHiddenOverPrefix = "HO:"
+
+// employeeOTMaxHiddenOver caps the hidden over weeks listed per employee (newest first).
+const employeeOTMaxHiddenOver = 5
+
 // Group-by keys of the Employee Overtime table (HD-18, HD-19).
 const (
 	GroupByDivision = "DIVISION"
@@ -261,6 +268,15 @@ func planEmployeeOT(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time
     AND periode_date BETWEEN $12 AND $7 AND COALESCE(group_3, '') <> ''
   GROUP BY group_3, periode_date
   UNION ALL
+  SELECT w.group_3, '` + colHiddenOverPrefix + `' || TO_CHAR(w.periode_date, 'YYYY-MM-DD'), SUM(w.value)
+  FROM bi_fact_metric w
+  WHERE w.type = $4 AND w.periode_grain = 'WEEKLY' AND w.is_active = TRUE
+    AND w.periode_date >= $11 AND w.periode_date < $12 AND COALESCE(w.group_3, '') <> ''
+    AND EXISTS (SELECT 1 FROM bi_fact_metric x
+                WHERE x.type = $5 AND x.periode_grain = 'WEEKLY' AND x.is_active = TRUE AND x.value > 0
+                  AND x.group_3 = w.group_3 AND x.periode_date = w.periode_date)
+  GROUP BY w.group_3, w.periode_date
+  UNION ALL
   SELECT group_3, '` + colExcess + `', MAX(value)
   FROM bi_fact_metric
   WHERE type = $5 AND periode_grain = 'WEEKLY' AND is_active = TRUE AND value > 0
@@ -333,11 +349,32 @@ type employeeOTRow struct {
 func (e *employeeOTRow) meta() map[string]any {
 	m := map[string]any{"name": e.name, "group": e.group, "division": e.division, "dept": e.dept, "company": e.company,
 		"prev_hours": nil, "delta_pct": nil}
+	m["hidden_over"], m["hidden_over_count"] = e.hiddenOver()
 	if prev, ok := e.vals[colPrevHours]; ok {
 		m["prev_hours"] = prev
 		m["delta_pct"] = pctDelta(e.vals[colPeriodHours], prev)
 	}
 	return m
+}
+
+// hiddenOver lists the over-limit weeks outside the week columns, newest first, capped at
+// employeeOTMaxHiddenOver, plus the total count (HD-26, H053). Hours are the week's limit hours.
+func (e *employeeOTRow) hiddenOver() ([]any, int) {
+	var froms []string
+	for c := range e.vals {
+		if strings.HasPrefix(c, colHiddenOverPrefix) {
+			froms = append(froms, strings.TrimPrefix(c, colHiddenOverPrefix))
+		}
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(froms)))
+	out := make([]any, 0, employeeOTMaxHiddenOver)
+	for i, f := range froms {
+		if i == employeeOTMaxHiddenOver {
+			break
+		}
+		out = append(out, map[string]any{"from": f, "hours": e.vals[colHiddenOverPrefix+f]})
+	}
+	return out, len(froms)
 }
 
 // employeeOTColumns are the table columns in display order.
@@ -660,6 +697,7 @@ func addEmployeeOTRanges(r *Result, d *dashboarddomain.Dashboard, f ViewerFilter
 	}
 	block["weeks"] = employeeOTWeeks(w, wibDate(now))
 	block["weeks_truncated"] = len(w.Weeks) > len(w.ColumnWeeks())
+	block["weeks_total"] = float64(len(w.Weeks))
 	alignWeekSeries(r, w.ColumnWeeks(), pickNumberFormat(d.ChartConfig()), d.ChartConfig().Decimals)
 	block["ranges"] = map[string]any{
 		"period_from": w.FirstStart.Format(time.DateOnly), "period_to": w.PeriodTo.Format(time.DateOnly),
