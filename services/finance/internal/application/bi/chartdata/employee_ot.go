@@ -137,6 +137,33 @@ func ResolveEmployeeOTWindows(preset string, today time.Time) (EmployeeOTWindows
 		Week: week, Weeks: weeks, DayFrom: dayFrom, PrevFrom: first.AddDate(0, -periods, 0), PrevTo: first.AddDate(0, -1, 0)}, nil
 }
 
+// ApplyEmployeeOTComparePeriod points the comparison window at an explicit payroll period (HD-25):
+// cmp is its label YYYYMM (K3, month of the closing 25th). The window keeps the length of the R1
+// window and ends at that period. Empty cmp keeps the default (the periods right before, HD-24).
+// The period must be a real month, not after the running period, and the window must not overlap
+// the current one.
+func ApplyEmployeeOTComparePeriod(w EmployeeOTWindows, cmp string, today time.Time) (EmployeeOTWindows, error) {
+	cmp = strings.TrimSpace(cmp)
+	if cmp == "" {
+		return w, nil
+	}
+	t, err := time.ParseInLocation("200601", cmp, w.PeriodTo.Location())
+	if err != nil {
+		return w, fmt.Errorf("%w: compare_period %q must be YYYYMM", factmetric.ErrInvalidPlan, cmp)
+	}
+	end := time.Date(t.Year(), t.Month(), 25, 0, 0, 0, 0, w.PeriodTo.Location())
+	if end.After(payrollEnd(today)) {
+		return w, fmt.Errorf("%w: compare_period %q is after the running period", factmetric.ErrInvalidPlan, cmp)
+	}
+	periods := (w.PeriodTo.Year()-w.PeriodFrom.Year())*12 + int(w.PeriodTo.Month()) - int(w.PeriodFrom.Month()) + 1
+	from := end.AddDate(0, -(periods - 1), 0)
+	if !end.Before(w.PeriodFrom) {
+		return w, fmt.Errorf("%w: compare_period %q overlaps the current window", factmetric.ErrInvalidPlan, cmp)
+	}
+	w.PrevFrom, w.PrevTo = from, end
+	return w, nil
+}
+
 // employeeOTPreset is the viewer preset, or the dashboard default when none is sent.
 func employeeOTPreset(d *dashboarddomain.Dashboard, f ViewerFilters) string {
 	if f.PeriodPreset == "" {
@@ -170,6 +197,9 @@ func planEmployeeOT(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time
 	}
 	if len(f.DrillPath) > 0 {
 		return planEmployeeOTDays(f.DrillPath[0], w), nil
+	}
+	if w, err = ApplyEmployeeOTComparePeriod(w, f.ComparePeriod, wibDate(now)); err != nil {
+		return factmetric.PlannedQuery{}, err
 	}
 	groupBy, err := normalizeEmployeeOTGroupBy(f.GroupBy)
 	if err != nil {
@@ -605,6 +635,9 @@ func addEmployeeOTRanges(r *Result, d *dashboarddomain.Dashboard, f ViewerFilter
 	}
 	w, err := ResolveEmployeeOTWindows(employeeOTPreset(d, f), wibDate(now))
 	if err != nil {
+		return
+	}
+	if w, err = ApplyEmployeeOTComparePeriod(w, f.ComparePeriod, wibDate(now)); err != nil {
 		return
 	}
 	block["weeks"] = employeeOTWeeks(w, wibDate(now))

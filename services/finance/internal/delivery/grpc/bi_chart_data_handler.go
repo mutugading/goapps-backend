@@ -172,6 +172,7 @@ func chartResultToProto(r *chartdataapp.Result) *financev1.ChartDataResponse {
 //   - x-group2-filter: comma-separated group_2 values for filter-chip selections.
 //   - x-group-by: group-by key of the employee_ot table (DIVISION | DEPT; HD-18), whitelisted in the planner.
 //   - x-group-filter: JSON array of selected values of that group (employee_ot; replaces x-group1-filter).
+//   - x-compare-period: payroll period YYYYMM compared against by employee_ot (HD-25); validated in the planner.
 //   - x-computed-ratio: JSON-encoded ComputedRatioConfig for the /computed BFF route.
 //   - x-force-trend: when "true", overrides x_axis_field and forces isTrend=true in Plan().
 //     Used by the monthly-detail BFF to fetch period-grouped series from categorical
@@ -189,6 +190,9 @@ func applyMetadataFilters(ctx context.Context, f *chartdataapp.ViewerFilters) {
 	}
 	if vals := md.Get("x-group-by"); len(vals) > 0 {
 		f.GroupBy = vals[0]
+	}
+	if vals := md.Get("x-compare-period"); len(vals) > 0 {
+		f.ComparePeriod = vals[0]
 	}
 	// A malformed x-group-filter is ignored like a malformed x-computed-ratio (no filter).
 	if vals := md.Get("x-group-filter"); len(vals) > 0 && vals[0] != "" {

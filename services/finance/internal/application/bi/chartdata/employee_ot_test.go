@@ -530,3 +530,45 @@ func TestShapeEmployeeOT_WeekCellsAndOver(t *testing.T) {
 		t.Errorf("weeks over = %+v", series[2].Points)
 	}
 }
+
+func TestEmployeeOT_ComparePeriod(t *testing.T) {
+	d := employeeOTDashboard(t)
+	t.Run("default tak berubah", func(t *testing.T) {
+		p, err := chartdata.Plan(d, chartdata.ViewerFilters{PeriodPreset: "THIS_MONTH"}, otNow)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p.Args[8] != isoDay("2026-09-25") || p.Args[9] != isoDay("2026-09-25") {
+			t.Errorf("prev args = %v", p.Args[8:10])
+		}
+	})
+	t.Run("periode terpilih", func(t *testing.T) {
+		p, err := chartdata.Plan(d, chartdata.ViewerFilters{PeriodPreset: "THIS_MONTH", ComparePeriod: "202607"}, otNow)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p.Args[8] != isoDay("2026-07-25") || p.Args[9] != isoDay("2026-07-25") {
+			t.Errorf("prev args = %v", p.Args[8:10])
+		}
+	})
+	t.Run("jendela sama panjang", func(t *testing.T) {
+		p, err := chartdata.Plan(d, chartdata.ViewerFilters{PeriodPreset: "THIS_QTR", ComparePeriod: "202606"}, isoDay("2026-12-20"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p.Args[8] != isoDay("2026-04-25") || p.Args[9] != isoDay("2026-06-25") {
+			t.Errorf("prev args = %v", p.Args[8:10])
+		}
+	})
+	for _, c := range []struct{ name, cmp string }{
+		{"format salah", "2026-07"}, {"bulan tak ada", "202613"},
+		{"jendela sekarang", "202610"}, {"masa depan", "202701"},
+	} {
+		t.Run("tak valid "+c.name, func(t *testing.T) {
+			_, err := chartdata.Plan(d, chartdata.ViewerFilters{PeriodPreset: "THIS_MONTH", ComparePeriod: c.cmp}, otNow)
+			if !errors.Is(err, factmetric.ErrInvalidPlan) {
+				t.Errorf("err = %v", err)
+			}
+		})
+	}
+}

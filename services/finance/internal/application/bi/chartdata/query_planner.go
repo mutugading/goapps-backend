@@ -33,6 +33,9 @@ type ViewerFilters struct {
 	// of the cache hash like every other field.
 	GroupBy     string
 	GroupFilter []string
+	// ComparePeriod is the explicit comparison payroll period (YYYYMM) of the employee_ot table
+	// (HD-25); empty = the periods right before the window (HD-24).
+	ComparePeriod string
 	// ForceTrend, when true, overrides the chart_config x_axis_field and forces isTrend=true
 	// in Plan(). Used by the monthly-detail BFF to fetch time-series data from dashboards
 	// (e.g. EBITDA) whose chart_config is categorical (waterfall), not period-grouped.
