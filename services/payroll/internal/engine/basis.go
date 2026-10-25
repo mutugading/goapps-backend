@@ -36,13 +36,61 @@ type Basis struct {
 	Gapok       decimal.Decimal // Σ A(T,1)
 	GapokSts    string          // STS(T,1); "" when T1 absent
 	Tetap       decimal.Decimal // Σ A(T,{1,2,3,4,7,9,55})
-	TetapD      decimal.Decimal // prorated variant for STS='D'; equals Tetap otherwise
+	TetapD      decimal.Decimal // TETAP/DM × pay_tot + dirumahkan × TETAP/DM/2 (D-25)
 	JanBase     decimal.Decimal // A(T,901)
+	JanBaseD    decimal.Decimal // JAN_BASE prorated like TETAP_D
 	RateOT      decimal.Decimal // overtime hourly rate, per division/level
 	DaysPeriod  int             // end − start + 1; 0 when the period dates are unset
 	DaysMonth   decimal.Decimal // DM
 	HoursMonth  decimal.Decimal // HM
 	rateJamBase decimal.Decimal
+	hasRekap    bool // a legacy recap row exists: recap present and T1 present
+	hasTetap    bool // legacy SUM over no rows is NULL
+	hasJanBase  bool
+}
+
+// anyOf reports whether any of the T components with the given ids exists.
+func anyOf(comps map[CompKey]EmpComponent, ids ...int) bool {
+	for _, id := range ids {
+		if _, ok := comps[CompKey{CompT, id}]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// Recap columns read by the bases and formulas (06§1 R.x).
+const (
+	colPayTot     = "pay_tot"
+	colDayWork    = "day_work"
+	colDirumahkan = "dirumahkan"
+	colAlpa       = "alpa"
+	colIjin       = "ijin"
+)
+
+// rekapOrZero is NVL(MPAR_col, 0) with the legacy row semantics of hasRekap.
+func (b Basis) rekapOrZero(in Input, col string) decimal.Decimal {
+	if !b.hasRekap {
+		return decimal.Zero
+	}
+	return in.Att.Get(col)
+}
+
+// prorateBasis is legacy V_GPTUNJTETAP_D: base/DM × pay_tot + dirumahkan × base/DM/2,
+// in that operation order and without intermediate rounding (06§1).
+func prorateBasis(base, dm, payTot, dirumahkan decimal.Decimal) (decimal.Decimal, error) {
+	perDay, err := money.Div(base, dm)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	half, err := money.Div(dirumahkan.Mul(base), dm)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	if half, err = money.Div(half, decimal.NewFromInt(2)); err != nil {
+		return decimal.Zero, err
+	}
+	return perDay.Mul(payTot).Add(half), nil
 }
 
 // amountOf sums the amounts of the T components with the given ids.
@@ -101,30 +149,24 @@ func computeBasis(in Input) (Basis, error) {
 
 	b := Basis{DaysMonth: dm, HoursMonth: hm}
 	b.Gapok = amountOf(comps, idGapok)
-	if c, ok := comps[CompKey{CompT, idGapok}]; ok {
-		b.GapokSts = c.Sts
+	gapok, hasT1 := comps[CompKey{CompT, idGapok}]
+	if hasT1 {
+		b.GapokSts = gapok.Sts
 	}
+	// Legacy C_ATT_REKAP joins COMPNT_EMP T1: without T1 every MPAR_* value is NULL.
+	b.hasRekap = in.HasRekap() && hasT1
 	b.Tetap = amountOf(comps, tetapIDs()...)
 	b.JanBase = amountOf(comps, idJanBase)
+	b.hasTetap = anyOf(comps, tetapIDs()...)
+	b.hasJanBase = anyOf(comps, idJanBase)
 	b.DaysPeriod = daysBetween(in.Period.Start, in.Period.End)
 
-	// TETAP_D: each component prorated amount/DM × pay_tot [V: legacy C_GPTUNJTETAP branch D].
-	b.TetapD = b.Tetap
-	if b.GapokSts == "D" { // STS(T,1) is the single source (06§2)
-		payTot := in.Att.Get("pay_tot")
-		sum := decimal.Zero
-		for _, id := range tetapIDs() {
-			c, ok := comps[CompKey{CompT, id}]
-			if !ok {
-				continue
-			}
-			q, err := money.Div(c.Amount, dm)
-			if err != nil {
-				return Basis{}, err
-			}
-			sum = sum.Add(q.Mul(payTot))
-		}
-		b.TetapD = sum
+	// TETAP_D / JAN_BASE_D (D-25): always computed; used by components whose own STS is 'D'.
+	if b.TetapD, err = prorateBasis(b.Tetap, dm, b.rekapOrZero(in, colPayTot), b.rekapOrZero(in, colDirumahkan)); err != nil {
+		return Basis{}, err
+	}
+	if b.JanBaseD, err = prorateBasis(b.JanBase, dm, b.rekapOrZero(in, colPayTot), b.rekapOrZero(in, colDirumahkan)); err != nil {
+		return Basis{}, err
 	}
 
 	// RATE_OT: JAKARTA T1/HM; Executive Σ T{1,2,3,4}/HM; others Σ T{1,7,55}/HM.

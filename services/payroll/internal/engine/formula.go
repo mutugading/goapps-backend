@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	"github.com/shopspring/decimal"
-
-	"github.com/mutugading/goapps-backend/services/payroll/internal/engine/money"
 )
 
 // Formula codes known to the skeleton. Component-specific formulas are added by later tasks.
@@ -56,7 +54,7 @@ func (r Registry) Get(code string) (Formula, bool) {
 
 // DefaultRegistry returns the formulas implemented so far.
 func DefaultRegistry() Registry {
-	r, err := NewRegistry(fixedOrProrate{})
+	r, err := NewRegistry(append([]Formula{fixedOrProrate{}}, tFormulas()...)...)
 	if err != nil {
 		panic(err) // static set, cannot fail
 	}
@@ -70,9 +68,8 @@ type formulaSpec struct {
 }
 
 // specFor resolves the formula of a component. ok is false when the component has no
-// explicit mapping yet; it then evaluates with the default (amount as-is, 06§3 "lainnya")
-// and Calculate flags the result incomplete. Per-ID mappings (06§3, 06§4) arrive with
-// the formula tasks.
+// explicit mapping yet; it then evaluates with FIXED_OR_PRORATE and Calculate flags the
+// result incomplete. T ids follow the legacy branches (tSpecFor, D-25); P ids arrive with T012.
 func specFor(k CompKey) (spec formulaSpec, ok bool) {
 	if k.Type == CompP {
 		switch k.ID {
@@ -85,11 +82,7 @@ func specFor(k CompKey) (spec formulaSpec, ok bool) {
 		}
 		return formulaSpec{Code: FormulaFixedOrProrate}, false
 	}
-	switch k.ID {
-	case 1, 2, 3, 4, 5, 7, 8, 9, 19, 20:
-		return formulaSpec{Code: FormulaFixedOrProrate}, true
-	}
-	return formulaSpec{Code: FormulaFixedOrProrate}, false
+	return tSpecFor(k.ID)
 }
 
 // isPPh reports whether k is evaluated in the PPh phase (P1, P5, P0, in that order).
@@ -120,22 +113,20 @@ func (c *EvalCtx) Line(k CompKey) (Line, bool) {
 	return l, ok
 }
 
-// fixedOrProrate is PRO(A): A when STS='F', A/DM × pay_tot when STS='D' (06§3).
-// The D-with-dirumahkan supplement is [V] and not implemented yet.
+// fixedOrProrate is PRO(A): A when STS='F', A/DM × pay_tot when STS='D' (06§3). Legacy has no
+// dirumahkan supplement on the component itself (that is T1xx, D-25); STS D without a recap
+// row and any other STS give NULL.
 type fixedOrProrate struct{}
 
 func (fixedOrProrate) Code() string { return FormulaFixedOrProrate }
 
 func (fixedOrProrate) Eval(ctx *EvalCtx, c EmpComponent, _ Params) (*decimal.Decimal, string, error) {
-	if c.Sts != "D" {
+	switch c.Sts {
+	case stsFull:
 		a := c.Amount
 		return &a, "", nil
+	case stsProrate:
+		return prorate(ctx, c.Amount)
 	}
-	q, err := money.Div(c.Amount, ctx.Basis.DaysMonth)
-	if err != nil {
-		return nil, "", err
-	}
-	payTot := ctx.In.Att.Get("pay_tot")
-	a := q.Mul(payTot)
-	return &a, fmt.Sprintf("%s / %s × %s hari", c.Amount, ctx.Basis.DaysMonth, payTot), nil
+	return nil, "", nil
 }

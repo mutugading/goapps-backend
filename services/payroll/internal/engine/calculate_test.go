@@ -51,12 +51,13 @@ func TestBasis(t *testing.T) {
 		gapok, tetap, tetapD, jan string
 		rateOT                    string // exact 38-digit value computed via Div
 	}{
+		// TETAP_D is always prorated (D-25): 4230000/30*26 = 3666000.
 		// Others: (T1+T7+T55)/173 = 3630000/173
-		{"solo staff F", "SOLO", "staff", "F", "3000000", "4230000", "4230000", "4000000", "20982.658959537572254335260115606936416185"},
+		{"solo staff F", "SOLO", "staff", "F", "3000000", "4230000", "3666000", "4000000", "20982.658959537572254335260115606936416185"},
 		// JAKARTA: T1/173 = 3000000/173
-		{"jakarta", "JAKARTA", "staff", "F", "3000000", "4230000", "4230000", "4000000", "17341.040462427745664739884393063583815029"},
+		{"jakarta", "JAKARTA", "staff", "F", "3000000", "4230000", "3666000", "4000000", "17341.040462427745664739884393063583815029"},
 		// Executive: (T1+T2+T3+T4)/173 = 3540000/173
-		{"executive", "SOLO", "Executive", "F", "3000000", "4230000", "4230000", "4000000", "20462.427745664739884393063583815028901734"},
+		{"executive", "SOLO", "Executive", "F", "3000000", "4230000", "3666000", "4000000", "20462.427745664739884393063583815028901734"},
 		// D: each / 30 × 26 → 4230000/30*26 = 3666000
 		{"solo staff D", "SOLO", "staff", "D", "3000000", "4230000", "3666000", "4000000", "20982.658959537572254335260115606936416185"},
 	}
@@ -289,21 +290,22 @@ func TestJakartaBeatsExecutiveAndAcceptsJKT(t *testing.T) {
 	}
 }
 
-func TestTetapDFollowsT1Sts(t *testing.T) {
-	// Emp.GapokSts says D but T1 is F: T1 is the single source, so no proration.
-	in := baseInput("SOLO", "staff", "D", tc(1, "3000000", "F"), tc(2, "300000", "F"))
+func TestTetapDLegacy(t *testing.T) {
+	// Legacy V_GPTUNJTETAP_D: TETAP/30 × pay_tot + dirumahkan × TETAP/30/2, whatever STS(T,1) is.
+	in := baseInput("SOLO", "staff", "F", tc(1, "3000000", "F"), tc(2, "300000", "F"), tc(901, "600000", "F"))
+	in.Att = AttRekap{"pay_tot": d("20"), "dirumahkan": d("6")}
 	b, err := computeBasis(in)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !b.TetapD.Equal(b.Tetap) {
-		t.Errorf("tetapD = %s, want %s", b.TetapD, b.Tetap)
+	// 3300000/30*20 + 6*3300000/30/2 = 2200000 + 330000; JAN: 600000/30*20 + 6*600000/30/2 = 460000
+	if !b.TetapD.Equal(d("2530000")) || !b.JanBaseD.Equal(d("460000")) {
+		t.Errorf("tetapD = %s janBaseD = %s, want 2530000 460000", b.TetapD, b.JanBaseD)
 	}
-	// STS D without pay_tot prorates to zero.
-	in = baseInput("SOLO", "staff", "D", tc(1, "3000000", "D"))
-	in.Att = AttRekap{}
-	if b, _ = computeBasis(in); !b.TetapD.IsZero() {
-		t.Errorf("tetapD without pay_tot = %s, want 0", b.TetapD)
+	// Without T1 the legacy recap join yields no row: recap columns are NULL → TETAP_D 0.
+	in.Components = []EmpComponent{tc(2, "300000", "F")}
+	if b, _ = computeBasis(in); !b.TetapD.IsZero() || b.hasRekap {
+		t.Errorf("no T1: tetapD = %s hasRekap = %v, want 0 false", b.TetapD, b.hasRekap)
 	}
 }
 

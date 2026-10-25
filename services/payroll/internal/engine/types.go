@@ -91,7 +91,7 @@ func (r AttRekap) Get(col string) decimal.Decimal {
 // AttRekapAdd is the additional recap (day_work_add, pay_tot_add, shift_add).
 type AttRekapAdd = AttRekap
 
-// SchRekap is the schedule recap used by shift components.
+// SchRekap is the schedule recap (pyr_stg_sch_rekap) keyed by schedule code, e.g. "NW", "NWS".
 type SchRekap = AttRekap
 
 // Addition is one pyr_addition amount for a component.
