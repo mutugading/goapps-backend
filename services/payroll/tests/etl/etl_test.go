@@ -165,3 +165,51 @@ func TestETL_RollbackOnMissingMap(t *testing.T) {
 		t.Errorf("rollback gagal, T900 tersisa: %s", n)
 	}
 }
+
+func TestETL_InputsIdempotentAndCounts(t *testing.T) {
+	ctx := context.Background()
+	src := etl.PSVDir{Dir: "testdata"}
+	o := etl.InputOptions{CompanyID: 1, ExpectAddition: 3, ExpectAbnormal: 2}
+	snap := func() string {
+		return scalar(t, `SELECT md5(
+		  (SELECT string_agg(psv_vs_code||psv_code||coalesce(psv_name,''), ',' ORDER BY 1) FROM payroll.pyr_static_value) ||
+		  (SELECT string_agg(prc_key||coalesce(prc_division,'*')||prc_value, ',' ORDER BY 1) FROM payroll.pyr_rule_constant) ||
+		  (SELECT string_agg(pa_nik||pa_type||pa_id||pa_amount||pa_source, ',' ORDER BY 1) FROM payroll.pyr_addition) ||
+		  (SELECT string_agg(pta_nik||pta_amount, ',' ORDER BY 1) FROM payroll.pyr_tax_adj) ||
+		  (SELECT string_agg(phd_date::text, ',' ORDER BY 1) FROM payroll.pyr_holiday) ||
+		  (SELECT string_agg(pap_date::text, ',' ORDER BY 1) FROM payroll.pyr_abnormal_premi))`)
+	}
+	if _, err := etl.RunInputs(ctx, etlDB, src, o); err != nil {
+		t.Fatal(err)
+	}
+	first := snap()
+	reps, err := etl.RunInputs(ctx, etlDB, src, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap() != first {
+		t.Fatal("run kedua mengubah hasil (tidak idempotent)")
+	}
+	for _, r := range reps {
+		if !r.OK() {
+			t.Errorf("%s src=%d dst=%d", r.Table, r.SrcRows, r.DstRows)
+		}
+	}
+	for q, want := range map[string]string{
+		`SELECT count(*) FROM payroll.pyr_static_value`:                                    "3",
+		`SELECT count(*) FROM payroll.pyr_rule_constant`:                                   "13",
+		`SELECT count(*) FROM payroll.pyr_attd_days`:                                       "2",
+		`SELECT count(*) FROM payroll.pyr_subsidi_pph`:                                     "2",
+		`SELECT count(*) FROM payroll.pyr_holiday`:                                         "2",
+		`SELECT count(*) FROM payroll.pyr_addition WHERE pa_source='LEGACY'`:               "3",
+		`SELECT sum(pa_amount)::text FROM payroll.pyr_addition`:                            "1750000.75",
+		`SELECT pta_amount::text FROM payroll.pyr_tax_adj`:                                 "1250000.50",
+		`SELECT count(*) FROM payroll.pyr_abnormal_premi`:                                  "2",
+		`SELECT count(*) FROM payroll.pyr_batal_premi`:                                     "2",
+		`SELECT prc_value::text FROM payroll.pyr_rule_constant WHERE prc_key='DAYS_MONTH'`: "30.000000",
+	} {
+		if got := scalar(t, q); got != want {
+			t.Errorf("%s = %s, want %s", q, got, want)
+		}
+	}
+}

@@ -287,11 +287,7 @@ func Run(ctx context.Context, db *sql.DB, src Source, o Options) ([]TableReport,
 // logAndCheck rejects count mismatches and unexpected source sizes, then writes pyr_migration_log.
 func logAndCheck(ctx context.Context, tx *sql.Tx, reps []TableReport, o Options) error {
 	for _, r := range reps {
-		if !r.OK() {
-			return fmt.Errorf("%s: jumlah baris sumber %d != tujuan %d", r.Table, r.SrcRows, r.DstRows)
-		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO payroll.pyr_migration_log (pml_company_id, pml_table, pml_src_rows, pml_dst_rows, pml_checksum, pml_ok)
-VALUES ($1,$2,$3,$4,$5,true)`, o.CompanyID, r.Table, r.SrcRows, r.DstRows, r.Checksum); err != nil {
+		if err := logReport(ctx, tx, o.CompanyID, r); err != nil {
 			return err
 		}
 	}
@@ -302,4 +298,14 @@ VALUES ($1,$2,$3,$4,$5,true)`, o.CompanyID, r.Table, r.SrcRows, r.DstRows, r.Che
 		return fmt.Errorf("template: %d baris, diharapkan %d", reps[1].SrcRows, o.ExpectTemplate)
 	}
 	return nil
+}
+
+// logReport rejects a count mismatch, otherwise records the table in pyr_migration_log.
+func logReport(ctx context.Context, tx *sql.Tx, company int16, r TableReport) error {
+	if !r.OK() {
+		return fmt.Errorf("%s: jumlah baris sumber %d != tujuan %d", r.Table, r.SrcRows, r.DstRows)
+	}
+	_, err := tx.ExecContext(ctx, `INSERT INTO payroll.pyr_migration_log (pml_company_id, pml_table, pml_src_rows, pml_dst_rows, pml_checksum, pml_ok)
+VALUES ($1,$2,$3,$4,$5,true)`, company, r.Table, r.SrcRows, r.DstRows, r.Checksum)
+	return err
 }
