@@ -21,6 +21,9 @@ import (
 const (
 	TableComponentMaster   = "MGT_PAYROLL_COMPNT_MASTER"
 	TableComponentTemplate = "MGT_PAYROLL_COMPNT_TEMPLATE"
+	TableEmployee          = "MGT_PAYROLL_EMP"
+	TableEmployeeComponent = "MGT_PAYROLL_COMPNT_EMP"
+	TableHRISEmployee      = "HM_EMP_DATA" // opsional: HMEMD_NIK, HMEMD_SYS_ID (13§3.5)
 )
 
 // Table is one source table: upper-cased column names and string cells ("" = NULL).

@@ -25,10 +25,14 @@ type TableReport struct {
 	SrcRows  int
 	DstRows  int
 	Checksum string
+	// Exceptions are source rows deliberately not loaded (e.g. no sysid map); each is reported, never dropped silently.
+	Exceptions []string
+	// Warnings are loaded rows with a data-quality note for HR (e.g. no HRIS sys_id, bad birth date).
+	Warnings []string
 }
 
-// OK reports whether destination row count equals the source.
-func (r TableReport) OK() bool { return r.SrcRows == r.DstRows }
+// OK reports whether every source row is either loaded or listed in Exceptions.
+func (r TableReport) OK() bool { return r.SrcRows == r.DstRows+len(r.Exceptions) }
 
 // LegacySource labels attachment rows that come from legacy ETL (sisa D-21).
 const LegacySource = "TEMPLATE"
