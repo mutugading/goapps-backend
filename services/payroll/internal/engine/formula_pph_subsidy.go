@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"time"
 
 	"github.com/shopspring/decimal"
 )
@@ -24,6 +25,20 @@ const (
 	MetaSubsidyBasis    = "subsidy_basis"
 	MetaSubsidyLimit    = "subsidy_limit"
 	MetaSubsidyOverride = "subsidy_override"
+	// MetaSubsidySource tells where the basis came from (SubsidySrc*). SubsidySrcLockNow marks
+	// the first full month of the tax year (rule v2): the runner stores its basis as the lock.
+	MetaSubsidySource = "subsidy_basis_source"
+)
+
+// Subsidy basis sources (D-30). v1: basis period → previous period → current lines; v2: lock →
+// first full month (current lines, locked from now on) → provisional nominal without OT.
+const (
+	SubsidySrcBasisPeriod = "BASIS_PERIOD"
+	SubsidySrcPrevPeriod  = "PREV_PERIOD"
+	SubsidySrcCurrent     = "CURRENT"
+	SubsidySrcLocked      = "LOCKED"
+	SubsidySrcLockNow     = "LOCK_NOW"
+	SubsidySrcProvisional = "PROVISIONAL"
 )
 
 // ErrSubsidyKind is returned for a subsidy kind or override action the engine does not know.
@@ -64,18 +79,50 @@ type SubsidyOverride struct {
 	Reason string
 }
 
-// Subsidy is the P0 input, loaded with the rule set (not queried by the engine).
+// Subsidy is the P0 input, loaded with the rule set (not queried by the engine). The loader
+// fills the fields of the active rule version (D-30).
 type Subsidy struct {
 	Rules    []SubsidyRule
 	Override *SubsidyOverride
-	// Basis is Σ Tunjangan tax_subsidy = Y of DETAIL in the rule basis period; nil when the
-	// employee has no DETAIL there. A nil or zero basis falls back to the current lines (06§6.4).
-	Basis *decimal.Decimal
+	// Rule v1. Basis is Σ DETAIL Tunjangan tax_subsidy = Y of the rule basis period (202601);
+	// PrevBasis the same sum of the latest DETAIL period after it and before the run period.
+	// nil = no DETAIL there; nil or zero falls through to the next step (legacy NVL(·,0) = 0).
+	Basis     *decimal.Decimal
+	PrevBasis *decimal.Decimal
+	// Rule v2. Locked is Σ DETAIL tax_subsidy = Y (OT included) of the first full month of the
+	// tax year, LockedYYMM that month; nil while the employee has no full month yet. The runner
+	// stores it from the P0 line whose source is SubsidySrcLockNow.
+	Locked     *decimal.Decimal
+	LockedYYMM int
+}
+
+// isOTSubsidyID reports the overtime T ids (D-30 lists 6/8/20–31/37/44): the v2 provisional basis of
+// the join month leaves them out.
+func isOTSubsidyID(id int) bool {
+	return id == 6 || id == 8 || (id >= 20 && id <= 31) || id == 37 || id == 44
+}
+
+// withSubsidyComponent adds P0 for rule v2 when a rule or override applies: v2 drops the legacy
+// P0-row gate, an individual exclusion is an EXCLUDE override (D-30). Rule v1 keeps the gate:
+// P0 is evaluated only when the loader passes the employee's P0 row (frz = 2).
+func withSubsidyComponent(in Input, comps []EmpComponent) []EmpComponent {
+	if in.Rules.LegacyCompat() {
+		return comps
+	}
+	if _, ok := firstSubsidyRule(in); !ok && in.Subsidy.Override == nil {
+		return comps
+	}
+	k := CompKey{CompP, 0}
+	for _, c := range comps {
+		if c.Key == k {
+			return comps
+		}
+	}
+	return append(comps, EmpComponent{Key: k, Sts: stsFull})
 }
 
 // pphSubsidy is P0 (06§6.4, 12§4): −P1 when the first matching rule's basis ≤ limit, else 0.
-// Legacy computes P0 only for employees with a P0 component row; the engine does the same since
-// it evaluates the components it is given. An override decides before the rules.
+// An override decides before the rules.
 type pphSubsidy struct{}
 
 func (pphSubsidy) Code() string { return FormulaPPhSubsidy }
@@ -112,11 +159,12 @@ func (pphSubsidy) Eval(ctx *EvalCtx, _ EmpComponent, _ Params) (*decimal.Decimal
 	if r.Kind != SubsidyFullPPh {
 		return nil, "", fmt.Errorf("%w: rule %d kind %q", ErrSubsidyKind, r.ID, r.Kind)
 	}
-	basis := subsidyBasis(ctx)
+	basis, src := subsidyBasis(ctx)
 	ctx.setMeta(MetaSubsidyRule, strconv.FormatInt(r.ID, 10))
 	ctx.setMeta(MetaSubsidyBasis, basis.String())
 	ctx.setMeta(MetaSubsidyLimit, r.Limit.String())
-	remark := fmt.Sprintf("Aturan : %s | Basis : %s | Batas : %s", r.Name, thousands(basis), thousands(r.Limit))
+	ctx.setMeta(MetaSubsidySource, src)
+	remark := fmt.Sprintf("Aturan : %s | Basis : %s (%s) | Batas : %s", r.Name, thousands(basis), src, thousands(r.Limit))
 	if basis.GreaterThan(r.Limit) {
 		return &zero, remark, nil
 	}
@@ -138,13 +186,80 @@ func firstSubsidyRule(in Input) (SubsidyRule, bool) {
 	return best, found
 }
 
-// subsidyBasis is the basis-period amount, or Σ current taxable lines with tax_subsidy = Y when
-// that is absent or zero (legacy NVL(V_SUBSIDY,0) = 0). The intermediate legacy step (latest
-// DETAIL before the period, D-30) follows in T015a.
-func subsidyBasis(ctx *EvalCtx) decimal.Decimal {
-	if b := ctx.In.Subsidy.Basis; b != nil && !b.IsZero() {
-		return *b
+// subsidyBasis returns the P0 basis and its source (D-30).
+func subsidyBasis(ctx *EvalCtx) (decimal.Decimal, string) {
+	if ctx.In.Rules.LegacyCompat() {
+		return subsidyBasisV1(ctx)
 	}
+	return subsidyBasisV2(ctx)
+}
+
+// subsidyBasisV1 is the legacy order of FNC_MGT_PAYROLL_PPH: DETAIL 202601, else the latest DETAIL
+// before the period, else Σ the current taxable lines with tax_subsidy = Y (prorated).
+func subsidyBasisV1(ctx *EvalCtx) (decimal.Decimal, string) {
+	s := ctx.In.Subsidy
+	if s.Basis != nil && !s.Basis.IsZero() {
+		return *s.Basis, SubsidySrcBasisPeriod
+	}
+	if s.PrevBasis != nil && !s.PrevBasis.IsZero() {
+		return *s.PrevBasis, SubsidySrcPrevPeriod
+	}
+	return currentSubsidyLines(ctx), SubsidySrcCurrent
+}
+
+// subsidyBasisV2 uses the locked basis of the first full month of the tax year. Without one, a
+// full month computes it from the current lines (OT included) and becomes the lock; the join month
+// uses the provisional basis without OT. A lock of this or a later period is ignored so that a
+// recalculation of the locking month uses its latest lines.
+func subsidyBasisV2(ctx *EvalCtx) (decimal.Decimal, string) {
+	s := ctx.In.Subsidy
+	if s.Locked != nil && s.LockedYYMM < ctx.In.Period.YYMM {
+		return *s.Locked, SubsidySrcLocked
+	}
+	if fullMonth(ctx) {
+		return currentSubsidyLines(ctx), SubsidySrcLockNow
+	}
+	return provisionalSubsidyBasis(ctx), SubsidySrcProvisional
+}
+
+// provisionalSubsidyBasis is the join-month basis (D-30): Σ the taxable tax_subsidy = Y T lines
+// without OT, where a prorated PRO(A) component counts at its nominal (value before proration) and
+// any other formula component at its computed line.
+func provisionalSubsidyBasis(ctx *EvalCtx) decimal.Decimal {
+	var sum decimal.Decimal
+	for _, c := range ctx.In.Components {
+		if c.Key.Type != CompT || !c.Tax || !c.TaxSubsidy || isOTSubsidyID(c.Key.ID) {
+			continue
+		}
+		if spec, _ := specFor(c.Key); spec.Code == FormulaFixedOrProrate && c.Sts == stsProrate {
+			sum = sum.Add(c.Amount)
+			continue
+		}
+		sum = sum.Add(ctx.lines[c.Key].AmountOrZero())
+	}
+	return sum
+}
+
+// fullMonth is the D-30 full month: joined on or before the period start (dates compared without
+// time of day) and not prorated (base salary STS F, or pay_tot = DM). A missing join date counts
+// as joined earlier.
+func fullMonth(ctx *EvalCtx) bool {
+	in := ctx.In
+	if j := in.Emp.JoinDate; j != nil && dateOf(*j).After(dateOf(in.Period.Start)) {
+		return false
+	}
+	b := ctx.Basis
+	return b.GapokSts == stsFull || b.rekapOrZero(in, colPayTot).Equal(b.DaysMonth)
+}
+
+// dateOf drops the time of day.
+func dateOf(t time.Time) time.Time {
+	y, m, dd := t.Date()
+	return time.Date(y, m, dd, 0, 0, 0, 0, time.UTC)
+}
+
+// currentSubsidyLines is Σ the computed taxable T lines with tax_subsidy = Y (NULL as zero).
+func currentSubsidyLines(ctx *EvalCtx) decimal.Decimal {
 	var sum decimal.Decimal
 	for k, l := range ctx.lines {
 		if k.Type == CompT && l.Tax && l.TaxSubsidy {

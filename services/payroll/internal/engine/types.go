@@ -66,7 +66,8 @@ type Employee struct {
 	Dept      string // pe_dept_id, matched by pyr_subsidy_rule.psr_depts
 	HasNPWP   bool
 	BirthDate *time.Time
-	GapokSts  string // F (full) / D (prorate) for the base salary
+	JoinDate  *time.Time // pe_date_join; decides the first full month of the P0 basis (D-30)
+	GapokSts  string     // F (full) / D (prorate) for the base salary
 }
 
 // EmpComponent is an employee component amount (COMPNT_EMP, frz=2 & sts_payroll=2).

@@ -36,7 +36,7 @@ func CalculateWith(reg Registry, in Input) (Result, error) {
 		return Result{}, err
 	}
 
-	comps := withLoanComponents(in, append([]EmpComponent(nil), in.Components...))
+	comps := withSubsidyComponent(in, withLoanComponents(in, append([]EmpComponent(nil), in.Components...)))
 	sort.SliceStable(comps, func(i, j int) bool { return comps[i].Key.Less(comps[j].Key) })
 
 	ctx := &EvalCtx{In: in, Basis: basis, lines: make(map[CompKey]Line, len(comps))}
