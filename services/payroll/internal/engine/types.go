@@ -224,6 +224,9 @@ type Result struct {
 	Lines    []Line  // sorted by (type, id)
 	Header   *Header // nil when legacy mode skips the header (D2)
 	Warnings []string
+	// Incomplete is true when some component was skipped or evaluated with the default
+	// because its formula is not implemented yet. Callers must not persist such a result.
+	Incomplete bool
 }
 
 // SortLines orders lines deterministically by (type, id) (06§9).
