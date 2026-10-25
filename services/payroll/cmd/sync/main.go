@@ -1,4 +1,4 @@
-// Package main is the payroll sync/ETL entry point (D-01, D-22). Subcommands: migrate, employees, inputs, att-legacy, salary-legacy.
+// Package main is the payroll sync/ETL entry point (D-01, D-22). Subcommands: migrate, employees, inputs, att-legacy, salary-legacy, att-legacy-fail.
 package main
 
 import (
@@ -14,10 +14,11 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 || (os.Args[1] != "migrate" && os.Args[1] != "employees" && os.Args[1] != "inputs" && os.Args[1] != "att-legacy" && os.Args[1] != "salary-legacy") {
+	if len(os.Args) < 2 || (os.Args[1] != "migrate" && os.Args[1] != "employees" && os.Args[1] != "inputs" && os.Args[1] != "att-legacy" && os.Args[1] != "salary-legacy" && os.Args[1] != "att-legacy-fail") {
 		fmt.Fprintln(os.Stderr, "usage: sync migrate -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-valid-from 202001] [-expect-master 133 -expect-template 762]")
 		fmt.Fprintln(os.Stderr, "       sync employees -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-emp 2860 -expect-compe 117827]  (kunci: PAYROLL_PII_KEY, PAYROLL_PII_HMAC_KEY)")
 		fmt.Fprintln(os.Stderr, "       sync att-legacy -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-rekap 68925 -expect-add 870 -expect-sch 3996]")
+		fmt.Fprintln(os.Stderr, "       sync att-legacy-fail -dir <psv dir> -dsn <payroll_etl dsn>  (setelah salary-legacy; isi premi_fail/beras_fail dari DETAIL T40/T74, D-33)")
 		fmt.Fprintln(os.Stderr, "       sync inputs -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-addition 28464 -expect-abnormal 28550]")
 		fmt.Fprintln(os.Stderr, "       sync salary-legacy -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-main 91916 -expect-detail 2274418]")
 		os.Exit(2)
@@ -32,6 +33,8 @@ func main() {
 		run = attLegacy
 	case "salary-legacy":
 		run = salaryLegacy
+	case "att-legacy-fail":
+		run = attLegacyFail
 	}
 	if err := run(os.Args[2:]); err != nil {
 		fmt.Fprintln(os.Stderr, os.Args[1]+":", err)
@@ -208,6 +211,38 @@ func salaryLegacy(args []string) error {
 		for _, e := range r.Exceptions {
 			fmt.Println("  EXCEPTION", e)
 		}
+	}
+	return err
+}
+
+func attLegacyFail(args []string) error {
+	fs := flag.NewFlagSet("att-legacy-fail", flag.ExitOnError)
+	dir := fs.String("dir", "", "folder .psv hasil spool sqlplus (08§1): MGT_PAYROLL_DETAIL + MGT_PAYROLL_COMPNT_EMP")
+	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *dir == "" || *dsn == "" {
+		return fmt.Errorf("-dir dan -dsn (atau PAYROLL_ETL_DSN) wajib")
+	}
+	db, err := sql.Open("pgx", *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := db.Close(); cerr != nil {
+			fmt.Fprintln(os.Stderr, "close:", cerr)
+		}
+	}()
+	r, err := etl.RunAttLegacyFail(context.Background(), db, etl.PSVDir{Dir: *dir})
+	fmt.Printf("T40 detail=%d premi_fail set=%d (gagal=%d) | T74 detail=%d beras_fail set=%d | baris snapshot diubah=%d\n",
+		r.PremiDetail, r.PremiSet, r.PremiFailed, r.BerasDetail, r.BerasSet, r.Updated)
+	fmt.Printf("residu BF (NULL)=%d, tanpa baris REKAP=%d\n", len(r.BerasResidue), len(r.NoSnapshotRow))
+	for _, e := range r.BerasResidue {
+		fmt.Println("  RESIDU", e)
+	}
+	for _, e := range r.NoSnapshotRow {
+		fmt.Println("  TANPA-REKAP", e)
 	}
 	return err
 }

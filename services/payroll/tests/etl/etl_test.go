@@ -400,3 +400,39 @@ func TestETL_SalaryLegacyGuards(t *testing.T) {
 		t.Errorf("laporan periode tertahan: main exc=%d detail exc=%d", len(reps[0].Exceptions), len(reps[1].Exceptions))
 	}
 }
+
+func TestETL_AttLegacyFail(t *testing.T) {
+	ctx := context.Background()
+	if _, err := etl.RunAttLegacy(ctx, etlDB, etl.PSVDir{Dir: "testdata"}, etl.AttLegacyOptions{CompanyID: 1}); err != nil {
+		t.Fatal(err)
+	}
+	src := etl.PSVDir{Dir: "testdata_fail"}
+	state := func() string {
+		return scalar(t, `SELECT md5(string_agg(pasr_nik||(pasr_data->>'MPAR_DAY_WORK')||coalesce(pasr_premi_fail::text,'n')||coalesce(pasr_beras_fail::text,'n'), ',' ORDER BY 1)) FROM payroll.pyr_att_snapshot_row WHERE pasr_kind='REKAP'`)
+	}
+	rep, err := etl.RunAttLegacyFail(ctx, etlDB, src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := state()
+	if _, err = etl.RunAttLegacyFail(ctx, etlDB, src); err != nil {
+		t.Fatalf("run ulang: %v", err)
+	}
+	if state() != first {
+		t.Fatal("run kedua mengubah hasil (tidak idempotent)")
+	}
+	if rep.PremiDetail != 4 || rep.BerasDetail != 3 || rep.PremiSet != 3 || rep.PremiFailed != 1 || rep.BerasSet != 2 || rep.Updated != 3 ||
+		len(rep.BerasResidue) != 1 || len(rep.NoSnapshotRow) != 1 {
+		t.Errorf("laporan tak sesuai: %+v", rep)
+	}
+	for q, want := range map[string]string{
+		`SELECT pasr_premi_fail||'/'||pasr_beras_fail FROM payroll.pyr_att_snapshot_row WHERE pasr_nik='2026-0001' AND pasr_data->>'MPAR_DAY_WORK'='24'`:             "1/2",
+		`SELECT pasr_premi_fail||'/'||pasr_beras_fail FROM payroll.pyr_att_snapshot_row WHERE pasr_nik='2026-0002'`:                                                  "0/0",
+		`SELECT pasr_premi_fail::text FROM payroll.pyr_att_snapshot_row WHERE pasr_nik='2026-0001' AND pasr_data->>'MPAR_DAY_WORK'='26'`:                             "0",
+		`SELECT count(*) FROM payroll.pyr_att_snapshot_row WHERE pasr_kind='REKAP' AND pasr_nik='2026-0003' AND pasr_beras_fail IS NULL AND pasr_premi_fail IS NULL`: "1",
+	} {
+		if got := scalar(t, q); got != want {
+			t.Errorf("%s = %s, want %s", q, got, want)
+		}
+	}
+}
