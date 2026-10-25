@@ -56,7 +56,8 @@ func (r Registry) Get(code string) (Formula, bool) {
 func DefaultRegistry() Registry {
 	fs := append([]Formula{fixedOrProrate{}}, tFormulas()...)
 	fs = append(fs, otFormulas()...)
-	r, err := NewRegistry(append(fs, pFormulas()...)...)
+	fs = append(fs, pFormulas()...)
+	r, err := NewRegistry(append(fs, pphFormulas()...)...)
 	if err != nil {
 		panic(err) // static set, cannot fail
 	}
@@ -96,10 +97,14 @@ func pphRank(k CompKey) int {
 
 // EvalCtx is what formulas can read: the input, the bases and lines already computed.
 type EvalCtx struct {
-	In    Input
-	Basis Basis
-	lines map[CompKey]Line
+	In       Input
+	Basis    Basis
+	lines    map[CompKey]Line
+	warnings []string
 }
+
+// warn records a run warning raised by a formula (e.g. PPH_NO_BRACKET).
+func (c *EvalCtx) warn(s string) { c.warnings = append(c.warnings, s) }
 
 // Line returns an already computed line (e.g. PPh formulas reading T results).
 func (c *EvalCtx) Line(k CompKey) (Line, bool) {

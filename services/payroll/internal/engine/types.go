@@ -146,6 +146,8 @@ type Input struct {
 	Loans      []LoanDue
 	Daily      DailyFails
 	YTD        YTDTax
+	Thr        ThrTax    // THR/bonus of the same tax month; zero outside THR months
+	Tax        TaxTables // EMPTAX/PAYROLLSETUP of the rule set (loaded with Rules, not queried)
 	Rules      RuleSet
 }
 

@@ -50,6 +50,7 @@ func CalculateWith(reg Registry, in Input) (Result, error) {
 		}
 	}
 
+	res.Warnings = append(res.Warnings, ctx.warnings...)
 	SortLines(res.Lines)
 	h := buildHeader(in, basis, res.Lines)
 	if net := h.TotTunjangan.Sub(h.TotPotongan); len(in.Loans) > 0 && net.IsNegative() {
@@ -112,6 +113,11 @@ func evalLine(reg Registry, ctx *EvalCtx, res *Result, c EmpComponent, pph bool)
 		return fmt.Errorf("%w: %s for %s", ErrNoFormula, spec.Code, c.Key)
 	}
 	amt, remark, err := f.Eval(ctx, c, spec.Params)
+	if pph && errors.Is(err, errPending) {
+		res.Incomplete = true
+		res.Warnings = append(res.Warnings, fmt.Sprintf("%s: formula %s untuk periode %d belum tersedia, dilewati", c.Key, spec.Code, ctx.In.Period.YYMM))
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("engine: %s (%s): %w", c.Key, spec.Code, err)
 	}
