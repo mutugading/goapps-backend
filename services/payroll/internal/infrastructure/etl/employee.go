@@ -397,7 +397,7 @@ func RunEmployees(ctx context.Context, db *sql.DB, src Source, o EmployeeOptions
 	if err != nil {
 		return nil, err
 	}
-	hris, err := readHRIS(src)
+	hris, hrisWarns, err := readHRIS(src)
 	if err != nil {
 		return nil, err
 	}
@@ -414,6 +414,12 @@ func RunEmployees(ctx context.Context, db *sql.DB, src Source, o EmployeeOptions
 	if err != nil {
 		return reps, err
 	}
+	// Source-level notes (repaired bytes, duplicate HRIS NIK) are not tied to one division: attach to the first report.
+	if len(reps) > 0 {
+		for _, n := range [][]string{emp.Notes, ce.Notes, hrisWarns} {
+			reps[0].Warnings = append(reps[0].Warnings, n...)
+		}
+	}
 	if err := logEmployees(ctx, tx, reps, o, len(emp.Rows), len(ce.Rows)); err != nil {
 		return reps, err
 	}
@@ -421,13 +427,14 @@ func RunEmployees(ctx context.Context, db *sql.DB, src Source, o EmployeeOptions
 }
 
 // readHRIS reads the optional HM_EMP_DATA spool; absent = nil map (pe_hris_sys_id stays empty).
-func readHRIS(src Source) (map[string]string, error) {
+func readHRIS(src Source) (map[string]string, []string, error) {
 	h, err := src.Read(TableHRISEmployee)
 	if err != nil {
 		log.Warn().Err(err).Msg("etl: HM_EMP_DATA tidak tersedia, pe_hris_sys_id dikosongkan")
-		return nil, nil //nolint:nilerr,nilnil // optional source; nil map = "not provided"
+		return nil, nil, nil //nolint:nilerr // optional source; nil map = "not provided"
 	}
-	return hrisMap(h)
+	m, warns, err := hrisMap(h)
+	return m, append(append([]string{}, h.Notes...), warns...), err
 }
 
 func loadDivisions(ctx context.Context, tx *sql.Tx, emp, ce *Table, hris map[string]string, o EmployeeOptions) ([]TableReport, error) {
@@ -478,18 +485,37 @@ VALUES ($1,$2,$3,$4,$5,true)`, o.CompanyID, r.Table, r.SrcRows, r.DstRows, r.Che
 	return nil
 }
 
-func hrisMap(t *Table) (map[string]string, error) {
+// hrisMap indexes HMEMD_SYS_ID by NIK. A NIK with several different sys_ids keeps the last row (legacy
+// behaviour) but yields a warning naming every candidate so HR can decide which is right.
+func hrisMap(t *Table) (map[string]string, []string, error) {
 	ni, err := t.Col("HMEMD_NIK")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	si, err := t.Col("HMEMD_SYS_ID")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	m := make(map[string]string, len(t.Rows))
+	seen := map[string][]string{}
+	var order []string
 	for _, r := range t.Rows {
-		m[r[ni]] = r[si]
+		nik, sys := r[ni], r[si]
+		if prev, ok := seen[nik]; ok {
+			if prev[len(prev)-1] != sys {
+				seen[nik] = append(prev, sys)
+			}
+		} else {
+			seen[nik] = []string{sys}
+			order = append(order, nik)
+		}
+		m[nik] = sys
 	}
-	return m, nil
+	var warns []string
+	for _, nik := range order {
+		if c := seen[nik]; len(c) > 1 {
+			warns = append(warns, fmt.Sprintf("HM_EMP_DATA NIK %s ganda: sys_id %s; dipakai yang terakhir (%s)", nik, strings.Join(c, ", "), c[len(c)-1]))
+		}
+	}
+	return m, warns, nil
 }

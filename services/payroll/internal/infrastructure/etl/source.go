@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/rs/zerolog/log"
 )
@@ -31,6 +32,8 @@ type Table struct {
 	Name string
 	Cols []string
 	Rows [][]string
+	// Notes are reader-level data-quality remarks (e.g. non-UTF-8 bytes repaired), surfaced as report warnings.
+	Notes []string
 }
 
 // Source reads a legacy table. Implementations must be read-only.
@@ -56,8 +59,14 @@ func (p PSVDir) Read(table string) (*Table, error) {
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 1<<20), 1<<20)
 	t := &Table{Name: table}
+	lineNo := 0
 	for sc.Scan() {
-		line := strings.TrimRight(sc.Text(), "\r")
+		lineNo++
+		line, fixed := decodeLine(sc.Bytes())
+		line = strings.TrimRight(line, "\r")
+		if fixed {
+			t.Notes = append(t.Notes, fmt.Sprintf("%s baris %d: byte non-UTF-8 didecode sebagai Latin-1", table, lineNo))
+		}
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
@@ -84,6 +93,24 @@ func (p PSVDir) Read(table string) (*Table, error) {
 		return nil, fmt.Errorf("%s: berkas kosong (header tidak ada)", table)
 	}
 	return t, nil
+}
+
+// decodeLine returns b as UTF-8. Bytes that are not valid UTF-8 (legacy Oracle spools, e.g. 0xA0 in
+// an email) are mapped as Latin-1 runes instead of failing the load (sqlstate 22021); fixed reports it.
+func decodeLine(b []byte) (string, bool) {
+	if utf8.Valid(b) {
+		return string(b), false
+	}
+	var sb strings.Builder
+	for len(b) > 0 {
+		r, n := utf8.DecodeRune(b)
+		if r == utf8.RuneError && n == 1 {
+			r = rune(b[0])
+		}
+		sb.WriteRune(r)
+		b = b[n:]
+	}
+	return sb.String(), true
 }
 
 // Col returns the index of a column or an error naming the missing one.
