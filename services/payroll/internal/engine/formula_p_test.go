@@ -239,3 +239,65 @@ func TestBirthdayLine(t *testing.T) {
 		}
 	}
 }
+
+// Header across the year boundary: the birthday window is read from YYMM (D-27), so a December
+// run mentions a January birthday of the next year and a January run uses JAN period/year.
+func TestHeaderDecemberJanuary(t *testing.T) {
+	bd := func(y, m, day int) *time.Time { v := time.Date(y, time.Month(m), day, 0, 0, 0, 0, time.UTC); return &v }
+	cases := []struct {
+		name string
+		yymm int
+		bd   *time.Time
+		want string // empty: no birthday line
+	}{
+		{"december, january birthday", 202612, bd(1990, 1, 10), "Selamat Ulang Tahun Ke 37 Tanggal 10 Januari 2027"},
+		{"december, own month in window", 202612, bd(1990, 12, 30), "Selamat Ulang Tahun Ke 36 Tanggal 30 Desember 2026"},
+		{"december, before window", 202612, bd(1990, 12, 25), ""},
+		{"january, january birthday after 25", 202701, bd(1990, 1, 26), "Selamat Ulang Tahun Ke 37 Tanggal 26 Januari 2027"},
+		{"january, january birthday before 26", 202701, bd(1990, 1, 10), ""},
+		{"january, february birthday", 202701, bd(1990, 2, 20), "Selamat Ulang Tahun Ke 37 Tanggal 20 Februari 2027"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			in := tInput(AttRekap{"pay_tot": d("26")})
+			in.Period.YYMM = c.yymm
+			in.Emp.BirthDate = c.bd
+			res, err := Calculate(in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if res.Header == nil {
+				t.Fatal("header nil")
+			}
+			got := ""
+			if i := strings.Index(res.Header.Remarks, "Selamat"); i >= 0 {
+				got = res.Header.Remarks[i:]
+			}
+			if got != c.want {
+				t.Errorf("birthday = %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+// P32 with an addition on a D component plus LOAN_DUE feeds tot_potongan and the header
+// (only the addition part is prorated, D-27 (c)).
+func TestHeaderLoanDueWithDAddition(t *testing.T) {
+	in := tInput(AttRekap{"pay_tot": d("26")}, pc(32, "0", "D"))
+	in.Additions = map[CompKey][]Addition{{CompP, 32}: {{Amount: d("300000"), Source: "MANUAL"}}}
+	in.Loans = []LoanDue{{LoanID: 1, Seq: 1, Principal: d("500000"), Interest: d("50000")}}
+	res, err := Calculate(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// P32 = 300000/30×26 + 500000 = 760000; P33 = 50000 (line without component row)
+	checkAmt(t, "P32", keyLine(t, in, CompKey{CompP, 32}), "760000")
+	checkAmt(t, "P33", keyLine(t, in, CompKey{CompP, 33}), "50000")
+	if res.Header == nil || res.Header.TotPotongan.String() != "810000" {
+		t.Fatalf("header = %+v", res.Header)
+	}
+	// 3000000 − 810000 = 2190000
+	if res.Header.TakeHome.String() != "2190000" {
+		t.Errorf("take_home = %s", res.Header.TakeHome)
+	}
+}
