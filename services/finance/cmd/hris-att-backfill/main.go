@@ -33,7 +33,11 @@ func run() error {
 	d1s := flag.String("d1", "", "first work date (YYYY-MM-DD)")
 	d2s := flag.String("d2", "", "last work date (YYYY-MM-DD)")
 	withOT := flag.Bool("ot", false, "also re-pull VIEW_BI_OT_DAILY for the same range")
+	withATT := flag.Bool("att", true, "re-pull VIEW_BI_ATT_DAILY (false = OT only, e.g. legacy OT history before 2026-06-26)")
 	flag.Parse()
+	if !*withATT && !*withOT {
+		return fmt.Errorf("nothing to do: -att=false needs -ot")
+	}
 	d1, err := time.Parse(dateLayout, *d1s)
 	if err != nil {
 		return fmt.Errorf("-d1: %w", err)
@@ -70,15 +74,17 @@ func run() error {
 	}
 
 	ctx := context.Background()
-	rows, err := oracleinfra.NewHRISATTRepository(hris).FetchATTDaily(ctx, d1, d2)
-	if err != nil {
-		return fmt.Errorf("fetch ATT daily: %w", err)
+	if *withATT {
+		rows, err := oracleinfra.NewHRISATTRepository(hris).FetchATTDaily(ctx, d1, d2)
+		if err != nil {
+			return fmt.Errorf("fetch ATT daily: %w", err)
+		}
+		n, err := postgres.NewBiHRStagingRepository(db).ReplaceATTDaily(ctx, d1, d2, rows, sourceID)
+		if err != nil {
+			return fmt.Errorf("replace ATT daily: %w", err)
+		}
+		log.Printf("backfilled %d ATT staging rows for %s..%s", n, *d1s, *d2s)
 	}
-	n, err := postgres.NewBiHRStagingRepository(db).ReplaceATTDaily(ctx, d1, d2, rows, sourceID)
-	if err != nil {
-		return fmt.Errorf("replace ATT daily: %w", err)
-	}
-	log.Printf("backfilled %d ATT staging rows for %s..%s", n, *d1s, *d2s)
 	if !*withOT {
 		return nil
 	}
