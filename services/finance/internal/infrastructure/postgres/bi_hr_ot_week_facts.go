@@ -87,7 +87,7 @@ func insertHRFacts(ctx context.Context, tx *sql.Tx, facts []hrot.Fact, sourceID 
 // is a running count, so it is not summable across weeks (LAST).
 func hrFactUnit(factType string) (uom, category, agg string) {
 	switch factType {
-	case hrot.TypeWeekStatus, hrot.TypeWeekBucket, hrot.TypeEmpCount, hrot.TypeDQEmp, hrot.TypeOverWeeks, hrot.TypeOverEmp:
+	case hrot.TypeWeekStatus, hrot.TypeWeekBucket, hrot.TypeEmpCount, hrot.TypeDQEmp, hrot.TypeOverWeeks, hrot.TypeOverEmp, hrot.TypeOverNik:
 		return "PERSON", "COUNT", hrAggSum
 	case hrot.TypeChronic:
 		return "WEEKS", "COUNT", "LAST"
@@ -183,8 +183,8 @@ WHERE type = $1 AND periode_grain = $2 AND periode_date = $3 AND scenario = 'ACT
 // after restateOTDept. Weeks never loaded (before staging starts) have no facts, so are not counted.
 func rebuildOTOverMonthFacts(ctx context.Context, tx *sql.Tx, sourceID uuid.UUID) error {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM bi_fact_metric
-WHERE type IN ($1, $2) AND periode_grain = $3 AND scenario = 'ACTUAL'`,
-		hrot.TypeOverWeeks, hrot.TypeOverEmp, hrot.GrainMonthly); err != nil {
+WHERE type IN ($1, $2, $4) AND periode_grain = $3 AND scenario = 'ACTUAL'`,
+		hrot.TypeOverWeeks, hrot.TypeOverEmp, hrot.GrainMonthly, hrot.TypeOverNik); err != nil {
 		return fmt.Errorf("delete OT over-limit month facts: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO bi_fact_metric (
@@ -208,6 +208,24 @@ FROM (
 		hrot.TypeOverWeeks, hrot.TypeOverEmp, hrot.GrainMonthly, sourceID,
 		hrot.TypeWeekStatus, hrot.GrainWeekly, hrot.StatusOver); err != nil {
 		return fmt.Errorf("insert OT over-limit month facts: %w", err)
+	}
+	// H042 / HD-22: per NIK, same period rule; SUM per dept·month equals HR_OT_OVER_WEEKS.
+	if _, err := tx.ExecContext(ctx, `INSERT INTO bi_fact_metric (
+    type, group_1, group_2, group_3, periode_grain, periode_date, periode_label,
+    value, display_value, uom, scenario, metric_name, metric_category, agg_method,
+    source_id, dimension_key, is_active)
+SELECT $1, group_1, NULL, group_3, $2, pe, to_char(pe, 'YYYYMM'),
+       COUNT(*)::numeric, COUNT(*)::numeric, 'PERSON', 'ACTUAL', 'VALUE', 'COUNT', 'SUM', $3, '', TRUE
+FROM (
+    SELECT group_1, group_3,
+           (date_trunc('month', periode_date + 6) + interval '24 days'
+             + CASE WHEN EXTRACT(day FROM periode_date + 6) >= 26 THEN interval '1 month' ELSE interval '0' END)::date AS pe
+    FROM bi_fact_metric
+    WHERE type = $4 AND periode_grain = $5 AND scenario = 'ACTUAL' AND group_2 = $6 AND group_3 IS NOT NULL
+) w GROUP BY group_1, group_3, pe`,
+		hrot.TypeOverNik, hrot.GrainMonthly, sourceID,
+		hrot.TypeWeekStatus, hrot.GrainWeekly, hrot.StatusOver); err != nil {
+		return fmt.Errorf("insert OT over-limit NIK month facts: %w", err)
 	}
 	return nil
 }

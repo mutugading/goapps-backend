@@ -23,6 +23,7 @@ const (
 	// the stored HR_OT_WEEK_STATUS facts; a week counts in the payroll period of its Sunday (K10).
 	TypeOverWeeks = "HR_OT_OVER_WEEKS" // orang-minggu over-limit
 	TypeOverEmp   = "HR_OT_OVER_EMP"   // karyawan unik over-limit (tidak boleh dijumlah antar dept lintas bulan)
+	TypeOverNik   = "HR_OT_OVER_NIK"   // H042, HD-22: g1 dept, g3 NIK; jumlah minggu over-limit NIK itu di bulan itu
 
 	GrainWeekly = "WEEKLY"
 

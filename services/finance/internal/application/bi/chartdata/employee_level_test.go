@@ -193,3 +193,17 @@ func TestWorkforceView_CrossRatioKPIOnNonHRDashboard(t *testing.T) {
 		t.Fatalf("dengan izin tidak boleh ditolak: %v", err)
 	}
 }
+
+// H042 / HD-22: drill orang di Kepatuhan 14 Jam memakai HR_OT_OVER_NIK lewat /computed group_3;
+// level dept (group_1) tetap terbuka untuk pemegang workforce.view saja.
+func TestRequestsEmployeeLevel_OverNikDrill(t *testing.T) {
+	d := hrDashboard(t, "HR_OT_OVER_NIK", "")
+	nik := chartdata.ViewerFilters{ComputedRatio: &dashboarddomain.ComputedRatioConfig{Numerator: "VALUE", GroupBy: "group_3"}}
+	if !chartdata.RequestsEmployeeLevel(d, nik) {
+		t.Fatal("HR_OT_OVER_NIK group_3 harus dianggap level karyawan")
+	}
+	dept := chartdata.ViewerFilters{ComputedRatio: &dashboarddomain.ComputedRatioConfig{Numerator: "VALUE", GroupBy: "group_1"}}
+	if chartdata.RequestsEmployeeLevel(d, dept) {
+		t.Fatal("group_1 (dept) bukan level karyawan")
+	}
+}

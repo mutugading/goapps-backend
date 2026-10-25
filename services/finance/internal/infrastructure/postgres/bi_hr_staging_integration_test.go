@@ -50,7 +50,7 @@ func TestBiHRStagingRepository_ReplaceOTDaily(t *testing.T) {
 			`DELETE FROM bi_hr_stg_ot_daily WHERE nik = $1`,
 			`DELETE FROM bi_hr_employee WHERE nik = $1`,
 			`DELETE FROM bi_fact_metric WHERE type LIKE 'HR_OT_%' AND group_3 = $1`,
-			`DELETE FROM bi_fact_metric WHERE type IN ('HR_OT_PARETO', 'HR_OT_EMP_COUNT', 'HR_OT_OVER_WEEKS', 'HR_OT_OVER_EMP') AND periode_date < '2000-01-01' AND $1 <> ''`,
+			`DELETE FROM bi_fact_metric WHERE type IN ('HR_OT_PARETO', 'HR_OT_EMP_COUNT', 'HR_OT_OVER_WEEKS', 'HR_OT_OVER_EMP', 'HR_OT_OVER_NIK') AND periode_date < '2000-01-01' AND $1 <> ''`,
 		} {
 			if _, cErr := raw.ExecContext(ctx, q, marker); cErr != nil {
 				t.Logf("cleanup: %v", cErr)
@@ -205,6 +205,8 @@ WHERE type = $1 AND periode_grain = 'MONTHLY' AND periode_date = '1999-01-25' AN
 	}
 	require.Equal(t, "2", overMonth("HR_OT_OVER_WEEKS"))
 	require.Equal(t, "1", overMonth("HR_OT_OVER_EMP"))
+	// H042 / HD-22: per-NIK weeks sum to the dept orang-minggu (selisih 0).
+	require.Equal(t, "2", overMonth("HR_OT_OVER_NIK"))
 
 	// HD-15: an employee's facts outside the window follow the current dept.
 	_, err = raw.ExecContext(ctx, `UPDATE bi_hr_employee SET dept_name = 'Dept Baru' WHERE nik = $1`, marker)
