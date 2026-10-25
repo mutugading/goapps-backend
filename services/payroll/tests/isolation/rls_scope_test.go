@@ -39,6 +39,8 @@ var (
 	appDB *postgres.DB
 	ownDB *sql.DB // payroll_migrator (role payroll_owner): fixtures only
 	etlDB *sql.DB // payroll_etl: staging writer
+
+	pgHost, pgPort string // container endpoint, for connections as other roles/DBs (I1–I5)
 )
 
 func TestMain(m *testing.M) {
@@ -100,6 +102,7 @@ func setup() (func(), error) {
 		cleanup()
 		return nil, err
 	}
+	pgHost, pgPort = host, port.Port()
 	dsn := func(user, pw string) string {
 		return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=payroll sslmode=disable", host, port.Port(), user, pw)
 	}
