@@ -62,7 +62,7 @@ func TestETL_Employees(t *testing.T) {
 	if v := scalar(t, `SELECT pe_orion_sub_acnt FROM payroll.pyr_employee WHERE pe_nik='1002'`); v != "1002" {
 		t.Errorf("orion_sub_acnt default = %s", v)
 	}
-	if v := scalar(t, `SELECT coalesce(pe_hris_sys_id::text,'-') FROM payroll.pyr_employee WHERE pe_nik IN ('1001','1002') ORDER BY pe_nik`); v != "5001" {
+	if v := scalar(t, `SELECT coalesce(pe_hris_sys_id::text,'-') FROM payroll.pyr_employee WHERE pe_nik IN ('1001','1002') ORDER BY pe_nik`); v != "MGTSLO5001" {
 		t.Errorf("hris_sys_id 1001 = %s", v)
 	}
 	// birth date dari PE_PASSWORD: Andi kosong → 1985-06-05; Siti (31021991) tidak valid → NULL + warning.

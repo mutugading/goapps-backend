@@ -223,7 +223,7 @@ VALUES ($2,$3::payroll.division,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::s
   CASE WHEN $26::text IS NULL THEN NULL ELSE payroll.pgp_sym_encrypt($26::text,$1::text) END,
   CASE WHEN $27::text IS NULL THEN NULL ELSE payroll.pgp_sym_encrypt($27::text,$1::text) END,
   CASE WHEN $28::text IS NULL THEN NULL ELSE payroll.pgp_sym_encrypt($28::text,$1::text) END,
-  $29,$30,$31,$32,$33,$34,$35::numeric,$36::numeric,'ETL')
+  $29,$30,$31,$32,$33,$34,$35::numeric,$36::varchar,'ETL')
 ON CONFLICT (pe_company_id, pe_nik, pe_division) DO UPDATE SET
   pe_nama=EXCLUDED.pe_nama, pe_email=EXCLUDED.pe_email, pe_dept_id=EXCLUDED.pe_dept_id, pe_dept=EXCLUDED.pe_dept,
   pe_section_id=EXCLUDED.pe_section_id, pe_section=EXCLUDED.pe_section, pe_designation_id=EXCLUDED.pe_designation_id,

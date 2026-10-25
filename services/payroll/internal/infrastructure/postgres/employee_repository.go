@@ -29,7 +29,7 @@ var employeeCols = `pe_id, pe_nik, pe_company_id, pe_division, pe_nama, COALESCE
   COALESCE(pe_bank,''), COALESCE(pe_bank_branch,''), ` + dec("pe_bank_acnt_enc") + `, COALESCE(pe_bank_acnt_name,''),
   pe_orion_sub_acnt, COALESCE(pe_id_mesin,''), COALESCE(pe_cuti_tahunan::text,''),
   pe_pay_currency, COALESCE(pe_employment_status,''), COALESCE(pe_cost_group,''),
-  COALESCE(pe_hris_sys_id,0)::bigint, COALESCE(pe_prev_employee_id,0), COALESCE(pe_placement_reason,''),
+  CASE WHEN pe_hris_sys_id ~ '^[0-9]{1,18}$' THEN pe_hris_sys_id::bigint ELSE 0 END, COALESCE(pe_prev_employee_id,0), COALESCE(pe_placement_reason,''),
   pe_version, COALESCE(created_by,''), to_char(created_at,'YYYY-MM-DD"T"HH24:MI:SSOF'),
   COALESCE(updated_by,''), COALESCE(to_char(updated_at,'YYYY-MM-DD"T"HH24:MI:SSOF'),'')`
 
@@ -82,7 +82,7 @@ func (r MasterRepository) CreateEmployee(ctx context.Context, tx *sql.Tx, e doma
 	  CASE WHEN $28::text='' THEN NULL ELSE payroll.pgp_sym_encrypt($28::text,$1::text) END,
 	  $29, NULLIF($30,''),NULLIF($31,''),NULLIF($32,''),
 	  $33, NULLIF($34,''), NULLIF($35,'')::numeric, $36, NULLIF($37,''), NULLIF($38,''),
-	  NULLIF($39,0), $40)
+	  NULLIF($39::bigint,0)::text, $40)
 	RETURNING pe_id`
 	var id int64
 	err := tx.QueryRowContext(ctx, q, p.EncKey,
@@ -183,7 +183,7 @@ func (r MasterRepository) UpdateEmployee(ctx context.Context, tx *sql.Tx, id int
 	  pe_bank=NULLIF($27,''), pe_bank_branch=NULLIF($28,''), pe_bank_acnt_name=NULLIF($29,''),
 	  pe_orion_sub_acnt=$30, pe_id_mesin=NULLIF($31,''), pe_cuti_tahunan=NULLIF($32,'')::numeric,
 	  pe_pay_currency=$33, pe_employment_status=NULLIF($34,''), pe_cost_group=NULLIF($35,''),
-	  pe_hris_sys_id=NULLIF($36,0), updated_by=$37, updated_at=now(), pe_version=pe_version+1
+	  pe_hris_sys_id=COALESCE(NULLIF($36::bigint,0)::text, pe_hris_sys_id), updated_by=$37, updated_at=now(), pe_version=pe_version+1
 	WHERE pe_id=$38 AND pe_version=$39 RETURNING pe_id`
 	var got int64
 	err := tx.QueryRowContext(ctx, q, p.EncKey,
