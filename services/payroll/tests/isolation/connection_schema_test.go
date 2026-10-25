@@ -234,11 +234,40 @@ func TestI10_EtlCannotReadSalaryDetail(t *testing.T) {
 	expectDenied(t, "I10", err)
 }
 
-// I11 expects payroll_etl to read pyr_period / pyr_att_snapshot (lock check), but no
-// migration grants it yet (000025/000026 only open master tables). Granting it changes
-// isolation permissions, so it is tracked as T020b instead of being decided here.
+// I11: payroll_etl may read only the lock-check columns of pyr_period / pyr_att_snapshot (000029).
 func TestI11_EtlMayCheckPeriodLockOnly(t *testing.T) {
-	t.Skip("gap: payroll_etl has no SELECT on pyr_period/pyr_att_snapshot (09§6.3 I11); follow-up T020b")
+	var n int
+	if err := etlDB.QueryRow(`SELECT count(*) FROM (SELECT pp_status FROM payroll.pyr_period) x`).Scan(&n); err != nil {
+		t.Fatalf("I11: period status: %v", err)
+	}
+	if err := etlDB.QueryRow(`SELECT count(*) FROM (SELECT pas_locked FROM payroll.pyr_att_snapshot) x`).Scan(&n); err != nil {
+		t.Fatalf("I11: snapshot lock: %v", err)
+	}
+	// RLS returns 0 rows (no error) without the policy, so assert it exists.
+	var pol int
+	var err error
+	if err = ownDB.QueryRow(`SELECT count(*) FROM pg_policies WHERE schemaname = 'payroll'
+	   AND policyname = 'p_etl_lock' AND cmd = 'SELECT' AND roles = '{payroll_etl}'
+	   AND tablename IN ('pyr_period', 'pyr_att_snapshot')`).Scan(&pol); err != nil {
+		t.Fatal(err)
+	}
+	if pol != 2 {
+		t.Fatalf("I11: p_etl_lock policies = %d, want 2", pol)
+	}
+	// Only the lock-check use: no write, no other columns.
+	_, err = etlDB.Exec(`UPDATE payroll.pyr_att_snapshot SET pas_locked = pas_locked`)
+	expectDenied(t, "I11 write snapshot", err)
+	err = etlDB.QueryRow(`SELECT count(pas_checksum) FROM payroll.pyr_att_snapshot`).Scan(&n)
+	expectDenied(t, "I11 snapshot checksum", err)
+	err = etlDB.QueryRow(`SELECT count(pas_source_batch_ids) FROM payroll.pyr_att_snapshot`).Scan(&n)
+	expectDenied(t, "I11 snapshot batch ids", err)
+	_, err = etlDB.Exec(`UPDATE payroll.pyr_period SET pp_status = pp_status`)
+	expectDenied(t, "I11 write period", err)
+	err = etlDB.QueryRow(`SELECT count(pp_reopen_reason) FROM payroll.pyr_period`).Scan(&n)
+	expectDenied(t, "I11 non-lock column", err)
+	// I10 stays closed after the schema/table grants.
+	err = etlDB.QueryRow(`SELECT count(*) FROM payroll.pyr_salary_detail`).Scan(&n)
+	expectDenied(t, "I11/I10 salary_detail", err)
 }
 
 func TestI12_ReadOnlyRoleCannotWrite(t *testing.T) {
