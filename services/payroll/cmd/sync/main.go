@@ -20,7 +20,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "       sync att-legacy -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-rekap 68925 -expect-add 870 -expect-sch 3996]")
 		fmt.Fprintln(os.Stderr, "       sync att-legacy-fail -dir <psv dir> -dsn <payroll_etl dsn>  (setelah salary-legacy; isi premi_fail/beras_fail dari DETAIL T40/T74, D-33)")
 		fmt.Fprintln(os.Stderr, "       sync inputs -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-addition 28464 -expect-abnormal 28550]")
-		fmt.Fprintln(os.Stderr, "       sync salary-legacy -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-main 91916 -expect-detail 2274418]")
+		fmt.Fprintln(os.Stderr, "       sync salary-legacy -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-main 91916 -expect-detail 2274418] [-allow-exceptions]")
 		os.Exit(2)
 	}
 	run := migrate
@@ -188,6 +188,7 @@ func salaryLegacy(args []string) error {
 	company := fs.Int("company", 1, "pyr_company.pco_company_id")
 	expM := fs.Int("expect-main", 0, "jumlah baris MGT_PAYROLL_MAIN yang diharapkan (91916)")
 	expD := fs.Int("expect-detail", 0, "jumlah baris MGT_PAYROLL_DETAIL yang diharapkan (2274418)")
+	allowExc := fs.Bool("allow-exceptions", false, "exit 0 walau ada exception (default: exit non-nol bila ada exception)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -206,11 +207,16 @@ func salaryLegacy(args []string) error {
 	reps, err := etl.RunSalaryLegacy(context.Background(), db, etl.PSVDir{Dir: *dir}, etl.SalaryLegacyOptions{
 		CompanyID: int16(*company), ExpectMain: *expM, ExpectDetail: *expD, //nolint:gosec // flag range checked by FK
 	})
+	nExc := 0
 	for _, r := range reps {
 		fmt.Printf("%-32s src=%-8d dst=%-8d exc=%-4d sha256=%s\n", r.Table, r.SrcRows, r.DstRows, len(r.Exceptions), r.Checksum)
 		for _, e := range r.Exceptions {
 			fmt.Println("  EXCEPTION", e)
 		}
+		nExc += len(r.Exceptions)
+	}
+	if err == nil && nExc > 0 && !*allowExc {
+		return fmt.Errorf("%d exception (periode ditahan/baris ditolak); tinjau lalu jalankan ulang, atau -allow-exceptions", nExc)
 	}
 	return err
 }

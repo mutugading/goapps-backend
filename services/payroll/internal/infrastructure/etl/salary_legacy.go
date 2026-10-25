@@ -384,6 +384,12 @@ SELECT `+detailSelect+` FROM pyr_tmp_detail`); err != nil {
 WHERE pp_company_id=$1 AND pp_yymm=$2 AND pp_division=$3`, o.CompanyID, g.key.yymm, g.key.division, runID); err != nil {
 		return err
 	}
+	if _, err := tx.Exec(ctx, `INSERT INTO payroll.pyr_audit_log (pal_actor, pal_action, pal_entity, pal_entity_key, pal_division, pal_after, pal_company_id)
+VALUES ('etl','ETL_PERIOD_CLOSE','pyr_period',$1,$2,jsonb_build_object('run_id',$3::bigint,'kind','LEGACY','heads',$4::int,'lines',$5::int,
+  'tot_tunjangan',$6::text,'tot_potongan',$7::text),$8)`,
+		g.key.yymm+"/"+g.key.division, g.key.division, runID, nHead, nLine, totT.String(), totP.String(), o.CompanyID); err != nil {
+		return fmt.Errorf("audit: %w", err)
+	}
 	repM.DstRows += nHead
 	repD.DstRows += nLine
 	return nil

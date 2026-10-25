@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -398,6 +399,103 @@ func TestETL_SalaryLegacyGuards(t *testing.T) {
 	}
 	if len(reps[0].Exceptions) != 1 || len(reps[1].Exceptions) != 3 || !reps[0].OK() || !reps[1].OK() {
 		t.Errorf("laporan periode tertahan: main exc=%d detail exc=%d", len(reps[0].Exceptions), len(reps[1].Exceptions))
+	}
+}
+
+// T009e4: JAKARTA, lintas tahun (Des/Jan), audit per periode, satu transaksi, PII tidak ikut termigrasi.
+func TestETL_SalaryLegacyEdges(t *testing.T) {
+	ctx := context.Background()
+	if _, err := etl.Run(ctx, etlDB, etl.PSVDir{Dir: "testdata"}, etl.Options{CompanyID: 1, ValidFrom: 202001}); err != nil {
+		t.Fatal(err)
+	}
+	for _, ym := range []string{"202512", "202601"} {
+		if _, err := ownDB.Exec(`INSERT INTO payroll.pyr_att_snapshot (pas_company_id, pas_yymm, pas_division, pas_source_batch_ids, pas_checksum, pas_locked)
+VALUES (1,$1,'JAKARTA','{}','x',true)`, ym); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write := func(head, det string) string {
+		dir := t.TempDir()
+		for f, c := range map[string]string{"MGT_PAYROLL_MAIN.psv": head, "MGT_PAYROLL_DETAIL.psv": det} {
+			if err := os.WriteFile(filepath.Join(dir, f), []byte(c), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return dir
+	}
+	mainCols := strings.Split("PM_YYMM|PM_NIK|PM_NAMA|PM_DEPT|PM_GRADE|PM_JABATAN|PM_EMP_TYPE|PM_NPWP|PM_DATE|PM_PEMBAYARAN|PM_DATE_JOIN|PM_BASIC_PAY|PM_TUNJJABATAN|PM_TUNJRUMAH|PM_TUNJKESEJAHTERAAN|PM_TUNJTRANSPORT|PM_RATE_PERJAM|PM_TAX_CODE|PM_BANK_ACNT|PM_TOT_TUNJANGAN|PM_TOT_POTONGAN|PM_ROUNDING|PM_DAY_PAY|PM_JAM_LEMBUR1|PM_JAM_LEMBUR2|PM_JAM_LEMBURNAS1|PM_JAM_LEMBURNAS2|PM_JAM_LEMBURNAS3|PM_JAM_LEMBUROFF1|PM_JAM_LEMBUROFF2|PM_JAM_LEMBUROFF3|PM_JAM_LEMBURNASP1|PM_JAM_LEMBURNASP2|PM_JAM_LEMBURNASP3|PM_DEPT_CODE|PM_REMARKS|PM_STATUS|PM_SECTION|PM_DIVISION", "|")
+	detCols := strings.Split("PD_YYMM|PD_NIK|PD_NAMA|PD_NO|PD_TYPE|PD_DESCRIPTION|PD_AMOUNT|PD_STATUS|PD_TAX|PD_BASIS_AMOUNT|PD_REMARKS|PD_TAX_PAID_COMPANY|PD_DIVISION", "|")
+	row := func(cols []string, kv map[string]string) string {
+		cells := make([]string, len(cols))
+		for i, c := range cols {
+			cells[i] = kv[c]
+		}
+		return strings.Join(cells, "|") + "\n"
+	}
+	head := func(yymm, date, tun string) string {
+		return row(mainCols, map[string]string{"PM_YYMM": yymm, "PM_NIK": "2026-0001", "PM_DIVISION": "JAKARTA", "PM_DATE": date,
+			"PM_NPWP": "1234", "PM_BANK_ACNT": "5678", "PM_TOT_TUNJANGAN": tun, "PM_TOT_POTONGAN": "0", "PM_ROUNDING": "0", "PM_TAX_CODE": "K1", "PM_BASIC_PAY": tun})
+	}
+	line := func(yymm, amt string) string {
+		return row(detCols, map[string]string{"PD_YYMM": yymm, "PD_NIK": "2026-0001", "PD_TYPE": "Tunjangan", "PD_NO": "1", "PD_DIVISION": "JAKARTA", "PD_AMOUNT": amt,
+			"PD_DESCRIPTION": "Gaji Pokok", "PD_STATUS": "F", "PD_TAX": "2", "PD_TAX_PAID_COMPANY": "N"})
+	}
+	hdr := func(cols []string) string { return strings.Join(cols, "|") + "\n" }
+	det := hdr(detCols) + line("202512", "10") + line("202601", "20")
+
+	// periode ke-2 rusak (PM_DATE) → seluruh transaksi dibatalkan, periode ke-1 tidak boleh tersisa.
+	bad := write(hdr(mainCols)+head("202512", "25-DEC-25", "10")+head("202601", "bukan-tanggal", "20"), det)
+	if _, err := etl.RunSalaryLegacy(ctx, etlDB, etl.PSVDir{Dir: bad}, etl.SalaryLegacyOptions{CompanyID: 1}); err == nil {
+		t.Fatal("tanggal rusak seharusnya menggagalkan load")
+	}
+	for _, q := range []string{
+		`SELECT count(*) FROM payroll.pyr_run WHERE pr_division='JAKARTA'`,
+		`SELECT count(*) FROM payroll.pyr_period WHERE pp_division='JAKARTA'`,
+		`SELECT count(*) FROM payroll.pyr_audit_log WHERE pal_division='JAKARTA'`,
+		`SELECT count(*) FROM payroll.pyr_migration_log WHERE pml_table='MGT_PAYROLL_MAIN' AND pml_src_rows=2`,
+	} {
+		if got := scalar(t, q); got != "0" {
+			t.Errorf("rollback tidak bersih: %s = %s", q, got)
+		}
+	}
+
+	good := write(hdr(mainCols)+head("202512", "25-DEC-25", "10")+head("202601", "25-JAN-26", "20"), det)
+	reps, err := etl.RunSalaryLegacy(ctx, etlDB, etl.PSVDir{Dir: good}, etl.SalaryLegacyOptions{CompanyID: 1, ExpectMain: 2, ExpectDetail: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reps[0].Exceptions)+len(reps[1].Exceptions) != 0 {
+		t.Errorf("exception tak terduga: %v %v", reps[0].Exceptions, reps[1].Exceptions)
+	}
+	for q, want := range map[string]string{
+		`SELECT pp_date_from||'..'||pp_date_to FROM payroll.pyr_period WHERE pp_yymm=202512 AND pp_division='JAKARTA'`:                  "2025-11-26..2025-12-25",
+		`SELECT pp_date_from||'..'||pp_date_to FROM payroll.pyr_period WHERE pp_yymm=202601 AND pp_division='JAKARTA'`:                  "2025-12-26..2026-01-25",
+		`SELECT count(*) FROM payroll.pyr_run WHERE pr_division='JAKARTA' AND pr_kind='LEGACY' AND pr_status='ACTIVE'`:                  "2",
+		`SELECT count(*) FROM payroll.pyr_period WHERE pp_division='JAKARTA' AND pp_status='CLOSED'`:                                    "2",
+		`SELECT count(*) FROM payroll.pyr_audit_log WHERE pal_actor='etl' AND pal_action='ETL_PERIOD_CLOSE' AND pal_division='JAKARTA'`: "2",
+		`SELECT pal_after->>'tot_tunjangan' FROM payroll.pyr_audit_log WHERE pal_entity_key='202601/JAKARTA'`:                           "20.00",
+	} {
+		if got := scalar(t, q); got != want {
+			t.Errorf("%s = %s, want %s", q, got, want)
+		}
+	}
+	// run ulang: tidak menambah audit (periode sudah CLOSED, dilewati).
+	if _, err := etl.RunSalaryLegacy(ctx, etlDB, etl.PSVDir{Dir: good}, etl.SalaryLegacyOptions{CompanyID: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if got := scalar(t, `SELECT count(*) FROM payroll.pyr_audit_log WHERE pal_division='JAKARTA'`); got != "2" {
+		t.Errorf("run ulang menambah audit: %s", got)
+	}
+	// payroll_etl hanya boleh INSERT audit ETL_*; tidak membaca, mengubah, atau menulis aksi lain.
+	if _, err := etlDB.Exec(`INSERT INTO payroll.pyr_audit_log (pal_actor, pal_action) VALUES ('etl','USER_LOGIN')`); err == nil {
+		t.Error("payroll_etl menulis aksi audit non-ETL")
+	}
+	if _, err := etlDB.Exec(`UPDATE payroll.pyr_audit_log SET pal_actor='x'`); err == nil {
+		t.Error("payroll_etl mengubah audit log")
+	}
+	// PM_NPWP / PM_BANK_ACNT tidak punya kolom tujuan di pyr_salary_head (PII hanya di pyr_employee, T009b).
+	if got := scalar(t, `SELECT count(*) FROM information_schema.columns WHERE table_schema='payroll' AND table_name='pyr_salary_head' AND (column_name ILIKE '%npwp%' OR column_name ILIKE '%bank%')`); got != "0" {
+		t.Errorf("pyr_salary_head memuat kolom PII: %s", got)
 	}
 }
 
