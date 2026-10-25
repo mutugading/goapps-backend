@@ -22,9 +22,17 @@ const (
 	// TypeDQEmp = distinct NIK with a calc-vs-tier gap > 0 per dept; MONTHLY only (H039). Change Off has
 	// no gap (HD-14), so it never counts.
 	TypeDQEmp = "HR_OT_DQ_EMP"
+	// TypeTier = tier 1/2/3 hours per dept and NIK; MONTHLY only (H040). group_2 is TIER_1/2/3 (OT type is
+	// not an axis, to keep cardinality small). Change Off has tier 1+2+3 = 0 (HD-14), so it yields no
+	// rows: Σ tiers = HR_OT_HOURS minus Change Off hours.
+	TypeTier = "HR_OT_TIER"
 
 	GrainDaily   = "DAILY"
 	GrainMonthly = "MONTHLY"
+
+	Tier1 = "TIER_1"
+	Tier2 = "TIER_2"
+	Tier3 = "TIER_3"
 
 	ParetoTop   = "TOP_10PCT"
 	ParetoTotal = "TOTAL"
@@ -197,6 +205,9 @@ func (a *accumulator) addRow(r Row, dept string, inWindow, periodComplete bool) 
 	}
 	a.add(key{TypeHours, dept, r.OTType, r.NIK, GrainMonthly, pEnd}, hours)
 	a.add(key{TypeDQ, dept, r.OTType, r.NIK, GrainMonthly, pEnd}, gap)
+	a.add(key{TypeTier, dept, Tier1, r.NIK, GrainMonthly, pEnd}, r.Tier1)
+	a.add(key{TypeTier, dept, Tier2, r.NIK, GrainMonthly, pEnd}, r.Tier2)
+	a.add(key{TypeTier, dept, Tier3, r.NIK, GrainMonthly, pEnd}, r.Tier3)
 	if hours.IsZero() {
 		return
 	}
