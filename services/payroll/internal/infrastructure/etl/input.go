@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/rs/zerolog/log"
 )
@@ -64,7 +65,11 @@ func loadTable(src *Table, cols []string, fn rowLoader) (TableReport, error) {
 		return rep, err
 	}
 	for i, r := range src.Rows {
-		exc, err := fn(r, idx, i+2)
+		exc := badYYMM(r, idx, cols)
+		var err error
+		if exc == "" {
+			exc, err = fn(r, idx, i+2)
+		}
 		if err != nil {
 			return rep, fmt.Errorf("%s baris %d: %w", src.Name, i+2, err)
 		}
@@ -75,6 +80,22 @@ func loadTable(src *Table, cols []string, fn rowLoader) (TableReport, error) {
 		rep.DstRows++
 	}
 	return rep, nil
+}
+
+// badYYMM reports a *_YYMM cell outside the payroll.yymm domain (200001–209912, month 1–12). Production spools
+// carry a few dirty periods (e.g. 2027, 32026); they are exceptions, not a reason to abort the whole load.
+func badYYMM(r []string, idx map[string]int, cols []string) string {
+	for _, c := range cols {
+		if !strings.HasSuffix(c, "_YYMM") {
+			continue
+		}
+		v := r[idx[c]]
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 200001 || n > 209912 || n%100 < 1 || n%100 > 12 {
+			return fmt.Sprintf("%s %q bukan yymm", c, v)
+		}
+	}
+	return ""
 }
 
 func atoi(s string) (int, error) { return strconv.Atoi(s) }
