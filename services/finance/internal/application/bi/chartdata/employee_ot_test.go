@@ -221,6 +221,15 @@ func TestShapeEmployeeOT_UnionZeroColumnsAndSubtotals(t *testing.T) {
 	if _, ok := prd["CHRONIC"]; ok {
 		t.Error("CHRONIC must not be summed")
 	}
+	// PRD: N1 40 h, N2 0 h (EXCESS 2) -> avg 20.0, 1 of 2 over. QA: N3 10 h, no excess.
+	qa := subs[1].(map[string]any)
+	if prd["avg_period_hours"] != 20.0 || prd["over_pct"] != 50.0 || qa["avg_period_hours"] != 10.0 || qa["over_pct"] != 0.0 {
+		t.Errorf("subtotal metrics = %v / %v", prd, qa)
+	}
+	sum := block["summary"].(map[string]any)
+	if sum["employees"] != 3.0 || sum["total_period_hours"] != 50.0 || sum["over_limit"] != 1.0 || sum["chronic"] != 1.0 {
+		t.Errorf("summary = %v", sum)
+	}
 	opts := block["group_options"].([]any)
 	if len(opts) != 2 || opts[0] != "DIVISION" || opts[1] != "DEPT" {
 		t.Errorf("group_options = %v (COMPANY must be absent without company data, HD-19)", opts)
@@ -298,5 +307,37 @@ func TestEmployeeOT_DrillDays(t *testing.T) {
 	}
 	if series[0].Points[0].Value != 0 || series[1].Points[0].Value != 8 || series[1].Points[2].Value != 0 {
 		t.Errorf("series = %+v", series)
+	}
+}
+
+func TestShapeEmployeeOT_SummaryEmptyAndRounding(t *testing.T) {
+	_, _, block := chartdata.ShapeEmployeeOTForTest(nil, chartdata.ViewerFilters{})
+	sum := block["summary"].(map[string]any)
+	if sum["employees"] != 0.0 || sum["total_period_hours"] != 0.0 || sum["over_limit"] != 0.0 || sum["chronic"] != 0.0 {
+		t.Errorf("empty summary = %v", sum)
+	}
+	if subs := block["subtotals"].([]any); len(subs) != 0 {
+		t.Errorf("empty subtotals = %v", subs)
+	}
+	rows := []factmetric.AggRow{
+		otRow("N1", "PRD", "PERIOD_HOURS", 10), otRow("N1", "PRD", "EXCESS", 1),
+		otRow("N2", "PRD", "PERIOD_HOURS", 10.05),
+		otRow("N3", "PRD", "PERIOD_HOURS", 0.5),
+	}
+	_, _, block = chartdata.ShapeEmployeeOTForTest(rows, chartdata.ViewerFilters{})
+	prd := block["subtotals"].([]any)[0].(map[string]any)
+	if prd["avg_period_hours"] != 6.9 || prd["over_pct"] != 33.3 { // 20.55/3 = 6.85 -> 6.9, 1/3 -> 33.3
+		t.Errorf("rounding = %v", prd)
+	}
+}
+
+func TestShapeEmployeeOT_TruncatedSummaryCoversListedRows(t *testing.T) {
+	rows := make([]factmetric.AggRow, 0, chartdata.EmployeeOTMaxRows+1)
+	for i := 0; i <= chartdata.EmployeeOTMaxRows; i++ {
+		rows = append(rows, otRow(fmt.Sprintf("N%05d", i), "PRD", "PERIOD_HOURS", 1))
+	}
+	_, _, block := chartdata.ShapeEmployeeOTForTest(rows, chartdata.ViewerFilters{})
+	if got := block["summary"].(map[string]any)["employees"]; got != float64(chartdata.EmployeeOTMaxRows) {
+		t.Errorf("summary employees = %v, want %d (listed rows only)", got, chartdata.EmployeeOTMaxRows)
 	}
 }

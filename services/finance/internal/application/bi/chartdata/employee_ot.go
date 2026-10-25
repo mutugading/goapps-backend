@@ -2,6 +2,7 @@ package chartdata
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -253,6 +254,7 @@ func employeeOTSubtotals(emps []*employeeOTRow) []any {
 	type subtotal struct {
 		group string
 		n     float64
+		over  float64
 		sums  map[string]float64
 	}
 	var order []*subtotal
@@ -265,6 +267,9 @@ func employeeOTSubtotals(emps []*employeeOTRow) []any {
 			order = append(order, s)
 		}
 		s.n++
+		if e.vals[colExcess] > 0 {
+			s.over++
+		}
 		for _, c := range []string{colPeriodHours, colWeekHours, colExcess} {
 			s.sums[c] += e.vals[c]
 		}
@@ -272,9 +277,31 @@ func employeeOTSubtotals(emps []*employeeOTRow) []any {
 	out := make([]any, 0, len(order))
 	for _, s := range order {
 		out = append(out, map[string]any{"group": s.group, "employees": s.n,
-			colPeriodHours: s.sums[colPeriodHours], colWeekHours: s.sums[colWeekHours], colExcess: s.sums[colExcess]})
+			colPeriodHours: s.sums[colPeriodHours], colWeekHours: s.sums[colWeekHours], colExcess: s.sums[colExcess],
+			"avg_period_hours": round1(s.sums[colPeriodHours] / s.n), "over_pct": round1(s.over / s.n * 100)})
 	}
 	return out
+}
+
+// round1 rounds to one decimal, half away from zero (= half-up for the non-negative values here, D-07).
+func round1(v float64) float64 { return math.Round(v*10) / 10 }
+
+// employeeOTSummary is the headline of the table (HD-24) over the same rows as the subtotals:
+// employees listed, total period hours, employees over the limit (EXCESS > 0) and chronic ones
+// (CHRONIC > 0, counted per person, never summed, HD-16).
+func employeeOTSummary(emps []*employeeOTRow) map[string]any {
+	var hours, over, chronic float64
+	for _, e := range emps {
+		hours += e.vals[colPeriodHours]
+		if e.vals[colExcess] > 0 {
+			over++
+		}
+		if e.vals[colChronic] > 0 {
+			chronic++
+		}
+	}
+	return map[string]any{"employees": float64(len(emps)), "total_period_hours": round1(hours),
+		"over_limit": over, "chronic": chronic}
 }
 
 // shapeEmployeeOT turns planEmployeeOT rows into one Series per column over NIK categories,
@@ -325,6 +352,7 @@ func shapeEmployeeOT(rows []factmetric.AggRow, f ViewerFilters, numFmt chart.Num
 		"truncated":     truncated,
 		"max_rows":      float64(employeeOTMaxRows),
 		"subtotals":     employeeOTSubtotals(emps),
+		"summary":       employeeOTSummary(emps),
 	}
 	return series, niks, block
 }
