@@ -205,12 +205,18 @@ func TestHeaderExecutiveAndNullLevel(t *testing.T) {
 }
 
 // Legacy MAIN joins DETAIL, which keeps only non-zero lines and P0: all-zero → no header.
-// The P0 exception is exercised once PPH_SUBSIDY exists (B-E3).
 func TestHeaderNeedsDetailRow(t *testing.T) {
 	in := tInput(AttRekap{"pay_tot": d("0")})
 	in.Components = []EmpComponent{tc(1, "3000000", "D")}
 	if res, _ := Calculate(in); res.Header != nil {
 		t.Fatal("legacy: all-zero lines must not get a header")
+	}
+	withP0 := in
+	withP0.Components = append([]EmpComponent{}, in.Components...)
+	withP0.Components = append(withP0.Components, pComp(0, "0", "F", false))
+	res, err := Calculate(withP0)
+	if err != nil || res.Header == nil {
+		t.Fatalf("a P0 line keeps the header even when every line is zero: %v", err)
 	}
 	in.Components = append(in.Components, tc(2, "100", "F"))
 	if res, _ := Calculate(in); res.Header == nil {

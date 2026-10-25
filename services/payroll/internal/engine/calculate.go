@@ -112,6 +112,7 @@ func evalLine(reg Registry, ctx *EvalCtx, res *Result, c EmpComponent, pph bool)
 		}
 		return fmt.Errorf("%w: %s for %s", ErrNoFormula, spec.Code, c.Key)
 	}
+	ctx.meta = nil
 	amt, remark, err := f.Eval(ctx, c, spec.Params)
 	if pph && errors.Is(err, errPending) {
 		res.Incomplete = true
@@ -121,7 +122,8 @@ func evalLine(reg Registry, ctx *EvalCtx, res *Result, c EmpComponent, pph bool)
 	if err != nil {
 		return fmt.Errorf("engine: %s (%s): %w", c.Key, spec.Code, err)
 	}
-	l := Line{Key: c.Key, Base: c.Amount, Tax: c.Tax, Remark: remark, Formula: spec.Code}
+	l := Line{Key: c.Key, Base: c.Amount, Tax: c.Tax, TaxPaidCompany: c.TaxPaidCompany, TaxSubsidy: c.TaxSubsidy,
+		Remark: remark, Formula: spec.Code, Meta: ctx.meta}
 	if amt != nil {
 		r := money.Round(*amt, 0)
 		l.Amount = &r

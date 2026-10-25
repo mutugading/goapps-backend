@@ -101,6 +101,15 @@ type EvalCtx struct {
 	Basis    Basis
 	lines    map[CompKey]Line
 	warnings []string
+	meta     map[string]string // meta of the line being evaluated, reset per line
+}
+
+// setMeta records a psd_meta entry on the line being evaluated (e.g. the subsidy rule).
+func (c *EvalCtx) setMeta(k, v string) {
+	if c.meta == nil {
+		c.meta = map[string]string{}
+	}
+	c.meta[k] = v
 }
 
 // warn records a run warning raised by a formula (e.g. PPH_NO_BRACKET).

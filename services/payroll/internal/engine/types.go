@@ -63,6 +63,7 @@ type Employee struct {
 	Name      string
 	Level     string // e.g. executive / staff / operator, as mapped in the rule set
 	TaxStatus string // PTKP code, e.g. "K/1"
+	Dept      string // pe_dept_id, matched by pyr_subsidy_rule.psr_depts
 	HasNPWP   bool
 	BirthDate *time.Time
 	GapokSts  string // F (full) / D (prorate) for the base salary
@@ -74,6 +75,10 @@ type EmpComponent struct {
 	Amount decimal.Decimal
 	Sts    string // 'F' full / 'D' prorate
 	Tax    bool
+	// TaxPaidCompany is pcm_tax_paid_company = Y: PPh on it is borne by the company (P5, 06§6.3).
+	TaxPaidCompany bool
+	// TaxSubsidy is pcm_tax_subsidy = Y: the component forms the PPh subsidy basis (P0, 06§6.4).
+	TaxSubsidy bool
 }
 
 // AttRekap is a frozen attendance recap row (MPAR_* columns), keyed by column name
@@ -129,6 +134,21 @@ type YTDTax struct {
 	Months  int
 }
 
+// YTDCompanyTax is the December P5 basis January up to the previous period, aggregated by the
+// loader like YTDTax. Legacy FNC_MGT_PAYROLL_PPH_COMPANY uses a composition of its own (D-31):
+//   - Gross: Σ detail tax=2 (T and P, every id incl. 75 and company-paid rows).
+//   - CompanyPaid: Σ detail tax=2 with tax_paid_company=Y.
+//   - Deduct: Σ P4, P14, P18.
+//   - ThrBonus: Σ THR and Bonus Tunjangan of the whole tax year, December included.
+//   - P5Paid: Σ P5 (rule v2 subtracts it, 06§6.3).
+type YTDCompanyTax struct {
+	Gross       decimal.Decimal
+	CompanyPaid decimal.Decimal
+	Deduct      decimal.Decimal
+	ThrBonus    decimal.Decimal
+	P5Paid      decimal.Decimal
+}
+
 // TaxAdj is pyr_tax_adj of the period (legacy MGT_PAYROLL_TAX_ADJ, December only):
 // Tunjangan rows add to the annual gross, Potongan rows to the annual deduction.
 type TaxAdj struct {
@@ -160,8 +180,10 @@ type Input struct {
 	Daily      DailyFails
 	YTD        YTDTax
 	TaxAdj     TaxAdj
-	Thr        ThrTax    // THR/bonus of the same tax month; zero outside THR months
-	Tax        TaxTables // EMPTAX/PAYROLLSETUP of the rule set (loaded with Rules, not queried)
+	Thr        ThrTax        // THR/bonus of the same tax month; zero outside THR months
+	Tax        TaxTables     // EMPTAX/PAYROLLSETUP of the rule set (loaded with Rules, not queried)
+	YTDCompany YTDCompanyTax // December P5 basis (D-31)
+	Subsidy    Subsidy       // P0 rules, override and basis (12§4)
 	Rules      RuleSet
 }
 
@@ -207,14 +229,18 @@ func (in Input) Validate() error {
 
 // Line is one calculated component (pyr_salary_detail).
 type Line struct {
-	Key     CompKey
-	Amount  *decimal.Decimal // already ROUND(0); nil only for legacy NULL results (D10)
-	Base    decimal.Decimal  // calculation basis (audit)
-	Qty     decimal.Decimal  // days / hours / shifts
-	Rate    decimal.Decimal
-	Tax     bool
-	Remark  string // replaces legacy *_DESCR
-	Formula string // formula code, e.g. "PRORATE_30"
+	Key    CompKey
+	Amount *decimal.Decimal // already ROUND(0); nil only for legacy NULL results (D10)
+	Base   decimal.Decimal  // calculation basis (audit)
+	Qty    decimal.Decimal  // days / hours / shifts
+	Rate   decimal.Decimal
+	Tax    bool
+	// TaxPaidCompany and TaxSubsidy are copied from the component (P5/P0 read them).
+	TaxPaidCompany bool
+	TaxSubsidy     bool
+	Remark         string            // replaces legacy *_DESCR
+	Meta           map[string]string // psd_meta, e.g. the subsidy rule applied (12§4)
+	Formula        string            // formula code, e.g. "PRORATE_30"
 }
 
 // AmountOrZero returns the amount, treating NULL as zero (legacy NVL in totals).

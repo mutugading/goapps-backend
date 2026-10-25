@@ -76,13 +76,20 @@ func pphGross(ctx *EvalCtx) (gross decimal.Decimal, ok bool) {
 }
 
 // pphGrossExcept is pphGross without the taxable rows whose id is in skip (December drops 75).
+// A skipped row still exists in legacy (it only drops out of the sum), so it counts for ok.
 func pphGrossExcept(ctx *EvalCtx, skip map[int]bool) (gross decimal.Decimal, ok bool) {
+	return pphGrossWhere(ctx, func(k CompKey, _ Line) bool { return skip[k.ID] }, true)
+}
+
+// pphGrossWhere sums like pphGross, leaving out the taxable rows for which drop is true.
+// droppedCounts tells whether such a row still makes legacy find a row (ok).
+func pphGrossWhere(ctx *EvalCtx, drop func(CompKey, Line) bool, droppedCounts bool) (gross decimal.Decimal, ok bool) {
 	for k, l := range ctx.lines { // map order is irrelevant: decimal addition is exact
 		if isPPh(k) {
 			continue
 		}
-		if l.Tax && skip[k.ID] {
-			ok = true // the row exists in legacy, it only drops out of the sum
+		if l.Tax && drop(k, l) {
+			ok = ok || droppedCounts
 			continue
 		}
 		if l.Tax {
@@ -117,13 +124,10 @@ func (pph21) Eval(ctx *EvalCtx, _ EmpComponent, _ Params) (*decimal.Decimal, str
 		return nil, "", ErrNoTaxTable
 	}
 	g := gross.Add(thr.Gross)
-	cat, okCat := in.Tax.Category[in.Emp.TaxStatus]
-	b, okBr := in.Tax.bracket(cat, g)
-	if !okCat || !okBr {
-		ctx.warn(fmt.Sprintf("%s: %s status pajak %q, bruto %s", WarnPPhNoBracket, in.Emp.NIK, in.Emp.TaxStatus, g))
+	p, cat, b, okBr := terTax(ctx, g)
+	if !okBr {
 		return nil, "", nil
 	}
-	p := money.Round(g.Mul(b.Rate).Shift(-2), 0) // ÷ 100, exact
 	remark := fmt.Sprintf("Kategori : %s | Penghasilan : %s - %s | Tarif : %s %%", cat, thousands(b.Min), thousands(b.Max), b.Rate)
 	if !thr.Gross.IsZero() || !thr.PPhPaid.IsZero() {
 		p = p.Sub(thr.PPhPaid)
@@ -133,6 +137,19 @@ func (pph21) Eval(ctx *EvalCtx, _ EmpComponent, _ Params) (*decimal.Decimal, str
 		p = decimal.Zero
 	}
 	return &p, remark, nil
+}
+
+// terTax is ROUND(g × TER(category, g) / 100, 0). ok is false, with a PPH_NO_BRACKET warning,
+// when the tax status has no category or g falls in no bracket (legacy SELECT INTO → NULL).
+func terTax(ctx *EvalCtx, g decimal.Decimal) (p decimal.Decimal, cat string, b TERBracket, ok bool) {
+	in := ctx.In
+	cat, okCat := in.Tax.Category[in.Emp.TaxStatus]
+	b, okBr := in.Tax.bracket(cat, g)
+	if !okCat || !okBr {
+		ctx.warn(fmt.Sprintf("%s: %s status pajak %q, bruto %s", WarnPPhNoBracket, in.Emp.NIK, in.Emp.TaxStatus, g))
+		return decimal.Zero, cat, b, false
+	}
+	return money.Round(g.Mul(b.Rate).Shift(-2), 0), cat, b, true // ÷ 100, exact
 }
 
 // allowNegativePPh reads ALLOW_NEGATIVE_PPH; the default allows it for parity (06§6.1).
@@ -157,5 +174,5 @@ func thousands(v decimal.Decimal) string {
 	return b.String()
 }
 
-// pphFormulas returns the PPh formulas implemented so far (P5/P0 follow in T015).
-func pphFormulas() []Formula { return []Formula{pph21{}} }
+// pphFormulas returns the PPh formulas P1, P5 and P0.
+func pphFormulas() []Formula { return []Formula{pph21{}, pphCompany{}, pphSubsidy{}} }

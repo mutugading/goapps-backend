@@ -198,8 +198,8 @@ func TestCalculateDeterministicAndOrder(t *testing.T) {
 			t.Errorf("not sorted at %d: %v", j, first.Lines)
 		}
 	}
-	// P1 has no taxable line → NULL; P5/P0 skipped (no formula yet): 2 warnings, incomplete.
-	if len(first.Warnings) != 2 || !first.Incomplete {
+	// P1/P5 have no taxable line → NULL, P0 has no rule → 0: no warning, complete.
+	if len(first.Warnings) != 0 || first.Incomplete {
 		t.Errorf("warnings = %v", first.Warnings)
 	}
 }
