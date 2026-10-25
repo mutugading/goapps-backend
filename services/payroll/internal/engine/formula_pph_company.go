@@ -49,10 +49,9 @@ func (pphCompany) Eval(ctx *EvalCtx, _ EmpComponent, _ Params) (*decimal.Decimal
 }
 
 // pphCompanyAnnual is P5 in December. Legacy (rule v1) computes both annual taxes on the same
-// gross and job cost; the company-paid rows only join the deduction, after the job cost. Neither
-// side subtracts PPh paid or the P5 of earlier months, so every month's P5 is borne again in
-// December (defect, kept for parity). Rule v2 lowers the gross itself, truncates the PKP, uses
-// the statutory layers and subtracts YTD P5 (06§6.3).
+// gross and job cost; the company-paid rows only join the deduction, after the job cost. Both
+// rules subtract the P5 of earlier months (D-31b, 06§6.3); legacy did not (D21, 10§1). Rule v2
+// also lowers the gross itself, truncates the PKP and uses the statutory layers.
 func pphCompanyAnnual(ctx *EvalCtx) (*decimal.Decimal, string, error) {
 	in := ctx.In
 	y := in.YTDCompany
@@ -97,7 +96,7 @@ func pphCompanyAnnual(ctx *EvalCtx) (*decimal.Decimal, string, error) {
 		nett := gross.Sub(deduct).Sub(jobCost(gross)).Sub(ptkp)
 		taxAll = progressiveLegacy(layers, nett)
 		taxOwn = progressiveLegacy(layers, nett.Sub(paid))
-		p = taxOwn.Sub(taxAll)
+		p = taxOwn.Sub(taxAll).Sub(y.P5Paid) // D-31b: YTD P5 is subtracted in v1 too
 	} else {
 		pkp := func(g decimal.Decimal) decimal.Decimal {
 			return decimal.Max(money.Trunc(g.Sub(deduct).Sub(jobCost(g)).Sub(ptkp), -3), decimal.Zero)
@@ -106,10 +105,7 @@ func pphCompanyAnnual(ctx *EvalCtx) (*decimal.Decimal, string, error) {
 		taxOwn = progressive(layers, pkp(gross.Sub(paid)))
 		p = taxOwn.Sub(taxAll).Sub(y.P5Paid)
 	}
-	remark := fmt.Sprintf("Bruto : %s | Ditanggung Perusahaan : %s | Pengurang : %s | PTKP : %s | PPh Setahun : %s | PPh Ditanggung Karyawan : %s",
-		thousands(gross), thousands(paid), thousands(deduct), thousands(ptkp), thousands(taxAll), thousands(taxOwn))
-	if !in.Rules.LegacyCompat() {
-		remark += fmt.Sprintf(" | P5 Jan-Nov : %s", thousands(y.P5Paid))
-	}
+	remark := fmt.Sprintf("Bruto : %s | Ditanggung Perusahaan : %s | Pengurang : %s | PTKP : %s | PPh Setahun : %s | PPh Ditanggung Karyawan : %s | P5 Jan-Nov : %s",
+		thousands(gross), thousands(paid), thousands(deduct), thousands(ptkp), thousands(taxAll), thousands(taxOwn), thousands(y.P5Paid))
 	return &p, remark, nil
 }

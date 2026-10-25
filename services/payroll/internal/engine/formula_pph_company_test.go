@@ -95,8 +95,9 @@ func TestPPhCompanyDecember(t *testing.T) {
 		want string
 	}{
 		// v1: BJ 3.600.000 dari bruto penuh. PKP semua 14.400.000 → 720.000; ditanggung masuk
-		// pengurang → PKP 7.200.000 → 360.000. P5 bulan lalu tidak dikurangkan (defect).
-		{"v1 legacy", mk(true, "-330000"), "-360000"},
+		// pengurang → PKP 7.200.000 → 360.000; P5 = 360.000 − 720.000 − (−330.000) = −30.000.
+		{"v1 legacy, YTD P5 dikurangkan (D-31b)", mk(true, "-330000"), "-30000"},
+		{"v1 legacy tanpa P5 sebelumnya", mk(true, "0"), "-360000"},
 		// v2: bruto sendiri 64.800.000, BJ 3.240.000, PKP 7.560.000 → 378.000;
 		// 378.000 − 720.000 − (−330.000) = −12.000.
 		{"v2 YTD P5 dikurangkan", mk(false, "-330000"), "-12000"},
