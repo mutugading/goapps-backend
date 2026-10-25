@@ -57,6 +57,11 @@ const employeeOTConfigKey = "employee_ot"
 // employeeOTMaxRows caps the employee rows (HD-18); one more is fetched to detect truncation.
 const employeeOTMaxRows = 2000
 
+// employeeOTMaxWeekCols caps the week columns of the table (HD-26): L12M / THIS_YEAR hold ~52 weeks,
+// which at employeeOTMaxRows employees is >100k points. Only the latest weeks get a column; EXCESS and
+// WEEKS_OVER still cover the whole R1 window.
+const employeeOTMaxWeekCols = 13
+
 // employeeOTMaxGroupFilter caps the group filter values bound into one query.
 const employeeOTMaxGroupFilter = 500
 
@@ -84,6 +89,14 @@ type EmployeeOTWindows struct {
 	DayFrom    time.Time   // first day of the NIK→day drill: min(LastStart, Week)
 	PrevFrom   time.Time   // first fact date (25th) of the comparison window (HD-24)
 	PrevTo     time.Time   // last fact date (25th) of the comparison window = the period before PeriodFrom
+}
+
+// ColumnWeeks are the Mondays that get a week column: the latest employeeOTMaxWeekCols of Weeks (HD-26).
+func (w EmployeeOTWindows) ColumnWeeks() []time.Time {
+	if n := len(w.Weeks); n > employeeOTMaxWeekCols {
+		return w.Weeks[n-employeeOTMaxWeekCols:]
+	}
+	return w.Weeks
 }
 
 // ResolveEmployeeOTWindows resolves the R1 period window and the R2 week for a preset. today is
@@ -217,7 +230,12 @@ func planEmployeeOT(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time
 	if len(w.Weeks) > 0 {
 		firstWeek = w.Weeks[0]
 	}
-	args = append(args, firstWeek) // $11
+	args = append(args, firstWeek) // $11: whole R1 window (EXCESS, WEEKS_OVER)
+	colWeek := firstWeek
+	if cw := w.ColumnWeeks(); len(cw) > 0 {
+		colWeek = cw[0]
+	}
+	args = append(args, colWeek) // $12: week columns only (HD-26)
 	groupCond := ""
 	if len(f.GroupFilter) > 0 {
 		var conds []string
@@ -240,7 +258,7 @@ func planEmployeeOT(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time
   SELECT group_3, '` + colWeekPrefix + `' || TO_CHAR(periode_date, 'YYYY-MM-DD'), SUM(value)
   FROM bi_fact_metric
   WHERE type = $4 AND periode_grain = 'WEEKLY' AND is_active = TRUE
-    AND periode_date BETWEEN $11 AND $7 AND COALESCE(group_3, '') <> ''
+    AND periode_date BETWEEN $12 AND $7 AND COALESCE(group_3, '') <> ''
   GROUP BY group_3, periode_date
   UNION ALL
   SELECT group_3, '` + colExcess + `', MAX(value)
@@ -641,6 +659,8 @@ func addEmployeeOTRanges(r *Result, d *dashboarddomain.Dashboard, f ViewerFilter
 		return
 	}
 	block["weeks"] = employeeOTWeeks(w, wibDate(now))
+	block["weeks_truncated"] = len(w.Weeks) > len(w.ColumnWeeks())
+	alignWeekSeries(r, w.ColumnWeeks(), pickNumberFormat(d.ChartConfig()), d.ChartConfig().Decimals)
 	block["ranges"] = map[string]any{
 		"period_from": w.FirstStart.Format(time.DateOnly), "period_to": w.PeriodTo.Format(time.DateOnly),
 		"last_period_from": w.LastStart.Format(time.DateOnly), "day_from": w.DayFrom.Format(time.DateOnly),
@@ -655,19 +675,50 @@ func addEmployeeOTRanges(r *Result, d *dashboarddomain.Dashboard, f ViewerFilter
 // range and whether the week is still running (partial, HD-17).
 func employeeOTWeeks(w EmployeeOTWindows, today time.Time) []any {
 	out := make([]any, 0, len(w.Weeks))
+	skip := len(w.Weeks) - len(w.ColumnWeeks())
 	var curPeriod string
 	n := 0
-	for _, mon := range w.Weeks {
+	for i, mon := range w.Weeks {
 		sun := mon.AddDate(0, 0, 6)
 		period := PeriodLabel(payrollEnd(sun), "MONTHLY")
 		if period != curPeriod {
 			curPeriod, n = period, 0
 		}
 		n++
+		if i < skip { // W<n> counts from the period start, so count the hidden weeks too
+			continue
+		}
 		out = append(out, map[string]any{
 			"key": colWeekPrefix + mon.Format(time.DateOnly), "label": fmt.Sprintf("W%d", n), "period": period,
 			"from": mon.Format(time.DateOnly), "to": sun.Format(time.DateOnly), "partial": sun.After(today),
 		})
 	}
 	return out
+}
+
+// alignWeekSeries rebuilds the week series from the resolved window instead of from the data (HD-26):
+// every column week gets a series in ascending order, zero-filled when no fact exists, and series
+// outside the column weeks are dropped. Fixed columns keep their position at the front.
+func alignWeekSeries(r *Result, weeks []time.Time, numFmt chart.NumberFormat, decimals int) {
+	have := map[string]Series{}
+	out := make([]Series, 0, len(r.Series)+len(weeks))
+	for _, s := range r.Series {
+		if isWeekCol(s.Name) {
+			have[s.Name] = s
+		} else {
+			out = append(out, s)
+		}
+	}
+	for _, mon := range weeks {
+		name := colWeekPrefix + mon.Format(time.DateOnly)
+		s, ok := have[name]
+		if !ok {
+			s = Series{Name: name, Points: make([]DataPoint, 0, len(r.Categories))}
+			for _, nik := range r.Categories {
+				s.Points = append(s.Points, DataPoint{Category: nik, Label: chart.Format(0, numFmt, decimals)})
+			}
+		}
+		out = append(out, s)
+	}
+	r.Series = out
 }

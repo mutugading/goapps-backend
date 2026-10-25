@@ -83,10 +83,10 @@ func TestEmployeeOT_GroupFilterIsBound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(p.SQL, evil) || !strings.Contains(p.SQL, "COALESCE(e.dept_name, '') IN ($12,$13)") {
+	if strings.Contains(p.SQL, evil) || !strings.Contains(p.SQL, "COALESCE(e.dept_name, '') IN ($13,$14)") {
 		t.Errorf("filter not bound:\n%s", p.SQL)
 	}
-	if p.Args[11] != evil || p.Args[12] != "QA" {
+	if p.Args[12] != evil || p.Args[13] != "QA" {
 		t.Errorf("args = %v", p.Args)
 	}
 	if _, err := chartdata.Plan(d, chartdata.ViewerFilters{PeriodPreset: "THIS_MONTH", GroupFilter: []string{"QA"}}, otNow); !errors.Is(err, factmetric.ErrInvalidPlan) {
@@ -430,7 +430,7 @@ func TestEmployeeOT_PrevTotalRespectsGroupFilter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Count(p.SQL, "COALESCE(e.dept_name, '') IN ($12)") != 2 || !strings.Contains(p.SQL, "PREV_TOTAL_EMPLOYEES") {
+	if strings.Count(p.SQL, "COALESCE(e.dept_name, '') IN ($13)") != 2 || !strings.Contains(p.SQL, "PREV_TOTAL_EMPLOYEES") {
 		t.Errorf("group filter must apply to the listed rows and the previous total:\n%s", p.SQL)
 	}
 }
@@ -475,7 +475,7 @@ func TestEmployeeOT_PlanWeekWindowAndRanges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(p.Args) != 11 || p.Args[10] != isoDay("2026-09-21") || p.Args[6] != isoDay("2026-10-19") {
+	if len(p.Args) != 12 || p.Args[10] != isoDay("2026-09-21") || p.Args[11] != isoDay("2026-09-21") || p.Args[6] != isoDay("2026-10-19") {
 		t.Errorf("week window args = %v", p.Args)
 	}
 	if !strings.Contains(p.SQL, "BETWEEN $11 AND $7") {
@@ -570,5 +570,27 @@ func TestEmployeeOT_ComparePeriod(t *testing.T) {
 				t.Errorf("err = %v", err)
 			}
 		})
+	}
+}
+
+// HD-26: a long preset caps the week columns, while EXCESS / WEEKS_OVER keep the whole window.
+func TestEmployeeOT_PlanCapsWeekColumns(t *testing.T) {
+	w, err := chartdata.ResolveEmployeeOTWindows("L12M", isoDay("2026-10-21"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cw := w.ColumnWeeks()
+	if len(w.Weeks) <= 13 || len(cw) != 13 || cw[12] != w.Week {
+		t.Fatalf("weeks=%d cols=%d", len(w.Weeks), len(cw))
+	}
+	p, err := chartdata.Plan(employeeOTDashboard(t), chartdata.ViewerFilters{PeriodPreset: "L12M"}, otNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Args[10] != w.Weeks[0] || p.Args[11] != cw[0] {
+		t.Errorf("window start %v, column start %v", p.Args[10], p.Args[11])
+	}
+	if !strings.Contains(p.SQL, "BETWEEN $12 AND $7") || !strings.Contains(p.SQL, "BETWEEN $11 AND $7") {
+		t.Error("week columns use $12, EXCESS/WEEKS_OVER use $11")
 	}
 }
