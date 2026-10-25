@@ -13,7 +13,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/bi/hrot"
 )
 
-// replaceOTFacts recomputes the R1 facts (HR_OT_HOURS, HR_OT_DQ, HR_OT_PARETO, HR_OT_EMP_COUNT, HR_OT_DQ_EMP, HR_OT_TIER) of every payroll
+// replaceOTFacts recomputes the R1 facts (HR_OT_HOURS, HR_OT_DQ, HR_OT_PARETO, HR_OT_EMP_COUNT, HR_OT_DQ_EMP) of every payroll
 // period touched by [d1, d2] from staging, inside the caller's transaction (HD-03/HD-04): facts of
 // those periods are deleted and re-inserted, so rows removed at the source disappear from the facts.
 // Department = current dept from bi_hr_employee (K15); older facts are restated to it (HD-15).
@@ -37,11 +37,11 @@ func replaceOTFacts(ctx context.Context, tx *sql.Tx, d1, d2 time.Time, sourceID 
 	loadedFrom = time.Date(loadedFrom.Year(), loadedFrom.Month(), loadedFrom.Day(), 0, 0, 0, 0, time.UTC)
 
 	if _, err = tx.ExecContext(ctx, `DELETE FROM bi_fact_metric
-WHERE type IN ($1, $2, $3, $9, $10, $11) AND scenario = 'ACTUAL'
+WHERE type IN ($1, $2, $3, $9, $10) AND scenario = 'ACTUAL'
   AND ((periode_grain = $4 AND periode_date BETWEEN $6 AND $7)
     OR (periode_grain = $5 AND periode_date BETWEEN $8 AND $7))`,
 		hrot.TypeHours, hrot.TypeDQ, hrot.TypePareto, hrot.GrainDaily, hrot.GrainMonthly,
-		from, to, hrot.PayrollPeriodEnd(d1), hrot.TypeEmpCount, hrot.TypeDQEmp, hrot.TypeTier); err != nil {
+		from, to, hrot.PayrollPeriodEnd(d1), hrot.TypeEmpCount, hrot.TypeDQEmp); err != nil {
 		return fmt.Errorf("delete OT facts: %w", err)
 	}
 

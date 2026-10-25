@@ -132,7 +132,6 @@ func TestAggregate_PartialPeriodSkipsMonthly(t *testing.T) {
 		"HR_OT_PARETO MONTHLY 202609 TOP_10PCT": "2",
 		"HR_OT_PARETO MONTHLY 202609 TOTAL":     "2",
 		"HR_OT_EMP_COUNT MONTHLY 202609 D":      "1",
-		"HR_OT_TIER MONTHLY 202609 D":           "2",
 	}, got)
 }
 
@@ -257,31 +256,4 @@ func TestAggregate_DQEmployees(t *testing.T) {
 	}
 	assert.Equal(t, map[string]string{"202611 X": "1", "202611 Y": "1"}, got)
 	assert.Equal(t, "3.5", gapTotal.String())
-}
-
-func TestAggregate_Tier(t *testing.T) {
-	// 202611: A has tiers in two days (summed), Change Off has no tier rows (HD-14), B is in another dept.
-	rows := []Row{
-		{WorkDate: day("2026-10-27"), NIK: "A", StagingDept: "X", OTType: "Normal", Tier1: dec("1"), Tier2: dec("0.5"), CalcHours: dec("1.5")},
-		{WorkDate: day("2026-10-28"), NIK: "A", StagingDept: "X", OTType: "Off", Tier2: dec("2"), Tier3: dec("1.25"), CalcHours: dec("3.25")},
-		{WorkDate: day("2026-10-27"), NIK: "C", StagingDept: "X", OTType: "Change Off", CalcHours: dec("4")},
-		{WorkDate: day("2026-10-27"), NIK: "B", StagingDept: "Y", OTType: "Normal", Tier1: dec("2"), CalcHours: dec("2")},
-	}
-	got := map[string]string{}
-	tiers, hours := decimal.Zero, decimal.Zero
-	for _, f := range Aggregate(rows, nil, day("2026-10-20"), day("2026-11-25"), day("2026-10-20")) {
-		switch {
-		case f.Type == TypeTier:
-			assert.Equal(t, GrainMonthly, f.Grain)
-			assert.NotEmpty(t, f.Group3)
-			got[f.PeriodLabel+" "+f.Group1+" "+f.Group2+" "+f.Group3] = f.Value.String()
-			tiers = tiers.Add(f.Value)
-		case f.Type == TypeHours && f.Grain == GrainMonthly && f.Group2 != OTTypeChangeOff:
-			hours = hours.Add(f.Value)
-		}
-	}
-	assert.Equal(t, map[string]string{
-		"202611 X TIER_1 A": "1", "202611 X TIER_2 A": "2.5", "202611 X TIER_3 A": "1.25", "202611 Y TIER_1 B": "2",
-	}, got)
-	assert.True(t, tiers.Equal(hours), "Σ tier = HR_OT_HOURS excl. Change Off")
 }
