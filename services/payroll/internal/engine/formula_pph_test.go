@@ -4,7 +4,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/shopspring/decimal"
 )
@@ -185,24 +184,6 @@ func TestPPh21NoTaxTable(t *testing.T) {
 	in.Tax = TaxTables{}
 	if _, err := Calculate(in); !errors.Is(err, ErrNoTaxTable) {
 		t.Fatalf("err = %v, want ErrNoTaxTable", err)
-	}
-}
-
-// December (annual PPh) is T014: P1 is skipped and the result stays incomplete.
-func TestPPh21DecemberPending(t *testing.T) {
-	in := pphInput("TK", taxT(1, "6000000", "F"))
-	in.Period = Period{YYMM: 202612, Start: time.Date(2026, 11, 26, 0, 0, 0, 0, time.UTC), End: time.Date(2026, 12, 25, 0, 0, 0, 0, time.UTC)}
-	res, err := Calculate(in)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !res.Incomplete || len(res.Warnings) != 1 {
-		t.Errorf("incomplete = %v warnings = %v", res.Incomplete, res.Warnings)
-	}
-	for _, l := range res.Lines {
-		if l.Key == (CompKey{CompP, 1}) {
-			t.Error("P1 line written for December")
-		}
 	}
 }
 

@@ -28,6 +28,8 @@ var (
 	ErrNoTaxTable = errors.New("engine: PPh TER table (EMPTAX/PAYROLLSETUP) missing from input")
 	// errPending marks a PPh branch not implemented yet; Calculate skips the line as incomplete.
 	errPending = errors.New("engine: formula branch not implemented yet")
+	// ErrNoAnnualTaxTable is returned in December when PTKP, BIAYAJABATAN or TARIF is missing.
+	ErrNoAnnualTaxTable = errors.New("engine: PPh annual table (PTKP/BIAYAJABATAN/TARIF) missing from input")
 )
 
 // WarnPPhNoBracket is the warning when legacy SELECT INTO finds no category or bracket (P1 NULL).
@@ -40,10 +42,14 @@ type TERBracket struct {
 	Rate decimal.Decimal // percent, e.g. 0.25
 }
 
-// TaxTables are the TER inputs of the rule set (legacy IM_VS_STATIC_VALUE EMPTAX/PAYROLLSETUP).
+// TaxTables are the PPh inputs of the rule set (legacy IM_VS_STATIC_VALUE EMPTAX/PAYROLLSETUP).
 type TaxTables struct {
 	Category map[string]string       // pe_tax_id → A/B/C (EMPTAX.field_01)
 	TER      map[string][]TERBracket // category → brackets
+	// December (annual) tables.
+	PTKP        map[string]decimal.Decimal // pe_tax_id → monthly PTKP (PAYROLLSETUP TK, K0, …)
+	JobCost     JobCost                    // PAYROLLSETUP BIAYAJABATAN
+	Progressive []TaxLayer                 // PAYROLLSETUP TARIF5 … TARIF35, ascending
 }
 
 // bracket returns the bracket of cat containing gross (legacy BETWEEN, both ends inclusive).
@@ -66,8 +72,17 @@ type ThrTax struct {
 // component row with tax = 2, T and P alike (additions only through their component row), minus
 // P4 and P8. ok is false when legacy finds no row at all (no taxable component, no P4/P8).
 func pphGross(ctx *EvalCtx) (gross decimal.Decimal, ok bool) {
+	return pphGrossExcept(ctx, nil)
+}
+
+// pphGrossExcept is pphGross without the taxable rows whose id is in skip (December drops 75).
+func pphGrossExcept(ctx *EvalCtx, skip map[int]bool) (gross decimal.Decimal, ok bool) {
 	for k, l := range ctx.lines { // map order is irrelevant: decimal addition is exact
 		if isPPh(k) {
+			continue
+		}
+		if l.Tax && skip[k.ID] {
+			ok = true // the row exists in legacy, it only drops out of the sum
 			continue
 		}
 		if l.Tax {
@@ -83,7 +98,7 @@ func pphGross(ctx *EvalCtx) (gross decimal.Decimal, ok bool) {
 // pph21 is P1 (06§6.1, D-28). Non-December: ROUND(G × TER(G) / 100, 0) with G = gross + THR_GROSS,
 // minus PPH_THR_PAID. Only that subtraction can go below zero; it is floored at zero unless
 // ALLOW_NEGATIVE_PPH. Legacy has no THR term here (manual T75/P75/P7 additions instead); 06§6.1 v1
-// moves the THR PPh from P7 into P1. December (annual) is T014.
+// moves the THR PPh from P7 into P1. December is the annual reconciliation (pph21Annual).
 type pph21 struct{}
 
 func (pph21) Code() string { return FormulaPPh21 }
@@ -91,7 +106,7 @@ func (pph21) Code() string { return FormulaPPh21 }
 func (pph21) Eval(ctx *EvalCtx, _ EmpComponent, _ Params) (*decimal.Decimal, string, error) {
 	in := ctx.In
 	if in.Period.IsDecember() {
-		return nil, "", errPending
+		return pph21Annual(ctx)
 	}
 	gross, ok := pphGross(ctx)
 	thr := in.Thr

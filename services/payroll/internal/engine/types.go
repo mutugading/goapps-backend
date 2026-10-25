@@ -116,11 +116,24 @@ type DailyFails struct {
 	BerasFail int
 }
 
-// YTDTax is the year-to-date tax basis, January up to the previous period.
+// YTDTax is the year-to-date tax basis, January up to the previous period, aggregated by the
+// loader per (company, tax year, npwp_hash) (13§3.3). Legacy December sources (D-29):
+//   - Gross: Σ detail tax=2 with tax_paid_company=N except no 75, minus Σ P4 and P8, plus
+//     THR/Bonus Tunjangan of earlier months.
+//   - Deduct: Σ P14, P18, P22, P23 (JHT/pension, incl. BPJS Naker debt).
+//   - TaxPaid: Σ P1 + THR PPh (TD_NO 1) + Bonus PPh (TD_NO 1, 3) + P7 additions.
 type YTDTax struct {
 	Gross   decimal.Decimal
+	Deduct  decimal.Decimal
 	TaxPaid decimal.Decimal
 	Months  int
+}
+
+// TaxAdj is pyr_tax_adj of the period (legacy MGT_PAYROLL_TAX_ADJ, December only):
+// Tunjangan rows add to the annual gross, Potongan rows to the annual deduction.
+type TaxAdj struct {
+	Earn   decimal.Decimal
+	Deduct decimal.Decimal
 }
 
 // RuleSet is a versioned rule set (03§2.3). Implementations must be immutable.
@@ -146,6 +159,7 @@ type Input struct {
 	Loans      []LoanDue
 	Daily      DailyFails
 	YTD        YTDTax
+	TaxAdj     TaxAdj
 	Thr        ThrTax    // THR/bonus of the same tax month; zero outside THR months
 	Tax        TaxTables // EMPTAX/PAYROLLSETUP of the rule set (loaded with Rules, not queried)
 	Rules      RuleSet
