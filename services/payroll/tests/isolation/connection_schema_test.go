@@ -254,15 +254,11 @@ func TestI11_EtlMayCheckPeriodLockOnly(t *testing.T) {
 	if pol != 2 {
 		t.Fatalf("I11: p_etl_lock policies = %d, want 2", pol)
 	}
-	// Only the lock-check use: no write, no other columns.
-	_, err = etlDB.Exec(`UPDATE payroll.pyr_att_snapshot SET pas_locked = pas_locked`)
-	expectDenied(t, "I11 write snapshot", err)
-	err = etlDB.QueryRow(`SELECT count(pas_checksum) FROM payroll.pyr_att_snapshot`).Scan(&n)
-	expectDenied(t, "I11 snapshot checksum", err)
-	err = etlDB.QueryRow(`SELECT count(pas_source_batch_ids) FROM payroll.pyr_att_snapshot`).Scan(&n)
-	expectDenied(t, "I11 snapshot batch ids", err)
-	_, err = etlDB.Exec(`UPDATE payroll.pyr_period SET pp_status = pp_status`)
-	expectDenied(t, "I11 write period", err)
+	// Read side stays narrow: no other columns. Writes granted later (000030 snapshot, 000031 period/run/salary) are
+	// ETL loads only; the period write is limited to non-CLOSED rows by policy p_etl_upd (see TestETL_SalaryLegacyRuns).
+	// pyr_att_snapshot is fully readable/writable since 000030 (T009d loads LEGACY snapshots), so only pyr_period stays narrow.
+	_, err = etlDB.Exec(`UPDATE payroll.pyr_period SET pp_reopen_reason = 'x'`)
+	expectDenied(t, "I11 write period non-ETL column", err)
 	err = etlDB.QueryRow(`SELECT count(pp_reopen_reason) FROM payroll.pyr_period`).Scan(&n)
 	expectDenied(t, "I11 non-lock column", err)
 	// I10 stays closed after the schema/table grants.

@@ -1,4 +1,4 @@
-// Package main is the payroll sync/ETL entry point (D-01, D-22). Subcommands: migrate, employees, inputs, att-legacy.
+// Package main is the payroll sync/ETL entry point (D-01, D-22). Subcommands: migrate, employees, inputs, att-legacy, salary-legacy.
 package main
 
 import (
@@ -14,11 +14,12 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 || (os.Args[1] != "migrate" && os.Args[1] != "employees" && os.Args[1] != "inputs" && os.Args[1] != "att-legacy") {
+	if len(os.Args) < 2 || (os.Args[1] != "migrate" && os.Args[1] != "employees" && os.Args[1] != "inputs" && os.Args[1] != "att-legacy" && os.Args[1] != "salary-legacy") {
 		fmt.Fprintln(os.Stderr, "usage: sync migrate -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-valid-from 202001] [-expect-master 133 -expect-template 762]")
 		fmt.Fprintln(os.Stderr, "       sync employees -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-emp 2860 -expect-compe 117827]  (kunci: PAYROLL_PII_KEY, PAYROLL_PII_HMAC_KEY)")
 		fmt.Fprintln(os.Stderr, "       sync att-legacy -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-rekap 68925 -expect-add 870 -expect-sch 3996]")
 		fmt.Fprintln(os.Stderr, "       sync inputs -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-addition 28464 -expect-abnormal 28550]")
+		fmt.Fprintln(os.Stderr, "       sync salary-legacy -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-main 91916 -expect-detail 2274418]")
 		os.Exit(2)
 	}
 	run := migrate
@@ -29,6 +30,8 @@ func main() {
 		run = inputs
 	case "att-legacy":
 		run = attLegacy
+	case "salary-legacy":
+		run = salaryLegacy
 	}
 	if err := run(os.Args[2:]); err != nil {
 		fmt.Fprintln(os.Stderr, os.Args[1]+":", err)
@@ -168,6 +171,40 @@ func attLegacy(args []string) error {
 	})
 	for _, r := range reps {
 		fmt.Printf("%-32s src=%-6d dst=%-6d exc=%-4d sha256=%s\n", r.Table, r.SrcRows, r.DstRows, len(r.Exceptions), r.Checksum)
+		for _, e := range r.Exceptions {
+			fmt.Println("  EXCEPTION", e)
+		}
+	}
+	return err
+}
+
+func salaryLegacy(args []string) error {
+	fs := flag.NewFlagSet("salary-legacy", flag.ExitOnError)
+	dir := fs.String("dir", "", "folder .psv hasil spool sqlplus (08§1)")
+	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl")
+	company := fs.Int("company", 1, "pyr_company.pco_company_id")
+	expM := fs.Int("expect-main", 0, "jumlah baris MGT_PAYROLL_MAIN yang diharapkan (91916)")
+	expD := fs.Int("expect-detail", 0, "jumlah baris MGT_PAYROLL_DETAIL yang diharapkan (2274418)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *dir == "" || *dsn == "" {
+		return fmt.Errorf("-dir dan -dsn (atau PAYROLL_ETL_DSN) wajib")
+	}
+	db, err := sql.Open("pgx", *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := db.Close(); cerr != nil {
+			fmt.Fprintln(os.Stderr, "close:", cerr)
+		}
+	}()
+	reps, err := etl.RunSalaryLegacy(context.Background(), db, etl.PSVDir{Dir: *dir}, etl.SalaryLegacyOptions{
+		CompanyID: int16(*company), ExpectMain: *expM, ExpectDetail: *expD, //nolint:gosec // flag range checked by FK
+	})
+	for _, r := range reps {
+		fmt.Printf("%-32s src=%-8d dst=%-8d exc=%-4d sha256=%s\n", r.Table, r.SrcRows, r.DstRows, len(r.Exceptions), r.Checksum)
 		for _, e := range r.Exceptions {
 			fmt.Println("  EXCEPTION", e)
 		}

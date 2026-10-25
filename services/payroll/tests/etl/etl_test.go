@@ -258,3 +258,145 @@ func TestETL_AttLegacySnapshots(t *testing.T) {
 		}
 	}
 }
+
+func TestETL_SalaryLegacyRuns(t *testing.T) {
+	ctx := context.Background()
+	src := etl.PSVDir{Dir: "testdata"}
+	// komponen & snapshot LEGACY (T009a/T009d) adalah prasyarat; keduanya idempotent.
+	if _, err := etl.Run(ctx, etlDB, src, etl.Options{CompanyID: 1, ValidFrom: 202001}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := etl.RunAttLegacy(ctx, etlDB, src, etl.AttLegacyOptions{CompanyID: 1}); err != nil {
+		t.Fatal(err)
+	}
+	o := etl.SalaryLegacyOptions{CompanyID: 1, ExpectMain: 5, ExpectDetail: 7}
+	state := func() string {
+		return scalar(t, `SELECT md5(
+		  (SELECT string_agg(pr_yymm||pr_division||pr_kind||pr_status||pr_rule_set_id||pr_emp_count||pr_line_count||pr_tot_tunjangan, ',' ORDER BY 1) FROM payroll.pyr_run) ||
+		  (SELECT string_agg(psh_nik||psh_yymm||psh_net_pay, ',' ORDER BY 1) FROM payroll.pyr_salary_head) ||
+		  (SELECT string_agg(psd_nik||psd_id||coalesce(psd_amount::text,'null')||psd_component_sysid, ',' ORDER BY 1) FROM payroll.pyr_salary_detail))`)
+	}
+	reps, err := etl.RunSalaryLegacy(ctx, etlDB, src, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := state()
+	reps2, err := etl.RunSalaryLegacy(ctx, etlDB, src, o)
+	if err != nil {
+		t.Fatalf("run ulang: %v", err)
+	}
+	if state() != first {
+		t.Fatal("run kedua mengubah hasil (tidak idempotent)")
+	}
+	for i, r := range reps {
+		if !r.OK() || !reps2[i].OK() {
+			t.Errorf("%s src=%d dst=%d exc=%d", r.Table, r.SrcRows, r.DstRows, len(r.Exceptions))
+		}
+	}
+	// MAIN: 202608 tanpa snapshot + 2027 kotor; DETAIL: 202608 (tanpa snapshot) + 2027
+	if len(reps[0].Exceptions) != 2 || len(reps[1].Exceptions) != 2 {
+		t.Errorf("exception main=%d detail=%d, want 2/2", len(reps[0].Exceptions), len(reps[1].Exceptions))
+	}
+	for q, want := range map[string]string{
+		`SELECT count(*) FROM payroll.pyr_run WHERE pr_kind='LEGACY' AND pr_status='ACTIVE' AND pr_rule_set_id=0`:       "2",
+		`SELECT count(*) FROM payroll.pyr_period WHERE pp_status='CLOSED' AND pp_active_run_id IS NOT NULL`:             "2",
+		`SELECT count(*) FROM payroll.pyr_salary_head`:                                                                  "3",
+		`SELECT count(*) FROM payroll.pyr_salary_detail`:                                                                "5",
+		`SELECT count(*) FROM payroll.pyr_salary_detail WHERE psd_formula='LEGACY' AND psd_component_sysid IS NOT NULL`: "5",
+		`SELECT count(*) FROM payroll.pyr_salary_detail WHERE psd_amount IS NULL`:                                       "1",
+		`SELECT psh_net_pay::text FROM payroll.pyr_salary_head WHERE psh_nik='2026-0001' AND psh_yymm=202606`:           "5400000.00",
+		`SELECT pr_tot_tunjangan::text FROM payroll.pyr_run WHERE pr_yymm=202606 AND pr_division='SOLO'`:                "9500000.50",
+		`SELECT psh_jam_lembur->>'lembur1' FROM payroll.pyr_salary_head WHERE psh_nik='2026-0001' AND psh_yymm=202606`:  "1.5",
+		`SELECT count(*) FROM payroll.v_pyr_mgt_payroll_main WHERE pm_status=3`:                                         "3",
+	} {
+		if got := scalar(t, q); got != want {
+			t.Errorf("%s = %s, want %s", q, got, want)
+		}
+	}
+	// periode CLOSED tetap menolak mutasi sesudah load (04§9), juga untuk pemilik skema.
+	for _, q := range []string{
+		`INSERT INTO payroll.pyr_salary_detail (psd_run_id, psd_nik, psd_type, psd_id, psd_amount)
+		   SELECT pr_id, '2026-0001', 'Tunjangan', 77, 1 FROM payroll.pyr_run WHERE pr_yymm=202606`,
+		`UPDATE payroll.pyr_salary_head SET psh_rounding = 1 WHERE psh_yymm=202606`,
+		`DELETE FROM payroll.pyr_salary_detail WHERE psd_nik='2026-0001'`,
+	} {
+		if _, err := ownDB.Exec(q); err == nil {
+			t.Errorf("periode CLOSED menerima mutasi: %s", q)
+		}
+	}
+	res, err := etlDB.Exec(`UPDATE payroll.pyr_period SET pp_status='OPEN' WHERE pp_yymm=202606`)
+	if err == nil {
+		if n, _ := res.RowsAffected(); n != 0 {
+			t.Errorf("payroll_etl membuka kembali %d periode CLOSED", n)
+		}
+	}
+	if got := scalar(t, `SELECT pp_status::text FROM payroll.pyr_period WHERE pp_yymm=202606 AND pp_division='SOLO'`); got != "CLOSED" {
+		t.Errorf("status periode 202606 = %s, want CLOSED", got)
+	}
+}
+
+func TestETL_SalaryLegacyGuards(t *testing.T) {
+	ctx := context.Background()
+	// periode milik engine (OPEN, run ENGINE) di 202609/SOLO: ETL tidak boleh menyentuhnya.
+	for _, q := range []string{
+		`INSERT INTO payroll.pyr_period (pp_company_id, pp_yymm, pp_division, pp_date_from, pp_date_to) VALUES (1,202609,'SOLO','2026-08-26','2026-09-25')`,
+		`INSERT INTO payroll.pyr_att_snapshot (pas_company_id, pas_yymm, pas_division, pas_source_batch_ids, pas_checksum, pas_locked) VALUES (1,202609,'SOLO','{1}','x',true)`,
+		`INSERT INTO payroll.pyr_run (pr_company_id, pr_yymm, pr_division, pr_pay_date, pr_rule_set_id, pr_snapshot_id, pr_status, pr_kind)
+		   SELECT 1,202609,'SOLO','2026-09-25',1,pas_snapshot_id,'RUNNING','ENGINE' FROM payroll.pyr_att_snapshot WHERE pas_yymm=202609`,
+	} {
+		if _, err := ownDB.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := etlDB.Exec(`UPDATE payroll.pyr_period SET pp_status='CLOSED' WHERE pp_yymm=202609`); err != nil {
+		t.Fatal(err)
+	}
+	if got := scalar(t, `SELECT pp_status::text FROM payroll.pyr_period WHERE pp_yymm=202609`); got != "OPEN" {
+		t.Errorf("payroll_etl menutup periode milik engine: %s", got)
+	}
+	if _, err := etlDB.Exec(`INSERT INTO payroll.pyr_salary_head (psh_run_id, psh_nik, psh_yymm, psh_division, psh_tot_tunjangan, psh_tot_potongan, psh_rounding)
+	   SELECT pr_id,'x',202609,'SOLO',0,0,0 FROM payroll.pyr_run WHERE pr_yymm=202609`); err == nil {
+		t.Error("payroll_etl menambah head ke run ENGINE")
+	}
+	if _, err := etlDB.Exec(`INSERT INTO payroll.pyr_run (pr_company_id, pr_yymm, pr_division, pr_pay_date, pr_rule_set_id, pr_snapshot_id, pr_status, pr_kind)
+	   SELECT 1,202609,'SOLO','2026-09-25',1,pas_snapshot_id,'DRY','ENGINE' FROM payroll.pyr_att_snapshot WHERE pas_yymm=202609`); err == nil {
+		t.Error("payroll_etl membuat run ENGINE")
+	}
+	var n int
+	if err := etlDB.QueryRow(`SELECT count(*) FROM payroll.pyr_salary_head`).Scan(&n); err == nil {
+		t.Error("payroll_etl dapat SELECT pyr_salary_head")
+	}
+	if err := etlDB.QueryRow(`SELECT count(pr_tot_tunjangan) FROM payroll.pyr_run`).Scan(&n); err == nil {
+		t.Error("payroll_etl dapat SELECT total gaji di pyr_run")
+	}
+
+	// periode tertahan: satu DETAIL tanpa peta sysid menahan seluruh periode (CLOSED tidak bisa menerima baris susulan).
+	for _, q := range []string{
+		`INSERT INTO payroll.pyr_att_snapshot (pas_company_id, pas_yymm, pas_division, pas_source_batch_ids, pas_checksum, pas_locked) VALUES (1,202610,'SOLO','{}','x',true)`,
+	} {
+		if _, err := ownDB.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dir := t.TempDir()
+	head := "PM_YYMM|PM_NIK|PM_DIVISION|PM_TOT_TUNJANGAN|PM_TOT_POTONGAN|PM_ROUNDING\n202610|2026-0001|SOLO|10|0|0\n"
+	det := "PD_YYMM|PD_NIK|PD_TYPE|PD_NO|PD_DIVISION|PD_AMOUNT\n202610|2026-0001|Tunjangan|1|SOLO|10\n202610|2026-0001|Tunjangan|99|SOLO|1\n202610|9999-0001|Tunjangan|1|SOLO|1\n"
+	for f, c := range map[string]string{"MGT_PAYROLL_MAIN.psv": head, "MGT_PAYROLL_DETAIL.psv": det} {
+		if err := os.WriteFile(filepath.Join(dir, f), []byte(c), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	reps, err := etl.RunSalaryLegacy(ctx, etlDB, etl.PSVDir{Dir: dir}, etl.SalaryLegacyOptions{CompanyID: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := scalar(t, `SELECT count(*) FROM payroll.pyr_run WHERE pr_yymm=202610`); got != "0" {
+		t.Errorf("periode bermasalah tetap dimuat: %s run", got)
+	}
+	if got := scalar(t, `SELECT count(*) FROM payroll.pyr_period WHERE pp_yymm=202610`); got != "0" {
+		t.Errorf("periode bermasalah meninggalkan pyr_period: %s", got)
+	}
+	if len(reps[0].Exceptions) != 1 || len(reps[1].Exceptions) != 3 || !reps[0].OK() || !reps[1].OK() {
+		t.Errorf("laporan periode tertahan: main exc=%d detail exc=%d", len(reps[0].Exceptions), len(reps[1].Exceptions))
+	}
+}
