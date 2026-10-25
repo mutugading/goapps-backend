@@ -57,7 +57,8 @@ type Employee struct {
 	BankAcnt                                                     string `json:"bank_acct"`
 	OrionSubAcnt, IDMesin, CutiTahunan                           string
 	PayCurrency, EmploymentStatus, CostGroup                     string
-	HrisSysID, PrevEmployeeID                                    int64
+	PrevEmployeeID                                               int64
+	HrisSysID                                                    string
 	PlacementReason                                              string
 
 	Version   int

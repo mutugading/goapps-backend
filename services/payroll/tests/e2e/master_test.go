@@ -504,3 +504,41 @@ func TestListCompaniesDecryptsOnlyScope(t *testing.T) {
 		}
 	}
 }
+
+// T009b4/D-24: hris_sys_id is the HRIS text code (MGTSLO…), round-tripped as string.
+func TestHrisSysIDTextCodeRoundTrip(t *testing.T) {
+	ctx := ctxFor(t, userRW, permsRW...)
+
+	in := input("Hris Kode")
+	in.HrisSysId = "MGTSLO5001"
+	created, err := handler.CreateEmployee(ctx, &payrollv1.CreateEmployeeRequest{CompanyId: 1, Division: "SOLO", Nik: "E900", Input: in})
+	if err != nil || created.GetData().GetHrisSysId() != "MGTSLO5001" {
+		t.Fatalf("create with text code: %v %+v", err, created.GetData())
+	}
+
+	// Empty on update keeps the stored code.
+	keep, err := handler.UpdateEmployee(ctx, &payrollv1.UpdateEmployeeRequest{Id: created.GetData().GetId(), Input: input("Hris Kode 2"), IfMatch: created.GetData().GetEtag()})
+	if err != nil || keep.GetData().GetHrisSysId() != "MGTSLO5001" {
+		t.Fatalf("update must not overwrite: %v %+v", err, keep.GetData())
+	}
+
+	// A non-empty value replaces it.
+	in2 := input("Hris Kode 3")
+	in2.HrisSysId = "MGTJKT77"
+	chg, err := handler.UpdateEmployee(ctx, &payrollv1.UpdateEmployeeRequest{Id: created.GetData().GetId(), Input: in2, IfMatch: keep.GetData().GetEtag()})
+	if err != nil || chg.GetData().GetHrisSysId() != "MGTJKT77" {
+		t.Fatalf("update with new code: %v %+v", err, chg.GetData())
+	}
+
+	// Numeric legacy value is stored as text; unlinked reads as "".
+	in3 := input("Hris Angka")
+	in3.HrisSysId = "12345"
+	num, err := handler.CreateEmployee(ctx, &payrollv1.CreateEmployeeRequest{CompanyId: 1, Division: "SOLO", Nik: "E901", Input: in3})
+	if err != nil || num.GetData().GetHrisSysId() != "12345" {
+		t.Fatalf("create numeric: %v %+v", err, num.GetData())
+	}
+	none := mustCreate(t, "E902", "Tanpa Hris")
+	if none.GetHrisSysId() != "" {
+		t.Fatalf("unlinked must be empty, got %q", none.GetHrisSysId())
+	}
+}

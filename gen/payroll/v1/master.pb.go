@@ -1372,7 +1372,7 @@ type Employee struct {
 	PayCurrency      string                 `protobuf:"bytes,35,opt,name=pay_currency,json=payCurrency,proto3" json:"pay_currency,omitempty"`
 	EmploymentStatus string                 `protobuf:"bytes,36,opt,name=employment_status,json=employmentStatus,proto3" json:"employment_status,omitempty"` // PERMANENT|PKWT|PROBATION|OUTSOURCE.
 	CostGroup        string                 `protobuf:"bytes,37,opt,name=cost_group,json=costGroup,proto3" json:"cost_group,omitempty"`                      // MGT|MB|CONTRACT.
-	HrisSysId        int64                  `protobuf:"varint,38,opt,name=hris_sys_id,json=hrisSysId,proto3" json:"hris_sys_id,omitempty"`                   // 0 = not linked.
+	HrisSysId        string                 `protobuf:"bytes,38,opt,name=hris_sys_id,json=hrisSysId,proto3" json:"hris_sys_id,omitempty"`                    // HRIS code (e.g. MGTSLO123); empty = not linked.
 	PrevEmployeeId   int64                  `protobuf:"varint,39,opt,name=prev_employee_id,json=prevEmployeeId,proto3" json:"prev_employee_id,omitempty"`    // 0 = none.
 	PlacementReason  string                 `protobuf:"bytes,40,opt,name=placement_reason,json=placementReason,proto3" json:"placement_reason,omitempty"`    // REHIRE|CONTRACT_TO_PERMANENT|TRANSFER_COMPANY.
 	Etag             string                 `protobuf:"bytes,41,opt,name=etag,proto3" json:"etag,omitempty"`
@@ -1670,11 +1670,11 @@ func (x *Employee) GetCostGroup() string {
 	return ""
 }
 
-func (x *Employee) GetHrisSysId() int64 {
+func (x *Employee) GetHrisSysId() string {
 	if x != nil {
 		return x.HrisSysId
 	}
-	return 0
+	return ""
 }
 
 func (x *Employee) GetPrevEmployeeId() int64 {
@@ -1742,7 +1742,7 @@ type EmployeeInput struct {
 	PayCurrency      string `protobuf:"bytes,31,opt,name=pay_currency,json=payCurrency,proto3" json:"pay_currency,omitempty"` // Empty = IDR.
 	EmploymentStatus string `protobuf:"bytes,32,opt,name=employment_status,json=employmentStatus,proto3" json:"employment_status,omitempty"`
 	CostGroup        string `protobuf:"bytes,33,opt,name=cost_group,json=costGroup,proto3" json:"cost_group,omitempty"`
-	HrisSysId        int64  `protobuf:"varint,34,opt,name=hris_sys_id,json=hrisSysId,proto3" json:"hris_sys_id,omitempty"`
+	HrisSysId        string `protobuf:"bytes,34,opt,name=hris_sys_id,json=hrisSysId,proto3" json:"hris_sys_id,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -2008,11 +2008,11 @@ func (x *EmployeeInput) GetCostGroup() string {
 	return ""
 }
 
-func (x *EmployeeInput) GetHrisSysId() int64 {
+func (x *EmployeeInput) GetHrisSysId() string {
 	if x != nil {
 		return x.HrisSysId
 	}
-	return 0
+	return ""
 }
 
 type CreateEmployeeRequest struct {
@@ -2657,7 +2657,7 @@ const file_payroll_v1_master_proto_rawDesc = "" +
 	"\x11employment_status\x18$ \x01(\tR\x10employmentStatus\x12\x1d\n" +
 	"\n" +
 	"cost_group\x18% \x01(\tR\tcostGroup\x12\x1e\n" +
-	"\vhris_sys_id\x18& \x01(\x03R\thrisSysId\x12(\n" +
+	"\vhris_sys_id\x18& \x01(\tR\thrisSysId\x12(\n" +
 	"\x10prev_employee_id\x18' \x01(\x03R\x0eprevEmployeeId\x12)\n" +
 	"\x10placement_reason\x18( \x01(\tR\x0fplacementReason\x12\x12\n" +
 	"\x04etag\x18) \x01(\tR\x04etag\x12*\n" +
@@ -2713,7 +2713,7 @@ const file_payroll_v1_master_proto_rawDesc = "" +
 	"\x11employment_status\x18  \x01(\tB.\xbaH+r)R\x00R\tPERMANENTR\x04PKWTR\tPROBATIONR\tOUTSOURCER\x10employmentStatus\x129\n" +
 	"\n" +
 	"cost_group\x18! \x01(\tB\x1a\xbaH\x17r\x15R\x00R\x03MGTR\x02MBR\bCONTRACTR\tcostGroup\x12'\n" +
-	"\vhris_sys_id\x18\" \x01(\x03B\a\xbaH\x04\"\x02(\x00R\thrisSysId\"\xbc\x01\n" +
+	"\vhris_sys_id\x18\" \x01(\tB\a\xbaH\x04r\x02\x18\x1eR\thrisSysId\"\xbc\x01\n" +
 	"\x15CreateEmployeeRequest\x12&\n" +
 	"\n" +
 	"company_id\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02 \x00R\tcompanyId\x12%\n" +

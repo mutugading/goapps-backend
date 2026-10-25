@@ -1703,8 +1703,7 @@
         },
         "hrisSysId": {
           "type": "string",
-          "format": "int64",
-          "description": "0 = not linked."
+          "description": "HRIS code (e.g. MGTSLO123); empty = not linked."
         },
         "prevEmployeeId": {
           "type": "string",
@@ -1919,8 +1918,7 @@
           "type": "string"
         },
         "hrisSysId": {
-          "type": "string",
-          "format": "int64"
+          "type": "string"
         }
       },
       "description": "EmployeeInput carries the writable fields shared by create and update."
