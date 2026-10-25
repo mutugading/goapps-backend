@@ -7,7 +7,7 @@ UPDATE bi_dashboard
 SET layout_config = jsonb_set(
     layout_config,
     '{secondary_charts}',
-    '[{"title":"Perbandingan Periode","chart_type":"ot_compare","chart_config":{"metric":"HR_OT_HOURS","period_calendar":"PAYROLL_26_25","decimals":1},"span":"full","drill_enabled":false}]'::jsonb
+    '[{"title":"Perbandingan Periode","chart_type":"ot_compare","chart_config":{"metric":"VALUE","period_calendar":"PAYROLL_26_25","decimals":1},"span":"full","drill_enabled":false}]'::jsonb
       || COALESCE(layout_config->'secondary_charts', '[]'::jsonb))
 WHERE dashboard_code = 'HR_OT_TREND'
   AND NOT (COALESCE(layout_config->'secondary_charts', '[]'::jsonb) @> '[{"chart_type":"ot_compare"}]'::jsonb);
