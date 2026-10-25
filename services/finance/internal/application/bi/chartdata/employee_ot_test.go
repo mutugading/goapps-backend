@@ -83,10 +83,10 @@ func TestEmployeeOT_GroupFilterIsBound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(p.SQL, evil) || !strings.Contains(p.SQL, "COALESCE(e.dept_name, '') IN ($9,$10)") {
+	if strings.Contains(p.SQL, evil) || !strings.Contains(p.SQL, "COALESCE(e.dept_name, '') IN ($11,$12)") {
 		t.Errorf("filter not bound:\n%s", p.SQL)
 	}
-	if p.Args[8] != evil || p.Args[9] != "QA" {
+	if p.Args[10] != evil || p.Args[11] != "QA" {
 		t.Errorf("args = %v", p.Args)
 	}
 	if _, err := chartdata.Plan(d, chartdata.ViewerFilters{PeriodPreset: "THIS_MONTH", GroupFilter: []string{"QA"}}, otNow); !errors.Is(err, factmetric.ErrInvalidPlan) {
@@ -339,5 +339,98 @@ func TestShapeEmployeeOT_TruncatedSummaryCoversListedRows(t *testing.T) {
 	_, _, block := chartdata.ShapeEmployeeOTForTest(rows, chartdata.ViewerFilters{})
 	if got := block["summary"].(map[string]any)["employees"]; got != float64(chartdata.EmployeeOTMaxRows) {
 		t.Errorf("summary employees = %v, want %d (listed rows only)", got, chartdata.EmployeeOTMaxRows)
+	}
+}
+
+func TestResolveEmployeeOTWindows_Prev(t *testing.T) {
+	cases := []struct{ name, preset, today, prevFrom, prevTo string }{
+		{"THIS_MONTH", "THIS_MONTH", "2026-10-21", "2026-09-25", "2026-09-25"},
+		{"THIS_MONTH tepi tgl 25", "THIS_MONTH", "2026-10-25", "2026-09-25", "2026-09-25"},
+		{"THIS_MONTH tepi tgl 26", "THIS_MONTH", "2026-10-26", "2026-10-25", "2026-10-25"},
+		{"THIS_MONTH awal tahun", "THIS_MONTH", "2026-01-10", "2025-12-25", "2025-12-25"},
+		{"LAST_MONTH", "LAST_MONTH", "2026-10-21", "2026-08-25", "2026-08-25"},
+		{"THIS_QTR 1 periode", "THIS_QTR", "2026-10-21", "2026-09-25", "2026-09-25"},
+		{"THIS_QTR 3 periode", "THIS_QTR", "2026-12-20", "2026-07-25", "2026-09-25"},
+		{"THIS_YEAR awal tahun", "THIS_YEAR", "2026-01-10", "2025-12-25", "2025-12-25"},
+		{"THIS_YEAR 10 periode", "THIS_YEAR", "2026-10-21", "2025-03-25", "2025-12-25"},
+		{"L12M", "L12M", "2026-10-21", "2024-11-25", "2025-10-25"},
+		{"L12M tgl 26", "L12M", "2026-10-26", "2024-12-25", "2025-11-25"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			w, err := chartdata.ResolveEmployeeOTWindows(c.preset, isoDay(c.today))
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := w.PrevFrom.Format(time.DateOnly) + " " + w.PrevTo.Format(time.DateOnly)
+			if want := c.prevFrom + " " + c.prevTo; got != want {
+				t.Errorf("got %s want %s", got, want)
+			}
+		})
+	}
+}
+
+func TestEmployeeOT_PlanPrevArgs(t *testing.T) {
+	p, err := chartdata.Plan(employeeOTDashboard(t), chartdata.ViewerFilters{PeriodPreset: "THIS_QTR"}, otNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Args[8] != isoDay("2026-09-25") || p.Args[9] != isoDay("2026-09-25") || !strings.Contains(p.SQL, "BETWEEN $9 AND $10") {
+		t.Errorf("prev args = %v", p.Args)
+	}
+}
+
+func prevTotalRows(hours, employees float64) []factmetric.AggRow {
+	return []factmetric.AggRow{
+		{Category: "\x1ePREV_TOTAL", PeriodLabel: "PREV_TOTAL_HOURS", Value: hours},
+		{Category: "\x1ePREV_TOTAL", PeriodLabel: "PREV_TOTAL_EMPLOYEES", Value: employees},
+	}
+}
+
+func TestShapeEmployeeOT_PrevDelta(t *testing.T) {
+	rows := []factmetric.AggRow{
+		otRow("N1", "PRD", "PERIOD_HOURS", 30), otRow("N1", "PRD", "PREV_HOURS", 20), // +50%
+		otRow("N2", "PRD", "PERIOD_HOURS", 10),                                     // no previous: "-"
+		otRow("N3", "PRD", "PERIOD_HOURS", 5), otRow("N3", "PRD", "PREV_HOURS", 0), // prev = 0: "-", not 0% / inf
+		otRow("N4", "PRD", "PERIOD_HOURS", 8), otRow("N4", "PRD", "PREV_HOURS", 16), // -50%
+	}
+	rows = append(rows, prevTotalRows(100, 10)...) // previous window: 10 people, 100 h in total
+	series, cats, block := chartdata.ShapeEmployeeOTForTest(rows, chartdata.ViewerFilters{})
+	if len(series) != 4 || len(cats) != 4 {
+		t.Fatalf("marker rows must not become employees or columns: %d series, %v", len(series), cats)
+	}
+	want := map[string]any{"N1": 50.0, "N2": nil, "N3": nil, "N4": -50.0}
+	for i, c := range cats {
+		if got := series[0].Points[i].Meta["delta_pct"]; got != want[c] {
+			t.Errorf("%s delta = %v, want %v", c, got, want[c])
+		}
+	}
+	prev := block["summary"].(map[string]any)["prev"].(map[string]any)
+	// Listed now: 53 h, 4 people. Previous total: 100 h, 10 people, so the drop shows (-47%, -60%).
+	if prev["total_period_hours"] != 100.0 || prev["hours_delta_pct"] != -47.0 || prev["employees"] != 10.0 || prev["employees_delta_pct"] != -60.0 {
+		t.Errorf("prev = %v", prev)
+	}
+}
+
+func TestShapeEmployeeOT_PrevEmptyIsNil(t *testing.T) {
+	_, _, block := chartdata.ShapeEmployeeOTForTest([]factmetric.AggRow{otRow("N1", "PRD", "PERIOD_HOURS", 5)}, chartdata.ViewerFilters{})
+	if p := block["summary"].(map[string]any)["prev"]; p != nil {
+		t.Errorf("prev = %v, want nil", p)
+	}
+	// Marker rows with zero employees (previous window empty) are also "nothing to compare".
+	rows := append([]factmetric.AggRow{otRow("N1", "PRD", "PERIOD_HOURS", 5)}, prevTotalRows(0, 0)...)
+	_, _, block = chartdata.ShapeEmployeeOTForTest(rows, chartdata.ViewerFilters{})
+	if p := block["summary"].(map[string]any)["prev"]; p != nil {
+		t.Errorf("empty previous window: prev = %v, want nil", p)
+	}
+}
+
+func TestEmployeeOT_PrevTotalRespectsGroupFilter(t *testing.T) {
+	p, err := chartdata.Plan(employeeOTDashboard(t), chartdata.ViewerFilters{PeriodPreset: "THIS_MONTH", GroupBy: "DEPT", GroupFilter: []string{"QA"}}, otNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(p.SQL, "COALESCE(e.dept_name, '') IN ($11)") != 2 || !strings.Contains(p.SQL, "PREV_TOTAL_EMPLOYEES") {
+		t.Errorf("group filter must apply to the listed rows and the previous total:\n%s", p.SQL)
 	}
 }

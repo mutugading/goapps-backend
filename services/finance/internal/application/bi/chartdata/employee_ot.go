@@ -19,6 +19,7 @@ const tableModeEmployeeOT = "employee_ot"
 // Column keys of the Employee Overtime table besides colExcess/colChronic.
 const (
 	colPeriodHours = "PERIOD_HOURS" // R1: actual OT hours over the payroll periods of the window
+	colPrevHours   = "PREV_HOURS"   // comparison: OT hours over the previous window of equal length (HD-24)
 	colWeekHours   = "WEEK_HOURS"   // R2: limit hours of the R2 week
 	colDayActual   = "ACTUAL"       // drill: actual OT hours per day (HR_OT_HOURS DAILY)
 	colDayLimit    = "LIMIT"        // drill: limit hours per day of the R2 week (HR_OT_WEEK_DAILY)
@@ -35,6 +36,15 @@ const (
 const (
 	TypeHoursName = "HR_OT_HOURS"
 	TypeWeekName  = "HR_OT_WEEK"
+)
+
+// Marker rows of the previous-window total (HD-24). The total covers every employee with OT hours in
+// the comparison window (group filter applied), not only the listed rows, so the KPI delta also sees
+// employees who stopped working OT. They are not employees: shapeEmployeeOT splits them off first.
+const (
+	prevTotalCategory     = "\x1ePREV_TOTAL"
+	colPrevTotalHours     = "PREV_TOTAL_HOURS"
+	colPrevTotalEmployees = "PREV_TOTAL_EMPLOYEES"
 )
 
 // employeeOTConfigKey is the Config key of the Employee Overtime response block.
@@ -67,6 +77,8 @@ type EmployeeOTWindows struct {
 	LastStart  time.Time // 26th that opens the last payroll period (daily drill)
 	Week       time.Time // Monday of the R2 week: its Sunday falls in the last period (K10)
 	DayFrom    time.Time // first day of the NIK→day drill: min(LastStart, Week)
+	PrevFrom   time.Time // first fact date (25th) of the comparison window (HD-24)
+	PrevTo     time.Time // last fact date (25th) of the comparison window = the period before PeriodFrom
 }
 
 // ResolveEmployeeOTWindows resolves the R1 period window and the R2 week for a preset. today is
@@ -76,6 +88,7 @@ type EmployeeOTWindows struct {
 // quarter / year of the running period, L12M = the last 12 periods. The R2 week is the latest week
 // whose Sunday is inside the last period and whose Monday is not after today, so it may be partial
 // (HD-17). DayFrom starts the NIK→day drill at whichever comes first: the last period or the week.
+// The comparison window (HD-24) has exactly as many periods as the R1 window and ends right before it.
 func ResolveEmployeeOTWindows(preset string, today time.Time) (EmployeeOTWindows, error) {
 	last := payrollEnd(today)
 	var first time.Time
@@ -104,8 +117,9 @@ func ResolveEmployeeOTWindows(preset string, today time.Time) (EmployeeOTWindows
 	if week.Before(dayFrom) {
 		dayFrom = week
 	}
+	periods := (last.Year()-first.Year())*12 + int(last.Month()) - int(first.Month()) + 1
 	return EmployeeOTWindows{PeriodFrom: first, PeriodTo: last, FirstStart: payrollStart(first), LastStart: lastStart,
-		Week: week, DayFrom: dayFrom}, nil
+		Week: week, DayFrom: dayFrom, PrevFrom: first.AddDate(0, -periods, 0), PrevTo: first.AddDate(0, -1, 0)}, nil
 }
 
 // employeeOTPreset is the viewer preset, or the dashboard default when none is sent.
@@ -153,7 +167,7 @@ func planEmployeeOT(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time
 		return factmetric.PlannedQuery{}, fmt.Errorf("%w: too many group filter values", factmetric.ErrInvalidPlan)
 	}
 	expr := employeeOTGroupExpr[groupBy]
-	args := []any{TypeHoursName, w.PeriodFrom, w.PeriodTo, TypeWeekName, TypeWeekExcessName, TypeChronicName, w.Week, employeeOTMaxRows + 1}
+	args := []any{TypeHoursName, w.PeriodFrom, w.PeriodTo, TypeWeekName, TypeWeekExcessName, TypeChronicName, w.Week, employeeOTMaxRows + 1, w.PrevFrom, w.PrevTo}
 	groupCond := ""
 	if len(f.GroupFilter) > 0 {
 		var conds []string
@@ -167,12 +181,21 @@ func planEmployeeOT(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time
     AND periode_date BETWEEN $2 AND $3 AND COALESCE(group_3, '') <> ''
   GROUP BY group_3
   UNION ALL
+  SELECT group_3, '` + colPrevHours + `', SUM(value)
+  FROM bi_fact_metric
+  WHERE type = $1 AND periode_grain = 'MONTHLY' AND is_active = TRUE
+    AND periode_date BETWEEN $9 AND $10 AND COALESCE(group_3, '') <> ''
+  GROUP BY group_3
+  UNION ALL
   SELECT group_3, CASE type WHEN $4 THEN '` + colWeekHours + `' WHEN $5 THEN '` + colExcess + `' ELSE '` + colChronic + `' END,
          CASE WHEN type = $6 THEN MAX(value) ELSE SUM(value) END
   FROM bi_fact_metric
   WHERE type IN ($4, $5, $6) AND periode_grain = 'WEEKLY' AND is_active = TRUE
     AND periode_date = $7 AND COALESCE(group_3, '') <> ''
   GROUP BY group_3, type
+), p AS (
+  SELECT a.v FROM a LEFT JOIN bi_hr_employee e ON e.nik = a.nik
+  WHERE a.col = '` + colPrevHours + `' AND a.v > 0` + groupCond + `
 ), n AS (
   SELECT a.nik FROM a LEFT JOIN bi_hr_employee e ON e.nik = a.nik
   WHERE (a.col = '` + colPeriodHours + `' OR (a.col = '` + colWeekHours + `' AND a.v > 0))` + groupCond + `
@@ -184,7 +207,11 @@ func planEmployeeOT(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time
 SELECT a.nik || chr(31) || ` + expr + ` || chr(31) || COALESCE(e.emp_name, '') || chr(31) || COALESCE(e.division, '') || chr(31) || COALESCE(e.dept_name, '') || chr(31) || COALESCE(e.company, '') AS category,
        NULL::date AS periode_date, a.col AS periode_label, a.v AS value, 0::numeric AS prev_value, 0::int AS order_seq
 FROM a JOIN n ON n.nik = a.nik
-LEFT JOIN bi_hr_employee e ON e.nik = a.nik`
+LEFT JOIN bi_hr_employee e ON e.nik = a.nik
+UNION ALL
+SELECT '` + prevTotalCategory + `', NULL::date, '` + colPrevTotalHours + `', COALESCE(SUM(v), 0), 0::numeric, 0::int FROM p
+UNION ALL
+SELECT '` + prevTotalCategory + `', NULL::date, '` + colPrevTotalEmployees + `', COUNT(*)::numeric, 0::numeric, 0::int FROM p`
 	return factmetric.PlannedQuery{SQL: sql, Args: args, TargetTable: "bi_fact_metric"}, nil
 }
 
@@ -214,6 +241,18 @@ ORDER BY 2, 1`
 type employeeOTRow struct {
 	nik, group, name, division, dept, company string
 	vals                                      map[string]float64
+}
+
+// meta is the point meta of the employee: identity plus the comparison (HD-24). prev_hours and
+// delta_pct are nil when the employee has no hours in the previous window (shown as "–").
+func (e *employeeOTRow) meta() map[string]any {
+	m := map[string]any{"name": e.name, "group": e.group, "division": e.division, "dept": e.dept, "company": e.company,
+		"prev_hours": nil, "delta_pct": nil}
+	if prev, ok := e.vals[colPrevHours]; ok {
+		m["prev_hours"] = prev
+		m["delta_pct"] = pctDelta(e.vals[colPeriodHours], prev)
+	}
+	return m
 }
 
 // employeeOTColumns are the table columns in display order.
@@ -286,10 +325,55 @@ func employeeOTSubtotals(emps []*employeeOTRow) []any {
 // round1 rounds to one decimal, half away from zero (= half-up for the non-negative values here, D-07).
 func round1(v float64) float64 { return math.Round(v*10) / 10 }
 
+// pctDelta is the change from prev to cur in percent, 1 decimal. nil when there is nothing to compare
+// against (prev <= 0), so the UI shows "–" instead of a misleading 0% or infinity.
+func pctDelta(cur, prev float64) any {
+	if prev <= 0 {
+		return nil
+	}
+	return round1((cur - prev) / prev * 100)
+}
+
+// prevTotals are the previous-window totals read from the marker rows.
+type prevTotals struct{ hours, employees float64 }
+
+// splitPrevTotals separates the marker rows from the employee rows. totals is nil when the query
+// returned no marker rows or no employee had hours in the previous window.
+func splitPrevTotals(rows []factmetric.AggRow) ([]factmetric.AggRow, *prevTotals) {
+	var t prevTotals
+	kept := make([]factmetric.AggRow, 0, len(rows))
+	for _, r := range rows {
+		if r.Category != prevTotalCategory {
+			kept = append(kept, r)
+			continue
+		}
+		switch r.PeriodLabel {
+		case colPrevTotalHours:
+			t.hours = r.Value
+		case colPrevTotalEmployees:
+			t.employees = r.Value
+		}
+	}
+	if t.employees <= 0 {
+		return kept, nil
+	}
+	return kept, &t
+}
+
+// employeeOTPrev is the comparison of the headline (HD-24): current listed hours and employees against
+// the full previous-window totals. nil (shown as "–") when the previous window has no OT.
+func employeeOTPrev(prev *prevTotals, hours, n float64) any {
+	if prev == nil {
+		return nil
+	}
+	return map[string]any{"total_period_hours": round1(prev.hours), "employees": prev.employees,
+		"hours_delta_pct": pctDelta(hours, prev.hours), "employees_delta_pct": pctDelta(n, prev.employees)}
+}
+
 // employeeOTSummary is the headline of the table (HD-24) over the same rows as the subtotals:
 // employees listed, total period hours, employees over the limit (EXCESS > 0) and chronic ones
 // (CHRONIC > 0, counted per person, never summed, HD-16).
-func employeeOTSummary(emps []*employeeOTRow) map[string]any {
+func employeeOTSummary(emps []*employeeOTRow, prev *prevTotals) map[string]any {
 	var hours, over, chronic float64
 	for _, e := range emps {
 		hours += e.vals[colPeriodHours]
@@ -301,7 +385,7 @@ func employeeOTSummary(emps []*employeeOTRow) map[string]any {
 		}
 	}
 	return map[string]any{"employees": float64(len(emps)), "total_period_hours": round1(hours),
-		"over_limit": over, "chronic": chronic}
+		"over_limit": over, "chronic": chronic, "prev": employeeOTPrev(prev, hours, float64(len(emps)))}
 }
 
 // shapeEmployeeOT turns planEmployeeOT rows into one Series per column over NIK categories,
@@ -309,6 +393,7 @@ func employeeOTSummary(emps []*employeeOTRow) map[string]any {
 // group options, per-group subtotals and the truncated flag. Missing columns are 0. When truncated,
 // subtotals (and the filter values the FE derives from the rows) cover the listed rows only.
 func shapeEmployeeOT(rows []factmetric.AggRow, f ViewerFilters, numFmt chart.NumberFormat, decimals int) ([]Series, []string, map[string]any) {
+	rows, prev := splitPrevTotals(rows)
 	emps := collectEmployeeOT(rows)
 	truncated := len(emps) > employeeOTMaxRows
 	if truncated {
@@ -330,8 +415,7 @@ func shapeEmployeeOT(rows []factmetric.AggRow, f ViewerFilters, numFmt chart.Num
 		pts := make([]DataPoint, 0, len(emps))
 		for _, e := range emps {
 			v := e.vals[c]
-			pts = append(pts, DataPoint{Category: e.nik, Value: v, Label: chart.Format(v, cf, cd),
-				Meta: map[string]any{"name": e.name, "group": e.group, "division": e.division, "dept": e.dept, "company": e.company}})
+			pts = append(pts, DataPoint{Category: e.nik, Value: v, Label: chart.Format(v, cf, cd), Meta: e.meta()})
 		}
 		series = append(series, Series{Name: c, Points: pts})
 	}
@@ -352,7 +436,7 @@ func shapeEmployeeOT(rows []factmetric.AggRow, f ViewerFilters, numFmt chart.Num
 		"truncated":     truncated,
 		"max_rows":      float64(employeeOTMaxRows),
 		"subtotals":     employeeOTSubtotals(emps),
-		"summary":       employeeOTSummary(emps),
+		"summary":       employeeOTSummary(emps, prev),
 	}
 	return series, niks, block
 }
@@ -447,5 +531,6 @@ func addEmployeeOTRanges(r *Result, d *dashboarddomain.Dashboard, f ViewerFilter
 		"last_period_from": w.LastStart.Format(time.DateOnly), "day_from": w.DayFrom.Format(time.DateOnly),
 		"week_from": w.Week.Format(time.DateOnly), "week_to": w.Week.AddDate(0, 0, 6).Format(time.DateOnly),
 		"week_label": PeriodLabel(w.Week, grainWeekly),
+		"prev_from":  payrollStart(w.PrevFrom).Format(time.DateOnly), "prev_to": w.PrevTo.Format(time.DateOnly),
 	}
 }
