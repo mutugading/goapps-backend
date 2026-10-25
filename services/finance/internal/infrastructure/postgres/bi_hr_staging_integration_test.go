@@ -50,7 +50,7 @@ func TestBiHRStagingRepository_ReplaceOTDaily(t *testing.T) {
 			`DELETE FROM bi_hr_stg_ot_daily WHERE nik = $1`,
 			`DELETE FROM bi_hr_employee WHERE nik = $1`,
 			`DELETE FROM bi_fact_metric WHERE type LIKE 'HR_OT_%' AND group_3 = $1`,
-			`DELETE FROM bi_fact_metric WHERE type IN ('HR_OT_PARETO', 'HR_OT_EMP_COUNT') AND periode_date < '2000-01-01' AND $1 <> ''`,
+			`DELETE FROM bi_fact_metric WHERE type IN ('HR_OT_PARETO', 'HR_OT_EMP_COUNT', 'HR_OT_OVER_WEEKS', 'HR_OT_OVER_EMP') AND periode_date < '2000-01-01' AND $1 <> ''`,
 		} {
 			if _, cErr := raw.ExecContext(ctx, q, marker); cErr != nil {
 				t.Logf("cleanup: %v", cErr)
@@ -194,6 +194,17 @@ FROM bi_fact_metric WHERE type = 'HR_OT_EMP_COUNT' AND periode_grain = 'MONTHLY'
 	} {
 		require.Equal(t, v, r2[k], k)
 	}
+
+	// H038 / HD-20: W02 and W03 both end on a Sunday inside payroll period 199901 (26 Dec–25 Jan):
+	// 2 over-limit employee-weeks, 1 distinct employee; W01 is under the limit and not counted.
+	overMonth := func(typ string) string {
+		var v string
+		require.NoError(t, raw.QueryRowContext(ctx, `SELECT COALESCE(SUM(value), 0)::text FROM bi_fact_metric
+WHERE type = $1 AND periode_grain = 'MONTHLY' AND periode_date = '1999-01-25' AND group_1 = 'Dept'`, typ).Scan(&v))
+		return decimal.RequireFromString(v).String()
+	}
+	require.Equal(t, "2", overMonth("HR_OT_OVER_WEEKS"))
+	require.Equal(t, "1", overMonth("HR_OT_OVER_EMP"))
 
 	// HD-15: an employee's facts outside the window follow the current dept.
 	_, err = raw.ExecContext(ctx, `UPDATE bi_hr_employee SET dept_name = 'Dept Baru' WHERE nik = $1`, marker)

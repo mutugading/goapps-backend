@@ -87,7 +87,7 @@ func insertHRFacts(ctx context.Context, tx *sql.Tx, facts []hrot.Fact, sourceID 
 // is a running count, so it is not summable across weeks (LAST).
 func hrFactUnit(factType string) (uom, category, agg string) {
 	switch factType {
-	case hrot.TypeWeekStatus, hrot.TypeWeekBucket, hrot.TypeEmpCount:
+	case hrot.TypeWeekStatus, hrot.TypeWeekBucket, hrot.TypeEmpCount, hrot.TypeOverWeeks, hrot.TypeOverEmp:
 		return "PERSON", "COUNT", hrAggSum
 	case hrot.TypeChronic:
 		return "WEEKS", "COUNT", "LAST"
@@ -174,4 +174,40 @@ WHERE type = $1 AND periode_grain = $2 AND periode_date = $3 AND scenario = 'ACT
 		return nil, fmt.Errorf("iterate previous streak: %w", err)
 	}
 	return out, nil
+}
+
+// rebuildOTOverMonthFacts rebuilds HR_OT_OVER_WEEKS and HR_OT_OVER_EMP (H038, HD-20) from the stored
+// WEEKLY HR_OT_WEEK_STATUS facts: per dept and payroll month, the over-limit employee-weeks and the
+// distinct employees. A week belongs to the payroll period of its Sunday (K10), the same rule as the
+// viewer filter. All months are rebuilt so the dept restate (HD-15) of older weeks carries over; it runs
+// after restateOTDept. Weeks never loaded (before staging starts) have no facts, so are not counted.
+func rebuildOTOverMonthFacts(ctx context.Context, tx *sql.Tx, sourceID uuid.UUID) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM bi_fact_metric
+WHERE type IN ($1, $2) AND periode_grain = $3 AND scenario = 'ACTUAL'`,
+		hrot.TypeOverWeeks, hrot.TypeOverEmp, hrot.GrainMonthly); err != nil {
+		return fmt.Errorf("delete OT over-limit month facts: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO bi_fact_metric (
+    type, group_1, group_2, group_3, periode_grain, periode_date, periode_label,
+    value, display_value, uom, scenario, metric_name, metric_category, agg_method,
+    source_id, dimension_key, is_active)
+SELECT k.typ, m.group_1, NULL, NULL, $3, m.pe, to_char(m.pe, 'YYYYMM'),
+       CASE k.typ WHEN $1 THEN m.weeks ELSE m.emps END,
+       CASE k.typ WHEN $1 THEN m.weeks ELSE m.emps END,
+       'PERSON', 'ACTUAL', 'VALUE', 'COUNT', 'SUM', $4, '', TRUE
+FROM (
+    SELECT group_1, pe, COUNT(*)::numeric AS weeks, COUNT(DISTINCT group_3)::numeric AS emps
+    FROM (
+        SELECT group_1, group_3,
+               (date_trunc('month', periode_date + 6) + interval '24 days'
+                 + CASE WHEN EXTRACT(day FROM periode_date + 6) >= 26 THEN interval '1 month' ELSE interval '0' END)::date AS pe
+        FROM bi_fact_metric
+        WHERE type = $5 AND periode_grain = $6 AND scenario = 'ACTUAL' AND group_2 = $7 AND group_3 IS NOT NULL
+    ) w GROUP BY group_1, pe
+) m CROSS JOIN (VALUES ($1), ($2)) AS k(typ)`,
+		hrot.TypeOverWeeks, hrot.TypeOverEmp, hrot.GrainMonthly, sourceID,
+		hrot.TypeWeekStatus, hrot.GrainWeekly, hrot.StatusOver); err != nil {
+		return fmt.Errorf("insert OT over-limit month facts: %w", err)
+	}
+	return nil
 }

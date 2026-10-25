@@ -19,6 +19,11 @@ const (
 	TypeChronic    = "HR_OT_CHRONIC"     // WEEKLY; minggu over-limit berturut-turut s.d. minggu ini
 	TypeWeekDaily  = "HR_OT_WEEK_DAILY"  // DAILY; g2 jenis OT; jam hitung batas per hari (drill hari)
 
+	// Over-limit per payroll month (H038, HD-20): g1 dept, no group_2/group_3, MONTHLY. Derived in SQL from
+	// the stored HR_OT_WEEK_STATUS facts; a week counts in the payroll period of its Sunday (K10).
+	TypeOverWeeks = "HR_OT_OVER_WEEKS" // orang-minggu over-limit
+	TypeOverEmp   = "HR_OT_OVER_EMP"   // karyawan unik over-limit (tidak boleh dijumlah antar dept lintas bulan)
+
 	GrainWeekly = "WEEKLY"
 
 	otTypeHoliday      = "holiday"
