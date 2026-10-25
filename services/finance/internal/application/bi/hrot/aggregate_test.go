@@ -231,3 +231,29 @@ func readFixture(t *testing.T, path string) []Row {
 	}
 	return out
 }
+
+func TestAggregate_DQEmployees(t *testing.T) {
+	// Period 202611: A has gaps in two types (counted once), B has a gap of 0 (not counted),
+	// C is Change Off (no gap, HD-14), D has a gap in another dept.
+	rows := []Row{
+		{WorkDate: day("2026-10-27"), NIK: "A", StagingDept: "X", OTType: "Normal", Tier1: dec("1"), CalcHours: dec("1.5")},
+		{WorkDate: day("2026-10-28"), NIK: "A", StagingDept: "X", OTType: "Off", Tier2: dec("2"), CalcHours: dec("1")},
+		{WorkDate: day("2026-10-27"), NIK: "B", StagingDept: "X", OTType: "Normal", Tier1: dec("1"), CalcHours: dec("1")},
+		{WorkDate: day("2026-10-27"), NIK: "C", StagingDept: "X", OTType: "Change Off", CalcHours: dec("4")},
+		{WorkDate: day("2026-10-27"), NIK: "D", StagingDept: "Y", OTType: "Normal", Tier1: dec("1"), CalcHours: dec("3")},
+	}
+	got := map[string]string{}
+	var gapTotal = decimal.Zero
+	for _, f := range Aggregate(rows, nil, day("2026-10-20"), day("2026-11-25"), day("2026-10-20")) {
+		switch {
+		case f.Type == TypeDQEmp:
+			assert.Equal(t, GrainMonthly, f.Grain)
+			assert.Empty(t, f.Group3)
+			got[f.PeriodLabel+" "+f.Group1] = f.Value.String()
+		case f.Type == TypeDQ && f.Grain == GrainMonthly:
+			gapTotal = gapTotal.Add(f.Value)
+		}
+	}
+	assert.Equal(t, map[string]string{"202611 X": "1", "202611 Y": "1"}, got)
+	assert.Equal(t, "3.5", gapTotal.String())
+}

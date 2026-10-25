@@ -19,6 +19,9 @@ const (
 	// "% karyawan lembur" (÷ HR_HEADCOUNT at query time, HD-08). Each NIK counts in one dept per
 	// period, so summing across depts gives the company count (H032).
 	TypeEmpCount = "HR_OT_EMP_COUNT"
+	// TypeDQEmp = distinct NIK with a calc-vs-tier gap > 0 per dept; MONTHLY only (H039). Change Off has
+	// no gap (HD-14), so it never counts.
+	TypeDQEmp = "HR_OT_DQ_EMP"
 
 	GrainDaily   = "DAILY"
 	GrainMonthly = "MONTHLY"
@@ -129,6 +132,8 @@ func Aggregate(rows []Row, currentDept map[string]string, d1, d2, loadedFrom tim
 		}
 	}
 
+	acc.countDQEmployees()
+
 	facts := acc.facts()
 	SortFacts(facts)
 	return facts
@@ -199,6 +204,27 @@ func (a *accumulator) addRow(r Row, dept string, inWindow, periodComplete bool) 
 		a.perEmp[pEnd] = map[string]decimal.Decimal{}
 	}
 	a.perEmp[pEnd][r.NIK] = a.perEmp[pEnd][r.NIK].Add(hours)
+}
+
+// countDQEmployees adds HR_OT_DQ_EMP: per period and dept, the NIKs whose monthly gap (summed over
+// OT types) is positive. Must run after all rows are added.
+func (a *accumulator) countDQEmployees() {
+	type nikKey struct {
+		g1, g3 string
+		date   time.Time
+	}
+	gap := map[nikKey]decimal.Decimal{}
+	for k, v := range a.sums {
+		if k.typ == TypeDQ && k.grain == GrainMonthly {
+			nk := nikKey{k.g1, k.g3, k.date}
+			gap[nk] = gap[nk].Add(v)
+		}
+	}
+	for nk, v := range gap {
+		if v.IsPositive() {
+			a.add(key{TypeDQEmp, nk.g1, "", "", GrainMonthly, nk.date}, decimal.NewFromInt(1))
+		}
+	}
 }
 
 // paretoTop10 returns the hours of the top ⌈10%⌉ employees (by hours desc, NIK asc on ties) and the
