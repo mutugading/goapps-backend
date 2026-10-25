@@ -98,6 +98,7 @@ type SchRekap = AttRekap
 type Addition struct {
 	Amount decimal.Decimal
 	Remark string
+	Source string // pa_source: MANUAL / UPLOAD / LOAN / MIGRASI (LOAN_DOUBLE, 15§2.4)
 }
 
 // LoanDue is a loan installment due in this period (15§2.4).
@@ -106,6 +107,7 @@ type LoanDue struct {
 	Seq       int
 	Principal decimal.Decimal
 	Interest  decimal.Decimal
+	Remark    string // e.g. "Cicilan Pinjaman LN/SOLO/2026/0001 Ke 3 Dari 10"
 }
 
 // DailyFails holds counts derived from daily attendance (05§7).
@@ -209,13 +211,19 @@ func (l Line) AmountOrZero() decimal.Decimal {
 
 // Header is the per-employee summary (pyr_salary_head, 06§7).
 type Header struct {
-	BasicPay     decimal.Decimal
-	RatePerJam   decimal.Decimal
-	TotTunjangan decimal.Decimal
-	TotPotongan  decimal.Decimal
-	Rounding     decimal.Decimal
-	TakeHome     decimal.Decimal
-	Remarks      string
+	BasicPay          *decimal.Decimal // A(T,1); nil when the component is absent (legacy NULL)
+	TunjJabatan       *decimal.Decimal // A(T,2)
+	TunjRumah         *decimal.Decimal // A(T,3)
+	TunjKesejahteraan *decimal.Decimal // A(T,7)
+	TunjTransport     *decimal.Decimal // A(T,4)
+	RatePerJam        *decimal.Decimal // unrounded; nil = legacy NULL; storage rounds to money_idr
+	TotTunjangan      decimal.Decimal
+	TotPotongan       decimal.Decimal
+	Rounding          decimal.Decimal
+	TakeHome          decimal.Decimal
+	// JamLembur is recap hours × legacy multiplier, keyed lembur_1 … lembur_nasp_3 (psh_jam_lembur).
+	JamLembur map[string]decimal.Decimal
+	Remarks   string
 }
 
 // Result is the output of Calculate for one employee.

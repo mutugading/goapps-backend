@@ -198,8 +198,8 @@ func TestCalculateDeterministicAndOrder(t *testing.T) {
 			t.Errorf("not sorted at %d: %v", j, first.Lines)
 		}
 	}
-	// P1/P5/P0 skipped (no formula yet) + P24 unmapped: 4 warnings, result incomplete.
-	if len(first.Warnings) != 4 || !first.Incomplete {
+	// P1/P5/P0 skipped (no formula yet): 3 warnings, result incomplete.
+	if len(first.Warnings) != 3 || !first.Incomplete {
 		t.Errorf("warnings = %v", first.Warnings)
 	}
 }
@@ -220,7 +220,7 @@ func (p probe) Eval(_ *EvalCtx, c EmpComponent, _ Params) (*decimal.Decimal, str
 func TestEvaluationOrder(t *testing.T) {
 	var log []CompKey
 	reg, err := NewRegistry(probe{FormulaFixedOrProrate, &log}, probe{FormulaPPh21, &log},
-		probe{FormulaPPhCompany, &log}, probe{FormulaPPhSubsidy, &log})
+		probe{FormulaPPhCompany, &log}, probe{FormulaPPhSubsidy, &log}, probe{FormulaAbsen, &log})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,11 +261,13 @@ func TestHeaderPresence(t *testing.T) {
 }
 
 func TestHeaderBirthday(t *testing.T) {
-	bd := time.Date(1990, 10, 3, 0, 0, 0, 0, time.UTC)
+	bd := time.Date(1990, 10, 27, 0, 0, 0, 0, time.UTC) // window of 202610 is 26/10–25/11
 	in := baseInput("SOLO", "staff", "F", tc(1, "100", "F"))
 	in.Emp.BirthDate = &bd
 	res, _ := Calculate(in)
-	if res.Header.Remarks != "Selamat Ulang Tahun Ke 36" {
+	want := "Working : 0 Days, Off : 0 Days, Leave : 0 Days, Alpa : 0 Days, Ijin : 0 Days, Total : 26 Days" +
+		"\n\nSelamat Ulang Tahun Ke 36 Tanggal 27 Oktober 2026"
+	if res.Header.Remarks != want {
 		t.Errorf("remarks = %q", res.Header.Remarks)
 	}
 }

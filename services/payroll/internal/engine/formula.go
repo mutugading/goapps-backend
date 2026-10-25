@@ -54,7 +54,9 @@ func (r Registry) Get(code string) (Formula, bool) {
 
 // DefaultRegistry returns the formulas implemented so far.
 func DefaultRegistry() Registry {
-	r, err := NewRegistry(append(append([]Formula{fixedOrProrate{}}, tFormulas()...), otFormulas()...)...)
+	fs := append([]Formula{fixedOrProrate{}}, tFormulas()...)
+	fs = append(fs, otFormulas()...)
+	r, err := NewRegistry(append(fs, pFormulas()...)...)
 	if err != nil {
 		panic(err) // static set, cannot fail
 	}
@@ -67,20 +69,12 @@ type formulaSpec struct {
 	Params Params
 }
 
-// specFor resolves the formula of a component. ok is false when the component has no
-// explicit mapping yet; it then evaluates with FIXED_OR_PRORATE and Calculate flags the
-// result incomplete. T ids follow the legacy branches (tSpecFor, D-25); P ids arrive with T012.
+// specFor resolves the formula of a component. T ids follow the legacy branches (tSpecFor,
+// D-25), P ids pSpecFor (D-27). ok is false only for an unmapped component, which then
+// evaluates with FIXED_OR_PRORATE and Calculate flags the result incomplete.
 func specFor(k CompKey) (spec formulaSpec, ok bool) {
 	if k.Type == CompP {
-		switch k.ID {
-		case 0:
-			return formulaSpec{Code: FormulaPPhSubsidy}, true
-		case 1:
-			return formulaSpec{Code: FormulaPPh21}, true
-		case 5:
-			return formulaSpec{Code: FormulaPPhCompany}, true
-		}
-		return formulaSpec{Code: FormulaFixedOrProrate}, false
+		return pSpecFor(k.ID), true
 	}
 	return tSpecFor(k.ID)
 }

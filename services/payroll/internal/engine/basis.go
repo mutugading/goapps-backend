@@ -33,23 +33,24 @@ var ErrMissingConstant = errors.New("engine: missing rule constant")
 
 // Basis holds the values computed once per employee (06§2).
 type Basis struct {
-	Gapok       decimal.Decimal // Σ A(T,1)
-	GapokSts    string          // STS(T,1); "" when T1 absent
-	Tetap       decimal.Decimal // Σ A(T,{1,2,3,4,7,9,55})
-	TetapD      decimal.Decimal // TETAP/DM × pay_tot + dirumahkan × TETAP/DM/2 (D-25)
-	JanBase     decimal.Decimal // A(T,901)
-	JanBaseD    decimal.Decimal // JAN_BASE prorated like TETAP_D
-	RateOT      decimal.Decimal // overtime hourly rate, per division/level
-	OTOpr       decimal.Decimal // legacy V_RATEOTOPR: Σ A(T,{1,7,55}), monthly (not ÷ HM), for T6/T36/T136
-	DaysPeriod  int             // end − start + 1; 0 when the period dates are unset
-	DaysMonth   decimal.Decimal // DM
-	HoursMonth  decimal.Decimal // HM
-	rateJamBase decimal.Decimal
-	hasRekap    bool // a legacy recap row exists: recap present and T1 present
-	hasTetap    bool // legacy SUM over no rows is NULL
-	hasJanBase  bool
-	hasRateOT   bool // the rate cursor of RateOT has rows (legacy SUM is NULL otherwise)
-	hasOTOpr    bool
+	Gapok      decimal.Decimal  // Σ A(T,1)
+	GapokSts   string           // STS(T,1); "" when T1 absent
+	Tetap      decimal.Decimal  // Σ A(T,{1,2,3,4,7,9,55})
+	TetapD     decimal.Decimal  // TETAP/DM × pay_tot + dirumahkan × TETAP/DM/2 (D-25)
+	JanBase    decimal.Decimal  // A(T,901)
+	JanBaseD   decimal.Decimal  // JAN_BASE prorated like TETAP_D
+	RateOT     decimal.Decimal  // overtime hourly rate, per division/level
+	OTOpr      decimal.Decimal  // legacy V_RATEOTOPR: Σ A(T,{1,7,55}), monthly (not ÷ HM), for T6/T36/T136
+	DaysPeriod int              // end − start + 1; 0 when the period dates are unset
+	DaysMonth  decimal.Decimal  // DM
+	HoursMonth decimal.Decimal  // HM
+	rateJam    *decimal.Decimal // header rate_perjam; nil = legacy NULL (06§7)
+	hasRekap   bool             // a legacy recap row exists: recap present and T1 present
+	hasGapok   bool             // T1 exists (legacy C_GAPOK SUM is NULL otherwise)
+	hasTetap   bool             // legacy SUM over no rows is NULL
+	hasJanBase bool
+	hasRateOT  bool // the rate cursor of RateOT has rows (legacy SUM is NULL otherwise)
+	hasOTOpr   bool
 }
 
 // anyOf reports whether any of the T components with the given ids exists.
@@ -159,6 +160,7 @@ func computeBasis(in Input) (Basis, error) {
 	if hasT1 {
 		b.GapokSts = gapok.Sts
 	}
+	b.hasGapok = hasT1
 	// Legacy C_ATT_REKAP joins COMPNT_EMP T1: without T1 every MPAR_* value is NULL.
 	b.hasRekap = in.HasRekap() && hasT1
 	b.Tetap = amountOf(comps, tetapIDs()...)
@@ -191,13 +193,25 @@ func computeBasis(in Input) (Basis, error) {
 		return Basis{}, err
 	}
 
-	// Header rate_perjam ignores the JAKARTA special case (06§7).
-	hdrNum := amountOf(comps, otDefaultIDs()...)
-	if isExecutive(in.Emp.Level) {
-		hdrNum = amountOf(comps, otExecutiveIDs()...)
-	}
-	if b.rateJamBase, err = money.Div(hdrNum, hm); err != nil {
-		return Basis{}, err
-	}
+	b.rateJam = headerRatePerJam(in, comps, hm)
 	return b, nil
+}
+
+// headerRatePerJam is MAIN RATE_PERJAM: Σ A(T,{1,2,3,4})/HM for Executive, Σ A(T,{1,7,55})/HM
+// for other levels, no JAKARTA special case and no rounding (06§7). Legacy compares
+// PE_LEVEL with '<>' / '=', so a NULL level or no matching component row gives NULL.
+// hm is a validated constant (> 0).
+func headerRatePerJam(in Input, comps map[CompKey]EmpComponent, hm decimal.Decimal) *decimal.Decimal {
+	if strings.TrimSpace(in.Emp.Level) == "" {
+		return nil
+	}
+	ids := otDefaultIDs()
+	if isExecutive(in.Emp.Level) {
+		ids = otExecutiveIDs()
+	}
+	if !anyOf(comps, ids...) {
+		return nil
+	}
+	r := money.MustDiv(amountOf(comps, ids...), hm)
+	return &r
 }
