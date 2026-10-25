@@ -152,7 +152,7 @@ func TestTFormulaRemarkAddition(t *testing.T) {
 }
 
 func TestTSpecMapping(t *testing.T) {
-	// Every T id present in spec/dump/MGT_PAYROLL_COMPNT_EMP.psv is mapped; overtime/shift waits for T011b.
+	// Every T id present in spec/dump/MGT_PAYROLL_COMPNT_EMP.psv is mapped, overtime/shift included.
 	used := []int{1, 2, 3, 4, 5, 7, 9, 10, 11, 12, 13, 15, 17, 19, 32, 33, 37, 38, 40, 41, 42, 43, 44, 45,
 		46, 47, 48, 49, 55, 57, 70, 71, 72, 73, 74, 75, 76, 77, 78, 101, 107, 155, 401, 405, 407, 411,
 		415, 417, 421, 427, 455, 456, 457, 901}
@@ -161,9 +161,11 @@ func TestTSpecMapping(t *testing.T) {
 			t.Errorf("T%03d unmapped", id)
 		}
 	}
-	for _, id := range []int{6, 8, 20, 21, 31, 34, 35, 36, 134, 135, 136} {
-		if _, ok := specFor(CompKey{CompT, id}); ok {
-			t.Errorf("T%03d is overtime/shift (T011b) but mapped", id)
+	for id, code := range map[int]string{6: FormulaOTInwork, 8: FormulaOTFixed, 20: FormulaOTAddition, 21: FormulaOTHours,
+		31: FormulaOTHours, 34: FormulaShift, 35: FormulaShift, 36: FormulaOTInworkAdj, 134: FormulaShiftAdd,
+		135: FormulaShiftAdd, 136: FormulaOTOprAdd} {
+		if s, ok := specFor(CompKey{CompT, id}); !ok || s.Code != code {
+			t.Errorf("T%03d = %s (mapped %v), want %s", id, s.Code, ok, code)
 		}
 	}
 	for id, code := range map[int]string{106: FormulaLegacyNull, 206: FormulaLegacyNull, 406: FormulaLegacyNull,
@@ -174,13 +176,17 @@ func TestTSpecMapping(t *testing.T) {
 	}
 }
 
-func TestTIncompleteOnlyForOvertime(t *testing.T) {
-	in := tInput(AttRekap{"pay_tot": d("30")}, tc(37, "1", "F"), tc(6, "0.0877", "D"))
-	res, err := Calculate(in)
+func TestTNeverIncomplete(t *testing.T) {
+	ids := []int{1, 6, 8, 20, 21, 26, 31, 34, 36, 37, 134, 136, 999}
+	comps := make([]EmpComponent, 0, len(ids))
+	for _, id := range ids[1:] {
+		comps = append(comps, tc(id, "0.0877", "D"))
+	}
+	res, err := Calculate(tInput(AttRekap{"pay_tot": d("30")}, comps...))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !res.Incomplete || len(res.Warnings) != 1 {
-		t.Errorf("incomplete = %v warnings = %v, want only T006", res.Incomplete, res.Warnings)
+	if res.Incomplete || len(res.Warnings) != 0 {
+		t.Errorf("incomplete = %v warnings = %v, want every T id mapped", res.Incomplete, res.Warnings)
 	}
 }

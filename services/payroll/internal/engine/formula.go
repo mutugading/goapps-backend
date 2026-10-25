@@ -54,7 +54,7 @@ func (r Registry) Get(code string) (Formula, bool) {
 
 // DefaultRegistry returns the formulas implemented so far.
 func DefaultRegistry() Registry {
-	r, err := NewRegistry(append([]Formula{fixedOrProrate{}}, tFormulas()...)...)
+	r, err := NewRegistry(append(append([]Formula{fixedOrProrate{}}, tFormulas()...), otFormulas()...)...)
 	if err != nil {
 		panic(err) // static set, cannot fail
 	}

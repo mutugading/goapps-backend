@@ -40,6 +40,7 @@ type Basis struct {
 	JanBase     decimal.Decimal // A(T,901)
 	JanBaseD    decimal.Decimal // JAN_BASE prorated like TETAP_D
 	RateOT      decimal.Decimal // overtime hourly rate, per division/level
+	OTOpr       decimal.Decimal // legacy V_RATEOTOPR: Σ A(T,{1,7,55}), monthly (not ÷ HM), for T6/T36/T136
 	DaysPeriod  int             // end − start + 1; 0 when the period dates are unset
 	DaysMonth   decimal.Decimal // DM
 	HoursMonth  decimal.Decimal // HM
@@ -47,6 +48,8 @@ type Basis struct {
 	hasRekap    bool // a legacy recap row exists: recap present and T1 present
 	hasTetap    bool // legacy SUM over no rows is NULL
 	hasJanBase  bool
+	hasRateOT   bool // the rate cursor of RateOT has rows (legacy SUM is NULL otherwise)
+	hasOTOpr    bool
 }
 
 // anyOf reports whether any of the T components with the given ids exists.
@@ -124,10 +127,13 @@ func daysBetween(start, end time.Time) int {
 
 func isExecutive(level string) bool { return strings.EqualFold(strings.TrimSpace(level), "executive") }
 
+// divJakarta is the legacy division name with its own overtime rate.
+const divJakarta = "JAKARTA"
+
 // isJakarta accepts the spec name and the IAM division code (JKT).
 func isJakarta(div string) bool {
 	d := strings.ToUpper(strings.TrimSpace(div))
-	return d == "JAKARTA" || d == "JKT"
+	return d == divJakarta || d == "JKT"
 }
 
 // computeBasis calculates the bases of 06§2 once per employee.
@@ -170,15 +176,17 @@ func computeBasis(in Input) (Basis, error) {
 	}
 
 	// RATE_OT: JAKARTA T1/HM; Executive Σ T{1,2,3,4}/HM; others Σ T{1,7,55}/HM.
-	var otNum decimal.Decimal
+	otIDs := otDefaultIDs()
 	switch {
 	case isJakarta(in.Division):
-		otNum = amountOf(comps, idGapok)
+		otIDs = []int{idGapok}
 	case isExecutive(in.Emp.Level):
-		otNum = amountOf(comps, otExecutiveIDs()...)
-	default:
-		otNum = amountOf(comps, otDefaultIDs()...)
+		otIDs = otExecutiveIDs()
 	}
+	otNum := amountOf(comps, otIDs...)
+	b.hasRateOT = anyOf(comps, otIDs...)
+	b.OTOpr = amountOf(comps, otDefaultIDs()...)
+	b.hasOTOpr = anyOf(comps, otDefaultIDs()...)
 	if b.RateOT, err = money.Div(otNum, hm); err != nil {
 		return Basis{}, err
 	}

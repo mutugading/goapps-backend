@@ -9,7 +9,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/payroll/internal/engine/money"
 )
 
-// Tunjangan (T) formula codes without overtime/shift (06§3, legacy FNC_MGT_PAYROLL_COMPNT_CALC, D-25).
+// Tunjangan (T) formula codes without overtime/shift (formula_ot.go) (06§3, legacy FNC_MGT_PAYROLL_COMPNT_CALC, D-25).
 const (
 	FormulaAddition    = "ADDITION"
 	FormulaSubsidiPPh  = "SUBSIDI_PPH_JKT"
@@ -362,12 +362,13 @@ func tFormulas() []Formula {
 }
 
 // tSpecFor maps a T component id to its formula (legacy FNC_MGT_PAYROLL_COMPNT_CALC, D-25).
-// ok is false for the overtime/shift ids that are not implemented yet (T011b).
+// Every id is mapped: ids without a legacy branch get LEGACY_NULL.
 func tSpecFor(id int) (formulaSpec, bool) {
+	if s, ok := otSpecFor(id); ok {
+		return s, true
+	}
 	switch {
-	case isOvertimeOrShift(id):
-		return formulaSpec{Code: FormulaFixedOrProrate}, false
-	case id >= 1 && id <= 9, id == 49, id == 55, id == 57, id == 73: // 6, 8 are overtime
+	case id >= 1 && id <= 9, id == 49, id == 55, id == 57, id == 73: // 6, 8 are overtime (otSpecFor)
 		return formulaSpec{Code: FormulaFixedOrProrate}, true
 	case id == 10:
 		return formulaSpec{Code: FormulaSubsidiPPh}, true
@@ -423,15 +424,6 @@ func tFamilySpec(id int) (formulaSpec, bool) {
 func isAdditionID(id int) bool {
 	switch {
 	case id == 19, id == 32, id == 33, id == 38, id >= 41 && id <= 48, id >= 70 && id <= 72, id >= 75 && id <= 78:
-		return true
-	}
-	return false
-}
-
-// isOvertimeOrShift lists the overtime/shift ids handled by T011b.
-func isOvertimeOrShift(id int) bool {
-	switch {
-	case id == 6, id == 8, id >= 20 && id <= 31, id >= 34 && id <= 36, id >= 134 && id <= 136:
 		return true
 	}
 	return false
