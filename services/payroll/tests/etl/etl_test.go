@@ -213,3 +213,48 @@ func TestETL_InputsIdempotentAndCounts(t *testing.T) {
 		}
 	}
 }
+
+func TestETL_AttLegacySnapshots(t *testing.T) {
+	ctx := context.Background()
+	src := etl.PSVDir{Dir: "testdata"}
+	o := etl.AttLegacyOptions{CompanyID: 1, ExpectRekap: 5, ExpectAdd: 1, ExpectS: 3}
+	state := func() string {
+		return scalar(t, `SELECT md5(
+		  (SELECT string_agg(pas_yymm||pas_division||pas_checksum||pas_locked, ',' ORDER BY 1) FROM payroll.pyr_att_snapshot) ||
+		  (SELECT string_agg(pasr_kind||pasr_nik||pasr_data::text, ',' ORDER BY 1) FROM payroll.pyr_att_snapshot_row))`)
+	}
+	if _, err := etl.RunAttLegacy(ctx, etlDB, src, o); err != nil {
+		t.Fatal(err)
+	}
+	first := state()
+	reps, err := etl.RunAttLegacy(ctx, etlDB, src, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state() != first {
+		t.Fatal("run kedua mengubah hasil (tidak idempotent)")
+	}
+	for _, r := range reps {
+		if !r.OK() {
+			t.Errorf("%s src=%d dst=%d exc=%d", r.Table, r.SrcRows, r.DstRows, len(r.Exceptions))
+		}
+	}
+	if len(reps[0].Exceptions) != 1 {
+		t.Errorf("exception yymm kotor = %d, want 1", len(reps[0].Exceptions))
+	}
+	for q, want := range map[string]string{
+		`SELECT count(*) FROM payroll.pyr_att_snapshot WHERE pas_locked`:                                                                                               "3",
+		`SELECT count(*) FROM payroll.pyr_att_snapshot`:                                                                                                                "3",
+		`SELECT count(*) FROM payroll.pyr_att_snapshot_row WHERE pasr_kind='REKAP'`:                                                                                    "4",
+		`SELECT count(*) FROM payroll.pyr_att_snapshot_row WHERE pasr_kind='ADD'`:                                                                                      "1",
+		`SELECT count(*) FROM payroll.pyr_att_snapshot_row WHERE pasr_kind='SCH'`:                                                                                      "2",
+		`SELECT count(*) FROM payroll.pyr_att_snapshot_row WHERE pasr_premi_fail IS NOT NULL`:                                                                          "0",
+		`SELECT (pasr_data->>'MPAR_LEMBUR_2') FROM payroll.pyr_att_snapshot_row WHERE pasr_nik='2026-0001' AND pasr_kind='REKAP' AND pasr_data->>'MPAR_DAY_WORK'='24'`: "0.5",
+		`SELECT (pasr_data->'SCHEDULES'->>'S') FROM payroll.pyr_att_snapshot_row WHERE pasr_kind='SCH' AND pasr_nik='2026-0001'`:                                       "14",
+		`SELECT count(*) FROM payroll.pyr_att_snapshot_row WHERE pasr_data ? 'MPAR_CUTI' AND pasr_data->>'MPAR_CUTI' IS NULL`:                                          "3",
+	} {
+		if got := scalar(t, q); got != want {
+			t.Errorf("%s = %s, want %s", q, got, want)
+		}
+	}
+}
