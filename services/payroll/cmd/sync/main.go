@@ -14,13 +14,14 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 || (os.Args[1] != "migrate" && os.Args[1] != "employees" && os.Args[1] != "inputs" && os.Args[1] != "att-legacy" && os.Args[1] != "salary-legacy" && os.Args[1] != "att-legacy-fail") {
+	if len(os.Args) < 2 || (os.Args[1] != "migrate" && os.Args[1] != "employees" && os.Args[1] != "inputs" && os.Args[1] != "att-legacy" && os.Args[1] != "salary-legacy" && os.Args[1] != "att-legacy-fail" && os.Args[1] != "prune-excluded") {
 		fmt.Fprintln(os.Stderr, "usage: sync migrate -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-valid-from 202001] [-expect-master 133 -expect-template 762]")
 		fmt.Fprintln(os.Stderr, "       sync employees -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-emp 2860 -expect-compe 117827]  (kunci: PAYROLL_PII_KEY, PAYROLL_PII_HMAC_KEY)")
 		fmt.Fprintln(os.Stderr, "       sync att-legacy -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-rekap 68925 -expect-add 870 -expect-sch 3996]")
 		fmt.Fprintln(os.Stderr, "       sync att-legacy-fail -dir <psv dir> -dsn <payroll_etl dsn>  (setelah salary-legacy; isi premi_fail/beras_fail dari DETAIL T40/T74, D-33)")
 		fmt.Fprintln(os.Stderr, "       sync inputs -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-addition 28464 -expect-abnormal 28550]")
 		fmt.Fprintln(os.Stderr, "       sync salary-legacy -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-main 91916 -expect-detail 2274418] [-allow-exceptions]")
+		fmt.Fprintln(os.Stderr, "       sync prune-excluded -owner-dsn <payroll_owner/migrator dsn> [-company 1] [-apply]  (hapus run LEGACY di luar cakupan D-35.1; default dry-run)")
 		os.Exit(2)
 	}
 	run := migrate
@@ -35,6 +36,8 @@ func main() {
 		run = salaryLegacy
 	case "att-legacy-fail":
 		run = attLegacyFail
+	case "prune-excluded":
+		run = pruneExcluded
 	}
 	if err := run(os.Args[2:]); err != nil {
 		fmt.Fprintln(os.Stderr, os.Args[1]+":", err)
@@ -255,6 +258,40 @@ func attLegacyFail(args []string) error {
 	}
 	for _, e := range r.NoSnapshotRow {
 		fmt.Println("  TANPA-REKAP", e)
+	}
+	return err
+}
+
+func pruneExcluded(args []string) error {
+	fs := flag.NewFlagSet("prune-excluded", flag.ExitOnError)
+	dsn := fs.String("owner-dsn", os.Getenv("PAYROLL_OWNER_DSN"), "DSN pemilik tabel (payroll_migrator); payroll_etl tidak punya DELETE")
+	company := fs.Int("company", 1, "pyr_company.pco_company_id")
+	apply := fs.Bool("apply", false, "hapus sungguhan (default: dry-run, hanya melaporkan)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *dsn == "" {
+		return fmt.Errorf("-owner-dsn (atau PAYROLL_OWNER_DSN) wajib")
+	}
+	db, err := sql.Open("pgx", *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := db.Close(); cerr != nil {
+			fmt.Fprintln(os.Stderr, "close:", cerr)
+		}
+	}()
+	runs, err := etl.PruneExcluded(context.Background(), db, etl.PruneOptions{CompanyID: int16(*company), Apply: *apply}) //nolint:gosec // flag range checked by FK
+	for _, r := range runs {
+		fmt.Printf("  run %-6d %s/%-8s head=%-5d detail=%d\n", r.RunID, r.YYMM, r.Division, r.Heads, r.Lines)
+	}
+	mode := "DRY-RUN (tambahkan -apply untuk menghapus)"
+	if *apply {
+		mode = "DIHAPUS"
+	}
+	if err == nil {
+		fmt.Printf("%d run LEGACY di luar cakupan: %s\n", len(runs), mode)
 	}
 	return err
 }

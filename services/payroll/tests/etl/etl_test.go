@@ -617,3 +617,46 @@ VALUES (1,202603,'SOLO','{}','x',true)`); err != nil {
 		}
 	}
 }
+
+// TestETL_PruneExcluded: run LEGACY sisa muatan lama di periode yang kini di-SKIP (D-35.1) dihapus; dry-run tidak
+// mengubah apa pun; periode dalam cakupan tidak tersentuh; run non-LEGACY membatalkan prune.
+func TestETL_PruneExcluded(t *testing.T) {
+	ctx := context.Background()
+	for _, q := range []string{
+		`INSERT INTO payroll.pyr_period (pp_company_id, pp_yymm, pp_division, pp_date_from, pp_date_to, pp_status)
+		 VALUES (1,202401,'JAKARTA','2023-12-26','2024-01-25','OPEN'),(1,202612,'JAKARTA','2026-11-26','2026-12-25','OPEN')`,
+		`INSERT INTO payroll.pyr_run (pr_company_id, pr_yymm, pr_division, pr_kind, pr_status, pr_rule_set_id, pr_pay_date)
+		 VALUES (1,202401,'JAKARTA','LEGACY','ACTIVE',0,'2024-01-25'),(1,202612,'JAKARTA','LEGACY','ACTIVE',0,'2026-12-25')`,
+		`UPDATE payroll.pyr_period p SET pp_status='CLOSED', pp_active_run_id=(SELECT pr_id FROM payroll.pyr_run r
+		 WHERE r.pr_yymm=p.pp_yymm AND r.pr_division=p.pp_division AND r.pr_company_id=p.pp_company_id)
+		 WHERE pp_yymm IN (202401,202612) AND pp_division='JAKARTA'`,
+	} {
+		if _, err := ownDB.Exec(q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	count := func() string {
+		return scalar(t, `SELECT (SELECT count(*) FROM payroll.pyr_run WHERE pr_yymm IN (202401,202612) AND pr_division='JAKARTA')||'/'||
+		  (SELECT count(*) FROM payroll.pyr_period WHERE pp_yymm IN (202401,202612) AND pp_division='JAKARTA')`)
+	}
+	runs, err := etl.PruneExcluded(ctx, ownDB, etl.PruneOptions{CompanyID: 1})
+	if err != nil || len(runs) != 1 || runs[0].YYMM != "202401" {
+		t.Fatalf("dry-run runs=%v err=%v", runs, err)
+	}
+	if got := count(); got != "2/2" {
+		t.Fatalf("dry-run mengubah data: %s", got)
+	}
+	if _, err = etl.PruneExcluded(ctx, ownDB, etl.PruneOptions{CompanyID: 1, Apply: true}); err != nil {
+		t.Fatal(err)
+	}
+	if got := count(); got != "1/1" {
+		t.Errorf("setelah prune run/periode = %s, want 1/1 (202612 harus tetap)", got)
+	}
+	if n := scalar(t, `SELECT count(*) FROM payroll.pyr_audit_log WHERE pal_action='ETL_PRUNE_EXCLUDED' AND pal_entity_key='202401/JAKARTA'`); n != "1" {
+		t.Errorf("audit prune = %s, want 1", n)
+	}
+	// idempotent
+	if runs, err = etl.PruneExcluded(ctx, ownDB, etl.PruneOptions{CompanyID: 1, Apply: true}); err != nil || len(runs) != 0 {
+		t.Errorf("run ulang runs=%v err=%v", runs, err)
+	}
+}
