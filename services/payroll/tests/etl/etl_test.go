@@ -25,6 +25,9 @@ import (
 
 var etlDB, ownDB *sql.DB
 
+// appDSN connects as payroll_app (the service role), for loader tests.
+var appDSN string
+
 func TestMain(m *testing.M) {
 	if os.Getenv("INTEGRATION_TEST") != "true" {
 		fmt.Println("skip etl tests: INTEGRATION_TEST != true")
@@ -89,6 +92,7 @@ func setup() (func(), error) {
 			return cleanup, err
 		}
 	}
+	appDSN = dsn("payroll_app", "payroll_app123")
 	etlDB, err = sql.Open("pgx", dsn("payroll_etl", "payroll_etl123"))
 	return cleanup, err
 }
