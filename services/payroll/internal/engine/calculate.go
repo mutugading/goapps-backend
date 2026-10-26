@@ -133,6 +133,11 @@ func evalLine(reg Registry, ctx *EvalCtx, res *Result, c EmpComponent, pph bool)
 		l.Amount = &r
 	}
 	ctx.lines[c.Key] = l
+	if c.Frozen {
+		// Frozen P4/P8 only reduce the PPh gross (legacy ignores FRZ_FLAG there, D-28d); the
+		// row itself is not a detail line and stays out of the header.
+		return nil
+	}
 	res.Lines = append(res.Lines, l)
 	return nil
 }

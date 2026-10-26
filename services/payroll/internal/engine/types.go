@@ -83,6 +83,9 @@ type EmpComponent struct {
 	// SubsidyOT marks an overtime component (provisional v2 basis leaves it out, D-30); the id list
 	// in isOTSubsidyID applies when the master does not set it.
 	SubsidyOT bool
+	// Frozen marks a COMPNT_EMP row with frz_flag <> 2. Only P4/P8 are loaded this way (D-28d):
+	// legacy subtracts them from the PPh gross although the row is not calculated.
+	Frozen bool
 }
 
 // AttRekap is a frozen attendance recap row (MPAR_* columns), keyed by column name
