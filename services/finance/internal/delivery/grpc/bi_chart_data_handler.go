@@ -188,19 +188,7 @@ func applyMetadataFilters(ctx context.Context, f *chartdataapp.ViewerFilters) {
 	if vals := md.Get("x-group2-filter"); len(vals) > 0 && vals[0] != "" {
 		f.Group2Filter = strings.Split(vals[0], ",")
 	}
-	if vals := md.Get("x-group-by"); len(vals) > 0 {
-		f.GroupBy = vals[0]
-	}
-	if vals := md.Get("x-compare-period"); len(vals) > 0 {
-		f.ComparePeriod = vals[0]
-	}
-	// A malformed x-group-filter is ignored like a malformed x-computed-ratio (no filter).
-	if vals := md.Get("x-group-filter"); len(vals) > 0 && vals[0] != "" {
-		var gf []string
-		if err := json.Unmarshal([]byte(vals[0]), &gf); err == nil {
-			f.GroupFilter = gf
-		}
-	}
+	applyGroupingMetadata(md, f)
 	// x-computed-ratio: JSON-encoded ComputedRatioConfig injected by the /computed BFF route.
 	// When present, the query planner switches to planComputedRatio (ratio grouped by group_2).
 	if vals := md.Get("x-computed-ratio"); len(vals) > 0 && vals[0] != "" {
@@ -213,6 +201,23 @@ func applyMetadataFilters(ctx context.Context, f *chartdataapp.ViewerFilters) {
 	// regardless of the dashboard's x_axis_field setting.
 	if vals := md.Get("x-force-trend"); len(vals) > 0 && vals[0] == "true" {
 		f.ForceTrend = true
+	}
+}
+
+// applyGroupingMetadata reads x-group-by, x-compare-period and x-group-filter (employee tables).
+// A malformed x-group-filter is ignored like a malformed x-computed-ratio (no filter).
+func applyGroupingMetadata(md metadata.MD, f *chartdataapp.ViewerFilters) {
+	if vals := md.Get("x-group-by"); len(vals) > 0 {
+		f.GroupBy = vals[0]
+	}
+	if vals := md.Get("x-compare-period"); len(vals) > 0 {
+		f.ComparePeriod = vals[0]
+	}
+	if vals := md.Get("x-group-filter"); len(vals) > 0 && vals[0] != "" {
+		var gf []string
+		if err := json.Unmarshal([]byte(vals[0]), &gf); err == nil {
+			f.GroupFilter = gf
+		}
 	}
 }
 

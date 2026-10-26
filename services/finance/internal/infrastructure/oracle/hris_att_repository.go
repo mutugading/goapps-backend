@@ -64,7 +64,11 @@ func (r *HRISATTRepository) FetchATTDaily(ctx context.Context, d1, d2 time.Time)
 	if err != nil {
 		return nil, fmt.Errorf("query VIEW_BI_ATT_DAILY: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if ce := rows.Close(); ce != nil {
+			r.client.logger.Warn().Err(ce).Msg("close VIEW_BI_ATT_DAILY rows")
+		}
+	}()
 
 	var out []ATTDailyRow
 	for rows.Next() {

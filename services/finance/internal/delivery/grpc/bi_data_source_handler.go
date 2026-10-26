@@ -6,6 +6,7 @@ import (
 	financev1 "github.com/mutugading/goapps-backend/gen/finance/v1"
 	chartdataapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/chartdata"
 	dsapp "github.com/mutugading/goapps-backend/services/finance/internal/application/bi/datasource"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/bi/factmetric"
 )
 
 // BIDataSourceHandler implements financev1.DataSourceServiceServer.
@@ -57,17 +58,7 @@ func (h *BIDataSourceHandler) GetFactDistincts(ctx context.Context, req *finance
 	// HD-07/HD-10: HR_* metadata is hidden from callers without workforce.view; group_3 (NIK)
 	// additionally needs the employee-level permission.
 	if !IsSuperAdmin(ctx) {
-		canView := HasPermission(ctx, chartdataapp.PermWorkforceView)
-		if !canView {
-			d.Types = filterOutHRTypes(d.Types)
-		}
-		if chartdataapp.IsHRType(req.GetType()) {
-			if !canView {
-				d.Group1s, d.Group2s, d.Group3s, d.DimensionKeys = nil, nil, nil, nil
-			} else if !HasPermission(ctx, chartdataapp.PermWorkforceEmployee) {
-				d.Group3s = nil
-			}
-		}
+		hideHRDistincts(ctx, req.GetType(), &d)
 	}
 	return &financev1.GetFactDistinctsResponse{
 		Base: successResponse("Distincts retrieved"),
@@ -79,6 +70,22 @@ func (h *BIDataSourceHandler) GetFactDistincts(ctx context.Context, req *finance
 			DimensionKeys: d.DimensionKeys,
 		},
 	}, nil
+}
+
+// hideHRDistincts strips HR_* metadata the caller may not see (HD-07/HD-10).
+func hideHRDistincts(ctx context.Context, typ string, d *factmetric.DistinctValues) {
+	canView := HasPermission(ctx, chartdataapp.PermWorkforceView)
+	if !canView {
+		d.Types = filterOutHRTypes(d.Types)
+	}
+	if !chartdataapp.IsHRType(typ) {
+		return
+	}
+	if !canView {
+		d.Group1s, d.Group2s, d.Group3s, d.DimensionKeys = nil, nil, nil, nil
+	} else if !HasPermission(ctx, chartdataapp.PermWorkforceEmployee) {
+		d.Group3s = nil
+	}
 }
 
 // filterOutHRTypes drops HR_* type names so callers without workforce.view cannot discover them.

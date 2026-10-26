@@ -127,12 +127,15 @@ func uuidFromString(s string) uuid.UUID {
 // Enum maps
 // =========================================================================
 
+// grainWeeklyStr is the domain string of PERIODE_GRAIN_WEEKLY (HD-05).
+const grainWeeklyStr = "WEEKLY"
+
 func periodeGrainToString(g financev1.PeriodeGrain) string {
 	switch g {
 	case financev1.PeriodeGrain_PERIODE_GRAIN_DAILY:
 		return "DAILY"
 	case financev1.PeriodeGrain_PERIODE_GRAIN_WEEKLY:
-		return "WEEKLY"
+		return grainWeeklyStr
 	case financev1.PeriodeGrain_PERIODE_GRAIN_MONTHLY:
 		return "MONTHLY"
 	case financev1.PeriodeGrain_PERIODE_GRAIN_QUARTERLY:
@@ -148,7 +151,7 @@ func stringToPeriodeGrain(s string) financev1.PeriodeGrain {
 	switch s {
 	case "DAILY":
 		return financev1.PeriodeGrain_PERIODE_GRAIN_DAILY
-	case "WEEKLY":
+	case grainWeeklyStr:
 		return financev1.PeriodeGrain_PERIODE_GRAIN_WEEKLY
 	case "MONTHLY":
 		return financev1.PeriodeGrain_PERIODE_GRAIN_MONTHLY

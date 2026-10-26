@@ -181,7 +181,7 @@ func Shape(d *dashboarddomain.Dashboard, rows []factmetric.AggRow, kpis []factme
 	}
 
 	series := []Series{primary}
-	if len(comparePts) > 0 && f.Compare != "" && f.Compare != "none" {
+	if len(comparePts) > 0 && f.Compare != "" && f.Compare != compareNoneLC {
 		series = append(series, Series{
 			Name:   f.Compare + " Previous",
 			Points: comparePts,

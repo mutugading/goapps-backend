@@ -47,7 +47,6 @@ func ResolvePeriodCal(preset string, customFrom, customTo time.Time, grain, cale
 		now = time.Now().UTC()
 	}
 	payroll := calendar == PayrollCalendar
-	ref := payrollRef(now, grain)
 	switch preset {
 	case "CUSTOM":
 		return PeriodRange{From: customFrom, To: customTo}
@@ -57,25 +56,11 @@ func ResolvePeriodCal(preset string, customFrom, customTo time.Time, grain, cale
 		y := dayOf(now).AddDate(0, 0, -1)
 		return PeriodRange{From: y, To: y}
 	case "THIS_MONTH":
-		if payroll {
-			end := payrollEnd(ref)
-			return payrollWindow(payrollStart(end), end, grain, now)
-		}
-		first := firstOfMonth(now)
-		return PeriodRange{From: first, To: now}
+		return monthWindow(0, payroll, grain, now)
 	case "LAST_MONTH":
-		if payroll {
-			end := payrollEnd(ref).AddDate(0, -1, 0)
-			return payrollWindow(payrollStart(end), end, grain, now)
-		}
-		first := firstOfMonth(now)
-		return PeriodRange{From: first.AddDate(0, -1, 0), To: first.AddDate(0, 0, -1)}
-	case "THIS_WEEK":
-		// WEEKLY snaps to ISO Monday (HD-05); "Kemarin" stays a DAILY concern.
-		return PeriodRange{From: mondayOf(now), To: now}
-	case "LAST_WEEK":
-		mon := mondayOf(now)
-		return PeriodRange{From: mon.AddDate(0, 0, -7), To: mon.AddDate(0, 0, -1)}
+		return monthWindow(-1, payroll, grain, now)
+	case "THIS_WEEK", "LAST_WEEK":
+		return weekWindow(preset == "LAST_WEEK", now)
 	case "THIS_QTR":
 		first := firstOfQuarter(now)
 		return PeriodRange{From: first, To: now}
@@ -97,6 +82,30 @@ func ResolvePeriodCal(preset string, customFrom, customTo time.Time, grain, cale
 		return payrollTrailing(12, grain, now)
 	}
 	return PeriodRange{From: shiftByMonths(now, -12), To: now}
+}
+
+// weekWindow returns this ISO week up to now, or the full previous week. WEEKLY snaps to ISO
+// Monday (HD-05); "Kemarin" stays a DAILY concern.
+func weekWindow(last bool, now time.Time) PeriodRange {
+	mon := mondayOf(now)
+	if last {
+		return PeriodRange{From: mon.AddDate(0, 0, -7), To: mon.AddDate(0, 0, -1)}
+	}
+	return PeriodRange{From: mon, To: now}
+}
+
+// monthWindow returns the month offset months from now's month (0 = this, -1 = last): the payroll
+// period 26..25 when payroll, else the calendar month (this month runs to now).
+func monthWindow(offset int, payroll bool, grain string, now time.Time) PeriodRange {
+	if payroll {
+		end := payrollEnd(payrollRef(now, grain)).AddDate(0, offset, 0)
+		return payrollWindow(payrollStart(end), end, grain, now)
+	}
+	first := firstOfMonth(now).AddDate(0, offset, 0)
+	if offset == 0 {
+		return PeriodRange{From: first, To: now}
+	}
+	return PeriodRange{From: first, To: first.AddDate(0, 1, -1)}
 }
 
 // payrollRef is the date that decides which payroll period "now" falls in. WEEKLY facts belong to

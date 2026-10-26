@@ -17,7 +17,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/postgres"
 )
 
-// Gated by INTEGRATION_TEST=true. Applies migrations 000550 and 000557 (idempotent) and verifies the
+// Gated by INTEGRATION_TEST=true. Applies migrations 000585 and 000592 (idempotent) and verifies the
 // replace-in-window semantics (HD-04): rows inside the window are replaced, rows outside kept.
 func TestBiHRStagingRepository_ReplaceOTDaily(t *testing.T) {
 	if os.Getenv("INTEGRATION_TEST") != "true" {
@@ -33,7 +33,7 @@ func TestBiHRStagingRepository_ReplaceOTDaily(t *testing.T) {
 	require.NoError(t, waitForDB(raw, 30*time.Second))
 	defer func() { _ = raw.Close() }()
 
-	for _, m := range []string{"000550_create_bi_hr_staging_ot", "000557_bi_hr_company"} {
+	for _, m := range []string{"000585_create_bi_hr_staging_ot", "000592_bi_hr_company"} {
 		ddl, err := os.ReadFile("../../../migrations/postgres/" + m + ".up.sql")
 		require.NoError(t, err)
 		_, err = raw.ExecContext(ctx, string(ddl))

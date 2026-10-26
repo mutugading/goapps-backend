@@ -17,7 +17,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/postgres"
 )
 
-// Gated by INTEGRATION_TEST=true. Applies migration 000558 (idempotent) and checks that the replace
+// Gated by INTEGRATION_TEST=true. Applies migration 000593 (idempotent) and checks that the replace
 // is windowed (HD-04) and HR_HEADCOUNT counts distinct NIK per payroll period (H016).
 // Run with -run TestBiHRStagingRepository_ReplaceATTDaily only.
 func TestBiHRStagingRepository_ReplaceATTDaily(t *testing.T) {
@@ -34,7 +34,7 @@ func TestBiHRStagingRepository_ReplaceATTDaily(t *testing.T) {
 	require.NoError(t, waitForDB(raw, 30*time.Second))
 	defer func() { _ = raw.Close() }()
 
-	ddl, err := os.ReadFile("../../../migrations/postgres/000558_bi_hr_stg_att_daily.up.sql")
+	ddl, err := os.ReadFile("../../../migrations/postgres/000593_bi_hr_stg_att_daily.up.sql")
 	require.NoError(t, err)
 	_, err = raw.ExecContext(ctx, string(ddl))
 	require.NoError(t, err)
