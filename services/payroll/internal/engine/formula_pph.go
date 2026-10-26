@@ -47,9 +47,11 @@ type TaxTables struct {
 	Category map[string]string       // pe_tax_id → A/B/C (EMPTAX.field_01)
 	TER      map[string][]TERBracket // category → brackets
 	// December (annual) tables.
-	PTKP        map[string]decimal.Decimal // pe_tax_id → monthly PTKP (PAYROLLSETUP TK, K0, …)
-	JobCost     JobCost                    // PAYROLLSETUP BIAYAJABATAN
-	Progressive []TaxLayer                 // PAYROLLSETUP TARIF5 … TARIF35, ascending
+	PTKP map[string]decimal.Decimal // pe_tax_id → monthly PTKP (PAYROLLSETUP TK, K0, …)
+	// PTKPCompany is the PTKP set of the company-paid P5 query (legacy omits TK1–TK3, D-37); v1 only.
+	PTKPCompany map[string]decimal.Decimal
+	JobCost     JobCost    // PAYROLLSETUP BIAYAJABATAN
+	Progressive []TaxLayer // PAYROLLSETUP TARIF5 … TARIF35, ascending
 }
 
 // bracket returns the bracket of cat containing gross (legacy BETWEEN, both ends inclusive).

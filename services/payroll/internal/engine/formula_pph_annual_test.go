@@ -16,6 +16,12 @@ func annualTaxTables() TaxTables {
 		"TK": d("4500000"), "TK1": d("4875000"), "TK2": d("5250000"), "TK3": d("5625000"),
 		"K": d("4875000"), "K0": d("4875000"), "K1": d("5250000"), "K2": d("5625000"), "K3": d("6000000"),
 	}
+	t.PTKPCompany = map[string]decimal.Decimal{}
+	for k, v := range t.PTKP {
+		if k != "TK1" && k != "TK2" && k != "TK3" {
+			t.PTKPCompany[k] = v
+		}
+	}
 	t.JobCost = JobCost{Rate: d("5"), MaxMonthly: d("500000")}
 	t.Progressive = []TaxLayer{
 		{Min: d("1"), Max: d("60000000"), Rate: d("5")},

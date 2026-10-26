@@ -23,6 +23,9 @@ const (
 var ptkpCodes = map[string]bool{"TK": true, "K": true, "K0": true, "K1": true, "K2": true, "K3": true,
 	"TK1": true, "TK2": true, "TK3": true}
 
+// ptkpCompanyCodes are the codes of the company-paid P5 query: no TK1–TK3 (D-37).
+var ptkpCompanyCodes = map[string]bool{"TK": true, "K": true, "K0": true, "K1": true, "K2": true, "K3": true}
+
 // terCategories are the PAYROLLSETUP field_01 values of a TER bracket (name = min,
 // short_name = max, field_02 = rate %).
 var terCategories = map[string]bool{"A": true, "B": true, "C": true}
@@ -65,9 +68,10 @@ ORDER BY psv_vs_code, psv_code`, ruleSetID, vsEmpTax, vsPayrollSetup)
 
 func buildTaxTables(svs []staticValue) (engine.TaxTables, error) {
 	t := engine.TaxTables{
-		Category: map[string]string{},
-		TER:      map[string][]engine.TERBracket{},
-		PTKP:     map[string]decimal.Decimal{},
+		Category:    map[string]string{},
+		TER:         map[string][]engine.TERBracket{},
+		PTKP:        map[string]decimal.Decimal{},
+		PTKPCompany: map[string]decimal.Decimal{},
 	}
 	for _, v := range svs {
 		if v.vs == vsEmpTax {
@@ -105,6 +109,9 @@ func addPayrollSetup(t *engine.TaxTables, v staticValue) error {
 		var p decimal.Decimal
 		if p, err = num(v, v.name); err == nil {
 			t.PTKP[v.code] = p
+			if ptkpCompanyCodes[v.code] {
+				t.PTKPCompany[v.code] = p
+			}
 		}
 	case v.code == codeJobCost:
 		if !t.JobCost.Rate.IsZero() || !t.JobCost.MaxMonthly.IsZero() {

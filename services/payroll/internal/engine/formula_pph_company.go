@@ -73,10 +73,14 @@ func pphCompanyAnnual(ctx *EvalCtx) (*decimal.Decimal, string, error) {
 		}
 	}
 	t := in.Tax
-	if len(t.PTKP) == 0 || t.JobCost.Rate.IsZero() || t.JobCost.MaxMonthly.IsZero() || len(t.Progressive) == 0 {
+	ptkpTable := t.PTKP // v2 (D-37b): all 9 codes
+	if in.Rules.LegacyCompat() {
+		ptkpTable = t.PTKPCompany // v1 (D-37a): legacy P5 query has no TK1–TK3 rows
+	}
+	if len(ptkpTable) == 0 || t.JobCost.Rate.IsZero() || t.JobCost.MaxMonthly.IsZero() || len(t.Progressive) == 0 {
 		return nil, "", ErrNoAnnualTaxTable
 	}
-	ptkp, ok := t.PTKP[in.Emp.TaxStatus]
+	ptkp, ok := ptkpTable[in.Emp.TaxStatus]
 	if !ok { // legacy inner join on PTKP finds no row: both taxes NO_DATA_FOUND → 0
 		p := decimal.Zero
 		return &p, "", nil

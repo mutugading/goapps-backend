@@ -101,6 +101,12 @@ func TestPPhCompanyDecember(t *testing.T) {
 		// v2: bruto sendiri 64.800.000, BJ 3.240.000, PKP 7.560.000 → 378.000;
 		// 378.000 − 720.000 − (−330.000) = −12.000.
 		{"v2 YTD P5 dikurangkan", mk(false, "-330000"), "-12000"},
+		// D-37: TK2 tidak ada di PTKPCompany (v1 → 0). v2 PTKP 63.000.000: semua PKP 5.400.000 → 270.000, sendiri < 0 → 0; P5 = −270.000.
+		{"v1 TK2 tanpa PTKP P5 → 0 (D-37a)", func() Input { in := mk(true, "0"); in.Emp.TaxStatus = "TK2"; return in }(), "0"},
+		{"v1 TK1 tanpa PTKP P5 → 0", func() Input { in := mk(true, "0"); in.Emp.TaxStatus = "TK1"; return in }(), "0"},
+		{"v1 TK3 tanpa PTKP P5 → 0", func() Input { in := mk(true, "0"); in.Emp.TaxStatus = "TK3"; return in }(), "0"},
+		{"v1 K1 tetap memakai PTKPCompany", func() Input { in := mk(true, "0"); in.Emp.TaxStatus = "K1"; return in }(), "-270000"},
+		{"v2 TK2 memakai PTKP → bukan 0 (D-37b)", func() Input { in := mk(false, "0"); in.Emp.TaxStatus = "TK2"; return in }(), "-270000"},
 		{"PTKP hilang → 0", func() Input { in := mk(true, "0"); in.Emp.TaxStatus = "X"; return in }(), "0"},
 	}
 	for _, c := range cases {

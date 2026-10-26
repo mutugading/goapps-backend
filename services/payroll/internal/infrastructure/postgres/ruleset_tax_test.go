@@ -29,6 +29,9 @@ func TestBuildTaxTables_LegacyRows(t *testing.T) {
 	if b := tt.TER["B"]; len(b) != 1 || b[0].Min.String() != "6200001" || b[0].Max.String() != "6500000" || b[0].Rate.String() != "0.25" {
 		t.Fatalf("TER B: %+v", b)
 	}
+	if len(tt.PTKPCompany) != 1 || tt.PTKPCompany["K1"].String() != "5250000" {
+		t.Fatalf("PTKPCompany: %v", tt.PTKPCompany)
+	}
 	if len(tt.PTKP) != 1 || tt.PTKP["K1"].String() != "5250000" {
 		t.Fatalf("PTKP: %v", tt.PTKP)
 	}
@@ -98,5 +101,24 @@ func TestDecodeParams_StringsAndNumbers(t *testing.T) {
 	}
 	if p["days"] != "DAYS_MONTH" || p["mult"] != "1.5" || p["on"] != "true" {
 		t.Fatalf("got %v", p)
+	}
+}
+
+func TestBuildTaxTables_PTKPCompanyExcludesTK123(t *testing.T) {
+	var svs []staticValue
+	for _, c := range []string{"TK", "K", "K0", "K1", "K2", "K3", "TK1", "TK2", "TK3"} {
+		svs = append(svs, staticValue{vs: vsPayrollSetup, code: c, name: "4500000", short: "4500000"})
+	}
+	tt, err := buildTaxTables(svs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tt.PTKPCompany) != 6 || len(tt.PTKP) != 9 {
+		t.Fatalf("PTKPCompany %d (want 6), PTKP %d (want 9)", len(tt.PTKPCompany), len(tt.PTKP))
+	}
+	for _, c := range []string{"TK1", "TK2", "TK3"} {
+		if _, ok := tt.PTKPCompany[c]; ok {
+			t.Errorf("%s must not be in PTKPCompany", c)
+		}
 	}
 }
