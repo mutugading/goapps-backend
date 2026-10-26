@@ -1,4 +1,4 @@
--- H035 (DOWN): kembalikan HR_OT_TREND ke tren jam OT harian (000553).
+-- H035 (DOWN): kembalikan HR_OT_TREND ke tren jam OT harian (000588).
 BEGIN;
 UPDATE bi_dashboard
 SET dashboard_title = 'Tren Jam OT Harian',

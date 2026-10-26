@@ -1,6 +1,6 @@
--- H035: koreksi 000561. Sumbu x HR_OT_TREND = periode, jadi baris tabel adalah bulan, bukan dept; drill mengirim
+-- H035: koreksi 000596. Sumbu x HR_OT_TREND = periode, jadi baris tabel adalah bulan, bukan dept; drill mengirim
 -- "202608" sebagai group_1 → kosong → viewer menampilkan CTA "Upload Data". Drill dimatikan, judul dikoreksi.
--- Rincian per dept lewat chip filter Dept (000562). Idempotent.
+-- Rincian per dept lewat chip filter Dept (000597). Idempotent.
 BEGIN;
 
 UPDATE bi_dashboard

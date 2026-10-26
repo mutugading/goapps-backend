@@ -1,4 +1,4 @@
--- Kembalikan HR_OT_EMPLOYEES ke tabel karyawan over-limit R2 (000554, table_mode=employee_week).
+-- Kembalikan HR_OT_EMPLOYEES ke tabel karyawan over-limit R2 (000589, table_mode=employee_week).
 BEGIN;
 
 UPDATE bi_dashboard

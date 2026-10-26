@@ -1,4 +1,4 @@
--- H035 (DOWN): kembalikan drill & judul tabel seperti 000561.
+-- H035 (DOWN): kembalikan drill & judul tabel seperti 000596.
 BEGIN;
 UPDATE bi_dashboard
 SET drill_enabled = TRUE,

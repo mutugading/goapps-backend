@@ -1,4 +1,4 @@
--- H024 (HD-18): menu tabel karyawan R2 menjadi "Employee Overtime" (finance 000556, table_mode=employee_ot).
+-- H024 (HD-18): menu tabel karyawan R2 menjadi "Employee Overtime" (finance 000591, table_mode=employee_ot).
 -- URL & permission tetap (finance.bi.workforceemployee.view). Idempotent.
 BEGIN;
 

@@ -1,4 +1,4 @@
--- H035: HR_OT_TREND (tren harian, 000553) diganti dashboard "Tren OT" bulanan per tipe OT. Tanpa ETL baru:
+-- H035: HR_OT_TREND (tren harian, 000588) diganti dashboard "Tren OT" bulanan per tipe OT. Tanpa ETL baru:
 -- fakta MONTHLY HR_OT_HOURS (group_1 = dept, group_2 = tipe OT), HR_OT_EMP_COUNT, HR_HEADCOUNT (HD-06, HD-08).
 -- Maks. 6 kartu KPI (validasi kpi_config): 4 tipe OT + jam OT/karyawan + % karyawan lembur; total tampak dari tumpukan batang.
 -- Utama: batang bertumpuk bulan × tipe (default L12M). KPI per tipe memakai period current_month + MoM,
