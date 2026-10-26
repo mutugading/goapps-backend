@@ -14,5 +14,6 @@ ALTER TABLE mst_permission ADD CONSTRAINT chk_permission_action
     'view','create','update','delete','export','import','submit','approve','release','bypass',
     'recalculate','assign','resolve','reject','duplicate','remove','lock','unlock','unlockoverride',
     'reassign','send','read','trigger','cancel','schedule','verify','override','review','reopen','confirm',
-    'validate','unapprove','revoke','preview','execute','sync','unrevoke','bulkunvalidate','bulksubmit','bulkvalidate'
+    'validate','unapprove','revoke','preview','execute','sync','unrevoke','bulkunvalidate','bulksubmit','bulkvalidate',
+    'commit','close'
   ));

@@ -3,7 +3,9 @@
 --         finance.cost.erprule.*), 3 menus, 2 roles.
 --
 -- Menu UUIDs 0053-0055 (main already uses 0052 via 000093).
--- chk_permission_action widened from 40 (000092) to 43 values: + push, valuate, restore.
+-- chk_permission_action widened from 40 (000092) to 45 values: + push, valuate, restore,
+-- commit, close (commit/close are used by payroll; keeping them here so DBs that carry payroll
+-- permissions can still apply this migration).
 -- valuate and restore are deliberately granted to NO role (asserted at the end).
 
 -- 0. EXTEND chk_permission_action
@@ -14,7 +16,7 @@ ALTER TABLE mst_permission ADD CONSTRAINT chk_permission_action
     'recalculate','assign','resolve','reject','duplicate','remove','lock','unlock','unlockoverride',
     'reassign','send','read','trigger','cancel','schedule','verify','override','review','reopen','confirm',
     'validate','unapprove','revoke','preview','execute','sync','unrevoke','bulkunvalidate','bulksubmit','bulkvalidate',
-    'push','valuate','restore'
+    'push','valuate','restore','commit','close'
   ));
 
 -- 1. PERMISSIONS
