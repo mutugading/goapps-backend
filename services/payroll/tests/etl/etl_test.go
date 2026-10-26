@@ -16,11 +16,14 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // driver
+	"github.com/shopspring/decimal"
 	"github.com/testcontainers/testcontainers-go"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 
+	"github.com/mutugading/goapps-backend/services/payroll/internal/engine"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/etl"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/postgres"
 )
 
 var etlDB, ownDB *sql.DB
@@ -109,7 +112,7 @@ func scalar(t *testing.T, q string) string {
 func TestETL_IdempotentAndCounts(t *testing.T) {
 	ctx := context.Background()
 	src := etl.PSVDir{Dir: "testdata"}
-	o := etl.Options{CompanyID: 1, ValidFrom: 202001, ExpectMaster: 4, ExpectTemplate: 4}
+	o := etl.Options{CompanyID: 1, ValidFrom: 202001, ExpectMaster: 5, ExpectTemplate: 4}
 
 	snap := func() string {
 		return scalar(t, `SELECT md5(
@@ -134,16 +137,16 @@ func TestETL_IdempotentAndCounts(t *testing.T) {
 			t.Errorf("%s src=%d dst=%d", r.Table, r.SrcRows, r.DstRows)
 		}
 	}
-	if n := scalar(t, `SELECT count(*) FROM payroll.pyr_component`); n != "4" {
-		t.Errorf("pyr_component = %s, want 4", n)
+	if n := scalar(t, `SELECT count(*) FROM payroll.pyr_component`); n != "5" {
+		t.Errorf("pyr_component = %s, want 5", n)
 	}
-	if n := scalar(t, `SELECT count(*) FROM payroll.pyr_component_legacy_map`); n != "8" { // 4 komponen × 2 divisi
-		t.Errorf("legacy_map = %s, want 8", n)
+	if n := scalar(t, `SELECT count(*) FROM payroll.pyr_component_legacy_map`); n != "10" { // 5 komponen × 2 divisi
+		t.Errorf("legacy_map = %s, want 10", n)
 	}
 	if n := scalar(t, `SELECT count(*) FROM payroll.pyr_component_template`); n != "4" {
 		t.Errorf("template = %s, want 4", n)
 	}
-	if n := scalar(t, `SELECT count(DISTINCT pclm_sysid) FROM payroll.pyr_component_legacy_map`); n != "4" {
+	if n := scalar(t, `SELECT count(DISTINCT pclm_sysid) FROM payroll.pyr_component_legacy_map`); n != "5" {
 		t.Errorf("1 sysid per (type,id): %s", n)
 	}
 	if n := scalar(t, `SELECT count(*) FROM payroll.pyr_level_rule`); n != "15" {
@@ -175,10 +178,15 @@ func TestETL_InputsIdempotentAndCounts(t *testing.T) {
 	ctx := context.Background()
 	src := etl.PSVDir{Dir: "testdata"}
 	o := etl.InputOptions{CompanyID: 1, ExpectAddition: 3, ExpectAbnormal: 2}
+	// P000 (target of the subsidy rule) comes from the component ETL; idempotent, so safe with -run.
+	if _, err := etl.Run(ctx, etlDB, src, etl.Options{CompanyID: 1, ValidFrom: 202001}); err != nil {
+		t.Fatal(err)
+	}
 	snap := func() string {
 		return scalar(t, `SELECT md5(
 		  (SELECT string_agg(psv_vs_code||psv_code||coalesce(psv_name,''), ',' ORDER BY 1) FROM payroll.pyr_static_value) ||
 		  (SELECT string_agg(prc_key||coalesce(prc_division,'*')||prc_value, ',' ORDER BY 1) FROM payroll.pyr_rule_constant) ||
+		  (SELECT coalesce(string_agg(psr_name, ',' ORDER BY 1),'-') FROM payroll.pyr_subsidy_rule WHERE created_by='etl') ||
 		  (SELECT string_agg(pa_nik||pa_type||pa_id||pa_amount||pa_source, ',' ORDER BY 1) FROM payroll.pyr_addition) ||
 		  (SELECT string_agg(pta_nik||pta_amount, ',' ORDER BY 1) FROM payroll.pyr_tax_adj) ||
 		  (SELECT string_agg(phd_date::text, ',' ORDER BY 1) FROM payroll.pyr_holiday) ||
@@ -201,17 +209,18 @@ func TestETL_InputsIdempotentAndCounts(t *testing.T) {
 		}
 	}
 	for q, want := range map[string]string{
-		`SELECT count(*) FROM payroll.pyr_static_value`:                                    "3",
-		`SELECT count(*) FROM payroll.pyr_rule_constant`:                                   "13",
-		`SELECT count(*) FROM payroll.pyr_attd_days`:                                       "2",
-		`SELECT count(*) FROM payroll.pyr_subsidi_pph`:                                     "2",
-		`SELECT count(*) FROM payroll.pyr_holiday`:                                         "2",
-		`SELECT count(*) FROM payroll.pyr_addition WHERE pa_source='LEGACY'`:               "3",
-		`SELECT sum(pa_amount)::text FROM payroll.pyr_addition`:                            "1750000.75",
-		`SELECT pta_amount::text FROM payroll.pyr_tax_adj`:                                 "1250000.50",
-		`SELECT count(*) FROM payroll.pyr_abnormal_premi`:                                  "2",
-		`SELECT count(*) FROM payroll.pyr_batal_premi`:                                     "2",
-		`SELECT prc_value::text FROM payroll.pyr_rule_constant WHERE prc_key='DAYS_MONTH'`: "30.000000",
+		`SELECT count(*) FROM payroll.pyr_static_value`:                                                "3",
+		`SELECT count(*) FROM payroll.pyr_rule_constant`:                                               "13",
+		`SELECT count(*) FROM payroll.pyr_attd_days`:                                                   "2",
+		`SELECT count(*) FROM payroll.pyr_subsidi_pph`:                                                 "3",
+		`SELECT count(*) FROM payroll.pyr_subsidy_rule WHERE created_by='etl' AND psr_status='ACTIVE'`: "1",
+		`SELECT count(*) FROM payroll.pyr_holiday`:                                                     "2",
+		`SELECT count(*) FROM payroll.pyr_addition WHERE pa_source='LEGACY'`:                           "3",
+		`SELECT sum(pa_amount)::text FROM payroll.pyr_addition`:                                        "1750000.75",
+		`SELECT pta_amount::text FROM payroll.pyr_tax_adj`:                                             "1250000.50",
+		`SELECT count(*) FROM payroll.pyr_abnormal_premi`:                                              "2",
+		`SELECT count(*) FROM payroll.pyr_batal_premi`:                                                 "2",
+		`SELECT prc_value::text FROM payroll.pyr_rule_constant WHERE prc_key='DAYS_MONTH'`:             "30.000000",
 	} {
 		if got := scalar(t, q); got != want {
 			t.Errorf("%s = %s, want %s", q, got, want)
@@ -662,5 +671,125 @@ func TestETL_PruneExcluded(t *testing.T) {
 	// idempotent
 	if runs, err = etl.PruneExcluded(ctx, ownDB, etl.PruneOptions{CompanyID: 1, Apply: true}); err != nil || len(runs) != 0 {
 		t.Errorf("run ulang runs=%v err=%v", runs, err)
+	}
+}
+
+// T009c3: legacy MPSP → v1 subsidy rules (D-30, D-31): one per (yymm, division) with YN='Y'.
+func TestETL_SubsidyRules(t *testing.T) {
+	ctx := context.Background()
+	if _, err := etl.Run(ctx, etlDB, etl.PSVDir{Dir: "testdata"}, etl.Options{CompanyID: 1, ValidFrom: 202001}); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	write := func(name, body string) {
+		if err := os.WriteFile(filepath.Join(dir, name+".psv"), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("MGT_PAYROLL_SUBSIDI_PPH", `MPSP_YYMM|MPSP_YN|MPSP_LIMIT_AMT|MPSP_DIVISION|MPSP_DEPT
+202601|Y|10000000|SOLO|PROD
+202601|Y|10000000|SOLO|ADM
+202602|Y||SOLO|PROD
+202602|Y|12500000.50|JAKARTA|PROD
+202603|Y|9000000|SOLO|PROD
+202603|N||SOLO|ADM
+202604|N||SOLO|PROD
+`)
+	for _, n := range []string{"IM_VS_STATIC_VALUE", "MGT_PAYROLL_ATTD_DAYS", "MGT_PAYROLL_TAX_ADJ", "MGT_PAYROLL_HOLIDAY",
+		"MGT_PAYROLL_ADDITION", "MGT_PAYROLL_ABNORMAL_PREMI", "MGT_PAYROLL_BATAL_PREMI"} {
+		b, err := os.ReadFile(filepath.Join("testdata", n+".psv")) //nolint:gosec // repo fixture
+		if err != nil {
+			t.Fatal(err)
+		}
+		write(n, string(b))
+	}
+	if _, err := ownDB.Exec(`DELETE FROM payroll.pyr_subsidy_rule WHERE created_by='etl'`); err != nil {
+		t.Fatal(err)
+	}
+	o := etl.InputOptions{CompanyID: 1}
+	reps, err := etl.RunInputs(ctx, etlDB, etl.PSVDir{Dir: dir}, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap := func() string {
+		return scalar(t, `SELECT md5(string_agg(psr_name||psr_valid_from||psr_valid_to||psr_divisions::text||psr_limit_amount||
+		  psr_basis_period_yymm||psr_subsidy_kind||psr_status, ',' ORDER BY psr_name)) FROM payroll.pyr_subsidy_rule WHERE created_by='etl'`)
+	}
+	first := snap()
+	if _, err := etl.RunInputs(ctx, etlDB, etl.PSVDir{Dir: dir}, o); err != nil {
+		t.Fatal(err)
+	}
+	if snap() != first {
+		t.Fatal("run kedua mengubah rule (tidak idempotent)")
+	}
+	// groups with a Y: (202601,SOLO) ok, (202602,SOLO) no limit → exception, (202602,JAKARTA) ok,
+	// (202603,SOLO) mixed YN → exception; 202604 all N → no rule.
+	var rep etl.TableReport
+	for _, r := range reps {
+		if r.Table == "pyr_subsidy_rule" {
+			rep = r
+		}
+	}
+	if rep.SrcRows != 4 || rep.DstRows != 2 || len(rep.Exceptions) != 2 || !rep.OK() {
+		t.Fatalf("report %+v", rep)
+	}
+	// The T016a loader (payroll_app, scoped) loads the ETL rule.
+	raw, err := sql.Open("pgx", appDSN)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = raw.Close() }()
+	var got []engine.SubsidyRule
+	err = postgres.NewDBFromSQL(raw).ScopedTx(asScopes(t, "SOLO", "JAKARTA"), func(tx *sql.Tx) error {
+		rr, lerr := postgres.NewRuleSetLoader().Load(asScopes(t, "SOLO", "JAKARTA"), tx, postgres.RuleQuery{RuleSetID: 1, CompanyID: 1, Division: "SOLO", YYMM: 202601})
+		got = rr.SubsidyRules
+		return lerr
+	})
+	if err != nil || len(got) != 1 || got[0].Name != "ETL subsidi SOLO 202601" || !got[0].Limit.Equal(decimal.RequireFromString("10000000")) ||
+		got[0].BasisPeriod != 202601 || len(got[0].Depts) != 0 {
+		t.Fatalf("loader: err=%v rules=%+v", err, got)
+	}
+	for q, want := range map[string]string{
+		`SELECT count(*) FROM payroll.pyr_subsidy_rule WHERE created_by='etl' AND psr_status='ACTIVE'`:            "2",
+		`SELECT psr_limit_amount::text FROM payroll.pyr_subsidy_rule WHERE psr_name='ETL subsidi JAKARTA 202602'`: "12500000.50",
+		`SELECT psr_valid_from||'-'||psr_valid_to||'-'||psr_basis_period_yymm||'-'||psr_subsidy_kind||'-'||psr_status||'-'||
+		   coalesce(array_length(psr_depts,1)::text,'nodept') FROM payroll.pyr_subsidy_rule WHERE psr_name='ETL subsidi SOLO 202601'`: "202601-202601-202601-FULL_PPH-ACTIVE-nodept",
+	} {
+		if got := scalar(t, q); got != want {
+			t.Errorf("%s = %s, want %s", q, got, want)
+		}
+	}
+
+	// Run 3, changed source: SOLO 202601 turns N (its rule must be RETIRED, not left subsidising), JAKARTA 202602 has
+	// the same limit written two ways (no false exception), SOLO 202603 has no limit and falls back to SUBSIDIPPH.
+	write("MGT_PAYROLL_SUBSIDI_PPH", `MPSP_YYMM|MPSP_YN|MPSP_LIMIT_AMT|MPSP_DIVISION|MPSP_DEPT
+202601|N||SOLO|PROD
+202602|Y|10000000|JAKARTA|PROD
+202602|Y|10000000.0|JAKARTA|ADM
+202603|Y||SOLO|PROD
+`)
+	sv, err := os.ReadFile(filepath.Join("testdata", "IM_VS_STATIC_VALUE.psv")) //nolint:gosec // repo fixture
+	if err != nil {
+		t.Fatal(err)
+	}
+	write("IM_VS_STATIC_VALUE", strings.TrimRight(string(sv), "\n")+"\nPAYROLLSETUP|SUBSIDIPPH|9000000|9000000||\n")
+	reps, err = etl.RunInputs(ctx, etlDB, etl.PSVDir{Dir: dir}, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range reps {
+		if r.Table == "pyr_subsidy_rule" && (r.SrcRows != 2 || r.DstRows != 2 || len(r.Exceptions) != 0) {
+			t.Fatalf("run 3 report %+v", r)
+		}
+	}
+	for q, want := range map[string]string{
+		`SELECT psr_status FROM payroll.pyr_subsidy_rule WHERE psr_name='ETL subsidi SOLO 202601'`:                         "RETIRED",
+		`SELECT psr_status FROM payroll.pyr_subsidy_rule WHERE psr_name='ETL subsidi JAKARTA 202602'`:                      "ACTIVE",
+		`SELECT (psr_limit_amount = 9000000)::text FROM payroll.pyr_subsidy_rule WHERE psr_name='ETL subsidi SOLO 202603'`: "true",
+		`SELECT count(*) FROM payroll.pyr_subsidy_rule WHERE created_by='etl' AND psr_status='ACTIVE'`:                     "2",
+	} {
+		if got := scalar(t, q); got != want {
+			t.Errorf("%s = %s, want %s", q, got, want)
+		}
 	}
 }
