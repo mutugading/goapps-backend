@@ -22,6 +22,7 @@ var (
 	ErrBadComponentCode    = errors.New("run: component code is not T/P + number")
 	ErrBadSnapshotValue    = errors.New("run: attendance snapshot value is not a number")
 	ErrBadPeriod           = errors.New("run: invalid period")
+	ErrSubsidyBasisPeriods = errors.New("run: subsidy rules of the run use different basis periods")
 	errUnknownComponentTyp = errors.New("run: unknown component type")
 )
 
@@ -55,7 +56,7 @@ type Query struct {
 }
 
 // Rules is the part of the T016a rule set loader output that every Input shares.
-// YTD, THR, TaxAdj and the per-employee subsidy basis are left empty (B-RUN, B-THR).
+// The loader adds YTD, TaxAdj and the per-employee subsidy basis (T016c); THR stays empty (B-THR).
 type Rules struct {
 	Set     engine.RuleSet
 	Tax     engine.TaxTables
@@ -101,6 +102,14 @@ func (l Loader) Load(ctx context.Context, tx *sql.Tx, q Query, rules Rules) (Res
 	if err != nil {
 		return Result{}, err
 	}
+	basisPeriod, err := subsidyBasisPeriod(rules)
+	if err != nil {
+		return Result{}, err
+	}
+	tax, taxIssues, err := loadTax(ctx, tx, q, rules.Set.LegacyCompat(), basisPeriod)
+	if err != nil {
+		return Result{}, err
+	}
 
 	var t1 map[string]bool
 	if strings.EqualFold(q.Division, divJakarta) {
@@ -109,7 +118,7 @@ func (l Loader) Load(ctx context.Context, tx *sql.Tx, q Query, rules Rules) (Res
 		}
 	}
 
-	var res Result
+	res := Result{Warnings: taxIssues}
 	for _, e := range emps {
 		in := engine.Input{
 			Period: period, Division: q.Division, Emp: e, Components: comps[e.NIK],
@@ -119,6 +128,7 @@ func (l Loader) Load(ctx context.Context, tx *sql.Tx, q Query, rules Rules) (Res
 		if rules.Subsidy != nil {
 			in.Subsidy = rules.Subsidy(e.NIK)
 		}
+		tax[e.NIK].apply(&in)
 		row, ok := snap[e.NIK]
 		if !ok {
 			if !rules.Set.LegacyCompat() {
@@ -133,6 +143,25 @@ func (l Loader) Load(ctx context.Context, tx *sql.Tx, q Query, rules Rules) (Res
 		res.Inputs = append(res.Inputs, in)
 	}
 	return res, nil
+}
+
+// subsidyBasisPeriod is the rule v1 P0 basis period (psr_basis_period_yymm, 202601 for the migrated
+// rules). The per-employee basis is read once, so the active rules must agree on one period.
+func subsidyBasisPeriod(rules Rules) (int, error) {
+	if rules.Subsidy == nil || !rules.Set.LegacyCompat() {
+		return 0, nil
+	}
+	period := 0
+	for _, r := range rules.Subsidy("").Rules {
+		if r.BasisPeriod == 0 || r.BasisPeriod == period {
+			continue
+		}
+		if period != 0 {
+			return 0, fmt.Errorf("%w: %d and %d", ErrSubsidyBasisPeriods, period, r.BasisPeriod)
+		}
+		period = r.BasisPeriod
+	}
+	return period, nil
 }
 
 // periodOf returns the period of yymm: the 26th of the previous month to the 25th (UTC dates).
