@@ -612,6 +612,15 @@ type sysKey struct {
 	id  int
 }
 
+// legacyAlias maps DETAIL component ids that SOLO used in 201712-202003 but never existed in COMPNT_MASTER onto the
+// same-named master components (D-36 option a). PD_NO stays as in the source; only the sysid lookup is aliased.
+var legacyAlias = map[sysKey]sysKey{
+	{typeTunjangan, 100}: {typeTunjangan, 70}, // Additional Earning
+	{typeTunjangan, 200}: {typeTunjangan, 71}, // Other Earning
+	{typePotongan, 101}:  {typePotongan, 70},  // Additional Deduction
+	{typePotongan, 201}:  {typePotongan, 71},  // Other Deduction
+}
+
 func legacySysids(ctx context.Context, tx pgx.Tx, company int16, division string) (map[sysKey]int64, error) {
 	rows, err := tx.Query(ctx, `SELECT lower(pclm_legacy_type::text), pclm_legacy_id, pclm_sysid FROM payroll.pyr_component_legacy_map
 WHERE pclm_company_id=$1 AND pclm_legacy_division=$2`, company, division)
@@ -628,7 +637,18 @@ WHERE pclm_company_id=$1 AND pclm_legacy_division=$2`, company, division)
 		}
 		m[k] = s
 	}
-	return m, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for from, to := range legacyAlias {
+		if _, ok := m[from]; ok {
+			continue
+		}
+		if s, ok := m[to]; ok {
+			m[from] = s
+		}
+	}
+	return m, nil
 }
 
 func mustCol(t *Table, name string) int {
