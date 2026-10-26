@@ -129,3 +129,73 @@ func TestPPhCompanyDecember(t *testing.T) {
 		}
 	})
 }
+
+func frozenP(id int, amt string) EmpComponent {
+	c := pComp(id, amt, "F", false)
+	c.Frozen = true
+	return c
+}
+
+// T016b2 (D-28d): legacy never filters FRZ_FLAG on the P4/P8 subqueries of any PPh branch
+// (FNC_MGT_PAYROLL_PPH 139–142/478, _COMPANY 411/628), so a frozen P4 lowers the gross of
+// P1 (non-December and December) and the December P5 deduction, but is no detail line.
+func TestFrozenP4AllPPhPaths(t *testing.T) {
+	t.Run("P1 non-Desember: P4 beku menurunkan bruto", func(t *testing.T) {
+		in := pphInput("TK", taxT(1, "6000000", "F"), frozenP(4, "500000")) // 5.500.000 → 13.750
+		if got := amountStr(lineOf(t, in, CompKey{CompP, 1})); got != "13750" {
+			t.Errorf("P1 = %q, want 13750", got)
+		}
+	})
+	t.Run("P1 Desember: P4 beku mengurangi bruto sebelum BJ", func(t *testing.T) {
+		in := decInput(true, "TK", "6000000", "66000000", "2160000", "0", frozenP(4, "500000"))
+		if got := amountStr(lineOf(t, in, CompKey{CompP, 1})); got != "588250" {
+			t.Errorf("P1 = %q, want 588250", got)
+		}
+	})
+	t.Run("P5 Desember: P4 beku masuk pengurang", func(t *testing.T) {
+		// v2: bruto 120.200.000 (BJ semua kena batas 6 jt; sisi sendiri 113.000.000 → BJ 5.650.000), PTKP 54 jt.
+		// Tanpa P4: semua PKP 60.200.000 → 3.030.000; sendiri 53.350.000 → 2.667.500; P5 −362.500.
+		// P4 500.000 (pengurang): 59.700.000 → 2.985.000; 52.850.000 → 2.642.500; P5 −342.500.
+		mk := func(p4 EmpComponent) Input {
+			in := decInput(false, "TK", "5400000", "0", "0", "0", paidT(73, "600000"), pComp(5, "0", "F", false), p4)
+			in.YTDCompany = YTDCompanyTax{Gross: d("114200000"), CompanyPaid: d("6600000")}
+			return in
+		}
+		for name, c := range map[string]struct {
+			p4   EmpComponent
+			want string
+		}{
+			"beku":  {frozenP(4, "500000"), "-342500"},
+			"biasa": {pComp(4, "500000", "F", false), "-342500"},
+			"tanpa": {pComp(4, "0", "F", false), "-362500"},
+		} {
+			if got := amountStr(lineOf(t, mk(c.p4), keyP5)); got != c.want {
+				t.Errorf("%s: P5 = %q, want %q", name, got, c.want)
+			}
+		}
+	})
+	t.Run("P5 Desember v1: P4 beku masuk pengurang (paritas)", func(t *testing.T) {
+		// v1: nett semua = 120.200.000 − 500.000 − BJ 6.000.000 − 54.000.000 = 59.700.000 → 2.985.000;
+		// sendiri 59.700.000 − 7.200.000 = 52.500.000 → 2.625.000; P5 = −360.000.
+		in := decInput(true, "TK", "5400000", "0", "0", "0", paidT(73, "600000"), pComp(5, "0", "F", false), frozenP(4, "500000"))
+		in.YTDCompany = YTDCompanyTax{Gross: d("114200000"), CompanyPaid: d("6600000")}
+		if got := amountStr(lineOf(t, in, keyP5)); got != "-360000" {
+			t.Errorf("P5 = %q, want -360000", got)
+		}
+	})
+	t.Run("tidak masuk Lines maupun header", func(t *testing.T) {
+		in := pphInput("TK", taxT(1, "6000000", "F"), frozenP(4, "500000"))
+		res, err := Calculate(in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, l := range res.Lines {
+			if l.Key == (CompKey{CompP, 4}) {
+				t.Fatalf("P4 beku muncul sebagai baris detail: %+v", l)
+			}
+		}
+		if res.Header.TotPotongan.String() != "13750" { // hanya P1; P4 beku tidak ikut
+			t.Errorf("tot_potongan = %s, want 13750", res.Header.TotPotongan)
+		}
+	})
+}
