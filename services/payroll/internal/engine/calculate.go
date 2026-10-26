@@ -134,7 +134,7 @@ func evalLine(reg Registry, ctx *EvalCtx, res *Result, c EmpComponent, pph bool)
 	}
 	ctx.lines[c.Key] = l
 	if c.Frozen {
-		// Frozen P4/P8 only reduce the PPh gross (legacy ignores FRZ_FLAG there, D-28d); the
+		// Frozen P4/P8/P14/P18/P22/P23 only feed the PPh gross / deductions (legacy ignores FRZ_FLAG there, D-28d); the
 		// row itself is not a detail line and stays out of the header.
 		return nil
 	}

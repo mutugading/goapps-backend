@@ -199,3 +199,38 @@ func TestFrozenP4AllPPhPaths(t *testing.T) {
 		}
 	})
 }
+
+// T016b3 (D-28d): legacy does not filter FRZ_FLAG on the P14/P18 (PPH.sql 253/289/436,
+// PPH_COMPANY.sql 100/263/588/811) and P22/P23 (PPH.sql 436/502) subqueries either. A frozen
+// row still lowers the December PKP but is no detail line. Dump: P14 frozen 13, P18 frozen 25,
+// P22/P23 none (loader keeps them in the list anyway).
+func TestFrozenAnnualDeductions(t *testing.T) {
+	// bruto 72.000.000, BJ 3.600.000, PTKP 54 jt, pengurang YTD 2.160.000: PKP 12.240.000 × 5 % = 612.000.
+	// TETAP 6.000.000: P14 1 % = 60.000, P18 1 % = 60.000 (BPJS, Amount = tarif); P22 50.000, P23 30.000
+	// (addition). Pengurang +200.000: PKP 12.040.000 × 5 % = 602.000.
+	for _, legacy := range []bool{true, false} {
+		in := decInput(legacy, "TK", "6000000", "66000000", "2160000", "0",
+			frozenP(14, "0.01"), frozenP(18, "0.01"), frozenP(22, "0"), frozenP(23, "0"))
+		in.Rules = tRules{rules{legacy: legacy}}
+		in.Additions = map[CompKey][]Addition{{CompP, 22}: {{Amount: d("50000")}}, {CompP, 23}: {{Amount: d("30000")}}}
+		res, err := Calculate(in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var p1 string
+		for _, l := range res.Lines {
+			switch l.Key {
+			case CompKey{CompP, 14}, CompKey{CompP, 18}, CompKey{CompP, 22}, CompKey{CompP, 23}:
+				t.Fatalf("beku muncul sebagai baris detail: %+v", l)
+			case CompKey{CompP, 1}:
+				p1 = amountStr(l)
+			}
+		}
+		if p1 != "602000" {
+			t.Errorf("legacy=%v: P1 = %q, want 602000", legacy, p1)
+		}
+		if res.Header.TotPotongan.String() != "602000" { // hanya P1; baris beku tidak ikut
+			t.Errorf("legacy=%v: tot_potongan = %s, want 602000", legacy, res.Header.TotPotongan)
+		}
+	}
+}

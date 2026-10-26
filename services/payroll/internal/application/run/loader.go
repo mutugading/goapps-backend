@@ -31,8 +31,8 @@ const (
 
 	divJakarta = "JAKARTA"
 	stsFull    = "F"
-	// Legacy COMPNT_EMP subqueries of PPh ignore FRZ_FLAG for these ids (D-28d), so a frozen
-	// P4/P8 still reduces the gross.
+	// Legacy COMPNT_EMP subqueries of PPh ignore FRZ_FLAG for P4/P8 and P14/P18/P22/P23 (D-28d),
+	// so a frozen row still reduces the gross / annual deduction (loadComponents).
 	idAbsen           = 4
 	idDeductionImpact = 8
 	idGapok           = 1

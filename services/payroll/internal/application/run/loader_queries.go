@@ -90,7 +90,7 @@ func timePtr(t sql.NullTime) *time.Time {
 }
 
 // loadComponents reads the attached components (1 query): frz_flag = 2 inside the validity
-// window, plus frozen P4/P8 (D-28d, paritas).
+// window, plus frozen P4/P8/P14/P18/P22/P23 (D-28d, paritas).
 func loadComponents(ctx context.Context, tx *sql.Tx, q Query) (map[string][]engine.EmpComponent, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT e.pec_nik, c.pc_type::text, c.pc_code, COALESCE(e.pec_amount,0)::text,
   COALESCE(e.pec_sts, c.pc_default_sts), COALESCE(e.pec_tax,0) = 2, COALESCE(e.pec_tax_paid_company,'N') = 'Y',
@@ -100,7 +100,7 @@ JOIN payroll.pyr_employee p ON p.pe_company_id = e.pec_company_id AND p.pe_nik =
 JOIN payroll.pyr_component c ON c.pc_sysid = e.pec_component_sysid
 WHERE e.pec_company_id = $1 AND e.pec_division = $2 AND p.pe_sts_payroll = 2
   AND (e.pec_valid_from IS NULL OR e.pec_valid_from <= $3) AND (e.pec_valid_to IS NULL OR e.pec_valid_to >= $3)
-  AND (e.pec_frz_flag = $5 OR (c.pc_type = 'Potongan' AND c.pc_code IN ('P004','P008')))
+  AND (e.pec_frz_flag = $5 OR (c.pc_type = 'Potongan' AND c.pc_code IN ('P004','P008','P014','P018','P022','P023')))
   AND ($4::text[] = '{}' OR e.pec_nik = ANY($4::text[]))
 ORDER BY e.pec_nik, c.pc_type, c.pc_code`, q.CompanyID, q.Division, q.YYMM, nikArray(q.NIKs), frzActive)
 	if err != nil {
