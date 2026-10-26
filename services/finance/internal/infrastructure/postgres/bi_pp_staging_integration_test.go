@@ -39,11 +39,7 @@ func TestBiPPStagingRepository_ReplacePackProdDaily(t *testing.T) {
 	require.NoError(t, err)
 
 	// Fixture dates far in the past (view history starts 2003) so real data is never touched.
-	cleanup := func() {
-		if _, cErr := raw.ExecContext(ctx, `DELETE FROM bi_pp_stg_pack_prod_daily WHERE pack_date < '2000-01-01'`); cErr != nil {
-			t.Logf("cleanup: %v", cErr)
-		}
-	}
+	cleanup := func() { cleanupPPFixtures(ctx, t, raw) }
 	cleanup()
 	defer cleanup()
 
@@ -51,7 +47,7 @@ func TestBiPPStagingRepository_ReplacePackProdDaily(t *testing.T) {
 	str := func(s string) sql.NullString { return sql.NullString{String: s, Valid: true} }
 	row := func(date, mc, ax string) oracleinfra.PackProdDailyRow {
 		axQ := decimal.RequireFromString(ax)
-		fq := decimal.RequireFromString("0.000001")
+		fq := decimal.RequireFromString("0.01")
 		return oracleinfra.PackProdDailyRow{
 			PackDate: d(date), WeekStart: d("1999-01-04"), MonthStart: d("1999-01-01"),
 			Period: "199901", WeekPeriod: "199901", DeptID: "TWT", DeptName: "TWISTING", ProdGroup: "TWT",
@@ -61,6 +57,7 @@ func TestBiPPStagingRepository_ReplacePackProdDaily(t *testing.T) {
 		}
 	}
 	repo := postgres.NewBiPPStagingRepository(&postgres.DB{DB: raw})
+	srcID := hrisOracleSourceID(ctx, t, raw)
 
 	type snap struct {
 		Date, Mc, Ax, Fq, Dg, Total string
@@ -84,33 +81,33 @@ func TestBiPPStagingRepository_ReplacePackProdDaily(t *testing.T) {
 	}
 
 	// Seed a row outside the later window; it must survive.
-	n, err := repo.ReplacePackProdDaily(ctx, d("1999-01-01"), d("1999-01-01"), []oracleinfra.PackProdDailyRow{row("1999-01-01", "MC0", "1")})
+	n, err := repo.ReplacePackProdDaily(ctx, d("1999-01-01"), d("1999-01-01"), []oracleinfra.PackProdDailyRow{row("1999-01-01", "MC0", "1")}, srcID)
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
 
 	src := []oracleinfra.PackProdDailyRow{
-		row("1999-01-02", "MC1", "1234.567891"),
+		row("1999-01-02", "MC1", "1234.56"),
 		row("1999-01-02", "MC2", "0"),
 		row("1999-01-03", "MC1", "0.5"),
 	}
-	n, err = repo.ReplacePackProdDaily(ctx, d("1999-01-02"), d("1999-01-05"), src)
+	n, err = repo.ReplacePackProdDaily(ctx, d("1999-01-02"), d("1999-01-05"), src, srcID)
 	require.NoError(t, err)
 	require.Equal(t, 3, n)
 	first := read()
 	require.Len(t, first, 4)
-	require.Equal(t, "1234.567891", first[1].Ax)
-	require.Equal(t, "1234.567892", first[1].Total)
+	require.Equal(t, "1234.560000", first[1].Ax)
+	require.Equal(t, "1234.570000", first[1].Total)
 	require.Equal(t, "0.000000", first[1].Dg)
 	require.False(t, first[1].Pallet.Valid, "NULL pallet_code must stay NULL")
 	require.Equal(t, int64(2), first[1].Order.Int64)
 
 	// Second identical run: identical staging, no duplicates.
-	_, err = repo.ReplacePackProdDaily(ctx, d("1999-01-02"), d("1999-01-05"), src)
+	_, err = repo.ReplacePackProdDaily(ctx, d("1999-01-02"), d("1999-01-05"), src, srcID)
 	require.NoError(t, err)
 	require.Equal(t, first, read())
 
 	// A combination dropped by the source disappears; the row outside the window stays.
-	_, err = repo.ReplacePackProdDaily(ctx, d("1999-01-02"), d("1999-01-05"), src[:1])
+	_, err = repo.ReplacePackProdDaily(ctx, d("1999-01-02"), d("1999-01-05"), src[:1], srcID)
 	require.NoError(t, err)
 	got := read()
 	require.Len(t, got, 2)
@@ -122,7 +119,7 @@ func TestBiPPStagingRepository_ReplacePackProdDaily(t *testing.T) {
 	for i := range 1203 {
 		many = append(many, row("1999-01-04", fmt.Sprintf("B%04d", i), "1"))
 	}
-	n, err = repo.ReplacePackProdDaily(ctx, d("1999-01-02"), d("1999-01-05"), many)
+	n, err = repo.ReplacePackProdDaily(ctx, d("1999-01-02"), d("1999-01-05"), many, srcID)
 	require.NoError(t, err)
 	require.Equal(t, 1203, n)
 	require.Len(t, read(), 1204)

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	oracleinfra "github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/oracle"
 )
 
@@ -34,11 +36,12 @@ func NewBiPPStagingRepository(db *DB) *BiPPStagingRepository {
 	return &BiPPStagingRepository{db: db}
 }
 
-// ReplacePackProdDaily deletes staging rows with pack_date in [d1, d2] and batch-inserts rows, in
-// one transaction (ETL§C), so combinations that vanished from the source vanish from staging too.
-// Returns staging rows inserted.
+// ReplacePackProdDaily deletes staging rows with pack_date in [d1, d2], batch-inserts rows (ETL§C),
+// then re-aggregates the DAILY/MONTHLY PP_PACK_* facts of the window and reconciles them (ETL§D/§F),
+// all in one transaction, so combinations that vanished from the source vanish from staging and
+// facts too. sourceID is stamped on the facts. Returns staging rows inserted.
 func (r *BiPPStagingRepository) ReplacePackProdDaily(
-	ctx context.Context, d1, d2 time.Time, rows []oracleinfra.PackProdDailyRow,
+	ctx context.Context, d1, d2 time.Time, rows []oracleinfra.PackProdDailyRow, sourceID uuid.UUID,
 ) (int, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -62,6 +65,9 @@ func (r *BiPPStagingRepository) ReplacePackProdDaily(
 		if err = insertPPBatch(ctx, tx, rows[i:end]); err != nil {
 			return 0, fmt.Errorf("insert staging batch at offset %d: %w", i, err)
 		}
+	}
+	if _, err = replacePPFacts(ctx, tx, d1, d2, sourceID); err != nil {
+		return 0, fmt.Errorf("aggregate pack prod facts: %w", err)
 	}
 	if err = tx.Commit(); err != nil {
 		return 0, fmt.Errorf("commit: %w", err)

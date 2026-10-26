@@ -28,10 +28,11 @@ func (f *fakePPSource) FetchPackProdDaily(_ context.Context, d1, d2 time.Time) (
 type fakePPStaging struct {
 	d1, d2 time.Time
 	n      int
+	src    uuid.UUID
 }
 
-func (f *fakePPStaging) ReplacePackProdDaily(_ context.Context, d1, d2 time.Time, rows []oracleinfra.PackProdDailyRow) (int, error) {
-	f.d1, f.d2, f.n = d1, d2, len(rows)
+func (f *fakePPStaging) ReplacePackProdDaily(_ context.Context, d1, d2 time.Time, rows []oracleinfra.PackProdDailyRow, src uuid.UUID) (int, error) {
+	f.d1, f.d2, f.n, f.src = d1, d2, len(rows), src
 	return len(rows), nil
 }
 
@@ -53,11 +54,13 @@ func TestPPLoader_Load_PassesSameWindowToSourceAndStaging(t *testing.T) {
 	l := NewPPLoader(src, stg, zerolog.Nop())
 	l.now = func() time.Time { return time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC) }
 
-	n, err := l.Load(context.Background(), TargetPPPack, "ASPAK.VIEW_BI_PACK_PROD_DAILY", uuid.New())
+	sourceID := uuid.New()
+	n, err := l.Load(context.Background(), TargetPPPack, "ASPAK.VIEW_BI_PACK_PROD_DAILY", sourceID)
 	require.NoError(t, err)
 	assert.Equal(t, 3, n)
 	assert.Equal(t, src.d1, stg.d1)
 	assert.Equal(t, src.d2, stg.d2)
+	assert.Equal(t, sourceID, stg.src, "facts are stamped with the job's source")
 }
 
 func TestPPLoader_Load_UnsupportedTarget(t *testing.T) {
