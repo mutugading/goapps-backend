@@ -27,12 +27,15 @@ type TableReport struct {
 	Checksum string
 	// Exceptions are source rows deliberately not loaded (e.g. no sysid map); each is reported, never dropped silently.
 	Exceptions []string
+	// SkippedRows are source rows deliberately out of scope (D-35.1); Skipped has one summary line per period.
+	SkippedRows int
+	Skipped     []string
 	// Warnings are loaded rows with a data-quality note for HR (e.g. no HRIS sys_id, bad birth date).
 	Warnings []string
 }
 
-// OK reports whether every source row is either loaded or listed in Exceptions.
-func (r TableReport) OK() bool { return r.SrcRows == r.DstRows+len(r.Exceptions) }
+// OK reports whether every source row is either loaded listed in Exceptions, or skipped by scope.
+func (r TableReport) OK() bool { return r.SrcRows == r.DstRows+len(r.Exceptions)+r.SkippedRows }
 
 // LegacySource labels attachment rows that come from legacy ETL (sisa D-21).
 const LegacySource = "TEMPLATE"

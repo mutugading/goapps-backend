@@ -210,6 +210,12 @@ func salaryLegacy(args []string) error {
 	nExc := 0
 	for _, r := range reps {
 		fmt.Printf("%-32s src=%-8d dst=%-8d exc=%-4d sha256=%s\n", r.Table, r.SrcRows, r.DstRows, len(r.Exceptions), r.Checksum)
+		for _, e := range r.Skipped {
+			fmt.Println(" ", e)
+		}
+		for _, w := range r.Warnings {
+			fmt.Println("  WARNING", w)
+		}
 		for _, e := range r.Exceptions {
 			fmt.Println("  EXCEPTION", e)
 		}

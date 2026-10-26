@@ -35,6 +35,14 @@ type SalaryLegacyOptions struct {
 	ExpectMain, ExpectDetail int
 }
 
+// legacySkipped reports D-35.1 out-of-scope periods: JAKARTA before 202601 is trial data, SOLO 202607 has DETAIL without MAIN.
+func legacySkipped(k snapKey) bool {
+	return (k.division == "JAKARTA" && k.yymm < "202601") || (k.division == "SOLO" && k.yymm == "202607")
+}
+
+// noSnapshotOK reports D-35.3 periods that never had an attendance recap (201712-202003): loaded without a snapshot.
+func noSnapshotOK(yymm string) bool { return yymm >= "201712" && yymm <= "202003" }
+
 type salaryGroup struct {
 	key   snapKey
 	heads [][]string
@@ -142,7 +150,13 @@ func RunSalaryLegacy(ctx context.Context, db *sql.DB, src Source, o SalaryLegacy
 			repM.Exceptions = append(repM.Exceptions, fmt.Sprintf("%s baris %d: %s", mn.Name, i+2, exc))
 			continue
 		}
-		g := grp(snapKey{r[mix["PM_YYMM"]], r[mix["PM_DIVISION"]]})
+		k := snapKey{r[mix["PM_YYMM"]], r[mix["PM_DIVISION"]]}
+		if legacySkipped(k) {
+			repM.SkippedRows++
+			skipNote(&repM, mn.Name, k)
+			continue
+		}
+		g := grp(k)
 		g.heads = append(g.heads, r)
 	}
 	for i, r := range dt.Rows {
@@ -150,7 +164,13 @@ func RunSalaryLegacy(ctx context.Context, db *sql.DB, src Source, o SalaryLegacy
 			repD.Exceptions = append(repD.Exceptions, fmt.Sprintf("%s baris %d: %s", dt.Name, i+2, exc))
 			continue
 		}
-		g := grp(snapKey{r[dix["PD_YYMM"]], r[dix["PD_DIVISION"]]})
+		k := snapKey{r[dix["PD_YYMM"]], r[dix["PD_DIVISION"]]}
+		if legacySkipped(k) {
+			repD.SkippedRows++
+			skipNote(&repD, dt.Name, k)
+			continue
+		}
+		g := grp(k)
 		g.lines = append(g.lines, r)
 	}
 	keys := make([]snapKey, 0, len(groups))
@@ -184,7 +204,7 @@ func RunSalaryLegacy(ctx context.Context, db *sql.DB, src Source, o SalaryLegacy
 			}
 		}()
 		for _, k := range keys {
-			if err := loadSalaryGroup(ctx, tx, o, mn, dt, groups[k], &repM, &repD); err != nil {
+			if err := loadSalaryGroup(ctx, tx, o, mn, dt, &lazyEmp{src: src}, groups[k], &repM, &repD); err != nil {
 				return fmt.Errorf("%s/%s: %w", k.yymm, k.division, err)
 			}
 		}
@@ -203,6 +223,17 @@ VALUES ($1,$2,$3,$4,$5,true)`, o.CompanyID, r.Table, r.SrcRows, r.DstRows, r.Che
 	return []TableReport{repM, repD}, err
 }
 
+// skipNote adds one SKIP line per period (not per row) to the report.
+func skipNote(r *TableReport, table string, k snapKey) {
+	note := fmt.Sprintf("SKIP %s %s/%s: di luar cakupan migrasi (D-35.1)", table, k.yymm, k.division)
+	for _, n := range r.Skipped {
+		if n == note {
+			return
+		}
+	}
+	r.Skipped = append(r.Skipped, note)
+}
+
 func badKey(r []string, ix map[string]int, yymmCol, divCol string) string {
 	if exc := badYYMM(r, ix, []string{yymmCol}); exc != "" {
 		return exc
@@ -214,7 +245,7 @@ func badKey(r []string, ix map[string]int, yymmCol, divCol string) string {
 }
 
 //nolint:gocognit,gocyclo // one period = one transaction step; kept linear so the all-or-nothing rules read top to bottom
-func loadSalaryGroup(ctx context.Context, tx pgx.Tx, o SalaryLegacyOptions, mn, dt *Table, g *salaryGroup, repM, repD *TableReport) error {
+func loadSalaryGroup(ctx context.Context, tx pgx.Tx, o SalaryLegacyOptions, mn, dt *Table, emp *lazyEmp, g *salaryGroup, repM, repD *TableReport) error {
 	var runID int64
 	err := tx.QueryRow(ctx, `SELECT pr_id FROM payroll.pyr_run WHERE pr_company_id=$1 AND pr_yymm=$2 AND pr_division=$3 AND pr_kind='LEGACY' AND pr_status='ACTIVE'`,
 		o.CompanyID, g.key.yymm, g.key.division).Scan(&runID)
@@ -223,10 +254,11 @@ func loadSalaryGroup(ctx context.Context, tx pgx.Tx, o SalaryLegacyOptions, mn, 
 		if err := tx.QueryRow(ctx, `SELECT pr_emp_count, pr_line_count FROM payroll.pyr_run WHERE pr_id=$1`, runID).Scan(&nHead, &nLine); err != nil {
 			return err
 		}
-		if nHead != len(g.heads) || nLine != len(g.lines) {
-			return fmt.Errorf("sudah dimuat (%d head, %d detail) tetapi sumber kini %d/%d; periode CLOSED tidak boleh diubah", nHead, nLine, len(g.heads), len(g.lines))
+		orphans := len(orphanNiks(g))
+		if nHead != len(g.heads)+orphans || nLine != len(g.lines) {
+			return fmt.Errorf("sudah dimuat (%d head, %d detail) tetapi sumber kini %d/%d; periode CLOSED tidak boleh diubah", nHead, nLine, len(g.heads)+orphans, len(g.lines))
 		}
-		repM.DstRows += nHead
+		repM.DstRows += nHead - orphans
 		repD.DstRows += nLine
 		return nil
 	}
@@ -241,18 +273,16 @@ func loadSalaryGroup(ctx context.Context, tx pgx.Tx, o SalaryLegacyOptions, mn, 
 			repD.Exceptions = append(repD.Exceptions, fmt.Sprintf("%s %s/%s nik %s: %s", dt.Name, g.key.yymm, g.key.division, r[1], why))
 		}
 	}
-	if len(g.heads) == 0 {
-		rejectAll("tanpa baris MAIN di periode ini")
-		return nil
-	}
-	var snap int64
+	var snap *int64
 	err = tx.QueryRow(ctx, `SELECT pas_snapshot_id FROM payroll.pyr_att_snapshot WHERE pas_company_id=$1 AND pas_yymm=$2 AND pas_division=$3 AND pas_source_batch_ids='{}'`,
 		o.CompanyID, g.key.yymm, g.key.division).Scan(&snap)
-	if errors.Is(err, pgx.ErrNoRows) {
+	switch {
+	case errors.Is(err, pgx.ErrNoRows) && noSnapshotOK(g.key.yymm):
+		snap = nil // D-35.3: no attendance recap existed before 202004
+	case errors.Is(err, pgx.ErrNoRows):
 		rejectAll("tanpa snapshot LEGACY (jalankan att-legacy / T009d dulu)")
 		return nil
-	}
-	if err != nil {
+	case err != nil:
 		return err
 	}
 	sysids, err := legacySysids(ctx, tx, o.CompanyID, g.key.division)
@@ -266,10 +296,6 @@ func loadSalaryGroup(ctx context.Context, tx pgx.Tx, o SalaryLegacyOptions, mn, 
 
 	// All-or-nothing per period: a CLOSED period cannot take late rows, so any unloadable row holds back the whole group
 	// (every row reported) until the cause (missing legacy map, orphan NIK) is fixed and the load is re-run.
-	nikInMain := map[string]bool{}
-	for _, r := range g.heads {
-		nikInMain[r[1]] = true
-	}
 	problems := make([]string, len(g.lines)) // "" = line is fine
 	nProblems := 0
 	for i, r := range g.lines {
@@ -281,8 +307,6 @@ func loadSalaryGroup(ctx context.Context, tx pgx.Tx, o SalaryLegacyOptions, mn, 
 			problems[i] = fmt.Sprintf("PD_TYPE %q", c("PD_TYPE"))
 		case perr != nil:
 			problems[i] = fmt.Sprintf("PD_NO %q", c("PD_NO"))
-		case !nikInMain[r[1]]:
-			problems[i] = "DETAIL tanpa baris MAIN di periode ini"
 		default:
 			if _, ok := sysids[sysKey{typ, id}]; !ok {
 				problems[i] = fmt.Sprintf("tanpa peta sysid (%s %d)", c("PD_TYPE"), id)
@@ -337,6 +361,45 @@ func loadSalaryGroup(ctx context.Context, tx pgx.Tx, o SalaryLegacyOptions, mn, 
 		totP.add(c("PM_TOT_POTONGAN"))
 		nHead++
 	}
+	// D-35.2: DETAIL without MAIN → synthetic MAIN (sum of DETAIL per type, ROUND half-up), attributes from EMP/COMPNT_EMP.
+	nSynth := 0
+	for _, nik := range orphanNiks(g) {
+		var t, p decimal.Decimal
+		for _, r := range g.lines {
+			if r[1] != nik {
+				continue
+			}
+			cell := r[mustCol(dt, "PD_AMOUNT")]
+			if cell == "" {
+				continue // NULL amount counts as 0 (same as a legacy NULL)
+			}
+			a, err := decimal.NewFromString(cell)
+			if err != nil {
+				return fmt.Errorf("nik %s PD_AMOUNT %q: %w", nik, cell, err)
+			}
+			if strings.EqualFold(r[mustCol(dt, "PD_TYPE")], typePotongan) {
+				p = p.Add(a)
+			} else {
+				t = t.Add(a)
+			}
+		}
+		t, p = t.Round(2), p.Round(2)
+		at, err := emp.attrs(nik, g.key.division)
+		if err != nil {
+			return err
+		}
+		if at["nama"] == "" {
+			repM.Warnings = append(repM.Warnings, fmt.Sprintf("%s %s/%s nik %s: atribut karyawan tidak ditemukan di EMP (nama kosong)", mn.Name, g.key.yymm, g.key.division, nik))
+		}
+		copyRow(&heads, "@RUN@", nik, g.key.yymm, g.key.division, at["nama"], at["dept"], "", at["section"], at["grade"], at["jabatan"], at["emp_type"], "",
+			at["join"], "", at["tax"], at["basic"], "", "", "", "", "", t.StringFixed(2), p.StringFixed(2), "0", "", "", "", strconv.Itoa(int(o.CompanyID)))
+		totT.add(t.StringFixed(2))
+		totP.add(p.StringFixed(2))
+		nHead++
+		nSynth++
+		repM.Warnings = append(repM.Warnings, fmt.Sprintf("%s %s/%s nik %s: MAIN sintetis dari DETAIL (D-35.2), tunjangan %s potongan %s",
+			mn.Name, g.key.yymm, g.key.division, nik, t.StringFixed(2), p.StringFixed(2)))
+	}
 	for _, r := range g.lines {
 		c := func(n string) string { return r[mustCol(dt, n)] }
 		typ := strings.ToLower(c("PD_TYPE"))
@@ -390,8 +453,115 @@ VALUES ('etl','ETL_PERIOD_CLOSE','pyr_period',$1,$2,jsonb_build_object('run_id',
 		g.key.yymm+"/"+g.key.division, g.key.division, runID, nHead, nLine, totT.String(), totP.String(), o.CompanyID); err != nil {
 		return fmt.Errorf("audit: %w", err)
 	}
-	repM.DstRows += nHead
+	repM.DstRows += nHead - nSynth
 	repD.DstRows += nLine
+	return nil
+}
+
+// orphanNiks lists NIKs that have DETAIL but no MAIN in the group (sorted, so the load is deterministic).
+func orphanNiks(g *salaryGroup) []string {
+	has := map[string]bool{}
+	for _, r := range g.heads {
+		has[r[1]] = true
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, r := range g.lines {
+		if !has[r[1]] && !seen[r[1]] {
+			seen[r[1]] = true
+			out = append(out, r[1])
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// lazyEmp reads MGT_PAYROLL_EMP / COMPNT_EMP only when a synthetic MAIN is needed; absent files mean empty attributes.
+type lazyEmp struct {
+	src     Source
+	loaded  bool
+	emp, ce *Table
+}
+
+func (l *lazyEmp) load() {
+	if l.loaded {
+		return
+	}
+	l.loaded = true
+	l.emp, _ = l.src.Read(TableEmployee)         //nolint:errcheck // optional: attributes stay empty
+	l.ce, _ = l.src.Read(TableEmployeeComponent) //nolint:errcheck // optional
+}
+
+// attrs returns the MAIN attributes for (nik, division); keys are empty when unknown.
+func (l *lazyEmp) attrs(nik, division string) (map[string]string, error) {
+	l.load()
+	out := map[string]string{}
+	if err := l.empAttrs(nik, division, out); err != nil {
+		return nil, err
+	}
+	l.basicPay(nik, division, out)
+	return out, nil
+}
+
+// basicPay sets out["basic"] to the Gaji Pokok (Tunjangan 1) amount of the employee's COMPNT_EMP, if any.
+func (l *lazyEmp) basicPay(nik, division string, out map[string]string) {
+	if l.ce == nil {
+		return
+	}
+	ix, err := bindCols(l.ce, []string{"MPCE_NIK", "MPCE_TYPE", "MPCE_ID", "MPCE_AMOUNT"})
+	if err != nil {
+		return
+	}
+	ni, ti, ii, ai := ix["MPCE_NIK"], ix["MPCE_TYPE"], ix["MPCE_ID"], ix["MPCE_AMOUNT"]
+	di, derr := l.ce.Col("MPCE_DIVISION")
+	if derr != nil {
+		di = -1
+	}
+	for _, r := range l.ce.Rows {
+		if r[ni] == nik && strings.EqualFold(r[ti], typeTunjangan) && r[ii] == "1" && (di < 0 || r[di] == division) {
+			out["basic"] = r[ai]
+			return
+		}
+	}
+}
+
+// empAttrs fills out from the MGT_PAYROLL_EMP row of (nik, division), if any.
+func (l *lazyEmp) empAttrs(nik, division string, out map[string]string) error {
+	if l.emp == nil {
+		return nil
+	}
+	col := func(n string) int {
+		i, err := l.emp.Col(n)
+		if err != nil {
+			return -1
+		}
+		return i
+	}
+	ni, di := col("PE_NIK"), col("PE_DIVISION")
+	if ni < 0 {
+		return nil
+	}
+	for _, r := range l.emp.Rows {
+		if r[ni] != nik || (di >= 0 && r[di] != division) {
+			continue
+		}
+		get := func(n string) string {
+			if i := col(n); i >= 0 {
+				return r[i]
+			}
+			return ""
+		}
+		out["nama"], out["dept"], out["section"], out["grade"] = get("PE_NAMA"), get("PE_DEPT"), get("PE_SECTION"), get("PE_GRADE")
+		out["jabatan"], out["emp_type"], out["tax"] = get("PE_DESIGNATION"), get("PE_STS_EMP"), get("PE_TAX_ID")
+		if j := get("PE_DATE_JOIN"); j != "" {
+			d, err := parseDate(j)
+			if err != nil {
+				return fmt.Errorf("nik %s PE_DATE_JOIN: %w", nik, err)
+			}
+			out["join"] = d
+		}
+		return nil
+	}
 	return nil
 }
 

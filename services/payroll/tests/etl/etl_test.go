@@ -294,21 +294,21 @@ func TestETL_SalaryLegacyRuns(t *testing.T) {
 			t.Errorf("%s src=%d dst=%d exc=%d", r.Table, r.SrcRows, r.DstRows, len(r.Exceptions))
 		}
 	}
-	// MAIN: 202608 tanpa snapshot + 2027 kotor; DETAIL: 202608 (tanpa snapshot) + 2027
+	// 202607 SOLO di-skip (D-35.1). MAIN: 202608 tanpa snapshot + 2027 kotor; DETAIL: 202608 (tanpa snapshot) + 2027
 	if len(reps[0].Exceptions) != 2 || len(reps[1].Exceptions) != 2 {
 		t.Errorf("exception main=%d detail=%d, want 2/2", len(reps[0].Exceptions), len(reps[1].Exceptions))
 	}
 	for q, want := range map[string]string{
-		`SELECT count(*) FROM payroll.pyr_run WHERE pr_kind='LEGACY' AND pr_status='ACTIVE' AND pr_rule_set_id=0`:       "2",
-		`SELECT count(*) FROM payroll.pyr_period WHERE pp_status='CLOSED' AND pp_active_run_id IS NOT NULL`:             "2",
-		`SELECT count(*) FROM payroll.pyr_salary_head`:                                                                  "3",
-		`SELECT count(*) FROM payroll.pyr_salary_detail`:                                                                "5",
-		`SELECT count(*) FROM payroll.pyr_salary_detail WHERE psd_formula='LEGACY' AND psd_component_sysid IS NOT NULL`: "5",
+		`SELECT count(*) FROM payroll.pyr_run WHERE pr_kind='LEGACY' AND pr_status='ACTIVE' AND pr_rule_set_id=0`:       "1",
+		`SELECT count(*) FROM payroll.pyr_period WHERE pp_status='CLOSED' AND pp_active_run_id IS NOT NULL`:             "1",
+		`SELECT count(*) FROM payroll.pyr_salary_head`:                                                                  "2",
+		`SELECT count(*) FROM payroll.pyr_salary_detail`:                                                                "4",
+		`SELECT count(*) FROM payroll.pyr_salary_detail WHERE psd_formula='LEGACY' AND psd_component_sysid IS NOT NULL`: "4",
 		`SELECT count(*) FROM payroll.pyr_salary_detail WHERE psd_amount IS NULL`:                                       "1",
 		`SELECT psh_net_pay::text FROM payroll.pyr_salary_head WHERE psh_nik='2026-0001' AND psh_yymm=202606`:           "5400000.00",
 		`SELECT pr_tot_tunjangan::text FROM payroll.pyr_run WHERE pr_yymm=202606 AND pr_division='SOLO'`:                "9500000.50",
 		`SELECT psh_jam_lembur->>'lembur1' FROM payroll.pyr_salary_head WHERE psh_nik='2026-0001' AND psh_yymm=202606`:  "1.5",
-		`SELECT count(*) FROM payroll.v_pyr_mgt_payroll_main WHERE pm_status=3`:                                         "3",
+		`SELECT count(*) FROM payroll.v_pyr_mgt_payroll_main WHERE pm_status=3`:                                         "2",
 	} {
 		if got := scalar(t, q); got != want {
 			t.Errorf("%s = %s, want %s", q, got, want)
@@ -408,7 +408,7 @@ func TestETL_SalaryLegacyEdges(t *testing.T) {
 	if _, err := etl.Run(ctx, etlDB, etl.PSVDir{Dir: "testdata"}, etl.Options{CompanyID: 1, ValidFrom: 202001}); err != nil {
 		t.Fatal(err)
 	}
-	for _, ym := range []string{"202512", "202601"} {
+	for _, ym := range []string{"202601", "202602"} {
 		if _, err := ownDB.Exec(`INSERT INTO payroll.pyr_att_snapshot (pas_company_id, pas_yymm, pas_division, pas_source_batch_ids, pas_checksum, pas_locked)
 VALUES (1,$1,'JAKARTA','{}','x',true)`, ym); err != nil {
 			t.Fatal(err)
@@ -441,10 +441,10 @@ VALUES (1,$1,'JAKARTA','{}','x',true)`, ym); err != nil {
 			"PD_DESCRIPTION": "Gaji Pokok", "PD_STATUS": "F", "PD_TAX": "2", "PD_TAX_PAID_COMPANY": "N"})
 	}
 	hdr := func(cols []string) string { return strings.Join(cols, "|") + "\n" }
-	det := hdr(detCols) + line("202512", "10") + line("202601", "20")
+	det := hdr(detCols) + line("202601", "10") + line("202602", "20")
 
 	// periode ke-2 rusak (PM_DATE) → seluruh transaksi dibatalkan, periode ke-1 tidak boleh tersisa.
-	bad := write(hdr(mainCols)+head("202512", "25-DEC-25", "10")+head("202601", "bukan-tanggal", "20"), det)
+	bad := write(hdr(mainCols)+head("202601", "25-JAN-26", "10")+head("202602", "bukan-tanggal", "20"), det)
 	if _, err := etl.RunSalaryLegacy(ctx, etlDB, etl.PSVDir{Dir: bad}, etl.SalaryLegacyOptions{CompanyID: 1}); err == nil {
 		t.Fatal("tanggal rusak seharusnya menggagalkan load")
 	}
@@ -459,7 +459,7 @@ VALUES (1,$1,'JAKARTA','{}','x',true)`, ym); err != nil {
 		}
 	}
 
-	good := write(hdr(mainCols)+head("202512", "25-DEC-25", "10")+head("202601", "25-JAN-26", "20"), det)
+	good := write(hdr(mainCols)+head("202601", "25-JAN-26", "10")+head("202602", "25-FEB-26", "20"), det)
 	reps, err := etl.RunSalaryLegacy(ctx, etlDB, etl.PSVDir{Dir: good}, etl.SalaryLegacyOptions{CompanyID: 1, ExpectMain: 2, ExpectDetail: 2})
 	if err != nil {
 		t.Fatal(err)
@@ -468,12 +468,12 @@ VALUES (1,$1,'JAKARTA','{}','x',true)`, ym); err != nil {
 		t.Errorf("exception tak terduga: %v %v", reps[0].Exceptions, reps[1].Exceptions)
 	}
 	for q, want := range map[string]string{
-		`SELECT pp_date_from||'..'||pp_date_to FROM payroll.pyr_period WHERE pp_yymm=202512 AND pp_division='JAKARTA'`:                  "2025-11-26..2025-12-25",
 		`SELECT pp_date_from||'..'||pp_date_to FROM payroll.pyr_period WHERE pp_yymm=202601 AND pp_division='JAKARTA'`:                  "2025-12-26..2026-01-25",
+		`SELECT pp_date_from||'..'||pp_date_to FROM payroll.pyr_period WHERE pp_yymm=202602 AND pp_division='JAKARTA'`:                  "2026-01-26..2026-02-25",
 		`SELECT count(*) FROM payroll.pyr_run WHERE pr_division='JAKARTA' AND pr_kind='LEGACY' AND pr_status='ACTIVE'`:                  "2",
 		`SELECT count(*) FROM payroll.pyr_period WHERE pp_division='JAKARTA' AND pp_status='CLOSED'`:                                    "2",
 		`SELECT count(*) FROM payroll.pyr_audit_log WHERE pal_actor='etl' AND pal_action='ETL_PERIOD_CLOSE' AND pal_division='JAKARTA'`: "2",
-		`SELECT pal_after->>'tot_tunjangan' FROM payroll.pyr_audit_log WHERE pal_entity_key='202601/JAKARTA'`:                           "20.00",
+		`SELECT pal_after->>'tot_tunjangan' FROM payroll.pyr_audit_log WHERE pal_entity_key='202602/JAKARTA'`:                           "20.00",
 	} {
 		if got := scalar(t, q); got != want {
 			t.Errorf("%s = %s, want %s", q, got, want)
@@ -531,6 +531,89 @@ func TestETL_AttLegacyFail(t *testing.T) {
 	} {
 		if got := scalar(t, q); got != want {
 			t.Errorf("%s = %s, want %s", q, got, want)
+		}
+	}
+}
+
+// T009e5 (D-35): skip trial/202607, MAIN sintetis dari DETAIL, periode 201712 tanpa snapshot, yatim tidak menahan periode.
+func TestETL_SalaryLegacyScope(t *testing.T) {
+	ctx := context.Background()
+	if _, err := etl.Run(ctx, etlDB, etl.PSVDir{Dir: "testdata"}, etl.Options{CompanyID: 1, ValidFrom: 202001}); err != nil {
+		t.Fatal(err)
+	}
+	// snapshot hanya untuk 202603/SOLO; 201712/SOLO sengaja tanpa snapshot.
+	if _, err := ownDB.Exec(`INSERT INTO payroll.pyr_att_snapshot (pas_company_id, pas_yymm, pas_division, pas_source_batch_ids, pas_checksum, pas_locked)
+VALUES (1,202603,'SOLO','{}','x',true)`); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	mainCols := strings.Split("PM_YYMM|PM_NIK|PM_NAMA|PM_DEPT|PM_GRADE|PM_JABATAN|PM_EMP_TYPE|PM_DATE|PM_PEMBAYARAN|PM_DATE_JOIN|PM_BASIC_PAY|PM_TUNJJABATAN|PM_TUNJRUMAH|PM_TUNJKESEJAHTERAAN|PM_TUNJTRANSPORT|PM_RATE_PERJAM|PM_TAX_CODE|PM_TOT_TUNJANGAN|PM_TOT_POTONGAN|PM_ROUNDING|PM_DAY_PAY|PM_JAM_LEMBUR1|PM_JAM_LEMBUR2|PM_JAM_LEMBURNAS1|PM_JAM_LEMBURNAS2|PM_JAM_LEMBURNAS3|PM_JAM_LEMBUROFF1|PM_JAM_LEMBUROFF2|PM_JAM_LEMBUROFF3|PM_JAM_LEMBURNASP1|PM_JAM_LEMBURNASP2|PM_JAM_LEMBURNASP3|PM_DEPT_CODE|PM_REMARKS|PM_SECTION|PM_DIVISION", "|")
+	detCols := strings.Split("PD_YYMM|PD_NIK|PD_NO|PD_TYPE|PD_DESCRIPTION|PD_AMOUNT|PD_STATUS|PD_TAX|PD_BASIS_AMOUNT|PD_REMARKS|PD_TAX_PAID_COMPANY|PD_DIVISION", "|")
+	row := func(cols []string, kv map[string]string) string {
+		cells := make([]string, len(cols))
+		for i, c := range cols {
+			cells[i] = kv[c]
+		}
+		return strings.Join(cells, "|") + "\n"
+	}
+	mrow := func(yymm, nik, div, date, tun string) string {
+		return row(mainCols, map[string]string{"PM_YYMM": yymm, "PM_NIK": nik, "PM_DIVISION": div, "PM_DATE": date, "PM_TOT_TUNJANGAN": tun, "PM_TOT_POTONGAN": "0", "PM_ROUNDING": "0"})
+	}
+	drow := func(yymm, nik, typ, no, div, amt, desc string) string {
+		return row(detCols, map[string]string{"PD_YYMM": yymm, "PD_NIK": nik, "PD_TYPE": typ, "PD_NO": no, "PD_DIVISION": div, "PD_AMOUNT": amt, "PD_DESCRIPTION": desc, "PD_STATUS": "F", "PD_TAX": "2", "PD_TAX_PAID_COMPANY": "N"})
+	}
+	mainRows := strings.Join(mainCols, "|") + "\n" +
+		mrow("201712", "2026-0001", "SOLO", "25-DEC-17", "10") +
+		mrow("202603", "2026-0001", "SOLO", "25-MAR-26", "10") +
+		mrow("202512", "2026-0001", "JAKARTA", "25-DEC-25", "99") // trial: skip
+	detRows := strings.Join(detCols, "|") + "\n" +
+		drow("201712", "2026-0001", "Tunjangan", "1", "SOLO", "10", "Gaji Pokok") +
+		drow("202603", "2026-0001", "Tunjangan", "1", "SOLO", "10", "Gaji Pokok") +
+		drow("202603", "2026-0009", "Tunjangan", "1", "SOLO", "100.005", "Gaji Pokok") + // yatim: tanpa MAIN
+		drow("202603", "2026-0009", "Potongan", "32", "SOLO", "1.234", "Pinjaman Pokok") +
+		drow("202607", "2026-0001", "Tunjangan", "1", "SOLO", "5", "Gaji Pokok") + // SOLO 202607: skip
+		drow("202512", "2026-0001", "Tunjangan", "1", "JAKARTA", "99", "Gaji Pokok") // trial: skip
+	for f, c := range map[string]string{"MGT_PAYROLL_MAIN.psv": mainRows, "MGT_PAYROLL_DETAIL.psv": detRows} {
+		if err := os.WriteFile(filepath.Join(dir, f), []byte(c), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	reps, err := etl.RunSalaryLegacy(ctx, etlDB, etl.PSVDir{Dir: dir}, etl.SalaryLegacyOptions{CompanyID: 1, ExpectMain: 3, ExpectDetail: 6})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range reps {
+		if !r.OK() || len(r.Exceptions) != 0 {
+			t.Errorf("%s src=%d dst=%d skip=%d exc=%v", r.Table, r.SrcRows, r.DstRows, r.SkippedRows, r.Exceptions)
+		}
+	}
+	if reps[0].SkippedRows != 1 || reps[1].SkippedRows != 2 || len(reps[1].Skipped) != 2 {
+		t.Errorf("skip main=%d detail=%d (%v)", reps[0].SkippedRows, reps[1].SkippedRows, reps[1].Skipped)
+	}
+	if len(reps[0].Warnings) != 2 { // MAIN sintetis + EMP tidak ditemukan
+		t.Errorf("warning MAIN sintetis = %v, want 2", reps[0].Warnings)
+	}
+	for q, want := range map[string]string{
+		`SELECT count(*) FROM payroll.pyr_run WHERE pr_kind='LEGACY' AND pr_yymm IN (201712,202603,202512,202607)`:                  "2",
+		`SELECT count(*) FROM payroll.pyr_run WHERE pr_yymm=201712 AND pr_snapshot_id IS NULL`:                                      "1",
+		`SELECT count(*) FROM payroll.pyr_run WHERE pr_yymm=202603 AND pr_snapshot_id IS NOT NULL`:                                  "1",
+		`SELECT count(*) FROM payroll.pyr_period WHERE pp_yymm IN (202512,202607)`:                                                  "0",
+		`SELECT pp_date_from||'..'||pp_date_to FROM payroll.pyr_period WHERE pp_yymm=201712`:                                        "2017-11-26..2017-12-25",
+		`SELECT pr_emp_count||'/'||pr_line_count FROM payroll.pyr_run WHERE pr_yymm=202603`:                                         "2/3",
+		`SELECT psh_tot_tunjangan||'/'||psh_tot_potongan||'/'||psh_rounding FROM payroll.pyr_salary_head WHERE psh_nik='2026-0009'`: "100.01/1.23/0.00",
+	} {
+		if got := scalar(t, q); got != want {
+			t.Errorf("%s = %s, want %s", q, got, want)
+		}
+	}
+	// run ulang idempotent, hitungan tetap seimbang
+	reps2, err := etl.RunSalaryLegacy(ctx, etlDB, etl.PSVDir{Dir: dir}, etl.SalaryLegacyOptions{CompanyID: 1})
+	if err != nil {
+		t.Fatalf("run ulang: %v", err)
+	}
+	for _, r := range reps2 {
+		if !r.OK() {
+			t.Errorf("run ulang %s src=%d dst=%d skip=%d", r.Table, r.SrcRows, r.DstRows, r.SkippedRows)
 		}
 	}
 }
