@@ -8,7 +8,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/component"
 )
 
-// Permission codes for the component master and level template (T008, 000096).
+// Permission codes for the component master and level template (T008, 000100).
 const (
 	permComponentView   = "payroll.master.component.view"
 	permComponentCreate = "payroll.master.component.create"

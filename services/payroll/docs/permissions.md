@@ -1,8 +1,8 @@
 # Payroll — peta permission (spec 07 → IAM, D-05)
 
 Format IAM: `payroll.<modul>.<entitas>.<aksi>` (4 segmen, huruf kecil, tanpa underscore).
-Seed: `services/iam/migrations/postgres/000094_seed_payroll_menu_and_permissions.up.sql`
-(+ `000095_seed_payroll_master_global_permissions.up.sql` untuk company/currency, D-18).
+Seed: `services/iam/migrations/postgres/000098_seed_payroll_menu_and_permissions.up.sql`
+(+ `000099_seed_payroll_master_global_permissions.up.sql` untuk company/currency, D-18).
 Aksi `commit` dan `close` ditambahkan ke whitelist `chk_permission_action` di migrasi yang sama.
 Kolom role = pemberian default menurut spec 07 (belum di-seed ke role kecuali SUPER_ADMIN, lihat D-12).
 O=Officer, S=Supervisor, F=Finance, A=Admin.

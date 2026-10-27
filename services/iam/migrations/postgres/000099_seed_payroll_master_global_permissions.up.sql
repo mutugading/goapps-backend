@@ -1,9 +1,9 @@
 -- IAM Service Database Migrations
--- 000095: Permissions for payroll global masters (company, currency) (T007c, D-18)
+-- 000099: Permissions for payroll global masters (company, currency) (T007c, D-18)
 --
 -- pyr_company / pyr_currency are not RLS-protected (D-15), so they get their own
 -- permissions instead of reusing payroll.master.employee.*. SUPER_ADMIN gets all
--- six, consistent with 000094 (D-12).
+-- six, consistent with 000098 (D-12).
 
 INSERT INTO mst_permission (permission_code, permission_name, description, service_name, module_name, action_type, is_active, created_by)
 VALUES

@@ -1,8 +1,8 @@
 -- IAM Service Database Migrations
--- 000096: Permissions for payroll component master + level template (T008)
+-- 000100: Permissions for payroll component master + level template (T008)
 --
 -- spec 07 maps both to payroll.master.write; split into view/create/update per
--- entity like 000095 (D-05). Retire uses .update. SUPER_ADMIN gets all five (D-12).
+-- entity like 000099 (D-05). Retire uses .update. SUPER_ADMIN gets all five (D-12).
 
 INSERT INTO mst_permission (permission_code, permission_name, description, service_name, module_name, action_type, is_active, created_by)
 VALUES

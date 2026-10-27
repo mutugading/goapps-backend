@@ -1,5 +1,5 @@
 -- IAM Service Database Migrations
--- 000095: Rollback payroll company/currency permissions
+-- 000099: Rollback payroll company/currency permissions
 
 DELETE FROM role_permissions
 WHERE permission_id IN (SELECT permission_id FROM mst_permission

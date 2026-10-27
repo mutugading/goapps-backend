@@ -1,13 +1,13 @@
 -- IAM Service Database Migrations
--- 000094: Seed Payroll menu (HR > Payroll) and payroll.* permissions (T004, D-05)
+-- 000098: Seed Payroll menu (HR > Payroll) and payroll.* permissions (T004, D-05)
 --
 -- Permission map comes from spec 07 (RBAC table) adapted to the IAM 4-segment
 -- format {service}.{module}.{entity}.{action} (D-05). Full map and rationale:
 -- goapps-backend/services/payroll/docs/permissions.md.
 --
 -- chk_permission_action WIDENED: 'commit' and 'close' are not in the live
--- whitelist (40 values after 000092); payroll needs payroll.run.salary.commit,
--- payroll.period.salary.close and payroll.thr.run.close. 40 -> 42 values.
+-- whitelist (43 values after main 000094); payroll needs payroll.run.salary.commit,
+-- payroll.period.salary.close and payroll.thr.run.close. 43 -> 45 values.
 --
 -- Menu: HR_PAYROLL is level 2 under HR (0001-...004), next free level-2 id is
 -- ...0028 (highest seeded is ...0027, PPC_MASTERS). Gated by payroll.module.root.view
@@ -23,7 +23,7 @@ ALTER TABLE mst_permission ADD CONSTRAINT chk_permission_action
     'recalculate','assign','resolve','reject','duplicate','remove','lock','unlock','unlockoverride',
     'reassign','send','read','trigger','cancel','schedule','verify','override','review','reopen','confirm',
     'validate','unapprove','revoke','preview','execute','sync','unrevoke','bulkunvalidate','bulksubmit','bulkvalidate',
-    'commit','close'
+    'push','valuate','restore','commit','close'
   ));
 
 -- =============================================================================
