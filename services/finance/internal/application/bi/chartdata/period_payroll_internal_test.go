@@ -97,3 +97,17 @@ func TestResolveKPIPeriod_Payroll(t *testing.T) {
 		t.Errorf("sparkline start = %s", got)
 	}
 }
+
+// PR #236 review: sparkline_periods counts weeks on a WEEKLY dashboard (12 → 12 Mondays), not months.
+func TestSparklineStart_WeeklyCountsWeeks(t *testing.T) {
+	now := dd(2026, time.October, 15) // Thursday; week Monday = 2026-10-12
+	if got := ymd(sparklineStart(12, grainWeekly, PayrollCalendar, now)); got != "2026-07-27" {
+		t.Errorf("weekly start = %s, want 2026-07-27", got)
+	}
+	if got := ymd(sparklineStart(1, grainWeekly, "", now)); got != "2026-10-12" {
+		t.Errorf("weekly n=1 start = %s, want this Monday", got)
+	}
+	if got := ymd(sparklineStart(12, "MONTHLY", "", now)); got != "2025-11-01" {
+		t.Errorf("monthly start = %s, want 2025-11-01", got)
+	}
+}

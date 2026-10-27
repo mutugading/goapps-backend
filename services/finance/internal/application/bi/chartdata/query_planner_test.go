@@ -193,3 +193,46 @@ func TestPlan_ParameterizedArgsOrder(t *testing.T) {
 		t.Errorf("unexpected arg order: %v", plan.Args)
 	}
 }
+
+// PR #236 review: the trend label stays YYYYMM for every grain except WEEKLY (IYYY-"W"IW); the
+// viewer reads 6-digit labels as periods, so DAILY/QUARTERLY/YEARLY dashboards must not change.
+func TestPlan_TrendLabel_YYYYMMExceptWeekly(t *testing.T) {
+	now := time.Date(2026, 5, 15, 0, 0, 0, 0, time.UTC)
+	cfg := map[string]any{"x_axis_field": "period", "y_axis_field": "value"}
+	for grain, want := range map[string]string{
+		"DAILY":     "TO_CHAR(periode_date, 'YYYYMM')::text AS periode_label",
+		"MONTHLY":   "TO_CHAR(periode_date, 'YYYYMM')::text AS periode_label",
+		"QUARTERLY": "TO_CHAR(periode_date, 'YYYYMM')::text AS periode_label",
+		"YEARLY":    "TO_CHAR(periode_date, 'YYYYMM')::text AS periode_label",
+		"WEEKLY":    `TO_CHAR(periode_date, 'IYYY-"W"IW')::text AS periode_label`,
+	} {
+		t.Run(grain, func(t *testing.T) {
+			plan, err := chartdata.Plan(newPivotDashboard(t, "line", grain, "", cfg), chartdata.ViewerFilters{PeriodPreset: "L12M"}, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(plan.SQL, want) {
+				t.Errorf("want %q in SQL:\n%s", want, plan.SQL)
+			}
+		})
+	}
+}
+
+// PR #236 review: WEEKLY periode_date is a Monday, so the compare overlay shifts by whole weeks
+// (7/91/364 days, as compareRangeWeekly), never by months (a Monday minus N months is rarely a Monday).
+func TestPlan_TrendCompare_WeeklyShiftsWeeks(t *testing.T) {
+	now := time.Date(2026, 5, 15, 0, 0, 0, 0, time.UTC)
+	cfg := map[string]any{"x_axis_field": "period", "y_axis_field": "value"}
+	d := newPivotDashboard(t, "line", "WEEKLY", "", cfg)
+	for mode, want := range map[string]string{"MoM": "INTERVAL '7 days'", "QoQ": "INTERVAL '91 days'", "YoY": "INTERVAL '364 days'"} {
+		t.Run(mode, func(t *testing.T) {
+			plan, err := chartdata.Plan(d, chartdata.ViewerFilters{PeriodPreset: "L12M", Compare: mode}, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(plan.SQL, want) || strings.Contains(plan.SQL, "months'") {
+				t.Errorf("%s: want %q and no month shift, got:\n%s", mode, want, plan.SQL)
+			}
+		})
+	}
+}

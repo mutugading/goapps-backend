@@ -56,11 +56,11 @@ const attDailyQuery = `SELECT
 	TO_CHAR(ACTUAL_HOUR, ` + numText + `), DAY_CAT_REKAP, DAY_CAT, IS_SCHEDULED_WORK,
 	TO_CHAR(LATE_MINUTES, ` + numText + `), TO_CHAR(EARLY_LEAVE_MINUTES, ` + numText + `)
 FROM MGTHRIS.VIEW_BI_ATT_DAILY
-WHERE WORK_DATE BETWEEN :1 AND :2`
+WHERE WORK_DATE BETWEEN TO_DATE(:1, 'YYYY-MM-DD') AND TO_DATE(:2, 'YYYY-MM-DD')`
 
 // FetchATTDaily returns view rows with work_date in [d1, d2] (dates come from the job, never hardcoded).
 func (r *HRISATTRepository) FetchATTDaily(ctx context.Context, d1, d2 time.Time) ([]ATTDailyRow, error) {
-	rows, err := r.client.db.QueryContext(ctx, attDailyQuery, d1, d2)
+	rows, err := r.client.db.QueryContext(ctx, attDailyQuery, oracleDate(d1), oracleDate(d2))
 	if err != nil {
 		return nil, fmt.Errorf("query VIEW_BI_ATT_DAILY: %w", err)
 	}

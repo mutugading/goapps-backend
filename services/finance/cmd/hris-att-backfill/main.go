@@ -21,7 +21,11 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/postgres"
 )
 
-const dateLayout = "2006-01-02"
+const (
+	dateLayout = "2006-01-02"
+	// defaultTimeout bounds the whole backfill (Oracle pull + staging replace + MV refresh).
+	defaultTimeout = 30 * time.Minute
+)
 
 func main() {
 	if err := run(); err != nil {
@@ -34,6 +38,7 @@ type options struct {
 	d1s, d2s        string
 	d1, d2          time.Time
 	withOT, withATT bool
+	timeout         time.Duration
 }
 
 func parseFlags() (options, error) {
@@ -41,8 +46,9 @@ func parseFlags() (options, error) {
 	d2s := flag.String("d2", "", "last work date (YYYY-MM-DD)")
 	withOT := flag.Bool("ot", false, "also re-pull VIEW_BI_OT_DAILY for the same range")
 	withATT := flag.Bool("att", true, "re-pull VIEW_BI_ATT_DAILY (false = OT only, e.g. legacy OT history before 2026-06-26)")
+	timeout := flag.Duration("timeout", defaultTimeout, "overall timeout (long ranges on a slow Oracle need more)")
 	flag.Parse()
-	o := options{d1s: *d1s, d2s: *d2s, withOT: *withOT, withATT: *withATT}
+	o := options{d1s: *d1s, d2s: *d2s, withOT: *withOT, withATT: *withATT, timeout: *timeout}
 	if !o.withATT && !o.withOT {
 		return o, fmt.Errorf("nothing to do: -att=false needs -ot")
 	}
@@ -91,12 +97,29 @@ func run() error {
 		}
 	}()
 
+	ctx, cancel := context.WithTimeout(context.Background(), o.timeout)
+	defer cancel()
+
 	var sourceID uuid.UUID
-	if err = db.QueryRow(`SELECT source_id FROM bi_job WHERE target_type = 'HR_ATT_STAGING'`).Scan(&sourceID); err != nil {
+	// Source seeded by 000582; independent of which HR jobs are active (OT-only backfill works too).
+	if err = db.QueryRowContext(ctx,
+		`SELECT source_id FROM bi_data_source WHERE source_code = 'HRIS_ORACLE'`).Scan(&sourceID); err != nil {
 		return fmt.Errorf("find HRIS source: %w", err)
 	}
 
-	ctx := context.Background()
+	if err = backfill(ctx, db, hris, o, sourceID); err != nil {
+		return err
+	}
+	// Dashboards read mv_bi_metric_g1/g2; refresh so the backfilled facts show without waiting for a job.
+	if err = postgres.NewBiUploadRepository(db).RefreshViews(ctx); err != nil {
+		return fmt.Errorf("refresh BI views: %w", err)
+	}
+	log.Printf("refreshed BI materialized views")
+	return nil
+}
+
+// backfill re-pulls ATT and/or OT for [d1, d2] into staging and recomputes their facts.
+func backfill(ctx context.Context, db *postgres.DB, hris *oracleinfra.Client, o options, sourceID uuid.UUID) error {
 	if o.withATT {
 		rows, err := oracleinfra.NewHRISATTRepository(hris).FetchATTDaily(ctx, o.d1, o.d2)
 		if err != nil {

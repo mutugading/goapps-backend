@@ -285,6 +285,19 @@ FROM %s WHERE %s`, aggSQL, source, joinAnd(conds))
 	return rows[0].Value, nil
 }
 
+// sparklineStart returns the first date of the last n sparkline periods up to now. WEEKLY counts
+// weeks (n Mondays back), not months: sparkline_periods=12 on a weekly dashboard is 12 points.
+func sparklineStart(n int, grain, calendar string, now time.Time) time.Time {
+	switch {
+	case grain == grainWeekly:
+		return mondayOf(now).AddDate(0, 0, -7*(n-1))
+	case calendar == PayrollCalendar:
+		return PayrollTrailingStart(n, grain, now)
+	default:
+		return shiftByMonths(now, -n+1)
+	}
+}
+
 // runSparkline returns the last N period values for the same KPI scope.
 func runSparkline(
 	ctx context.Context,
@@ -322,10 +335,7 @@ func runSparkline(
 	idx++
 
 	// Use the last N periods up to `now`.
-	startDate := shiftByMonths(now, -periods+1)
-	if d.PeriodCalendar().String() == PayrollCalendar {
-		startDate = PayrollTrailingStart(periods, d.PeriodGrain().String(), now)
-	}
+	startDate := sparklineStart(periods, d.PeriodGrain().String(), d.PeriodCalendar().String(), now)
 	conds = append(conds, fmt.Sprintf("periode_date >= $%d AND periode_date <= $%d", idx, idx+1))
 	args = append(args, startDate, now)
 	idx += 2

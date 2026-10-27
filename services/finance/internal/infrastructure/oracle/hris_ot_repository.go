@@ -50,11 +50,15 @@ const otDailyQuery = `SELECT
 	TO_CHAR(OT_ACTUAL_HOURS,'TM9','NLS_NUMERIC_CHARACTERS=''.,'''), TO_CHAR(OT_CALC_HOURS,'TM9','NLS_NUMERIC_CHARACTERS=''.,'''), TO_CHAR(OT_LIMIT_HOURS,'TM9','NLS_NUMERIC_CHARACTERS=''.,'''),
 	COMP_ID, COMP_NAME
 FROM MGTHRIS.VIEW_BI_OT_DAILY
-WHERE WORK_DATE BETWEEN :1 AND :2`
+WHERE WORK_DATE BETWEEN TO_DATE(:1, 'YYYY-MM-DD') AND TO_DATE(:2, 'YYYY-MM-DD')`
+
+// oracleDate formats a job date as YYYY-MM-DD for TO_DATE(:n, 'YYYY-MM-DD'), like the ERP readers: binding
+// time.Time to a DATE column carries the hour/zone, which can shift the range edge by a day.
+func oracleDate(t time.Time) string { return t.Format("2006-01-02") }
 
 // FetchOTDaily returns view rows with work_date in [d1, d2] (dates come from the job, never hardcoded).
 func (r *HRISOTRepository) FetchOTDaily(ctx context.Context, d1, d2 time.Time) ([]OTDailyRow, error) {
-	rows, err := r.client.db.QueryContext(ctx, otDailyQuery, d1, d2)
+	rows, err := r.client.db.QueryContext(ctx, otDailyQuery, oracleDate(d1), oracleDate(d2))
 	if err != nil {
 		return nil, fmt.Errorf("query VIEW_BI_OT_DAILY: %w", err)
 	}

@@ -383,11 +383,11 @@ func buildPlan(a buildArgs) (factmetric.PlannedQuery, error) {
 
 	// Trend chart + real compare mode → emit a self-join for prev_value.
 	if groupByPeriod {
-		if shift := compareShiftMonths(a.Compare); shift > 0 {
+		if shift := compareShiftInterval(a.Compare, a.Grain); shift != "" {
 			return buildTrendComparePlan(a, coreConds, dateConds, args, shift), nil
 		}
 		// NB: the materialized views (mv_bi_metric_g1/g2) do NOT carry periode_label,
-		// so the label is derived from periode_date via TO_CHAR per grain (YYYYMM for MONTHLY).
+		// so the label is derived from periode_date via TO_CHAR (YYYYMM; WEEKLY IYYY-"W"IW).
 		label := periodLabelSQL(a.Grain)
 		sql := fmt.Sprintf(`
 SELECT %s::text AS category, periode_date,
@@ -430,11 +430,11 @@ func employeeLabelExpr(col string) string {
 
 // buildTrendComparePlan assembles a CTE query: `cur` aggregates the current window per
 // period; `prev` aggregates the whole series (no date filter) per period; the outer
-// select left-joins prev on (cur.periode_date - <shift> months) to populate prev_value.
+// select left-joins prev on (cur.periode_date - <shift>) to populate prev_value.
 //
-// shiftMonths is a fixed integer derived from the compare mode (not user input), so the
+// shift is a fixed interval derived from the compare mode and grain (not user input), so the
 // INTERVAL literal is safe to inline.
-func buildTrendComparePlan(a buildArgs, coreConds, dateConds []string, args []any, shiftMonths int) factmetric.PlannedQuery {
+func buildTrendComparePlan(a buildArgs, coreConds, dateConds []string, args []any, shift string) factmetric.PlannedQuery {
 	// NB: the materialized views don't carry periode_label; it is derived via TO_CHAR per grain.
 	label := periodLabelExpr(a.Grain, "cur.periode_date")
 	sql := fmt.Sprintf(`
@@ -457,11 +457,11 @@ SELECT %s::text AS category,
        COALESCE(prev.value, 0) AS prev_value,
        0::int AS order_seq
 FROM cur
-LEFT JOIN prev ON prev.periode_date = (cur.periode_date - INTERVAL '%d months')
+LEFT JOIN prev ON prev.periode_date = (cur.periode_date - INTERVAL '%s')
 ORDER BY cur.periode_date`,
 		a.Source, strings.Join(dateConds, " AND "),
 		a.Source, strings.Join(coreConds, " AND "),
-		label, label, shiftMonths)
+		label, label, shift)
 
 	return factmetric.PlannedQuery{SQL: sql, Args: args, TargetTable: a.Source}
 }
@@ -587,17 +587,26 @@ ORDER BY value DESC NULLS LAST`,
 	return factmetric.PlannedQuery{SQL: sql, Args: args, TargetTable: "bi_fact_metric"}, nil
 }
 
-// compareShiftMonths maps a compare mode to a month offset for the overlay self-join.
-// Returns 0 when no period-shifted overlay applies (none / YTD / unknown).
-func compareShiftMonths(compare string) int {
+// compareShiftInterval maps a compare mode to the period offset of the overlay self-join, or ""
+// when no period-shifted overlay applies (none / YTD / unknown).
+//
+// WEEKLY periode_date is always a Monday, and a Monday shifted by months is rarely a Monday, so
+// the weekly overlay shifts by whole weeks (7/91/364 days), the same offsets as compareRangeWeekly.
+// R12 keeps its trend meaning (same period a year back = 364 days); the KPI side has no R12.
+func compareShiftInterval(compare, grain string) string {
+	var months, weeks int
 	switch compare {
 	case "MoM":
-		return 1
+		months, weeks = 1, 1
 	case "QoQ":
-		return 3
+		months, weeks = 3, 13
 	case "YoY", "R12":
-		return 12
+		months, weeks = 12, 52
 	default:
-		return 0
+		return ""
 	}
+	if grain == grainWeekly {
+		return fmt.Sprintf("%d days", weeks*7)
+	}
+	return fmt.Sprintf("%d months", months)
 }

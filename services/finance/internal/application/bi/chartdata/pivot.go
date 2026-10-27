@@ -15,7 +15,7 @@ import (
 // xAxisPeriod is the chart_config x_axis_field value meaning "one column per period".
 const xAxisPeriod = "period"
 
-// Period grains whose SQL label differs from MONTHLY's YYYYMM.
+// Period grains with their own handling (WEEKLY label/shift, DAILY Go label in PeriodLabel).
 const (
 	grainDaily  = "DAILY"
 	grainWeekly = "WEEKLY"
@@ -75,24 +75,18 @@ func IsPivot(d *dashboarddomain.Dashboard, f ViewerFilters) bool {
 	return ok
 }
 
-// periodLabelSQL returns the SQL expression formatting periode_date as the grain's period_label
-// (HD-05: WEEKLY = IYYY-"W"IW). Matches PeriodLabel in Go.
+// periodLabelSQL returns the SQL expression formatting periode_date as the trend period_label.
+// Only WEEKLY gets its own label (HD-05: IYYY-"W"IW, matches PeriodLabel); every other grain keeps
+// the YYYYMM label the planner always emitted, because the viewer reads 6-digit labels as periods
+// (PR #236 review: DAILY/QUARTERLY/YEARLY dashboards must not change).
 func periodLabelSQL(grain string) string { return periodLabelExpr(grain, "periode_date") }
 
 // periodLabelExpr is periodLabelSQL for an arbitrary (trusted, constant) date column.
 func periodLabelExpr(grain, col string) string {
-	switch grain {
-	case grainDaily:
-		return "TO_CHAR(" + col + ", 'YYYY-MM-DD')"
-	case grainWeekly:
+	if grain == grainWeekly {
 		return "TO_CHAR(" + col + `, 'IYYY-"W"IW')`
-	case "QUARTERLY":
-		return "TO_CHAR(" + col + `, 'YYYY-"Q"Q')`
-	case "YEARLY":
-		return "TO_CHAR(" + col + ", 'YYYY')"
-	default:
-		return "TO_CHAR(" + col + ", 'YYYYMM')"
 	}
+	return "TO_CHAR(" + col + ", 'YYYYMM')"
 }
 
 // planPivot builds the two-dimensional aggregate. Rows reuse the canonical 6-column shape with
