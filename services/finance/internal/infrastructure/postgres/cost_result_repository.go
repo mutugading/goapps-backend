@@ -40,7 +40,8 @@ const resultColumns = `cpc_cost_id, cpc_product_sys_id, cpc_period, cpc_calculat
 		       COALESCE(cpc_captive_cost, 0), COALESCE(cpc_delivery_cost, 0),
 		       COALESCE(cpc_vb1_del_cost, 0), COALESCE(cpc_vb2_del_cost, 0),
 		       COALESCE(cpc_vb3_del_cost, 0), COALESCE(cpc_vb4_del_cost, 0),
-		       COALESCE(cpc_vb5_del_cost, 0)`
+		       COALESCE(cpc_vb5_del_cost, 0),
+		       cpc_approved_at, COALESCE(cpc_approved_by, '')`
 
 // upsertMaxRetries caps the retry loop when a concurrent transaction inserts a
 // conflicting active row between our supersede and insert.
@@ -145,9 +146,26 @@ func (r *CostResultRepository) UpsertWithSupersedeTx(
 }
 
 // supersedePrevious marks the previous active row (if any) as SUPERSEDED.
+//
+// For ACTUAL it first runs the DB-level period-lock check in the same tx
+// (design §5.5, plan-02 P1-T4): SELECT ... FOR SHARE on the active
+// cst_period_lock row. A locked period returns costcalc.ErrPeriodLocked and the
+// caller rolls the tx back, so nothing is superseded or inserted; the share
+// lock also holds off a concurrent Unlock/re-Lock of that row until this tx
+// ends. With no active lock row the check matches nothing and the supersede
+// runs exactly as before. FORECAST / SELLING skip the check entirely (Q7).
 func supersedePrevious(
 	ctx context.Context, tx *sql.Tx, productSysID int64, period string, calcType costcalc.CalculationType,
 ) (int, float64, int64, error) {
+	if calcType == costcalc.CalcTypeActual {
+		locked, err := IsPeriodLockedForShare(ctx, tx, period, string(calcType))
+		if err != nil {
+			return 0, 0, 0, fmt.Errorf("supersede previous cost: %w", err)
+		}
+		if locked {
+			return 0, 0, 0, fmt.Errorf("supersede previous cost: period %s: %w", period, costcalc.ErrPeriodLocked)
+		}
+	}
 	const q = `
 		UPDATE cst_product_cost
 		   SET cpc_status = 'SUPERSEDED'
@@ -430,22 +448,31 @@ func cpcOrderBy(sortBy, sortOrder string) string {
 // literal string "product:<product_sys_id>" (see rmRefCode in compute.go),
 // so resolving its code/name requires parsing that id back out and joining
 // cost_product_master.
+//
+// Each name lookup is a correlated EXISTS scoped to its rm_type rather than a
+// LEFT JOIN of all three lookup tables onto the unnested lines: with the joins,
+// the planner hash-joined the whole cost_product_master table once PER cost
+// row (Seq Scan × every row in the period — ~9s for 12k rows); the EXISTS form
+// is an index probe per line of the matching kind only (~0.1s). Semantics are
+// unchanged: a line matches when its ref_code, or the resolved name of the
+// same-kind row it points at, contains the search text.
 func rmDetailExistsClause(n int) string {
 	return fmt.Sprintf(`EXISTS (
 		     SELECT 1
 		       FROM jsonb_array_elements(COALESCE(cpc.cpc_rm_cost_detail, '[]'::jsonb)) elem
-		       LEFT JOIN cst_rm_group_head rmg_s
-		              ON elem->>'rm_type' = 'GROUP' AND rmg_s.group_code = elem->>'ref_code' AND rmg_s.deleted_at IS NULL
-		       LEFT JOIN cost_erp_item cei_s
-		              ON elem->>'rm_type' = 'ITEM' AND cei_s.cei_item_code = elem->>'ref_code'
-		       LEFT JOIN cost_product_master cpm_s
-		              ON elem->>'rm_type' = 'PRODUCT'
-		             AND cpm_s.cpm_product_sys_id = NULLIF(substring(elem->>'ref_code' FROM 'product:(\d+)'), '')::bigint
 		      WHERE elem->>'ref_code' ILIKE $%[1]d
-		         OR rmg_s.group_name ILIKE $%[1]d
-		         OR cei_s.cei_item_name ILIKE $%[1]d
-		         OR cpm_s.cpm_product_code ILIKE $%[1]d
-		         OR cpm_s.cpm_product_name ILIKE $%[1]d
+		         OR (elem->>'rm_type' = 'GROUP' AND EXISTS (
+		              SELECT 1 FROM cst_rm_group_head rmg_s
+		               WHERE rmg_s.group_code = elem->>'ref_code' AND rmg_s.deleted_at IS NULL
+		                 AND rmg_s.group_name ILIKE $%[1]d))
+		         OR (elem->>'rm_type' = 'ITEM' AND EXISTS (
+		              SELECT 1 FROM cost_erp_item cei_s
+		               WHERE cei_s.cei_item_code = elem->>'ref_code'
+		                 AND cei_s.cei_item_name ILIKE $%[1]d))
+		         OR (elem->>'rm_type' = 'PRODUCT' AND EXISTS (
+		              SELECT 1 FROM cost_product_master cpm_s
+		               WHERE cpm_s.cpm_product_sys_id = NULLIF(substring(elem->>'ref_code' FROM 'product:(\d+)'), '')::bigint
+		                 AND (cpm_s.cpm_product_code ILIKE $%[1]d OR cpm_s.cpm_product_name ILIKE $%[1]d)))
 		   )`, n)
 }
 
@@ -649,7 +676,9 @@ func (r *CostResultRepository) ListResults(
 			           'shade_code', COALESCE(e.shade_code, ''),
 			           'unit_cost', e.unit_cost,
 			           'ratio', e.ratio,
-			           'contribution', e.contribution
+			           'contribution', e.contribution,
+			           'denier', COALESCE(e.denier, 0),
+			           'ratio_source', COALESCE(e.ratio_source, '')
 			         ) ORDER BY e.contribution DESC NULLS LAST
 			       ) AS details_json
 			  FROM (
@@ -658,7 +687,9 @@ func (r *CostResultRepository) ListResults(
 			           NULLIF(elem->>'unit_cost','')::numeric AS unit_cost,
 			           NULLIF(elem->>'ratio','')::numeric AS ratio,
 			           NULLIF(elem->>'contribution','')::numeric AS contribution,
-			           NULLIF(elem->>'route_level','')::int AS route_level
+			           NULLIF(elem->>'route_level','')::int AS route_level,
+			           NULLIF(elem->>'denier','')::numeric AS denier,
+			           elem->>'ratio_source' AS ratio_source
 			      FROM jsonb_array_elements(COALESCE(cpc.cpc_rm_cost_detail, '[]'::jsonb)) elem
 			  ) e
 			  LEFT JOIN cst_rm_group_head g2 ON e.rm_type = 'GROUP' AND g2.group_code = e.ref_code AND g2.deleted_at IS NULL
@@ -737,6 +768,79 @@ func (r *CostResultRepository) ListResults(
 	return out, total, period, nil
 }
 
+// cpcListNeedsProductJoins reports whether cpcListWhere's predicates for f
+// reference the cpm (cost_product_master) / cei (cost_erp_item) aliases. Both
+// joins are many-to-one (cpm by primary key, cei by the unique item code), so
+// they never change which cost rows match; they only have to be present when a
+// predicate reads them.
+func cpcListNeedsProductJoins(f costcalc.ResultListFilter) bool {
+	return f.Search != "" || len(f.ProductTypeIDs) > 0 || len(f.ShadeCodes) > 0
+}
+
+// ListProductSysIDs returns the distinct product_sys_ids ListResults would
+// list for f across all of its pages, in ListResults' own order (first
+// occurrence wins when a product has several matching rows, e.g. ACTUAL and
+// FORECAST with no calc-type filter). Page/PageSize are ignored.
+//
+// It is the lean counterpart used to resolve an export's product filter: the
+// WHERE clause comes from the same cpcListWhere builder (so the filter
+// semantics cannot drift), but there is no display enrichment, no RM-detail
+// LATERAL rebuild, no COUNT(*) OVER() and no paging — one index-backed scan
+// (idx_cpc_period_type_status, plus the 000527 GIN index for RM group codes)
+// returning a single bigint column. Paging ListResults for this used to run the
+// heavy UI query once per 500 rows and could exceed the RPC deadline for a
+// whole period.
+func (r *CostResultRepository) ListProductSysIDs(ctx context.Context, f costcalc.ResultListFilter) ([]int64, error) {
+	period := f.Period
+	if period == "" {
+		resolved, err := r.latestPeriod(ctx)
+		if err != nil {
+			return nil, err
+		}
+		period = resolved
+	}
+
+	whereSQL, args := cpcListWhere(f, period)
+	joins := ""
+	if cpcListNeedsProductJoins(f) {
+		joins = ` LEFT JOIN cost_product_master cpm ON cpm.cpm_product_sys_id = cpc.cpc_product_sys_id
+		  LEFT JOIN cost_erp_item cei ON cei.cei_item_code = cpm.cpm_erp_item_code`
+	}
+	// ORDER BY reuses ListResults' ordering so the export renders products in
+	// the same order the paged resolution produced before. Sorting on
+	// cpm columns needs the cpm join, so fall back to the join whenever the
+	// sort key references it.
+	orderBy := cpcOrderBy(f.SortBy, f.SortOrder)
+	if joins == "" && strings.Contains(orderBy, "cpm.") {
+		joins = ` LEFT JOIN cost_product_master cpm ON cpm.cpm_product_sys_id = cpc.cpc_product_sys_id`
+	}
+	q := `SELECT cpc.cpc_product_sys_id FROM cst_product_cost cpc` + joins + whereSQL + ` ORDER BY ` + orderBy
+
+	rows, err := r.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list cost result product ids: %w", err)
+	}
+	defer closeRows(rows)
+
+	ids := []int64{}
+	seen := map[int64]struct{}{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan cost result product id: %w", err)
+		}
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate cost result product ids: %w", err)
+	}
+	return ids, nil
+}
+
 // latestPeriod resolves the single most recent period present in
 // cst_product_cost. It reuses ListDistinctPeriods' "plausible business
 // period" filter (year 2000-2099, month 01-12) so synthetic fixture periods
@@ -760,13 +864,65 @@ func (r *CostResultRepository) latestPeriod(ctx context.Context) (string, error)
 }
 
 // MarkVerified transitions a CALCULATED row to VERIFIED.
+//
+// It runs in one transaction behind the DB-level period-lock check
+// (guardCostRowPeriodLockTx), so a lock committed after the handler's
+// pre-check cannot let the transition through (plan-02 P1-T3/T4, AC-09).
 func (r *CostResultRepository) MarkVerified(ctx context.Context, costID int64, by string) error {
-	return r.transitionStatus(ctx, costID, by, "CALCULATED", "VERIFIED")
+	return r.db.Transaction(ctx, func(tx *sql.Tx) error {
+		if err := guardCostRowPeriodLockTx(ctx, tx, costID); err != nil {
+			return err
+		}
+		return transitionStatusTx(ctx, tx, costID, by, "CALCULATED", "VERIFIED")
+	})
 }
 
 // MarkApproved transitions a VERIFIED row to APPROVED.
+//
+// Besides the legacy cpc_verified_* pair (kept byte-identical), it stamps the
+// dedicated approval trail cpc_approved_at/cpc_approved_by (migration 000552).
+//
+// Like MarkVerified it runs behind the in-tx period-lock check.
 func (r *CostResultRepository) MarkApproved(ctx context.Context, costID int64, by string) error {
-	return r.transitionStatus(ctx, costID, by, "VERIFIED", "APPROVED")
+	return r.db.Transaction(ctx, func(tx *sql.Tx) error {
+		if err := guardCostRowPeriodLockTx(ctx, tx, costID); err != nil {
+			return err
+		}
+		res, err := tx.ExecContext(ctx, approveFromVerifiedQuery, costID, "VERIFIED", "APPROVED", by)
+		return checkTransition(res, err, "transition cost status")
+	})
+}
+
+// costRowPeriodTypeSQL reads the (period, calc type) of one cost row for the
+// period-lock guard.
+const costRowPeriodTypeSQL = `SELECT cpc_period, cpc_calculation_type FROM cst_product_cost WHERE cpc_cost_id = $1`
+
+// guardCostRowPeriodLockTx refuses a status transition of an ACTUAL row whose
+// period is locked, inside tx and under FOR SHARE (IsPeriodLockedForShare), so
+// the answer holds until tx ends and serializes against a concurrent Lock
+// (LOCK TABLE ... EXCLUSIVE) or Unlock. A missing row is left to the UPDATE,
+// which reports ErrCostInvalidStatus as before. FORECAST / SELLING rows, and
+// any period with no lock row, pass: the transition then behaves as before.
+func guardCostRowPeriodLockTx(ctx context.Context, tx *sql.Tx, costID int64) error {
+	var period, calcType string
+	err := tx.QueryRowContext(ctx, costRowPeriodTypeSQL, costID).Scan(&period, &calcType)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("cost %d period lock lookup: %w", costID, err)
+	}
+	if costcalc.CalculationType(calcType) != costcalc.CalcTypeActual {
+		return nil
+	}
+	locked, err := IsPeriodLockedForShare(ctx, tx, period, calcType)
+	if err != nil {
+		return fmt.Errorf("cost %d: %w", costID, err)
+	}
+	if locked {
+		return fmt.Errorf("cost %d period %s: %w", costID, period, costcalc.ErrPeriodLocked)
+	}
+	return nil
 }
 
 // ListDistinctPeriods returns the distinct periods (YYYYMM) that have cost
@@ -809,47 +965,62 @@ func (r *CostResultRepository) ListDistinctPeriods(ctx context.Context) ([]strin
 // two-step CALCULATED->VERIFIED->APPROVED verify/approve workflow) so the cst_mb_cost upsert and
 // this status flip commit or roll back together.
 func (r *CostResultRepository) MarkApprovedFromCalculatedTx(ctx context.Context, tx *sql.Tx, costID int64, by string) error {
-	const q = `
+	res, err := tx.ExecContext(ctx, approveFromCalculatedQuery, costID, by)
+	return checkTransition(res, err, "transition cost status tx")
+}
+
+// approveFromCalculatedQuery is the MB Push-to-Head direct CALCULATED->APPROVED
+// flip. The cpc_verified_* writes are unchanged; cpc_approved_* (000552) is the
+// additive approval trail.
+const approveFromCalculatedQuery = `
 		UPDATE cst_product_cost
 		   SET cpc_status = 'APPROVED',
 		       cpc_verified_at = now(),
-		       cpc_verified_by = $2
+		       cpc_verified_by = $2,
+		       cpc_approved_at = now(),
+		       cpc_approved_by = $2
 		 WHERE cpc_cost_id = $1 AND cpc_status = 'CALCULATED'`
-	res, err := tx.ExecContext(ctx, q, costID, by)
-	if err != nil {
-		return fmt.Errorf("transition cost status tx: %w", err)
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("transition cost status tx rows: %w", err)
-	}
-	if n == 0 {
-		return costcalc.ErrCostInvalidStatus
-	}
-	return nil
-}
 
-// transitionStatus guards the state machine and updates the verifier columns.
-func (r *CostResultRepository) transitionStatus(ctx context.Context, costID int64, by, fromStatus, toStatus string) error {
-	const q = `
+// approveFromVerifiedQuery is the standalone VERIFIED->APPROVED transition. It
+// mirrors transitionStatus's SQL and adds the cpc_approved_* trail.
+const approveFromVerifiedQuery = `
 		UPDATE cst_product_cost
 		   SET cpc_status = $3,
 		       cpc_verified_at = now(),
-		       cpc_verified_by = $4
+		       cpc_verified_by = $4,
+		       cpc_approved_at = now(),
+		       cpc_approved_by = $4
 		 WHERE cpc_cost_id = $1 AND cpc_status = $2`
-	res, err := r.db.ExecContext(ctx, q, costID, fromStatus, toStatus, by)
+
+// checkTransition maps an ExecContext outcome of a guarded status UPDATE to
+// the repository contract: 0 rows affected means ErrCostInvalidStatus.
+func checkTransition(res sql.Result, err error, op string) error {
 	if err != nil {
-		return fmt.Errorf("transition cost status: %w", err)
+		return fmt.Errorf("%s: %w", op, err)
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("transition cost status rows: %w", err)
+		return fmt.Errorf("%s rows: %w", op, err)
 	}
 	if n == 0 {
 		// Either the row doesn't exist or it's not in the expected status.
 		return costcalc.ErrCostInvalidStatus
 	}
 	return nil
+}
+
+// transitionStatusQuery guards the state machine and updates the verifier columns.
+const transitionStatusQuery = `
+		UPDATE cst_product_cost
+		   SET cpc_status = $3,
+		       cpc_verified_at = now(),
+		       cpc_verified_by = $4
+		 WHERE cpc_cost_id = $1 AND cpc_status = $2`
+
+// transitionStatusTx runs transitionStatusQuery inside tx.
+func transitionStatusTx(ctx context.Context, tx *sql.Tx, costID int64, by, fromStatus, toStatus string) error {
+	res, err := tx.ExecContext(ctx, transitionStatusQuery, costID, fromStatus, toStatus, by)
+	return checkTransition(res, err, "transition cost status")
 }
 
 // scanResult reads one cst_product_cost row.
@@ -873,6 +1044,8 @@ func scanResult(s rowScanner) (*costcalc.Result, error) {
 		vb1DelCost, vb2DelCost        float64
 		vb3DelCost, vb4DelCost        float64
 		vb5DelCost                    float64
+		approvedAt                    sql.NullTime
+		approvedBy                    string
 	)
 	if err := s.Scan(
 		&id, &productSysID, &period, &calcType, &routeHeadID, &version,
@@ -881,6 +1054,7 @@ func scanResult(s rowScanner) (*costcalc.Result, error) {
 		&inputHash, &status, &jobID, &calcAt, &calcBy, &verifiedAt, &verifiedBy,
 		&captiveCost, &deliveryCost, &vb1DelCost, &vb2DelCost, &vb3DelCost,
 		&vb4DelCost, &vb5DelCost,
+		&approvedAt, &approvedBy,
 	); err != nil {
 		return nil, err
 	}
@@ -888,6 +1062,11 @@ func scanResult(s rowScanner) (*costcalc.Result, error) {
 	if verifiedAt.Valid {
 		t := verifiedAt.Time
 		verifiedPtr = &t
+	}
+	var approvedPtr *time.Time
+	if approvedAt.Valid {
+		t := approvedAt.Time
+		approvedPtr = &t
 	}
 	return costcalc.HydrateResult(
 		id, productSysID, period, costcalc.CalculationType(calcType), routeHeadID, int(version),
@@ -897,5 +1076,5 @@ func scanResult(s rowScanner) (*costcalc.Result, error) {
 		verifiedPtr, verifiedBy,
 		captiveCost, deliveryCost, vb1DelCost, vb2DelCost, vb3DelCost,
 		vb4DelCost, vb5DelCost,
-	), nil
+	).WithApprovedTrail(approvedPtr, approvedBy), nil
 }

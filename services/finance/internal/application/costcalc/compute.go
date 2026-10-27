@@ -5,7 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -43,6 +45,14 @@ const (
 	// ScopeKeyConversion is read out at the end as the total conversion cost
 	// (labor, overhead). Optional, defaults to 0 if missing.
 	ScopeKeyConversion = "COST_CONVERSION"
+)
+
+// Result params of the oil formulas (F_YARN_OIL_COST, F_YARN_OIL_GAIN,
+// F_YARN_OIL_GAIN_POY_DEFAULT; migrations 000408 / 000524).
+const (
+	ParamOilCost           = "OIL_COST"
+	ParamOilGain           = "OIL_GAIN"
+	ParamOilGainPOYDefault = "OIL_GAIN_POY_DEFAULT"
 )
 
 // Reserved scope keys carrying the POY spin fixed-cost pool (migration 000474)
@@ -123,6 +133,11 @@ type ComputeInput struct {
 	// value, preserving pre-oil behavior for callers that do not supply it
 	// (e.g. mbbatch).
 	Oil *OilInput
+	// Superba is the product's resolved Superba Cost SP row (SUPERBA-class
+	// only, loaded via loader.LoadSuperbaCost). Nil for non-SUPERBA products
+	// and for callers that do not supply it (e.g. mbbatch): nothing is looked
+	// up or blocked for them.
+	Superba *SuperbaCost
 	// TxWeight holds the live mst_yarn_tx_weight rules of this product type's
 	// TX Weight group (mst_yarn_tx_weight_group, 000536), keyed by grade
 	// (AE/A9/A/B/C), loaded once per chunk via TxWeightLoader. Nil makes
@@ -135,6 +150,31 @@ type ComputeInput struct {
 	// own F_YARN_VBn_LOSS formulas, preserving pre-rule behavior for callers
 	// that do not supply it (e.g. mbbatch). See applyInheritedVBLoss.
 	VBLoss *VBLossInheritance
+	// RMRatioMode is the product type's cpt_rm_ratio_mode (000570). "" or
+	// "INPUT" keeps every route RM ratio as entered (legacy behavior, e.g.
+	// mbbatch); "DENIER" derives the ratio of PRODUCT lines and denier GROUP
+	// lines from their denier share (see planRMRatios).
+	RMRatioMode string
+	// RMGroupDenier maps RM group_code -> cst_rm_group_head.denier for groups
+	// with a non-NULL denier. Only read in DENIER mode.
+	RMGroupDenier map[string]float64
+	// RMGroupUseDraft maps RM group_code -> cst_rm_group_head.denier_use_draft
+	// (000571): true divides the group denier by SPANDEX_DRAFT (spandex),
+	// false/absent uses it as-is. Only read in DENIER mode.
+	RMGroupUseDraft map[string]bool
+	// UpstreamDenier maps upstream product sys id -> its product-master
+	// DENIER param (cost_product_parameter). Only read in DENIER mode; an
+	// absent or non-positive value makes that line's denier 0 (+ note).
+	UpstreamDenier map[int64]float64
+	// RMDenierOverride is this product's own RM denier overrides (000578):
+	// the final line denier of a PRODUCT/GROUP RM line, used instead of the
+	// master denier. Only read in DENIER mode; empty = master deniers only.
+	RMDenierOverride costroute.DenierOverrides
+	// UpstreamSnapshots maps upstream product sys id -> its committed
+	// cpc_param_snapshot (the same map VBLoss carries). It is NOT read by the
+	// DENIER mode any more -- the upstream DENIER comes from the master via
+	// UpstreamDenier, with no snapshot fallback.
+	UpstreamSnapshots map[int64]map[string]float64
 }
 
 // RMCostDetail records one RM line's contribution to the total RM cost.
@@ -146,6 +186,17 @@ type RMCostDetail struct {
 	UnitCost     float64 `json:"unit_cost"`
 	Ratio        float64 `json:"ratio"`
 	Contribution float64 `json:"contribution"`
+	// Denier is the line's denier in DENIER ratio mode (upstream DENIER, or
+	// group denier / SPANDEX_DRAFT). Omitted for INPUT-mode products.
+	Denier float64 `json:"denier,omitempty"`
+	// RatioSource is "DENIER" for a denier-derived ratio and "INPUT" for a
+	// route-ratio line of a DENIER-mode product. Empty (omitted) for
+	// INPUT-mode products so their JSON is unchanged.
+	RatioSource string `json:"ratio_source,omitempty"`
+	// DenierSource is "MASTER" for a denier line using the master denier and
+	// "OVERRIDE" for one using the product's RM denier override (000578).
+	// Empty (omitted) for non-denier lines and INPUT-mode products.
+	DenierSource string `json:"denier_source,omitempty"`
 }
 
 // FormulaEvalTrace records one formula's evaluation step for diagnostics.
@@ -189,6 +240,9 @@ type ComputeOutput struct {
 	FormulaTrace    []FormulaEvalTrace
 	CostByLevel     []LevelContribution
 	InputHash       string
+	// Notes are human-readable, non-blocking calculation notes (e.g. a DENIER
+	// ratio input that was missing and treated as 0). Nil when there are none.
+	Notes []string
 }
 
 // ComputeProduct executes the cost calculation for one product. Pure function;
@@ -235,11 +289,19 @@ func ComputeProduct(ctx context.Context, in ComputeInput) (*ComputeOutput, error
 
 	// 1a. Oil-class products resolve OIL_RATE from their oil RM group's
 	// cst_rm_cost row for the period, overwriting any imported CAPP value.
-	// A missing/unusable oil rate blocks the product (MISSING_RM_COST).
-	if err := applyOilRate(in, scope, zeroFilled); err != nil {
+	// A missing/unusable oil rate blocks the product (MISSING_RM_COST) —
+	// unless OPU <= 0 (finance rule: OPU is the oil switch), in which case
+	// resolution is skipped, OIL_RATE is 0 and oilNote records why.
+	oilNote, err := applyOilRate(in, scope, zeroFilled)
+	if err != nil {
 		recordProductSpanError(span, err)
 		return nil, err
 	}
+
+	// 1a'. SUPERBA products take MB cost marketing from the Superba Cost SP
+	// master (SUPERBA_MB_COST); a missing master row yields 0 + a snapshot
+	// flag (non-blocking). Non-SUPERBA products are untouched.
+	applySuperbaMBCost(in, scope, zeroFilled)
 
 	// 1b. A CALCULATED param that the formula chain consumes but no ACTIVE formula
 	// produces is still sitting in scope as the synthetic 0 that buildInitialScope
@@ -250,7 +312,10 @@ func ComputeProduct(ctx context.Context, in ComputeInput) (*ComputeOutput, error
 	}
 
 	// 2. Aggregate RM cost across every sequence in the route.
-	totalRM, rmDetail, levelMap, err := aggregateRMCost(in, resolveRMUnitCost)
+	// 2-. DENIER-mode products derive their RM line ratios from denier share;
+	// nil for INPUT-mode products, which keeps the legacy aggregation intact.
+	ratioPlan := planRMRatios(in)
+	totalRM, rmDetail, levelMap, err := aggregateRMCost(in, ratioPlan, resolveRMUnitCost)
 	if err != nil {
 		recordProductSpanError(span, err)
 		return nil, err
@@ -266,7 +331,7 @@ func ComputeProduct(ctx context.Context, in ComputeInput) (*ComputeOutput, error
 	// branch below reuses landedRM instead of recomputing the aggregation.
 	// Its per-line detail/level breakdown is discarded: nothing downstream
 	// persists a separate landed-cost detail/level report today.
-	landedRM, _, _, err := aggregateRMCost(in, resolveRMLandedCost)
+	landedRM, _, _, err := aggregateRMCost(in, ratioPlan, resolveRMLandedCost)
 	if err != nil {
 		recordProductSpanError(span, err)
 		return nil, err
@@ -284,7 +349,8 @@ func ComputeProduct(ctx context.Context, in ComputeInput) (*ComputeOutput, error
 	// Resolution order:
 	//   a) scope["COST_STAGE_OUT"] — explicit terminal sink (yarn / multi-formula products)
 	//   b) sole terminal formula — formula whose output is not consumed by any
-	//      other formula in this product's set (simple / test products)
+	//      other formula in this product's set (simple / test products); a sink
+	//      that is an oil param fails with ErrMissingFinalCostFormula (FAILED)
 	//   c) COST_RM_TOTAL — product has no formulas at all (pure RM cost)
 	finalCost, ok := scopeFloat(scope, ScopeKeyFinalCost)
 	if !ok {
@@ -314,6 +380,7 @@ func ComputeProduct(ctx context.Context, in ComputeInput) (*ComputeOutput, error
 		FormulaTrace:    formulaTrace,
 		CostByLevel:     buildCostByLevel(levelMap, conv, in.Route, in.ProductSysID, in.UpstreamCosts),
 		InputHash:       inputHash(in, totalRM),
+		Notes:           appendNote(ratioPlan.notesOrNil(), oilNote),
 	}, nil
 }
 
@@ -368,6 +435,7 @@ func buildInitialScope(in ComputeInput) (map[string]any, map[string]bool) {
 
 	injectSpinFixedCost(scope, zeroFilled, in.SpinFixedCost)
 	injectProductClassFlags(scope, zeroFilled, in.Oil)
+	injectCalcTypeFlags(scope, zeroFilled, in.CalcType)
 	injectMarketingResult(scope, in.SellingSnapshot)
 	injectTxWeight(scope, in.TxWeight)
 	return scope, zeroFilled
@@ -377,13 +445,31 @@ func buildInitialScope(in ComputeInput) (map[string]any, map[string]bool) {
 // resolved OIL_RATE into scope and clears it from zeroFilled so the snapshot
 // records the rate the oil formulas actually used. Non-oil products are a
 // no-op.
-func applyOilRate(in ComputeInput, scope map[string]any, zeroFilled map[string]bool) error {
+//
+// OPU is the oil switch (finance rule): an oil-class product whose CAPP OPU is
+// absent or <= 0 has no oil, so the oil rate is neither resolved nor validated
+// (it can never block the product). OIL_RATE is written as 0 — making OIL_COST
+// 0 via the unchanged formulas — and the returned note explains the skip. The
+// IS_* class flags are untouched (injectProductClassFlags), so the POY
+// OIL_GAIN_POY_DEFAULT arm still applies. The note is "" otherwise.
+func applyOilRate(in ComputeInput, scope map[string]any, zeroFilled map[string]bool) (string, error) {
+	if in.Oil != nil && !hasPositiveOPU(in.CAPP) {
+		scope[ScopeKeyOilRate] = float64(0)
+		delete(zeroFilled, ScopeKeyOilRate)
+		log.Debug().
+			Int64("product_sys_id", in.ProductSysID).
+			Str("period", in.Period).
+			Str("oil_class", in.Oil.Class).
+			Msg("oil rate skipped: OPU <= 0")
+		return fmt.Sprintf("OIL: OPU is 0 or missing; oil rate not resolved (type %s), OIL_RATE treated as 0",
+			in.Oil.TypeCode), nil
+	}
 	rate, label, applied, err := resolveOilRate(in)
 	if err != nil {
-		return fmt.Errorf("compute product %d: %w", in.ProductSysID, err)
+		return "", fmt.Errorf("compute product %d: %w", in.ProductSysID, err)
 	}
 	if !applied {
-		return nil
+		return "", nil
 	}
 	scope[ScopeKeyOilRate] = rate
 	delete(zeroFilled, ScopeKeyOilRate)
@@ -393,7 +479,63 @@ func applyOilRate(in ComputeInput, scope map[string]any, zeroFilled map[string]b
 		Float64("oil_rate", rate).
 		Str("oil_rate_source", label).
 		Msg("oil rate resolved from RM group")
-	return nil
+	return "", nil
+}
+
+// hasPositiveOPU reports whether the product's CAPP carries an OPU value > 0.
+func hasPositiveOPU(capp map[string]float64) bool {
+	opu, ok := capp[ScopeKeyOPU]
+	return ok && opu > 0
+}
+
+// appendNote returns notes with note appended, or notes unchanged when note is
+// empty. It never mutates notes' backing array (a fresh slice is built), so a
+// caller-owned slice such as rmRatioPlan.notes is left intact.
+func appendNote(notes []string, note string) []string {
+	if note == "" {
+		return notes
+	}
+	out := make([]string, 0, len(notes)+1)
+	out = append(out, notes...)
+	return append(out, note)
+}
+
+// applySuperbaMBCost injects the reserved SUPERBA_MB_COST key consumed by
+// F_YARN_MB_COST (migration 000567).
+//
+//   - SUPERBA-class product (in.Oil.Class == SUPERBA, the same check that sets
+//     IS_SUPERBA=1): the resolved master old_value is written and cleared from
+//     zeroFilled so cpc_param_snapshot records it. With no resolved row (shade
+//     has no active master row, or empty shade) the product is NOT blocked:
+//     SUPERBA_MB_COST = 0 is recorded explicitly, SUPERBA_MB_COST_MISSING = 1 is
+//     added to the snapshot, and a structured warning is logged (there is no
+//     per-product warnings channel in ComputeOutput).
+//   - Everyone else (PTY/POY/no oil class, and mbbatch where Oil is nil): the
+//     key is set to 0 so the expression never sees nil, but it stays in
+//     zeroFilled so it is kept OUT of the snapshot. No lookup, no flag.
+func applySuperbaMBCost(in ComputeInput, scope map[string]any, zeroFilled map[string]bool) {
+	if in.Oil == nil || in.Oil.Class != OilClassSuperba {
+		scope[ScopeKeySuperbaMBCost] = float64(0)
+		zeroFilled[ScopeKeySuperbaMBCost] = true
+		return
+	}
+	if in.Superba == nil || !in.Superba.Found {
+		shade := ""
+		if in.Superba != nil {
+			shade = in.Superba.ShadeCode
+		}
+		scope[ScopeKeySuperbaMBCost] = float64(0)
+		delete(zeroFilled, ScopeKeySuperbaMBCost)
+		scope[ScopeKeySuperbaMBCostMissing] = float64(1)
+		log.Warn().
+			Int64("product_sys_id", in.ProductSysID).
+			Str("period", in.Period).
+			Str("shade_code", shade).
+			Msg(fmt.Sprintf("superba cost not found for shade %q; MB_COST_MKT = 0", shade))
+		return
+	}
+	scope[ScopeKeySuperbaMBCost] = in.Superba.OldValue
+	delete(zeroFilled, ScopeKeySuperbaMBCost)
 }
 
 // injectSpinFixedCost writes the period's POY spin pool into scope, after the
@@ -642,7 +784,10 @@ type rmUnitResolver func(in ComputeInput, rm *costroute.Rm) (float64, error)
 // costroute design the level-1 seq produces the FG; we treat every seq as
 // contributing because intermediate seqs feed the FG via their RMs (the
 // formula chain rolls them up — see S8b.7 chunk processor).
-func aggregateRMCost(in ComputeInput, resolve rmUnitResolver) (float64, []RMCostDetail, map[int32]float64, error) {
+//
+// plan carries the DENIER-mode ratio overrides (nil = INPUT mode: route ratio
+// and resolve for every line, the legacy behavior).
+func aggregateRMCost(in ComputeInput, plan *rmRatioPlan, resolve rmUnitResolver) (float64, []RMCostDetail, map[int32]float64, error) {
 	var totalRM float64
 	detail := []RMCostDetail{}
 	byLevel := map[int32]float64{}
@@ -662,11 +807,11 @@ func aggregateRMCost(in ComputeInput, resolve rmUnitResolver) (float64, []RMCost
 			if rm == nil {
 				continue
 			}
-			unit, err := resolve(in, rm)
+			unit, ratio, denier, source, denierSource, err := plan.lineUnitAndRatio(in, rm, resolve)
 			if err != nil {
 				return 0, nil, nil, fmt.Errorf("product %d level %d: %w", in.ProductSysID, level, err)
 			}
-			contribution := unit * rm.RouteRmRatio
+			contribution := unit * ratio
 			totalRM += contribution
 			byLevel[level] += contribution
 			detail = append(detail, RMCostDetail{
@@ -675,8 +820,11 @@ func aggregateRMCost(in ComputeInput, resolve rmUnitResolver) (float64, []RMCost
 				RefCode:      rmRefCode(rm),
 				ShadeCode:    rm.RouteRmShadeCode,
 				UnitCost:     unit,
-				Ratio:        rm.RouteRmRatio,
+				Ratio:        ratio,
 				Contribution: contribution,
+				Denier:       denier,
+				RatioSource:  source,
+				DenierSource: denierSource,
 			})
 		}
 	}
@@ -1146,6 +1294,7 @@ func findTerminalFormula(formulas []Formula) (*Formula, error) { //nolint:gocogn
 
 // resolveFinalCost determines the final cost when COST_STAGE_OUT is absent from scope.
 // Pure-RM products (no formulas) return totalRM; formula products infer the DAG sink.
+// A sink that is an auxiliary (oil) param fails with ErrMissingFinalCostFormula.
 func resolveFinalCost(in ComputeInput, scope map[string]any, totalRM float64) (float64, error) {
 	if len(in.Formulas) == 0 {
 		return totalRM, nil
@@ -1154,8 +1303,33 @@ func resolveFinalCost(in ComputeInput, scope map[string]any, totalRM float64) (f
 	if termErr != nil {
 		return 0, fmt.Errorf("%w: product %d: %w", costcalcdom.ErrFormulaEval, in.ProductSysID, termErr)
 	}
+	if auxiliaryResultParams[terminal.ResultParamCode] {
+		return 0, fmt.Errorf("%w: product %d: only %d auxiliary formulas loaded (%s), inferred terminal %s -> %s is not a cost sink; complete CAPP",
+			costcalcdom.ErrMissingFinalCostFormula, in.ProductSysID, len(in.Formulas),
+			strings.Join(formulaCodes(in.Formulas), ", "), terminal.FormulaCode, terminal.ResultParamCode)
+	}
 	fc, _ := scopeFloat(scope, terminal.ResultParamCode)
 	return fc, nil
+}
+
+// auxiliaryResultParams are formula result params that are cost components,
+// never a product's final cost. When findTerminalFormula infers one of them as
+// the DAG sink, the product's CAPP is missing its real cost chain (e.g. only
+// the oil params backfilled by migration 000525) and reading the sink would
+// silently report the oil value — typically 0 — as the cost per unit.
+var auxiliaryResultParams = map[string]bool{
+	ParamOilCost:           true,
+	ParamOilGain:           true,
+	ParamOilGainPOYDefault: true,
+}
+
+// formulaCodes returns the formula codes of the set, in load order.
+func formulaCodes(formulas []Formula) []string {
+	out := make([]string, 0, len(formulas))
+	for _, f := range formulas {
+		out = append(out, f.FormulaCode)
+	}
+	return out
 }
 
 func inputHash(in ComputeInput, totalRM float64) string {
@@ -1180,5 +1354,32 @@ func inputHash(in ComputeInput, totalRM float64) string {
 			_ = e
 		}
 	}
+	writeOverrideHash(h, in.RMDenierOverride)
 	return hex.EncodeToString(h.Sum(nil))[:32]
+}
+
+// writeOverrideHash appends the sorted RM denier overrides to h. Nothing is
+// written when there are none, so the hash of a product without overrides is
+// unchanged.
+func writeOverrideHash(h io.Writer, ovr costroute.DenierOverrides) {
+	productIDs := make([]int64, 0, len(ovr.Product))
+	for id := range ovr.Product {
+		productIDs = append(productIDs, id)
+	}
+	slices.Sort(productIDs)
+	for _, id := range productIDs {
+		if _, e := fmt.Fprintf(h, "|ovr:P:%d=%.6f", id, ovr.Product[id]); e != nil {
+			_ = e
+		}
+	}
+	groupCodes := make([]string, 0, len(ovr.Group))
+	for code := range ovr.Group {
+		groupCodes = append(groupCodes, code)
+	}
+	slices.Sort(groupCodes)
+	for _, code := range groupCodes {
+		if _, e := fmt.Fprintf(h, "|ovr:G:%s=%.6f", code, ovr.Group[code]); e != nil {
+			_ = e
+		}
+	}
 }

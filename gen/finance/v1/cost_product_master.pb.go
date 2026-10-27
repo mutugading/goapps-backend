@@ -48,8 +48,17 @@ type CostProductMaster struct {
 	Flex_03         string                 `protobuf:"bytes,20,opt,name=flex_03,json=flex03,proto3" json:"flex_03,omitempty"`
 	Source          string                 `protobuf:"bytes,21,opt,name=source,proto3" json:"source,omitempty"`                      // origin marker, e.g. "MB_RECIPE" when auto-generated; empty if manually created
 	IsLocked        bool                   `protobuf:"varint,22,opt,name=is_locked,json=isLocked,proto3" json:"is_locked,omitempty"` // true blocks manual edits to route/params; escape hatch via UnlockCostProductMaster
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	ErpFgType       string                 `protobuf:"bytes,23,opt,name=erp_fg_type,json=erpFgType,proto3" json:"erp_fg_type,omitempty"`
+	ErpChpItemCode  string                 `protobuf:"bytes,24,opt,name=erp_chp_item_code,json=erpChpItemCode,proto3" json:"erp_chp_item_code,omitempty"`
+	ErpMsBatchItem  string                 `protobuf:"bytes,25,opt,name=erp_ms_batch_item,json=erpMsBatchItem,proto3" json:"erp_ms_batch_item,omitempty"`
+	ErpItemType     string                 `protobuf:"bytes,26,opt,name=erp_item_type,json=erpItemType,proto3" json:"erp_item_type,omitempty"`
+	ErpPrdPerDay    string                 `protobuf:"bytes,27,opt,name=erp_prd_per_day,json=erpPrdPerDay,proto3" json:"erp_prd_per_day,omitempty"` // decimal string
+	// Per-product RM ratio mode: "" = follow product type, INPUT or DENIER (migration 000579).
+	RmRatioModeOverride string `protobuf:"bytes,28,opt,name=rm_ratio_mode_override,json=rmRatioModeOverride,proto3" json:"rm_ratio_mode_override,omitempty"`
+	// COALESCE(product override, product type mode); read-only.
+	EffectiveRmRatioMode string `protobuf:"bytes,29,opt,name=effective_rm_ratio_mode,json=effectiveRmRatioMode,proto3" json:"effective_rm_ratio_mode,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *CostProductMaster) Reset() {
@@ -236,6 +245,55 @@ func (x *CostProductMaster) GetIsLocked() bool {
 	return false
 }
 
+func (x *CostProductMaster) GetErpFgType() string {
+	if x != nil {
+		return x.ErpFgType
+	}
+	return ""
+}
+
+func (x *CostProductMaster) GetErpChpItemCode() string {
+	if x != nil {
+		return x.ErpChpItemCode
+	}
+	return ""
+}
+
+func (x *CostProductMaster) GetErpMsBatchItem() string {
+	if x != nil {
+		return x.ErpMsBatchItem
+	}
+	return ""
+}
+
+func (x *CostProductMaster) GetErpItemType() string {
+	if x != nil {
+		return x.ErpItemType
+	}
+	return ""
+}
+
+func (x *CostProductMaster) GetErpPrdPerDay() string {
+	if x != nil {
+		return x.ErpPrdPerDay
+	}
+	return ""
+}
+
+func (x *CostProductMaster) GetRmRatioModeOverride() string {
+	if x != nil {
+		return x.RmRatioModeOverride
+	}
+	return ""
+}
+
+func (x *CostProductMaster) GetEffectiveRmRatioMode() string {
+	if x != nil {
+		return x.EffectiveRmRatioMode
+	}
+	return ""
+}
+
 type CreateCostProductMasterRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ProductTypeId int32                  `protobuf:"varint,1,opt,name=product_type_id,json=productTypeId,proto3" json:"product_type_id,omitempty"`
@@ -244,11 +302,17 @@ type CreateCostProductMasterRequest struct {
 	GradeCode     string                 `protobuf:"bytes,4,opt,name=grade_code,json=gradeCode,proto3" json:"grade_code,omitempty"`
 	Description   string                 `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"`
 	// Legacy / import identifiers — plain text, no validation constraint.
-	Flex_01       string `protobuf:"bytes,6,opt,name=flex_01,json=flex01,proto3" json:"flex_01,omitempty"` // legacy_erp_compound_key
-	Flex_02       string `protobuf:"bytes,7,opt,name=flex_02,json=flex02,proto3" json:"flex_02,omitempty"` // legacy_oracle_sys_id
-	Flex_03       string `protobuf:"bytes,8,opt,name=flex_03,json=flex03,proto3" json:"flex_03,omitempty"` // legacy_type_label
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Flex_01 string `protobuf:"bytes,6,opt,name=flex_01,json=flex01,proto3" json:"flex_01,omitempty"` // legacy_erp_compound_key
+	Flex_02 string `protobuf:"bytes,7,opt,name=flex_02,json=flex02,proto3" json:"flex_02,omitempty"` // legacy_oracle_sys_id
+	Flex_03 string `protobuf:"bytes,8,opt,name=flex_03,json=flex03,proto3" json:"flex_03,omitempty"` // legacy_type_label
+	// ERP linkage identifiers (optional, empty = unset).
+	ErpFgType      string `protobuf:"bytes,9,opt,name=erp_fg_type,json=erpFgType,proto3" json:"erp_fg_type,omitempty"`
+	ErpChpItemCode string `protobuf:"bytes,10,opt,name=erp_chp_item_code,json=erpChpItemCode,proto3" json:"erp_chp_item_code,omitempty"`
+	ErpMsBatchItem string `protobuf:"bytes,11,opt,name=erp_ms_batch_item,json=erpMsBatchItem,proto3" json:"erp_ms_batch_item,omitempty"`
+	ErpItemType    string `protobuf:"bytes,12,opt,name=erp_item_type,json=erpItemType,proto3" json:"erp_item_type,omitempty"`
+	ErpPrdPerDay   string `protobuf:"bytes,13,opt,name=erp_prd_per_day,json=erpPrdPerDay,proto3" json:"erp_prd_per_day,omitempty"` // decimal string
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *CreateCostProductMasterRequest) Reset() {
@@ -333,6 +397,41 @@ func (x *CreateCostProductMasterRequest) GetFlex_02() string {
 func (x *CreateCostProductMasterRequest) GetFlex_03() string {
 	if x != nil {
 		return x.Flex_03
+	}
+	return ""
+}
+
+func (x *CreateCostProductMasterRequest) GetErpFgType() string {
+	if x != nil {
+		return x.ErpFgType
+	}
+	return ""
+}
+
+func (x *CreateCostProductMasterRequest) GetErpChpItemCode() string {
+	if x != nil {
+		return x.ErpChpItemCode
+	}
+	return ""
+}
+
+func (x *CreateCostProductMasterRequest) GetErpMsBatchItem() string {
+	if x != nil {
+		return x.ErpMsBatchItem
+	}
+	return ""
+}
+
+func (x *CreateCostProductMasterRequest) GetErpItemType() string {
+	if x != nil {
+		return x.ErpItemType
+	}
+	return ""
+}
+
+func (x *CreateCostProductMasterRequest) GetErpPrdPerDay() string {
+	if x != nil {
+		return x.ErpPrdPerDay
 	}
 	return ""
 }
@@ -589,11 +688,19 @@ type UpdateCostProductMasterRequest struct {
 	GradeCode    string                 `protobuf:"bytes,4,opt,name=grade_code,json=gradeCode,proto3" json:"grade_code,omitempty"`
 	Description  string                 `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"`
 	// Legacy / import identifiers — plain text, no validation constraint.
-	Flex_01       string `protobuf:"bytes,6,opt,name=flex_01,json=flex01,proto3" json:"flex_01,omitempty"` // legacy_erp_compound_key
-	Flex_02       string `protobuf:"bytes,7,opt,name=flex_02,json=flex02,proto3" json:"flex_02,omitempty"` // legacy_oracle_sys_id
-	Flex_03       string `protobuf:"bytes,8,opt,name=flex_03,json=flex03,proto3" json:"flex_03,omitempty"` // legacy_type_label
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Flex_01 string `protobuf:"bytes,6,opt,name=flex_01,json=flex01,proto3" json:"flex_01,omitempty"` // legacy_erp_compound_key
+	Flex_02 string `protobuf:"bytes,7,opt,name=flex_02,json=flex02,proto3" json:"flex_02,omitempty"` // legacy_oracle_sys_id
+	Flex_03 string `protobuf:"bytes,8,opt,name=flex_03,json=flex03,proto3" json:"flex_03,omitempty"` // legacy_type_label
+	// ERP linkage identifiers (optional, empty = unset).
+	ErpFgType      string `protobuf:"bytes,9,opt,name=erp_fg_type,json=erpFgType,proto3" json:"erp_fg_type,omitempty"`
+	ErpChpItemCode string `protobuf:"bytes,10,opt,name=erp_chp_item_code,json=erpChpItemCode,proto3" json:"erp_chp_item_code,omitempty"`
+	ErpMsBatchItem string `protobuf:"bytes,11,opt,name=erp_ms_batch_item,json=erpMsBatchItem,proto3" json:"erp_ms_batch_item,omitempty"`
+	ErpItemType    string `protobuf:"bytes,12,opt,name=erp_item_type,json=erpItemType,proto3" json:"erp_item_type,omitempty"`
+	ErpPrdPerDay   string `protobuf:"bytes,13,opt,name=erp_prd_per_day,json=erpPrdPerDay,proto3" json:"erp_prd_per_day,omitempty"` // decimal string
+	// Per-product RM ratio mode override. Absent = unchanged; "" = clear (follow product type).
+	RmRatioModeOverride *string `protobuf:"bytes,14,opt,name=rm_ratio_mode_override,json=rmRatioModeOverride,proto3,oneof" json:"rm_ratio_mode_override,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *UpdateCostProductMasterRequest) Reset() {
@@ -682,6 +789,48 @@ func (x *UpdateCostProductMasterRequest) GetFlex_03() string {
 	return ""
 }
 
+func (x *UpdateCostProductMasterRequest) GetErpFgType() string {
+	if x != nil {
+		return x.ErpFgType
+	}
+	return ""
+}
+
+func (x *UpdateCostProductMasterRequest) GetErpChpItemCode() string {
+	if x != nil {
+		return x.ErpChpItemCode
+	}
+	return ""
+}
+
+func (x *UpdateCostProductMasterRequest) GetErpMsBatchItem() string {
+	if x != nil {
+		return x.ErpMsBatchItem
+	}
+	return ""
+}
+
+func (x *UpdateCostProductMasterRequest) GetErpItemType() string {
+	if x != nil {
+		return x.ErpItemType
+	}
+	return ""
+}
+
+func (x *UpdateCostProductMasterRequest) GetErpPrdPerDay() string {
+	if x != nil {
+		return x.ErpPrdPerDay
+	}
+	return ""
+}
+
+func (x *UpdateCostProductMasterRequest) GetRmRatioModeOverride() string {
+	if x != nil && x.RmRatioModeOverride != nil {
+		return *x.RmRatioModeOverride
+	}
+	return ""
+}
+
 type UpdateCostProductMasterResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Base          *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
@@ -740,6 +889,12 @@ type UpdateCostProductMasterErpLinkageRequest struct {
 	ErpItemCode    string                 `protobuf:"bytes,2,opt,name=erp_item_code,json=erpItemCode,proto3" json:"erp_item_code,omitempty"`
 	ErpGradeCode_1 string                 `protobuf:"bytes,3,opt,name=erp_grade_code_1,json=erpGradeCode1,proto3" json:"erp_grade_code_1,omitempty"`
 	ErpGradeCode_2 string                 `protobuf:"bytes,4,opt,name=erp_grade_code_2,json=erpGradeCode2,proto3" json:"erp_grade_code_2,omitempty"`
+	// ERP linkage identifiers (optional, empty = unset).
+	ErpFgType      string `protobuf:"bytes,5,opt,name=erp_fg_type,json=erpFgType,proto3" json:"erp_fg_type,omitempty"`
+	ErpChpItemCode string `protobuf:"bytes,6,opt,name=erp_chp_item_code,json=erpChpItemCode,proto3" json:"erp_chp_item_code,omitempty"`
+	ErpMsBatchItem string `protobuf:"bytes,7,opt,name=erp_ms_batch_item,json=erpMsBatchItem,proto3" json:"erp_ms_batch_item,omitempty"`
+	ErpItemType    string `protobuf:"bytes,8,opt,name=erp_item_type,json=erpItemType,proto3" json:"erp_item_type,omitempty"`
+	ErpPrdPerDay   string `protobuf:"bytes,9,opt,name=erp_prd_per_day,json=erpPrdPerDay,proto3" json:"erp_prd_per_day,omitempty"` // decimal string
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -798,6 +953,41 @@ func (x *UpdateCostProductMasterErpLinkageRequest) GetErpGradeCode_1() string {
 func (x *UpdateCostProductMasterErpLinkageRequest) GetErpGradeCode_2() string {
 	if x != nil {
 		return x.ErpGradeCode_2
+	}
+	return ""
+}
+
+func (x *UpdateCostProductMasterErpLinkageRequest) GetErpFgType() string {
+	if x != nil {
+		return x.ErpFgType
+	}
+	return ""
+}
+
+func (x *UpdateCostProductMasterErpLinkageRequest) GetErpChpItemCode() string {
+	if x != nil {
+		return x.ErpChpItemCode
+	}
+	return ""
+}
+
+func (x *UpdateCostProductMasterErpLinkageRequest) GetErpMsBatchItem() string {
+	if x != nil {
+		return x.ErpMsBatchItem
+	}
+	return ""
+}
+
+func (x *UpdateCostProductMasterErpLinkageRequest) GetErpItemType() string {
+	if x != nil {
+		return x.ErpItemType
+	}
+	return ""
+}
+
+func (x *UpdateCostProductMasterErpLinkageRequest) GetErpPrdPerDay() string {
+	if x != nil {
+		return x.ErpPrdPerDay
 	}
 	return ""
 }
@@ -1654,12 +1844,615 @@ func (x *DuplicateProductResponse) GetNewProductCode() string {
 	return ""
 }
 
+// RMDenierOverride is a per-product denier override for one RM (product or group).
+type RMDenierOverride struct {
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Id           int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	ProductSysId int64                  `protobuf:"varint,2,opt,name=product_sys_id,json=productSysId,proto3" json:"product_sys_id,omitempty"`
+	// PRODUCT | GROUP.
+	RmType         string  `protobuf:"bytes,3,opt,name=rm_type,json=rmType,proto3" json:"rm_type,omitempty"`
+	RmProductSysId int64   `protobuf:"varint,4,opt,name=rm_product_sys_id,json=rmProductSysId,proto3" json:"rm_product_sys_id,omitempty"`
+	RmProductCode  string  `protobuf:"bytes,5,opt,name=rm_product_code,json=rmProductCode,proto3" json:"rm_product_code,omitempty"`
+	RmProductName  string  `protobuf:"bytes,6,opt,name=rm_product_name,json=rmProductName,proto3" json:"rm_product_name,omitempty"`
+	RmGroupCode    string  `protobuf:"bytes,7,opt,name=rm_group_code,json=rmGroupCode,proto3" json:"rm_group_code,omitempty"`
+	RmGroupName    string  `protobuf:"bytes,8,opt,name=rm_group_name,json=rmGroupName,proto3" json:"rm_group_name,omitempty"`
+	Denier         float64 `protobuf:"fixed64,9,opt,name=denier,proto3" json:"denier,omitempty"`
+	Reason         string  `protobuf:"bytes,10,opt,name=reason,proto3" json:"reason,omitempty"`
+	CreatedAt      string  `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	CreatedBy      string  `protobuf:"bytes,12,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
+	UpdatedAt      string  `protobuf:"bytes,13,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	UpdatedBy      string  `protobuf:"bytes,14,opt,name=updated_by,json=updatedBy,proto3" json:"updated_by,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *RMDenierOverride) Reset() {
+	*x = RMDenierOverride{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RMDenierOverride) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RMDenierOverride) ProtoMessage() {}
+
+func (x *RMDenierOverride) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RMDenierOverride.ProtoReflect.Descriptor instead.
+func (*RMDenierOverride) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *RMDenierOverride) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *RMDenierOverride) GetProductSysId() int64 {
+	if x != nil {
+		return x.ProductSysId
+	}
+	return 0
+}
+
+func (x *RMDenierOverride) GetRmType() string {
+	if x != nil {
+		return x.RmType
+	}
+	return ""
+}
+
+func (x *RMDenierOverride) GetRmProductSysId() int64 {
+	if x != nil {
+		return x.RmProductSysId
+	}
+	return 0
+}
+
+func (x *RMDenierOverride) GetRmProductCode() string {
+	if x != nil {
+		return x.RmProductCode
+	}
+	return ""
+}
+
+func (x *RMDenierOverride) GetRmProductName() string {
+	if x != nil {
+		return x.RmProductName
+	}
+	return ""
+}
+
+func (x *RMDenierOverride) GetRmGroupCode() string {
+	if x != nil {
+		return x.RmGroupCode
+	}
+	return ""
+}
+
+func (x *RMDenierOverride) GetRmGroupName() string {
+	if x != nil {
+		return x.RmGroupName
+	}
+	return ""
+}
+
+func (x *RMDenierOverride) GetDenier() float64 {
+	if x != nil {
+		return x.Denier
+	}
+	return 0
+}
+
+func (x *RMDenierOverride) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *RMDenierOverride) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+func (x *RMDenierOverride) GetCreatedBy() string {
+	if x != nil {
+		return x.CreatedBy
+	}
+	return ""
+}
+
+func (x *RMDenierOverride) GetUpdatedAt() string {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return ""
+}
+
+func (x *RMDenierOverride) GetUpdatedBy() string {
+	if x != nil {
+		return x.UpdatedBy
+	}
+	return ""
+}
+
+// DuplicateProductRef identifies a product sharing the same duplicate family.
+type DuplicateProductRef struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProductSysId  int64                  `protobuf:"varint,1,opt,name=product_sys_id,json=productSysId,proto3" json:"product_sys_id,omitempty"`
+	ProductCode   string                 `protobuf:"bytes,2,opt,name=product_code,json=productCode,proto3" json:"product_code,omitempty"`
+	ProductName   string                 `protobuf:"bytes,3,opt,name=product_name,json=productName,proto3" json:"product_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DuplicateProductRef) Reset() {
+	*x = DuplicateProductRef{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DuplicateProductRef) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DuplicateProductRef) ProtoMessage() {}
+
+func (x *DuplicateProductRef) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DuplicateProductRef.ProtoReflect.Descriptor instead.
+func (*DuplicateProductRef) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *DuplicateProductRef) GetProductSysId() int64 {
+	if x != nil {
+		return x.ProductSysId
+	}
+	return 0
+}
+
+func (x *DuplicateProductRef) GetProductCode() string {
+	if x != nil {
+		return x.ProductCode
+	}
+	return ""
+}
+
+func (x *DuplicateProductRef) GetProductName() string {
+	if x != nil {
+		return x.ProductName
+	}
+	return ""
+}
+
+type ListRMDenierOverridesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProductSysId  int64                  `protobuf:"varint,1,opt,name=product_sys_id,json=productSysId,proto3" json:"product_sys_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRMDenierOverridesRequest) Reset() {
+	*x = ListRMDenierOverridesRequest{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRMDenierOverridesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRMDenierOverridesRequest) ProtoMessage() {}
+
+func (x *ListRMDenierOverridesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRMDenierOverridesRequest.ProtoReflect.Descriptor instead.
+func (*ListRMDenierOverridesRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *ListRMDenierOverridesRequest) GetProductSysId() int64 {
+	if x != nil {
+		return x.ProductSysId
+	}
+	return 0
+}
+
+type ListRMDenierOverridesResponse struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Base              *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	Data              []*RMDenierOverride    `protobuf:"bytes,2,rep,name=data,proto3" json:"data,omitempty"`
+	DuplicateProducts []*DuplicateProductRef `protobuf:"bytes,3,rep,name=duplicate_products,json=duplicateProducts,proto3" json:"duplicate_products,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ListRMDenierOverridesResponse) Reset() {
+	*x = ListRMDenierOverridesResponse{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRMDenierOverridesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRMDenierOverridesResponse) ProtoMessage() {}
+
+func (x *ListRMDenierOverridesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRMDenierOverridesResponse.ProtoReflect.Descriptor instead.
+func (*ListRMDenierOverridesResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *ListRMDenierOverridesResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *ListRMDenierOverridesResponse) GetData() []*RMDenierOverride {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+func (x *ListRMDenierOverridesResponse) GetDuplicateProducts() []*DuplicateProductRef {
+	if x != nil {
+		return x.DuplicateProducts
+	}
+	return nil
+}
+
+type UpsertRMDenierOverrideRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	ProductSysId      int64                  `protobuf:"varint,1,opt,name=product_sys_id,json=productSysId,proto3" json:"product_sys_id,omitempty"`
+	RmType            string                 `protobuf:"bytes,2,opt,name=rm_type,json=rmType,proto3" json:"rm_type,omitempty"`
+	RmProductSysId    int64                  `protobuf:"varint,3,opt,name=rm_product_sys_id,json=rmProductSysId,proto3" json:"rm_product_sys_id,omitempty"`
+	RmGroupCode       string                 `protobuf:"bytes,4,opt,name=rm_group_code,json=rmGroupCode,proto3" json:"rm_group_code,omitempty"`
+	Denier            float64                `protobuf:"fixed64,5,opt,name=denier,proto3" json:"denier,omitempty"`
+	Reason            string                 `protobuf:"bytes,6,opt,name=reason,proto3" json:"reason,omitempty"`
+	ApplyToDuplicates bool                   `protobuf:"varint,7,opt,name=apply_to_duplicates,json=applyToDuplicates,proto3" json:"apply_to_duplicates,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *UpsertRMDenierOverrideRequest) Reset() {
+	*x = UpsertRMDenierOverrideRequest{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertRMDenierOverrideRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertRMDenierOverrideRequest) ProtoMessage() {}
+
+func (x *UpsertRMDenierOverrideRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpsertRMDenierOverrideRequest.ProtoReflect.Descriptor instead.
+func (*UpsertRMDenierOverrideRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *UpsertRMDenierOverrideRequest) GetProductSysId() int64 {
+	if x != nil {
+		return x.ProductSysId
+	}
+	return 0
+}
+
+func (x *UpsertRMDenierOverrideRequest) GetRmType() string {
+	if x != nil {
+		return x.RmType
+	}
+	return ""
+}
+
+func (x *UpsertRMDenierOverrideRequest) GetRmProductSysId() int64 {
+	if x != nil {
+		return x.RmProductSysId
+	}
+	return 0
+}
+
+func (x *UpsertRMDenierOverrideRequest) GetRmGroupCode() string {
+	if x != nil {
+		return x.RmGroupCode
+	}
+	return ""
+}
+
+func (x *UpsertRMDenierOverrideRequest) GetDenier() float64 {
+	if x != nil {
+		return x.Denier
+	}
+	return 0
+}
+
+func (x *UpsertRMDenierOverrideRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *UpsertRMDenierOverrideRequest) GetApplyToDuplicates() bool {
+	if x != nil {
+		return x.ApplyToDuplicates
+	}
+	return false
+}
+
+type UpsertRMDenierOverrideResponse struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Base                 *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	Data                 *RMDenierOverride      `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	AppliedProductSysIds []int64                `protobuf:"varint,3,rep,packed,name=applied_product_sys_ids,json=appliedProductSysIds,proto3" json:"applied_product_sys_ids,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *UpsertRMDenierOverrideResponse) Reset() {
+	*x = UpsertRMDenierOverrideResponse{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertRMDenierOverrideResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertRMDenierOverrideResponse) ProtoMessage() {}
+
+func (x *UpsertRMDenierOverrideResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpsertRMDenierOverrideResponse.ProtoReflect.Descriptor instead.
+func (*UpsertRMDenierOverrideResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *UpsertRMDenierOverrideResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *UpsertRMDenierOverrideResponse) GetData() *RMDenierOverride {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+func (x *UpsertRMDenierOverrideResponse) GetAppliedProductSysIds() []int64 {
+	if x != nil {
+		return x.AppliedProductSysIds
+	}
+	return nil
+}
+
+type DeleteRMDenierOverrideRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	ProductSysId      int64                  `protobuf:"varint,1,opt,name=product_sys_id,json=productSysId,proto3" json:"product_sys_id,omitempty"`
+	RmType            string                 `protobuf:"bytes,2,opt,name=rm_type,json=rmType,proto3" json:"rm_type,omitempty"`
+	RmProductSysId    int64                  `protobuf:"varint,3,opt,name=rm_product_sys_id,json=rmProductSysId,proto3" json:"rm_product_sys_id,omitempty"`
+	RmGroupCode       string                 `protobuf:"bytes,4,opt,name=rm_group_code,json=rmGroupCode,proto3" json:"rm_group_code,omitempty"`
+	ApplyToDuplicates bool                   `protobuf:"varint,5,opt,name=apply_to_duplicates,json=applyToDuplicates,proto3" json:"apply_to_duplicates,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *DeleteRMDenierOverrideRequest) Reset() {
+	*x = DeleteRMDenierOverrideRequest{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteRMDenierOverrideRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteRMDenierOverrideRequest) ProtoMessage() {}
+
+func (x *DeleteRMDenierOverrideRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteRMDenierOverrideRequest.ProtoReflect.Descriptor instead.
+func (*DeleteRMDenierOverrideRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *DeleteRMDenierOverrideRequest) GetProductSysId() int64 {
+	if x != nil {
+		return x.ProductSysId
+	}
+	return 0
+}
+
+func (x *DeleteRMDenierOverrideRequest) GetRmType() string {
+	if x != nil {
+		return x.RmType
+	}
+	return ""
+}
+
+func (x *DeleteRMDenierOverrideRequest) GetRmProductSysId() int64 {
+	if x != nil {
+		return x.RmProductSysId
+	}
+	return 0
+}
+
+func (x *DeleteRMDenierOverrideRequest) GetRmGroupCode() string {
+	if x != nil {
+		return x.RmGroupCode
+	}
+	return ""
+}
+
+func (x *DeleteRMDenierOverrideRequest) GetApplyToDuplicates() bool {
+	if x != nil {
+		return x.ApplyToDuplicates
+	}
+	return false
+}
+
+type DeleteRMDenierOverrideResponse struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Base                 *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	DeletedCount         int32                  `protobuf:"varint,2,opt,name=deleted_count,json=deletedCount,proto3" json:"deleted_count,omitempty"`
+	AppliedProductSysIds []int64                `protobuf:"varint,3,rep,packed,name=applied_product_sys_ids,json=appliedProductSysIds,proto3" json:"applied_product_sys_ids,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *DeleteRMDenierOverrideResponse) Reset() {
+	*x = DeleteRMDenierOverrideResponse{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteRMDenierOverrideResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteRMDenierOverrideResponse) ProtoMessage() {}
+
+func (x *DeleteRMDenierOverrideResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteRMDenierOverrideResponse.ProtoReflect.Descriptor instead.
+func (*DeleteRMDenierOverrideResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *DeleteRMDenierOverrideResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *DeleteRMDenierOverrideResponse) GetDeletedCount() int32 {
+	if x != nil {
+		return x.DeletedCount
+	}
+	return 0
+}
+
+func (x *DeleteRMDenierOverrideResponse) GetAppliedProductSysIds() []int64 {
+	if x != nil {
+		return x.AppliedProductSysIds
+	}
+	return nil
+}
+
 var File_finance_v1_cost_product_master_proto protoreflect.FileDescriptor
 
 const file_finance_v1_cost_product_master_proto_rawDesc = "" +
 	"\n" +
 	"$finance/v1/cost_product_master.proto\x12\n" +
-	"finance.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16common/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\"\x85\x06\n" +
+	"finance.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16common/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\"\xb2\b\n" +
 	"\x11CostProductMaster\x12$\n" +
 	"\x0eproduct_sys_id\x18\x01 \x01(\x03R\fproductSysId\x12!\n" +
 	"\fproduct_code\x18\x02 \x01(\tR\vproductCode\x12&\n" +
@@ -1686,7 +2479,14 @@ const file_finance_v1_cost_product_master_proto_rawDesc = "" +
 	"\aflex_02\x18\x13 \x01(\tR\x06flex02\x12\x17\n" +
 	"\aflex_03\x18\x14 \x01(\tR\x06flex03\x12\x16\n" +
 	"\x06source\x18\x15 \x01(\tR\x06source\x12\x1b\n" +
-	"\tis_locked\x18\x16 \x01(\bR\bisLocked\"\xe5\x02\n" +
+	"\tis_locked\x18\x16 \x01(\bR\bisLocked\x12\x1e\n" +
+	"\verp_fg_type\x18\x17 \x01(\tR\terpFgType\x12)\n" +
+	"\x11erp_chp_item_code\x18\x18 \x01(\tR\x0eerpChpItemCode\x12)\n" +
+	"\x11erp_ms_batch_item\x18\x19 \x01(\tR\x0eerpMsBatchItem\x12\"\n" +
+	"\rerp_item_type\x18\x1a \x01(\tR\verpItemType\x12%\n" +
+	"\x0ferp_prd_per_day\x18\x1b \x01(\tR\ferpPrdPerDay\x123\n" +
+	"\x16rm_ratio_mode_override\x18\x1c \x01(\tR\x13rmRatioModeOverride\x125\n" +
+	"\x17effective_rm_ratio_mode\x18\x1d \x01(\tR\x14effectiveRmRatioMode\"\xf2\x04\n" +
 	"\x1eCreateCostProductMasterRequest\x12/\n" +
 	"\x0fproduct_type_id\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x01R\rproductTypeId\x12-\n" +
 	"\fproduct_name\x18\x02 \x01(\tB\n" +
@@ -1698,7 +2498,13 @@ const file_finance_v1_cost_product_master_proto_rawDesc = "" +
 	"\vdescription\x18\x05 \x01(\tB\b\xbaH\x05r\x03\x18\xe8\aR\vdescription\x12!\n" +
 	"\aflex_01\x18\x06 \x01(\tB\b\xbaH\x05r\x03\x18\xff\x01R\x06flex01\x12 \n" +
 	"\aflex_02\x18\a \x01(\tB\a\xbaH\x04r\x02\x18dR\x06flex02\x12 \n" +
-	"\aflex_03\x18\b \x01(\tB\a\xbaH\x04r\x02\x18dR\x06flex03\"\x81\x01\n" +
+	"\aflex_03\x18\b \x01(\tB\a\xbaH\x04r\x02\x18dR\x06flex03\x12'\n" +
+	"\verp_fg_type\x18\t \x01(\tB\a\xbaH\x04r\x02\x18\x0fR\terpFgType\x122\n" +
+	"\x11erp_chp_item_code\x18\n" +
+	" \x01(\tB\a\xbaH\x04r\x02\x182R\x0eerpChpItemCode\x122\n" +
+	"\x11erp_ms_batch_item\x18\v \x01(\tB\a\xbaH\x04r\x02\x18\fR\x0eerpMsBatchItem\x12+\n" +
+	"\rerp_item_type\x18\f \x01(\tB\a\xbaH\x04r\x02\x18\x14R\verpItemType\x12M\n" +
+	"\x0ferp_prd_per_day\x18\r \x01(\tB&\xbaH#r!2\x1f^([0-9]{1,12}(\\.[0-9]{1,6})?)?$R\ferpPrdPerDay\"\x81\x01\n" +
 	"\x1fCreateCostProductMasterResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x121\n" +
 	"\x04data\x18\x02 \x01(\v2\x1d.finance.v1.CostProductMasterR\x04data\"L\n" +
@@ -1711,7 +2517,7 @@ const file_finance_v1_cost_product_master_proto_rawDesc = "" +
 	"\fproduct_code\x18\x01 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18\x14R\vproductCode\"\x84\x01\n" +
 	"\"GetCostProductMasterByCodeResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x121\n" +
-	"\x04data\x18\x02 \x01(\v2\x1d.finance.v1.CostProductMasterR\x04data\"\xe3\x02\n" +
+	"\x04data\x18\x02 \x01(\v2\x1d.finance.v1.CostProductMasterR\x04data\"\xdd\x05\n" +
 	"\x1eUpdateCostProductMasterRequest\x12-\n" +
 	"\x0eproduct_sys_id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02(\x01R\fproductSysId\x12-\n" +
 	"\fproduct_name\x18\x02 \x01(\tB\n" +
@@ -1723,15 +2529,28 @@ const file_finance_v1_cost_product_master_proto_rawDesc = "" +
 	"\vdescription\x18\x05 \x01(\tB\b\xbaH\x05r\x03\x18\xe8\aR\vdescription\x12!\n" +
 	"\aflex_01\x18\x06 \x01(\tB\b\xbaH\x05r\x03\x18\xff\x01R\x06flex01\x12 \n" +
 	"\aflex_02\x18\a \x01(\tB\a\xbaH\x04r\x02\x18dR\x06flex02\x12 \n" +
-	"\aflex_03\x18\b \x01(\tB\a\xbaH\x04r\x02\x18dR\x06flex03\"\x81\x01\n" +
+	"\aflex_03\x18\b \x01(\tB\a\xbaH\x04r\x02\x18dR\x06flex03\x12'\n" +
+	"\verp_fg_type\x18\t \x01(\tB\a\xbaH\x04r\x02\x18\x0fR\terpFgType\x122\n" +
+	"\x11erp_chp_item_code\x18\n" +
+	" \x01(\tB\a\xbaH\x04r\x02\x182R\x0eerpChpItemCode\x122\n" +
+	"\x11erp_ms_batch_item\x18\v \x01(\tB\a\xbaH\x04r\x02\x18\fR\x0eerpMsBatchItem\x12+\n" +
+	"\rerp_item_type\x18\f \x01(\tB\a\xbaH\x04r\x02\x18\x14R\verpItemType\x12M\n" +
+	"\x0ferp_prd_per_day\x18\r \x01(\tB&\xbaH#r!2\x1f^([0-9]{1,12}(\\.[0-9]{1,6})?)?$R\ferpPrdPerDay\x12P\n" +
+	"\x16rm_ratio_mode_override\x18\x0e \x01(\tB\x16\xbaH\x13r\x11R\x00R\x05INPUTR\x06DENIERH\x00R\x13rmRatioModeOverride\x88\x01\x01B\x19\n" +
+	"\x17_rm_ratio_mode_override\"\x81\x01\n" +
 	"\x1fUpdateCostProductMasterResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x121\n" +
-	"\x04data\x18\x02 \x01(\v2\x1d.finance.v1.CostProductMasterR\x04data\"\xea\x01\n" +
+	"\x04data\x18\x02 \x01(\v2\x1d.finance.v1.CostProductMasterR\x04data\"\xf7\x03\n" +
 	"(UpdateCostProductMasterErpLinkageRequest\x12-\n" +
 	"\x0eproduct_sys_id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02(\x01R\fproductSysId\x12+\n" +
 	"\rerp_item_code\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x182R\verpItemCode\x120\n" +
 	"\x10erp_grade_code_1\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x18\x14R\rerpGradeCode1\x120\n" +
-	"\x10erp_grade_code_2\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x18\x14R\rerpGradeCode2\"\x8b\x01\n" +
+	"\x10erp_grade_code_2\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x18\x14R\rerpGradeCode2\x12'\n" +
+	"\verp_fg_type\x18\x05 \x01(\tB\a\xbaH\x04r\x02\x18\x0fR\terpFgType\x122\n" +
+	"\x11erp_chp_item_code\x18\x06 \x01(\tB\a\xbaH\x04r\x02\x182R\x0eerpChpItemCode\x122\n" +
+	"\x11erp_ms_batch_item\x18\a \x01(\tB\a\xbaH\x04r\x02\x18\fR\x0eerpMsBatchItem\x12+\n" +
+	"\rerp_item_type\x18\b \x01(\tB\a\xbaH\x04r\x02\x18\x14R\verpItemType\x12M\n" +
+	"\x0ferp_prd_per_day\x18\t \x01(\tB&\xbaH#r!2\x1f^([0-9]{1,12}(\\.[0-9]{1,6})?)?$R\ferpPrdPerDay\"\x8b\x01\n" +
 	")UpdateCostProductMasterErpLinkageResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x121\n" +
 	"\x04data\x18\x02 \x01(\v2\x1d.finance.v1.CostProductMasterR\x04data\"S\n" +
@@ -1798,7 +2617,60 @@ const file_finance_v1_cost_product_master_proto_rawDesc = "" +
 	"\x18DuplicateProductResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12+\n" +
 	"\x12new_product_sys_id\x18\x02 \x01(\x03R\x0fnewProductSysId\x12(\n" +
-	"\x10new_product_code\x18\x03 \x01(\tR\x0enewProductCode2\xae\x11\n" +
+	"\x10new_product_code\x18\x03 \x01(\tR\x0enewProductCode\"\xd0\x03\n" +
+	"\x10RMDenierOverride\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12$\n" +
+	"\x0eproduct_sys_id\x18\x02 \x01(\x03R\fproductSysId\x12\x17\n" +
+	"\arm_type\x18\x03 \x01(\tR\x06rmType\x12)\n" +
+	"\x11rm_product_sys_id\x18\x04 \x01(\x03R\x0ermProductSysId\x12&\n" +
+	"\x0frm_product_code\x18\x05 \x01(\tR\rrmProductCode\x12&\n" +
+	"\x0frm_product_name\x18\x06 \x01(\tR\rrmProductName\x12\"\n" +
+	"\rrm_group_code\x18\a \x01(\tR\vrmGroupCode\x12\"\n" +
+	"\rrm_group_name\x18\b \x01(\tR\vrmGroupName\x12\x16\n" +
+	"\x06denier\x18\t \x01(\x01R\x06denier\x12\x16\n" +
+	"\x06reason\x18\n" +
+	" \x01(\tR\x06reason\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\v \x01(\tR\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"created_by\x18\f \x01(\tR\tcreatedBy\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\r \x01(\tR\tupdatedAt\x12\x1d\n" +
+	"\n" +
+	"updated_by\x18\x0e \x01(\tR\tupdatedBy\"\x81\x01\n" +
+	"\x13DuplicateProductRef\x12$\n" +
+	"\x0eproduct_sys_id\x18\x01 \x01(\x03R\fproductSysId\x12!\n" +
+	"\fproduct_code\x18\x02 \x01(\tR\vproductCode\x12!\n" +
+	"\fproduct_name\x18\x03 \x01(\tR\vproductName\"M\n" +
+	"\x1cListRMDenierOverridesRequest\x12-\n" +
+	"\x0eproduct_sys_id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\fproductSysId\"\xce\x01\n" +
+	"\x1dListRMDenierOverridesResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x120\n" +
+	"\x04data\x18\x02 \x03(\v2\x1c.finance.v1.RMDenierOverrideR\x04data\x12N\n" +
+	"\x12duplicate_products\x18\x03 \x03(\v2\x1f.finance.v1.DuplicateProductRefR\x11duplicateProducts\"\xdb\x02\n" +
+	"\x1dUpsertRMDenierOverrideRequest\x12-\n" +
+	"\x0eproduct_sys_id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\fproductSysId\x12.\n" +
+	"\arm_type\x18\x02 \x01(\tB\x15\xbaH\x12r\x10R\aPRODUCTR\x05GROUPR\x06rmType\x122\n" +
+	"\x11rm_product_sys_id\x18\x03 \x01(\x03B\a\xbaH\x04\"\x02(\x00R\x0ermProductSysId\x12+\n" +
+	"\rrm_group_code\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x18\x1eR\vrmGroupCode\x12&\n" +
+	"\x06denier\x18\x05 \x01(\x01B\x0e\xbaH\v\x12\t!\x00\x00\x00\x00\x00\x00\x00\x00R\x06denier\x12\"\n" +
+	"\x06reason\x18\x06 \x01(\tB\n" +
+	"\xbaH\ar\x05\x10\x01\x18\xf4\x03R\x06reason\x12.\n" +
+	"\x13apply_to_duplicates\x18\a \x01(\bR\x11applyToDuplicates\"\xb6\x01\n" +
+	"\x1eUpsertRMDenierOverrideResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x120\n" +
+	"\x04data\x18\x02 \x01(\v2\x1c.finance.v1.RMDenierOverrideR\x04data\x125\n" +
+	"\x17applied_product_sys_ids\x18\x03 \x03(\x03R\x14appliedProductSysIds\"\x8f\x02\n" +
+	"\x1dDeleteRMDenierOverrideRequest\x12-\n" +
+	"\x0eproduct_sys_id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\fproductSysId\x12.\n" +
+	"\arm_type\x18\x02 \x01(\tB\x15\xbaH\x12r\x10R\aPRODUCTR\x05GROUPR\x06rmType\x122\n" +
+	"\x11rm_product_sys_id\x18\x03 \x01(\x03B\a\xbaH\x04\"\x02(\x00R\x0ermProductSysId\x12+\n" +
+	"\rrm_group_code\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x18\x1eR\vrmGroupCode\x12.\n" +
+	"\x13apply_to_duplicates\x18\x05 \x01(\bR\x11applyToDuplicates\"\xa9\x01\n" +
+	"\x1eDeleteRMDenierOverrideResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12#\n" +
+	"\rdeleted_count\x18\x02 \x01(\x05R\fdeletedCount\x125\n" +
+	"\x17applied_product_sys_ids\x18\x03 \x03(\x03R\x14appliedProductSysIds2\xfa\x15\n" +
 	"\x18CostProductMasterService\x12\xa2\x01\n" +
 	"\x17CreateCostProductMaster\x12*.finance.v1.CreateCostProductMasterRequest\x1a+.finance.v1.CreateCostProductMasterResponse\".\x82\xd3\xe4\x93\x02(:\x01*\"#/api/v1/finance/cost-product-master\x12\xa7\x01\n" +
 	"\x14GetCostProductMaster\x12'.finance.v1.GetCostProductMasterRequest\x1a(.finance.v1.GetCostProductMasterResponse\"<\x82\xd3\xe4\x93\x026\x124/api/v1/finance/cost-product-master/{product_sys_id}\x12\xbf\x01\n" +
@@ -1811,7 +2683,10 @@ const file_finance_v1_cost_product_master_proto_rawDesc = "" +
 	"\x18ExportCostProductMasters\x12+.finance.v1.ExportCostProductMastersRequest\x1a,.finance.v1.ExportCostProductMastersResponse\"3\x82\xd3\xe4\x93\x02-\x12+/api/v1/finance/cost-product-masters/export\x12\xad\x01\n" +
 	"\x18ImportCostProductMasters\x12+.finance.v1.ImportCostProductMastersRequest\x1a,.finance.v1.ImportCostProductMastersResponse\"6\x82\xd3\xe4\x93\x020:\x01*\"+/api/v1/finance/cost-product-masters/import\x12\xc7\x01\n" +
 	"!DownloadCostProductMasterTemplate\x124.finance.v1.DownloadCostProductMasterTemplateRequest\x1a5.finance.v1.DownloadCostProductMasterTemplateResponse\"5\x82\xd3\xe4\x93\x02/\x12-/api/v1/finance/cost-product-masters/template\x12\xa8\x01\n" +
-	"\x10DuplicateProduct\x12#.finance.v1.DuplicateProductRequest\x1a$.finance.v1.DuplicateProductResponse\"I\x82\xd3\xe4\x93\x02C:\x01*\">/api/v1/finance/cost-product-master/{product_sys_id}/duplicateB\xb0\x01\n" +
+	"\x10DuplicateProduct\x12#.finance.v1.DuplicateProductRequest\x1a$.finance.v1.DuplicateProductResponse\"I\x82\xd3\xe4\x93\x02C:\x01*\">/api/v1/finance/cost-product-master/{product_sys_id}/duplicate\x12\xbe\x01\n" +
+	"\x15ListRMDenierOverrides\x12(.finance.v1.ListRMDenierOverridesRequest\x1a).finance.v1.ListRMDenierOverridesResponse\"P\x82\xd3\xe4\x93\x02J\x12H/api/v1/finance/cost-product-master/{product_sys_id}/rm-denier-overrides\x12\xc4\x01\n" +
+	"\x16UpsertRMDenierOverride\x12).finance.v1.UpsertRMDenierOverrideRequest\x1a*.finance.v1.UpsertRMDenierOverrideResponse\"S\x82\xd3\xe4\x93\x02M:\x01*\"H/api/v1/finance/cost-product-master/{product_sys_id}/rm-denier-overrides\x12\xc1\x01\n" +
+	"\x16DeleteRMDenierOverride\x12).finance.v1.DeleteRMDenierOverrideRequest\x1a*.finance.v1.DeleteRMDenierOverrideResponse\"P\x82\xd3\xe4\x93\x02J*H/api/v1/finance/cost-product-master/{product_sys_id}/rm-denier-overridesB\xb0\x01\n" +
 	"\x0ecom.finance.v1B\x16CostProductMasterProtoP\x01Z=github.com/mutugading/goapps-backend/gen/finance/v1;financev1\xa2\x02\x03FXX\xaa\x02\n" +
 	"Finance.V1\xca\x02\n" +
 	"Finance\\V1\xe2\x02\x16Finance\\V1\\GPBMetadata\xea\x02\vFinance::V1b\x06proto3"
@@ -1828,7 +2703,7 @@ func file_finance_v1_cost_product_master_proto_rawDescGZIP() []byte {
 	return file_finance_v1_cost_product_master_proto_rawDescData
 }
 
-var file_finance_v1_cost_product_master_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
+var file_finance_v1_cost_product_master_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
 var file_finance_v1_cost_product_master_proto_goTypes = []any{
 	(*CostProductMaster)(nil),                         // 0: finance.v1.CostProductMaster
 	(*CreateCostProductMasterRequest)(nil),            // 1: finance.v1.CreateCostProductMasterRequest
@@ -1855,63 +2730,83 @@ var file_finance_v1_cost_product_master_proto_goTypes = []any{
 	(*DownloadCostProductMasterTemplateResponse)(nil), // 22: finance.v1.DownloadCostProductMasterTemplateResponse
 	(*DuplicateProductRequest)(nil),                   // 23: finance.v1.DuplicateProductRequest
 	(*DuplicateProductResponse)(nil),                  // 24: finance.v1.DuplicateProductResponse
-	(*v1.AuditInfo)(nil),                              // 25: common.v1.AuditInfo
-	(*v1.BaseResponse)(nil),                           // 26: common.v1.BaseResponse
-	(*v1.PaginationRequest)(nil),                      // 27: common.v1.PaginationRequest
-	(*v1.PaginationResponse)(nil),                     // 28: common.v1.PaginationResponse
+	(*RMDenierOverride)(nil),                          // 25: finance.v1.RMDenierOverride
+	(*DuplicateProductRef)(nil),                       // 26: finance.v1.DuplicateProductRef
+	(*ListRMDenierOverridesRequest)(nil),              // 27: finance.v1.ListRMDenierOverridesRequest
+	(*ListRMDenierOverridesResponse)(nil),             // 28: finance.v1.ListRMDenierOverridesResponse
+	(*UpsertRMDenierOverrideRequest)(nil),             // 29: finance.v1.UpsertRMDenierOverrideRequest
+	(*UpsertRMDenierOverrideResponse)(nil),            // 30: finance.v1.UpsertRMDenierOverrideResponse
+	(*DeleteRMDenierOverrideRequest)(nil),             // 31: finance.v1.DeleteRMDenierOverrideRequest
+	(*DeleteRMDenierOverrideResponse)(nil),            // 32: finance.v1.DeleteRMDenierOverrideResponse
+	(*v1.AuditInfo)(nil),                              // 33: common.v1.AuditInfo
+	(*v1.BaseResponse)(nil),                           // 34: common.v1.BaseResponse
+	(*v1.PaginationRequest)(nil),                      // 35: common.v1.PaginationRequest
+	(*v1.PaginationResponse)(nil),                     // 36: common.v1.PaginationResponse
 }
 var file_finance_v1_cost_product_master_proto_depIdxs = []int32{
-	25, // 0: finance.v1.CostProductMaster.audit:type_name -> common.v1.AuditInfo
-	26, // 1: finance.v1.CreateCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
+	33, // 0: finance.v1.CostProductMaster.audit:type_name -> common.v1.AuditInfo
+	34, // 1: finance.v1.CreateCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 2: finance.v1.CreateCostProductMasterResponse.data:type_name -> finance.v1.CostProductMaster
-	26, // 3: finance.v1.GetCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
+	34, // 3: finance.v1.GetCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 4: finance.v1.GetCostProductMasterResponse.data:type_name -> finance.v1.CostProductMaster
-	26, // 5: finance.v1.GetCostProductMasterByCodeResponse.base:type_name -> common.v1.BaseResponse
+	34, // 5: finance.v1.GetCostProductMasterByCodeResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 6: finance.v1.GetCostProductMasterByCodeResponse.data:type_name -> finance.v1.CostProductMaster
-	26, // 7: finance.v1.UpdateCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
+	34, // 7: finance.v1.UpdateCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 8: finance.v1.UpdateCostProductMasterResponse.data:type_name -> finance.v1.CostProductMaster
-	26, // 9: finance.v1.UpdateCostProductMasterErpLinkageResponse.base:type_name -> common.v1.BaseResponse
+	34, // 9: finance.v1.UpdateCostProductMasterErpLinkageResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 10: finance.v1.UpdateCostProductMasterErpLinkageResponse.data:type_name -> finance.v1.CostProductMaster
-	26, // 11: finance.v1.DeactivateCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
-	26, // 12: finance.v1.UnlockCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
+	34, // 11: finance.v1.DeactivateCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
+	34, // 12: finance.v1.UnlockCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 13: finance.v1.UnlockCostProductMasterResponse.data:type_name -> finance.v1.CostProductMaster
-	27, // 14: finance.v1.ListCostProductMastersRequest.pagination:type_name -> common.v1.PaginationRequest
-	26, // 15: finance.v1.ListCostProductMastersResponse.base:type_name -> common.v1.BaseResponse
+	35, // 14: finance.v1.ListCostProductMastersRequest.pagination:type_name -> common.v1.PaginationRequest
+	34, // 15: finance.v1.ListCostProductMastersResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 16: finance.v1.ListCostProductMastersResponse.data:type_name -> finance.v1.CostProductMaster
-	28, // 17: finance.v1.ListCostProductMastersResponse.pagination:type_name -> common.v1.PaginationResponse
-	26, // 18: finance.v1.ExportCostProductMastersResponse.base:type_name -> common.v1.BaseResponse
-	26, // 19: finance.v1.ImportCostProductMastersResponse.base:type_name -> common.v1.BaseResponse
-	26, // 20: finance.v1.DownloadCostProductMasterTemplateResponse.base:type_name -> common.v1.BaseResponse
-	26, // 21: finance.v1.DuplicateProductResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 22: finance.v1.CostProductMasterService.CreateCostProductMaster:input_type -> finance.v1.CreateCostProductMasterRequest
-	3,  // 23: finance.v1.CostProductMasterService.GetCostProductMaster:input_type -> finance.v1.GetCostProductMasterRequest
-	5,  // 24: finance.v1.CostProductMasterService.GetCostProductMasterByCode:input_type -> finance.v1.GetCostProductMasterByCodeRequest
-	7,  // 25: finance.v1.CostProductMasterService.UpdateCostProductMaster:input_type -> finance.v1.UpdateCostProductMasterRequest
-	9,  // 26: finance.v1.CostProductMasterService.UpdateCostProductMasterErpLinkage:input_type -> finance.v1.UpdateCostProductMasterErpLinkageRequest
-	11, // 27: finance.v1.CostProductMasterService.DeactivateCostProductMaster:input_type -> finance.v1.DeactivateCostProductMasterRequest
-	13, // 28: finance.v1.CostProductMasterService.UnlockCostProductMaster:input_type -> finance.v1.UnlockCostProductMasterRequest
-	15, // 29: finance.v1.CostProductMasterService.ListCostProductMasters:input_type -> finance.v1.ListCostProductMastersRequest
-	17, // 30: finance.v1.CostProductMasterService.ExportCostProductMasters:input_type -> finance.v1.ExportCostProductMastersRequest
-	19, // 31: finance.v1.CostProductMasterService.ImportCostProductMasters:input_type -> finance.v1.ImportCostProductMastersRequest
-	21, // 32: finance.v1.CostProductMasterService.DownloadCostProductMasterTemplate:input_type -> finance.v1.DownloadCostProductMasterTemplateRequest
-	23, // 33: finance.v1.CostProductMasterService.DuplicateProduct:input_type -> finance.v1.DuplicateProductRequest
-	2,  // 34: finance.v1.CostProductMasterService.CreateCostProductMaster:output_type -> finance.v1.CreateCostProductMasterResponse
-	4,  // 35: finance.v1.CostProductMasterService.GetCostProductMaster:output_type -> finance.v1.GetCostProductMasterResponse
-	6,  // 36: finance.v1.CostProductMasterService.GetCostProductMasterByCode:output_type -> finance.v1.GetCostProductMasterByCodeResponse
-	8,  // 37: finance.v1.CostProductMasterService.UpdateCostProductMaster:output_type -> finance.v1.UpdateCostProductMasterResponse
-	10, // 38: finance.v1.CostProductMasterService.UpdateCostProductMasterErpLinkage:output_type -> finance.v1.UpdateCostProductMasterErpLinkageResponse
-	12, // 39: finance.v1.CostProductMasterService.DeactivateCostProductMaster:output_type -> finance.v1.DeactivateCostProductMasterResponse
-	14, // 40: finance.v1.CostProductMasterService.UnlockCostProductMaster:output_type -> finance.v1.UnlockCostProductMasterResponse
-	16, // 41: finance.v1.CostProductMasterService.ListCostProductMasters:output_type -> finance.v1.ListCostProductMastersResponse
-	18, // 42: finance.v1.CostProductMasterService.ExportCostProductMasters:output_type -> finance.v1.ExportCostProductMastersResponse
-	20, // 43: finance.v1.CostProductMasterService.ImportCostProductMasters:output_type -> finance.v1.ImportCostProductMastersResponse
-	22, // 44: finance.v1.CostProductMasterService.DownloadCostProductMasterTemplate:output_type -> finance.v1.DownloadCostProductMasterTemplateResponse
-	24, // 45: finance.v1.CostProductMasterService.DuplicateProduct:output_type -> finance.v1.DuplicateProductResponse
-	34, // [34:46] is the sub-list for method output_type
-	22, // [22:34] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	22, // [22:22] is the sub-list for extension extendee
-	0,  // [0:22] is the sub-list for field type_name
+	36, // 17: finance.v1.ListCostProductMastersResponse.pagination:type_name -> common.v1.PaginationResponse
+	34, // 18: finance.v1.ExportCostProductMastersResponse.base:type_name -> common.v1.BaseResponse
+	34, // 19: finance.v1.ImportCostProductMastersResponse.base:type_name -> common.v1.BaseResponse
+	34, // 20: finance.v1.DownloadCostProductMasterTemplateResponse.base:type_name -> common.v1.BaseResponse
+	34, // 21: finance.v1.DuplicateProductResponse.base:type_name -> common.v1.BaseResponse
+	34, // 22: finance.v1.ListRMDenierOverridesResponse.base:type_name -> common.v1.BaseResponse
+	25, // 23: finance.v1.ListRMDenierOverridesResponse.data:type_name -> finance.v1.RMDenierOverride
+	26, // 24: finance.v1.ListRMDenierOverridesResponse.duplicate_products:type_name -> finance.v1.DuplicateProductRef
+	34, // 25: finance.v1.UpsertRMDenierOverrideResponse.base:type_name -> common.v1.BaseResponse
+	25, // 26: finance.v1.UpsertRMDenierOverrideResponse.data:type_name -> finance.v1.RMDenierOverride
+	34, // 27: finance.v1.DeleteRMDenierOverrideResponse.base:type_name -> common.v1.BaseResponse
+	1,  // 28: finance.v1.CostProductMasterService.CreateCostProductMaster:input_type -> finance.v1.CreateCostProductMasterRequest
+	3,  // 29: finance.v1.CostProductMasterService.GetCostProductMaster:input_type -> finance.v1.GetCostProductMasterRequest
+	5,  // 30: finance.v1.CostProductMasterService.GetCostProductMasterByCode:input_type -> finance.v1.GetCostProductMasterByCodeRequest
+	7,  // 31: finance.v1.CostProductMasterService.UpdateCostProductMaster:input_type -> finance.v1.UpdateCostProductMasterRequest
+	9,  // 32: finance.v1.CostProductMasterService.UpdateCostProductMasterErpLinkage:input_type -> finance.v1.UpdateCostProductMasterErpLinkageRequest
+	11, // 33: finance.v1.CostProductMasterService.DeactivateCostProductMaster:input_type -> finance.v1.DeactivateCostProductMasterRequest
+	13, // 34: finance.v1.CostProductMasterService.UnlockCostProductMaster:input_type -> finance.v1.UnlockCostProductMasterRequest
+	15, // 35: finance.v1.CostProductMasterService.ListCostProductMasters:input_type -> finance.v1.ListCostProductMastersRequest
+	17, // 36: finance.v1.CostProductMasterService.ExportCostProductMasters:input_type -> finance.v1.ExportCostProductMastersRequest
+	19, // 37: finance.v1.CostProductMasterService.ImportCostProductMasters:input_type -> finance.v1.ImportCostProductMastersRequest
+	21, // 38: finance.v1.CostProductMasterService.DownloadCostProductMasterTemplate:input_type -> finance.v1.DownloadCostProductMasterTemplateRequest
+	23, // 39: finance.v1.CostProductMasterService.DuplicateProduct:input_type -> finance.v1.DuplicateProductRequest
+	27, // 40: finance.v1.CostProductMasterService.ListRMDenierOverrides:input_type -> finance.v1.ListRMDenierOverridesRequest
+	29, // 41: finance.v1.CostProductMasterService.UpsertRMDenierOverride:input_type -> finance.v1.UpsertRMDenierOverrideRequest
+	31, // 42: finance.v1.CostProductMasterService.DeleteRMDenierOverride:input_type -> finance.v1.DeleteRMDenierOverrideRequest
+	2,  // 43: finance.v1.CostProductMasterService.CreateCostProductMaster:output_type -> finance.v1.CreateCostProductMasterResponse
+	4,  // 44: finance.v1.CostProductMasterService.GetCostProductMaster:output_type -> finance.v1.GetCostProductMasterResponse
+	6,  // 45: finance.v1.CostProductMasterService.GetCostProductMasterByCode:output_type -> finance.v1.GetCostProductMasterByCodeResponse
+	8,  // 46: finance.v1.CostProductMasterService.UpdateCostProductMaster:output_type -> finance.v1.UpdateCostProductMasterResponse
+	10, // 47: finance.v1.CostProductMasterService.UpdateCostProductMasterErpLinkage:output_type -> finance.v1.UpdateCostProductMasterErpLinkageResponse
+	12, // 48: finance.v1.CostProductMasterService.DeactivateCostProductMaster:output_type -> finance.v1.DeactivateCostProductMasterResponse
+	14, // 49: finance.v1.CostProductMasterService.UnlockCostProductMaster:output_type -> finance.v1.UnlockCostProductMasterResponse
+	16, // 50: finance.v1.CostProductMasterService.ListCostProductMasters:output_type -> finance.v1.ListCostProductMastersResponse
+	18, // 51: finance.v1.CostProductMasterService.ExportCostProductMasters:output_type -> finance.v1.ExportCostProductMastersResponse
+	20, // 52: finance.v1.CostProductMasterService.ImportCostProductMasters:output_type -> finance.v1.ImportCostProductMastersResponse
+	22, // 53: finance.v1.CostProductMasterService.DownloadCostProductMasterTemplate:output_type -> finance.v1.DownloadCostProductMasterTemplateResponse
+	24, // 54: finance.v1.CostProductMasterService.DuplicateProduct:output_type -> finance.v1.DuplicateProductResponse
+	28, // 55: finance.v1.CostProductMasterService.ListRMDenierOverrides:output_type -> finance.v1.ListRMDenierOverridesResponse
+	30, // 56: finance.v1.CostProductMasterService.UpsertRMDenierOverride:output_type -> finance.v1.UpsertRMDenierOverrideResponse
+	32, // 57: finance.v1.CostProductMasterService.DeleteRMDenierOverride:output_type -> finance.v1.DeleteRMDenierOverrideResponse
+	43, // [43:58] is the sub-list for method output_type
+	28, // [28:43] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_finance_v1_cost_product_master_proto_init() }
@@ -1919,13 +2814,14 @@ func file_finance_v1_cost_product_master_proto_init() {
 	if File_finance_v1_cost_product_master_proto != nil {
 		return
 	}
+	file_finance_v1_cost_product_master_proto_msgTypes[7].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_finance_v1_cost_product_master_proto_rawDesc), len(file_finance_v1_cost_product_master_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   25,
+			NumMessages:   33,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

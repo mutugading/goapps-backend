@@ -109,6 +109,9 @@ func (s *Server) Start(ctx context.Context) error { //nolint:gocognit,gocyclo //
 	if err := financev1.RegisterShadeServiceHandlerFromEndpoint(ctx, gwMux, s.grpcTarget, opts); err != nil {
 		return fmt.Errorf("failed to register Shade gateway: %w", err)
 	}
+	if err := financev1.RegisterSuperbaCostSpServiceHandlerFromEndpoint(ctx, gwMux, s.grpcTarget, opts); err != nil {
+		return fmt.Errorf("failed to register SuperbaCostSp gateway: %w", err)
+	}
 	if err := financev1.RegisterMBHeadServiceHandlerFromEndpoint(ctx, gwMux, s.grpcTarget, opts); err != nil {
 		return fmt.Errorf("failed to register MBHead gateway: %w", err)
 	}
@@ -141,6 +144,12 @@ func (s *Server) Start(ctx context.Context) error { //nolint:gocognit,gocyclo //
 	}
 	if err := financev1.RegisterCostRmTypeServiceHandlerFromEndpoint(ctx, gwMux, s.grpcTarget, opts); err != nil {
 		return fmt.Errorf("failed to register CostRmType gateway: %w", err)
+	}
+	if err := financev1.RegisterErpIntegrationServiceHandlerFromEndpoint(ctx, gwMux, s.grpcTarget, opts); err != nil {
+		return fmt.Errorf("failed to register ErpIntegration gateway: %w", err)
+	}
+	if err := financev1.RegisterErpRuleServiceHandlerFromEndpoint(ctx, gwMux, s.grpcTarget, opts); err != nil {
+		return fmt.Errorf("failed to register ErpRule gateway: %w", err)
 	}
 	if err := financev1.RegisterCostErpLookupServiceHandlerFromEndpoint(ctx, gwMux, s.grpcTarget, opts); err != nil {
 		return fmt.Errorf("failed to register CostErpLookup gateway: %w", err)
@@ -185,6 +194,10 @@ func (s *Server) Start(ctx context.Context) error { //nolint:gocognit,gocyclo //
 	// F4 (B4): Bulk Edit Product Params gateway.
 	if err := financev1.RegisterCostProductParamBulkServiceHandlerFromEndpoint(ctx, gwMux, s.grpcTarget, opts); err != nil {
 		return fmt.Errorf("failed to register CostProductParamBulk gateway: %w", err)
+	}
+	// master-lookup-sync: lookup sync gateway.
+	if err := financev1.RegisterCostProductLookupSyncServiceHandlerFromEndpoint(ctx, gwMux, s.grpcTarget, opts); err != nil {
+		return fmt.Errorf("failed to register CostProductLookupSync gateway: %w", err)
 	}
 	// S8a foundation: CostCalcService stub gateway.
 	if err := financev1.RegisterCostCalcServiceHandlerFromEndpoint(ctx, gwMux, s.grpcTarget, opts); err != nil {

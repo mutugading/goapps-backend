@@ -37,16 +37,22 @@ import (
 	costrouteapp "github.com/mutugading/goapps-backend/services/finance/internal/application/costroute"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/costsheet"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/lookupregistry"
+	"github.com/mutugading/goapps-backend/services/finance/internal/application/lookupsync"
+	"github.com/mutugading/goapps-backend/services/finance/internal/application/lookupsyncjob"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/mbbatch"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/mbheadbulk"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/mbpush"
+	"github.com/mutugading/goapps-backend/services/finance/internal/application/mbsourceautofill"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/oraclesync"
+	periodlockapp "github.com/mutugading/goapps-backend/services/finance/internal/application/periodlock"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/productparambulk"
 	apprmcost "github.com/mutugading/goapps-backend/services/finance/internal/application/rmcost"
 	appshade "github.com/mutugading/goapps-backend/services/finance/internal/application/shade"
+	appsuperbacostsp "github.com/mutugading/goapps-backend/services/finance/internal/application/superbacostsp"
 	grpcdelivery "github.com/mutugading/goapps-backend/services/finance/internal/delivery/grpc"
 	httpdelivery "github.com/mutugading/goapps-backend/services/finance/internal/delivery/httpdelivery"
 	notifDomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costnotification"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbsource"
 	domainshade "github.com/mutugading/goapps-backend/services/finance/internal/domain/shade"
 
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/config"
@@ -54,6 +60,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/iamclient"
 	iamnotifier "github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/iamnotifier"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/mbrelock"
+	erpmetrics "github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/metrics"
 	oracleinfra "github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/oracle"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/postgres"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/rabbitmq"
@@ -139,6 +146,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	var costCalcJobTriggerPub costcalc.JobTriggerPublisher
 	var bulkTransitionPublisher mbheadbulk.BulkTransitionJobPublisher
 	var productParamBulkPublisher productparambulk.BulkEditJobPublisher
+	var lookupSyncPublisher lookupsyncjob.JobPublisher
 	if rmqAdapter != nil {
 		oracleSyncPublisher = rmqAdapter
 		rmCostPublisher = rmqAdapter
@@ -146,6 +154,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		costSheetExportPublisher = rmqAdapter
 		bulkTransitionPublisher = rmqAdapter
 		productParamBulkPublisher = rmqAdapter
+		lookupSyncPublisher = rmqAdapter
 	}
 	if costJobPub != nil {
 		costCalcJobTriggerPub = costJobPub
@@ -185,6 +194,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	// oil-cost-rm-group: OIL_NAME allowed/default oil RM groups per product type.
 	oilGroupPolicy := postgres.NewOilGroupPolicyRepository(db)
 	shadeRepo := postgres.NewShadeRepository(db)
+	superbaCostSpRepo := postgres.NewSuperbaCostSpRepository(db)
 	// NOTE: legacy productRepo / prdRequestRepo wired to dropped tables — removed.
 	// Canonical Phase B (cost_product_master, cost_product_order) wiring added in S2.8-S2.10.
 
@@ -334,6 +344,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	if err != nil {
 		return fmt.Errorf("new yarn lookup fill handler: %w", err)
 	}
+	yarnLookupFillHandler.WithSuperbaFallback(mbsource.NewSuperbaProvider(superbaCostSpRepo))
 
 	// R30 — compare the live mst_lookup_master_column rows against the readers
 	// compiled into the fill handler and log any divergence. Deliberately
@@ -438,6 +449,14 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	if err != nil {
 		return err
 	}
+	mbSourceAutoFill := mbsourceautofill.New(
+		postgres.NewMBSourceAutoFillStore(db),
+		mbsource.NewResolver(
+			mbsource.NewMBSpinProvider(mbSpinRepo, parameterRepo),
+			mbsource.NewSuperbaProvider(superbaCostSpRepo),
+		),
+		parameterRepo,
+	)
 	costProductMasterHandler, err := grpcdelivery.NewCostProductMasterHandler(costProductMasterRepo, costProductTypeRepo)
 	if err != nil {
 		return err
@@ -446,6 +465,8 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	// Wire async import support (storage + job repo + publisher) into CPM handler.
 	costProductMasterHandler.WithImportSupport(costImportJobRepo, storageSvc, rmqAdapter)
 	costProductMasterHandler.WithAuditSupport(costAuditLogRepo)
+	costProductMasterHandler.WithRMDenierOverrides(costProductMasterRepo)
+	costProductMasterHandler.WithMBSourceAutoFill(mbSourceAutoFill)
 
 	// Build CostDataImportHandler (CAPP/CPP async import + export/template for CAPP/CPP/CPM).
 	cappExportH := cappapp.NewExportHandler(costProductParameterRepo)
@@ -547,7 +568,8 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	costProductParameterHandler := grpcdelivery.NewCostProductParameterHandler(costProductParameterApp).
 		WithParamRepo(parameterRepo).
 		WithFormulaRepo(formulaRepo).
-		WithAuditSupport(costAuditLogRepo)
+		WithAuditSupport(costAuditLogRepo).
+		WithSuperbaColours(costcalc.NewSuperbaColourLoader(db.DB))
 
 	// Bulk Edit Product Params (F4, B4). productParamBulkPublisher is the SAME
 	// rmqAdapter every other job publisher above uses — nil when RabbitMQ is
@@ -561,6 +583,22 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	costProductParamBulkHandler := grpcdelivery.NewCostProductParamBulkHandler().
 		WithSubmitHandler(productParamBulkSubmitHandler, jobRepo, costProductMasterRepo)
 
+	// master-lookup-sync: read side (P5) + apply job enqueuer / tracker (P6).
+	// lookupSyncPublisher is nil without RabbitMQ → Apply answers 503.
+	lookupSyncResolver := lookupsync.NewResolver(
+		machineRepo, interminglingRepo, productGradeRepo, mbHeadRepo, mbSpinRepo, boxBobbinCostRepo, parameterRepo,
+	).WithSuperbaFallback(mbsource.NewSuperbaProvider(superbaCostSpRepo))
+	lookupSyncPlanner := lookupsync.NewPlanner(lookupSyncResolver, parameterRepo, postgres.NewLookupSyncRepository(db))
+	costProductLookupSyncHandler, err := grpcdelivery.NewCostProductLookupSyncHandler(lookupSyncPlanner)
+	if err != nil {
+		return fmt.Errorf("new cost product lookup sync handler: %w", err)
+	}
+	lookupSyncJobs := grpcdelivery.NewLookupSyncJobAdapter(
+		lookupsyncjob.NewEnqueuer(jobRepo, lookupSyncPublisher, lookupSyncPlanner),
+		lookupsyncjob.NewTracker(jobRepo, costProductMasterRepo),
+	)
+	costProductLookupSyncHandler.WithEnqueuer(lookupSyncJobs).WithJobTracker(lookupSyncJobs)
+
 	// Fill-assignment repositories + handlers.
 	fillConfigRepo := postgres.NewCostFillConfigRepository(db)
 	fillTaskRepo := postgres.NewCostFillTaskRepository(db)
@@ -571,6 +609,9 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	// SaveRouteGraph never consults this, and no write path is touched by it.
 	nestedMBFlattener := costrouteapp.NewNestedMBFlattener(costRouteRepo, postgres.NewMBTypeChecker(db))
 	costRouteHandler.WithNestedMBFlattener(nestedMBFlattener)
+	// Wire read-time computed RM ratio annotation (DENIER-mode products) into the
+	// route graph viewer. Same SQL + domain function as the calc engine; read-only.
+	costRouteHandler.WithRatioLoader(postgres.NewRouteRMRatioLoader(db))
 
 	upsertGlobalHandler := fillapp.NewUpsertGlobalConfigHandler(fillConfigRepo)
 	upsertOverrideHandler := fillapp.NewUpsertOverrideHandler(fillConfigRepo)
@@ -662,6 +703,10 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	// One checker instance serves all three MB guards: the trigger-time scope rejection,
 	// the persist-time refusal inside ProcessChunk, and the manual verify/approve block.
 	mbTypeChecker := postgres.NewMBTypeChecker(db)
+	// Period lock (plan-02 P1-T3): one read-only checker guards costcalc
+	// trigger/verify/approve, MB_BATCH and MB push for locked (period, ACTUAL).
+	// With no cst_period_lock row every guard passes, so behavior is unchanged.
+	periodLockRepo := postgres.NewPeriodLockRepository(db)
 	calcSvcOpts := []costcalc.ServiceOption{costcalc.WithMBProductGuard(mbTypeChecker)}
 	if rmRateLoader, ok := calcLoader.(costcalc.RMRateOrderLoader); ok {
 		calcSvcOpts = append(calcSvcOpts, costcalc.WithRMRateOrderLoader(rmRateLoader))
@@ -671,12 +716,14 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	}
 	calcSvc := costcalc.NewService(
 		calcJobRepo, calcChunkRepo, calcJobProductRepo, costResultRepo, costAuditHistoryRepo,
-		calcLoader, calcEvalCache, nil, costCalcJobTriggerPub,
+		calcLoader, calcEvalCache,
+		auditadapter.NewCostCalcEmitter(auditapp.NewEmitter(costAuditLogRepo)), // P0-T9: verify/approve audit (best-effort)
+		costCalcJobTriggerPub,
 		calcSvcOpts...,
 	)
 	costCalcHandler := grpcdelivery.NewCostCalcHandler(
 		calcSvc,
-		costcalc.NewTriggerJobHandler(calcSvc, costcalc.WithMBGuard(mbTypeChecker)),
+		costcalc.NewTriggerJobHandler(calcSvc, costcalc.WithMBGuard(mbTypeChecker), costcalc.WithTriggerPeriodLock(periodLockRepo)),
 		costcalc.NewGetJobHandler(calcSvc),
 		costcalc.NewListJobsHandler(calcSvc),
 		costcalc.NewListChunksHandler(calcSvc),
@@ -687,8 +734,8 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		costcalc.NewListCostHistoryHandler(calcSvc),
 		costcalc.NewListCostResultsHandler(calcSvc),
 		costcalc.NewPeriodsHandler(calcSvc),
-		costcalc.NewVerifyCostHandler(calcSvc, costcalc.WithVerifyMBGuard(mbTypeChecker)),
-		costcalc.NewApproveCostHandler(calcSvc, costcalc.WithApproveMBGuard(mbTypeChecker)),
+		costcalc.NewVerifyCostHandler(calcSvc, costcalc.WithVerifyMBGuard(mbTypeChecker), costcalc.WithVerifyPeriodLock(periodLockRepo)),
+		costcalc.NewApproveCostHandler(calcSvc, costcalc.WithApproveMBGuard(mbTypeChecker), costcalc.WithApprovePeriodLock(periodLockRepo)),
 		costcalc.NewGetRouteCostSheetHandler(calcSvc),
 		costsheet.NewRequestExportHandler(jobRepo, costResultRepo, costSheetExportPublisher),
 		costSheetExportURL,
@@ -703,7 +750,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	mbPushHeadReader := mbpush.NewMBHeadReaderAdapter(mbHeadRepo)
 	mbPushCostReader := mbpush.NewCostReaderAdapter(costResultRepo)
 	mbPushPreviewHandler := mbpush.NewPreviewHandler(mbPushHeadReader, mbPushCostReader, cstMBCostRepo)
-	mbPushExecuteHandler := mbpush.NewExecuteHandler(db, mbPushHeadReader, mbPushCostReader, cstMBCostRepo, mbPushLogRepo)
+	mbPushExecuteHandler := mbpush.NewExecuteHandler(db, mbPushHeadReader, mbPushCostReader, cstMBCostRepo, mbPushLogRepo, mbpush.WithPeriodLock(periodLockRepo))
 	mbPushHandler, err := grpcdelivery.NewMBPushHandler(mbPushPreviewHandler, mbPushExecuteHandler, mbPushLogRepo)
 	if err != nil {
 		return err
@@ -720,7 +767,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		costAuditHistoryRepo,
 		calcJobRepo,
 	)
-	mbBatchTriggerHandler := mbbatch.NewTriggerHandler(mbBatchSvc, calcJobRepo)
+	mbBatchTriggerHandler := mbbatch.NewTriggerHandler(mbBatchSvc, calcJobRepo, mbbatch.WithPeriodLock(periodLockRepo))
 	mbBatchHandler, err := grpcdelivery.NewMBBatchHandler(mbBatchTriggerHandler)
 	if err != nil {
 		return err
@@ -763,8 +810,16 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		return err
 	}
 
-	// Oracle BI ETL runner (optional — graceful degradation when Oracle is unavailable).
-	var biETLRunner jobapp.BIETLRunner
+	// ERP cost integration writer (P0-T14). Always non-nil and fails closed to
+	// "disabled": nothing here opens a GOAPPS_IF connection (that lands in
+	// P8-T2), so the service boots unchanged when Oracle is absent.
+	erpWriter := setupErpWriter(cfg)
+
+	// Oracle BI ETL runners (optional — graceful degradation when Oracle is unavailable).
+	// bietl.Router picks the runner by the job's data source (HD-01): ERP_ORACLE → MV loader,
+	// HRIS_ORACLE → HRIS loader (H010). A source without a runner fails its job with a clear
+	// message; the service itself keeps running.
+	biETLRouter := bietl.NewRouter(biDataSourceRepo)
 	oracleClient, oracleErr := oracleinfra.NewClient(cfg.Oracle, log.Logger)
 	if oracleErr != nil {
 		log.Warn().Err(oracleErr).Msg("Oracle unavailable; BI ETL jobs (etl_mis/etl_delivery_margin/etl_sales) will fail gracefully")
@@ -775,8 +830,41 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 			}
 		}()
 		biMVRepo := oracleinfra.NewBIMVRepository(oracleClient)
-		biETLRunner = bietl.NewMVLoader(biMVRepo, biFactRepo)
+		biETLRouter.Register(bietl.SourceERPOracle, bietl.NewMVLoader(biMVRepo, biFactRepo))
 	}
+	// HRIS connection (HD-02): separate read-only account; opt-in via ORACLE_HRIS_* env.
+	if hrisClient := setupHRISClient(cfg.OracleHRIS); hrisClient != nil {
+		defer func() {
+			if cErr := hrisClient.Close(); cErr != nil {
+				log.Warn().Err(cErr).Msg("Failed to close Oracle HRIS connection")
+			}
+		}()
+		hrStaging := postgres.NewBiHRStagingRepository(db)
+		biETLRouter.Register(bietl.SourceHRISOracle, bietl.NewHRISLoader(
+			oracleinfra.NewHRISOTRepository(hrisClient),
+			hrStaging,
+		).WithATT(oracleinfra.NewHRISATTRepository(hrisClient), hrStaging))
+	}
+	var biETLRunner jobapp.BIETLRunner = biETLRouter
+
+	// ERP cost integration (plan-04 P3-T3/T4): CreateBatch, batch-step
+	// trigger and period lock/unlock with the real read-only ADJ posted probe.
+	// Core RPCs exposed via ErpIntegrationService (P6-T3a).
+	costProductMasterHandler.WithErpAttributes(cpmapp.NewUpdateErpAttributesHandler(costProductMasterRepo, costProductMasterRepo, auditapp.NewEmitter(costAuditLogRepo)))
+	costProductMasterHandler.WithRMRatioMode(cpmapp.NewUpdateRMRatioModeHandler(costProductMasterRepo, costProductMasterRepo, auditapp.NewEmitter(costAuditLogRepo)))
+	erpInt := setupErpIntegration(cfg, db, jobRepo, periodLockRepo, costAuditLogRepo, oracleClient, oracleErr, rmqAdapter, erpWriter, costProductMasterRepo, costProductTypeRepo)
+	erpIntegrationHandler := grpcdelivery.NewErpIntegrationGRPCHandler(grpcdelivery.ErpIntegrationDeps{
+		Create: erpInt.createBatch, Steps: erpInt.stepTrigger, Batches: erpInt.batches, Ack: erpInt.ackWarnings,
+		PushPrev: erpInt.pushPreview, ValPreview: erpInt.valuationPreview, Lock: erpInt.lock, Unlock: erpInt.unlock,
+		Previews: erpInt.previews, Schedule: erpInt.scheduleHandler, PeriodLock: periodlockapp.NewGetHandler(periodLockRepo),
+		Coverage: erpInt.coverage, StdCost: erpInt.stdCost, Recon: erpInt.stdCost, OracleCall: erpInt.oracleCall, Sanity: erpInt.sanity,
+		LinkReport: erpInt.linkReadiness, Backtest: erpInt.backtest, Config: erpInt.cfgView,
+		Abandon: erpInt.abandon, LinkErp: erpInt.linkErp, CreateProduct: erpInt.createProduct, MasterSync: erpInt.masterSync,
+	})
+	erpRuleHandler := setupErpRule(db, erpInt.batches, costAuditLogRepo)
+	// ERP integration gauges (plan-06 P5-T8): read-only PG aggregates sampled
+	// every minute until shutdown.
+	go erpmetrics.NewErpStatsSampler(postgres.NewErpMetricsRepository(db), time.Minute).Run(ctx)
 
 	// Shade master Oracle sync (R8) — same graceful-degradation shape as the BI
 	// ETL runner above: a nil shade.Source makes SyncHandler.Execute return
@@ -789,6 +877,19 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		log.Warn().Msg("Oracle unavailable; shade master Sync RPC will report ErrSyncNotConfigured")
 	}
 	shadeSyncHandler := appshade.NewSyncHandler(shadeOracleSource, shadeRepo, log.Logger)
+	// Superba Cost SP master. The Oracle source is not wired yet (phase P4), so
+	// the nil Source makes the Sync RPC report ErrSyncNotConfigured.
+	superbaCostSpHandler, err := grpcdelivery.NewSuperbaCostSpHandler(
+		appsuperbacostsp.NewCreateHandler(superbaCostSpRepo),
+		appsuperbacostsp.NewGetHandler(superbaCostSpRepo),
+		appsuperbacostsp.NewListHandler(superbaCostSpRepo),
+		appsuperbacostsp.NewUpdateHandler(superbaCostSpRepo),
+		appsuperbacostsp.NewDeleteHandler(superbaCostSpRepo),
+		appsuperbacostsp.NewSyncHandler(nil, superbaCostSpRepo, log.Logger),
+	)
+	if err != nil {
+		return fmt.Errorf("new superba cost sp handler: %w", err)
+	}
 	shadeHandler, err := grpcdelivery.NewShadeHandler(
 		appshade.NewCreateHandler(shadeRepo),
 		appshade.NewGetHandler(shadeRepo),
@@ -846,6 +947,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		mbBatchHandler,
 		machineHandler, interminglingHandler, spinFixedCostHandler, yarnTxWeightHandler, yarnTxWeightGroupHandler, productGradeHandler, lookupMasterHandler, yarnLookupFillHandler,
 		shadeHandler,
+		superbaCostSpHandler,
 		oracleSyncHandler, rmGroupHandler, rmCostHandler,
 		costProductTypeHandler, costRmTypeHandler, costErpHandler, costProductMasterHandler, costRouteHandler,
 		costMasterLookupHandler,
@@ -854,10 +956,11 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		costRoutingRuleHandler, costAuditLogHandler, costNotificationHandler,
 		costProductParameterHandler,
 		costProductParamBulkHandler,
+		costProductLookupSyncHandler,
 		costDataImportHandler,
 		costCalcHandler,
 		costFillConfigHandler, costFillTaskHandler,
-		biDashboardHandler, biChartDataHandler, biDataSourceHandler, biJobHandler, biUploadHandler,
+		biDashboardHandler, biChartDataHandler, biDataSourceHandler, biJobHandler, erpIntegrationHandler, erpRuleHandler, biUploadHandler,
 		tokenBlacklist)
 }
 
@@ -982,6 +1085,7 @@ func startServers(ctx context.Context, cfg *config.Config,
 	lookupMasterHandler *grpcdelivery.LookupMasterHandler,
 	yarnLookupFillHandler *grpcdelivery.YarnLookupFillHandler,
 	shadeHandler *grpcdelivery.ShadeHandler,
+	superbaCostSpHandler *grpcdelivery.SuperbaCostSpHandler,
 	oracleSyncHandler *grpcdelivery.OracleSyncHandler,
 	rmGroupHandler *grpcdelivery.RMGroupHandler,
 	rmCostHandler *grpcdelivery.RMCostHandler,
@@ -1001,6 +1105,7 @@ func startServers(ctx context.Context, cfg *config.Config,
 	costNotificationHandler *grpcdelivery.CostNotificationHandler,
 	costProductParameterHandler *grpcdelivery.CostProductParameterHandler,
 	costProductParamBulkHandler *grpcdelivery.CostProductParamBulkHandler,
+	costProductLookupSyncHandler *grpcdelivery.CostProductLookupSyncHandler,
 	costDataImportHandler *grpcdelivery.CostDataImportHandler,
 	costCalcHandler *grpcdelivery.CostCalcHandler,
 	costFillConfigHandler *grpcdelivery.CostFillConfigHandler,
@@ -1009,6 +1114,8 @@ func startServers(ctx context.Context, cfg *config.Config,
 	biChartDataHandler *grpcdelivery.BIChartDataHandler,
 	biDataSourceHandler *grpcdelivery.BIDataSourceHandler,
 	biJobHandler *grpcdelivery.BIJobHandler,
+	erpIntegrationHandler *grpcdelivery.ErpIntegrationHandler,
+	erpRuleHandler *grpcdelivery.ErpRuleHandler,
 	biUploadHandler *grpcdelivery.BIUploadHandler,
 	tokenBlacklist *redisinfra.TokenBlacklist,
 ) error {
@@ -1046,6 +1153,7 @@ func startServers(ctx context.Context, cfg *config.Config,
 	financev1.RegisterLookupMasterServiceServer(grpcServer.GRPCServer(), lookupMasterHandler)
 	financev1.RegisterYarnLookupFillServiceServer(grpcServer.GRPCServer(), yarnLookupFillHandler)
 	financev1.RegisterShadeServiceServer(grpcServer.GRPCServer(), shadeHandler)
+	financev1.RegisterSuperbaCostSpServiceServer(grpcServer.GRPCServer(), superbaCostSpHandler)
 	financev1.RegisterOracleSyncServiceServer(grpcServer.GRPCServer(), oracleSyncHandler)
 	financev1.RegisterRMGroupServiceServer(grpcServer.GRPCServer(), rmGroupHandler)
 	financev1.RegisterRMCostServiceServer(grpcServer.GRPCServer(), rmCostHandler)
@@ -1071,6 +1179,7 @@ func startServers(ctx context.Context, cfg *config.Config,
 	// CostProductParameterService (own Unimplemented embed, own auth_interceptor
 	// permission mappings).
 	financev1.RegisterCostProductParamBulkServiceServer(grpcServer.GRPCServer(), costProductParamBulkHandler)
+	financev1.RegisterCostProductLookupSyncServiceServer(grpcServer.GRPCServer(), costProductLookupSyncHandler)
 	// Costing data import/export service.
 	financev1.RegisterCostDataImportServiceServer(grpcServer.GRPCServer(), costDataImportHandler)
 	// S8a foundation: CostCalcService stub.
@@ -1085,6 +1194,8 @@ func startServers(ctx context.Context, cfg *config.Config,
 	financev1.RegisterChartDataServiceServer(grpcServer.GRPCServer(), biChartDataHandler)
 	financev1.RegisterDataSourceServiceServer(grpcServer.GRPCServer(), biDataSourceHandler)
 	financev1.RegisterBiJobServiceServer(grpcServer.GRPCServer(), biJobHandler)
+	financev1.RegisterErpIntegrationServiceServer(grpcServer.GRPCServer(), erpIntegrationHandler)
+	financev1.RegisterErpRuleServiceServer(grpcServer.GRPCServer(), erpRuleHandler)
 	financev1.RegisterBiUploadServiceServer(grpcServer.GRPCServer(), biUploadHandler)
 
 	// Start gRPC server
@@ -1255,4 +1366,20 @@ func (a *cprRequestNoAdapter) GetRequestNo(ctx context.Context, requestID int64)
 		return "", fmt.Errorf("cprRequestNoAdapter.GetRequestNo: %w", err)
 	}
 	return req.RequestNo(), nil
+}
+
+// setupHRISClient opens the optional HRIS Oracle connection (HD-02). It returns nil when
+// ORACLE_HRIS_* is not configured or the connection fails; HRIS ETL jobs then fail gracefully
+// through bietl.Router while the service keeps running.
+func setupHRISClient(cfg config.OracleConfig) *oracleinfra.Client {
+	if !cfg.Configured() {
+		log.Info().Msg("Oracle HRIS not configured (ORACLE_HRIS_*); HRIS ETL runner not installed")
+		return nil
+	}
+	client, err := oracleinfra.NewClient(cfg, log.Logger)
+	if err != nil {
+		log.Warn().Err(err).Msg("Oracle HRIS unavailable; HRIS ETL jobs will fail gracefully")
+		return nil
+	}
+	return client
 }

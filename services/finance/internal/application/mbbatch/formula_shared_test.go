@@ -163,6 +163,17 @@ func (f *noSharingLoader) LoadProductTypeCodes(context.Context, []int64) (map[in
 	return map[int64]string{}, nil
 }
 
+// LoadProductRMRatioModes reports no modes, so every product stays INPUT
+// (legacy route-ratio behavior).
+func (f *noSharingLoader) LoadProductRMRatioModes(context.Context, []int64) (map[int64]string, error) {
+	return map[int64]string{}, nil
+}
+
+// LoadRMGroupDeniers reports no group deniers.
+func (f *noSharingLoader) LoadRMGroupDeniers(context.Context, []string) (map[string]float64, map[string]bool, error) {
+	return map[string]float64{}, map[string]bool{}, nil
+}
+
 func (f *noSharingLoader) LoadSellingSnapshots(context.Context, []int64, string) (map[int64]map[string]float64, error) {
 	return map[int64]map[string]float64{}, nil
 }
@@ -314,4 +325,19 @@ func TestComputeAndPersist_NetProdAndFixedCostEqualAcrossTypesWhenInputsMatch(t 
 		require.InDelta(t, 90.0, snapshot[ResultParamNetProd], 1e-6, "%s: MB_NET_PROD depends only on non-cost inputs", r.CalcType())
 		require.InDelta(t, 10.0, snapshot[ResultParamFixedCost], 1e-6, "%s: MB_FIXED_TOTAL depends only on non-cost inputs", r.CalcType())
 	}
+}
+
+// LoadSuperbaCost reports no SUPERBA-class products.
+func (f *noSharingLoader) LoadSuperbaCost(context.Context, []int64) (map[int64]*costcalc.SuperbaCost, error) {
+	return map[int64]*costcalc.SuperbaCost{}, nil
+}
+
+// LoadUpstreamDeniers reports no upstream deniers.
+func (f *noSharingLoader) LoadUpstreamDeniers(context.Context, []int64) (map[int64]float64, error) {
+	return map[int64]float64{}, nil
+}
+
+// LoadRMDenierOverrides reports no RM denier overrides.
+func (f *noSharingLoader) LoadRMDenierOverrides(context.Context, []int64) (map[int64]costroute.DenierOverrides, error) {
+	return map[int64]costroute.DenierOverrides{}, nil
 }

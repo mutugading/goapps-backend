@@ -127,6 +127,17 @@ func (f *fakeLoader) LoadProductTypeCodes(context.Context, []int64) (map[int64]s
 	return map[int64]string{}, nil
 }
 
+// LoadProductRMRatioModes reports no modes, so every product stays INPUT
+// (legacy route-ratio behavior).
+func (f *fakeLoader) LoadProductRMRatioModes(context.Context, []int64) (map[int64]string, error) {
+	return map[int64]string{}, nil
+}
+
+// LoadRMGroupDeniers reports no group deniers.
+func (f *fakeLoader) LoadRMGroupDeniers(context.Context, []string) (map[string]float64, map[string]bool, error) {
+	return map[string]float64{}, map[string]bool{}, nil
+}
+
 func (f *fakeLoader) LoadSellingSnapshots(context.Context, []int64, string) (map[int64]map[string]float64, error) {
 	return map[int64]map[string]float64{}, nil
 }
@@ -237,4 +248,31 @@ func TestNewMBResult_LeavesYarnOnlyCostSheetFieldsZero(t *testing.T) {
 	require.Zero(t, r.CaptiveCost())
 	require.Zero(t, r.DeliveryCost())
 	require.Zero(t, r.VB1DelCost())
+}
+
+// P0-T10b: MB ACTUAL rows carry the USD label (label only; numbers unchanged),
+// non-ACTUAL passes keep the historical IDR label.
+func TestNewMBResult_CurrencyLabel(t *testing.T) {
+	out := &costcalc.ComputeOutput{CostPerUnit: 10, TotalRMCost: 8, TotalConversion: 2, TotalCost: 10}
+	actual := newMBResult(1, "202607", costcalcdom.CalcTypeActual, 900, 77, out)
+	require.Equal(t, "USD", actual.Currency())
+	require.InDelta(t, 10.0, actual.CostPerUnit(), 0)
+	require.InDelta(t, 10.0, actual.TotalCost(), 0)
+	require.Equal(t, "IDR", newMBResult(1, "202607", costcalcdom.CalcTypeForecast, 900, 77, out).Currency())
+	require.Equal(t, "IDR", newMBResult(1, "202607", costcalcdom.CalcTypeSelling, 900, 77, out).Currency())
+}
+
+// LoadSuperbaCost reports no SUPERBA-class products.
+func (f *fakeLoader) LoadSuperbaCost(context.Context, []int64) (map[int64]*costcalc.SuperbaCost, error) {
+	return map[int64]*costcalc.SuperbaCost{}, nil
+}
+
+// LoadUpstreamDeniers reports no upstream deniers.
+func (f *fakeLoader) LoadUpstreamDeniers(context.Context, []int64) (map[int64]float64, error) {
+	return map[int64]float64{}, nil
+}
+
+// LoadRMDenierOverrides reports no RM denier overrides.
+func (f *fakeLoader) LoadRMDenierOverrides(context.Context, []int64) (map[int64]costroute.DenierOverrides, error) {
+	return map[int64]costroute.DenierOverrides{}, nil
 }

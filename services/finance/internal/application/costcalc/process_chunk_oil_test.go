@@ -44,7 +44,7 @@ func (f *oilChunkLoader) LoadRMCosts(_ context.Context, codes []string, _, _ str
 func (f *oilChunkLoader) LoadFormulas(_ context.Context, ids []int64) (map[int64][]Formula, error) {
 	out := make(map[int64][]Formula, len(ids))
 	for _, id := range ids {
-		out[id] = oilFormulas(oilGainPOYDefault)
+		out[id] = withFinalCostSink(oilFormulas(oilGainPOYDefault))
 	}
 	return out, nil
 }
@@ -126,4 +126,9 @@ func TestBulkLoad_OilContextError_AbortsChunk(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, sentinel)
 	assert.Contains(t, err.Error(), "load oil context")
+}
+
+// LoadSuperbaCost reports no SUPERBA-class products.
+func (f *oilChunkLoader) LoadSuperbaCost(context.Context, []int64) (map[int64]*SuperbaCost, error) {
+	return map[int64]*SuperbaCost{}, nil
 }

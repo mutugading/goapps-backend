@@ -71,6 +71,22 @@ func oilFormulas(poyDefaultExpr string) []Formula {
 	}
 }
 
+// withFinalCostSink appends a COST_STAGE_OUT pass-through formula so a fixture
+// built around the oil sub-chain models a complete CAPP. Without it the oil
+// formulas are the only DAG sinks and ComputeProduct fails with
+// ErrMissingFinalCostFormula, which is the production guard, not what these
+// oil-value tests exercise.
+func withFinalCostSink(formulas []Formula) []Formula {
+	return append(formulas, Formula{
+		FormulaCode:     "F_YARN_STAGE_OUT",
+		FormulaType:     "CALCULATION",
+		Expression:      ScopeKeyCostRMTotal,
+		ResultParamCode: ScopeKeyFinalCost,
+		InputParamCodes: []string{ScopeKeyCostRMTotal},
+		SortOrder:       len(formulas) + 1,
+	})
+}
+
 // oilCase describes one product for oilInput.
 type oilCase struct {
 	oil         *OilInput
@@ -97,13 +113,20 @@ func oilInput(c oilCase) ComputeInput {
 	if poy == "" {
 		poy = oilGainPOYDefault
 	}
+	// A SUPERBA product now needs its Superba Cost SP row (MISSING_SUPERBA_COST
+	// otherwise); these oil tests do not exercise MB cost, so supply a neutral one.
+	var sb *SuperbaCost
+	if c.oil != nil && c.oil.Class == OilClassSuperba {
+		sb = &SuperbaCost{ShadeCode: "TESTSHADE", Found: true}
+	}
 	return ComputeInput{
+		Superba:      sb,
 		ProductSysID: 9101,
 		Period:       "202609",
 		CalcType:     costcalcdom.CalcTypeActual,
 		Route:        buildOneStageRoute(9101, costroute.RmTypeItem, "RM_YARN", 1.0),
 		CAPP:         capp,
-		Formulas:     oilFormulas(poy),
+		Formulas:     withFinalCostSink(oilFormulas(poy)),
 		RMCosts:      rm,
 		RMRateOrder:  c.rateOrder,
 		EvalCache:    evaluator.NewCache(),

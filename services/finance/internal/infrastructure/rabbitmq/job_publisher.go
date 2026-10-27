@@ -74,6 +74,27 @@ func (a *JobPublisherAdapter) PublishProductCostSheetExport(
 	return a.publisher.PublishJob(ctx, RoutingKeyProductCostSheetExport, msg)
 }
 
+// PublishProductCostSheetExportWithLayout is PublishProductCostSheetExport
+// plus the workbook layout ("horizontal" / "vertical"; empty = combined).
+func (a *JobPublisherAdapter) PublishProductCostSheetExportWithLayout(
+	ctx context.Context,
+	jobID, period, requestingUserID, createdBy string,
+	productSysIDs []int64,
+	layout string,
+) error {
+	msg := JobMessage{
+		JobID:            jobID,
+		JobType:          "product_cost_sheet_export",
+		Subtype:          "xlsx",
+		Period:           period,
+		CreatedBy:        createdBy,
+		RequestingUserID: requestingUserID,
+		ProductSysIDs:    productSysIDs,
+		Layout:           layout,
+	}
+	return a.publisher.PublishJob(ctx, RoutingKeyProductCostSheetExport, msg)
+}
+
 // PublishImportJob publishes a costing data import job message.
 // jobID is the int64 primary key from cost_import_job. entity is the entity type (e.g. "product_master").
 // requestingUserID is the UUID of the user who submitted the import; used to route
@@ -147,4 +168,46 @@ func (a *JobPublisherAdapter) PublishProductParamBulk(
 		SkipMissingApplicable: skipMissingApplicable,
 	}
 	return a.publisher.PublishJob(ctx, RoutingKeyProductParamBulk, msg)
+}
+
+// PublishProductLookupSync publishes one master-lookup-sync child job message
+// — one product_sys_id plus the shared JSON-encoded scope and plan fingerprint.
+func (a *JobPublisherAdapter) PublishProductLookupSync(
+	ctx context.Context,
+	jobID string, productSysID int64, scopeJSON, fingerprint, createdBy string,
+) error {
+	msg := JobMessage{
+		JobID:           jobID,
+		JobType:         "product_lookup_sync",
+		CreatedBy:       createdBy,
+		ProductSysID:    productSysID,
+		LookupSyncScope: scopeJSON,
+		PlanFingerprint: fingerprint,
+	}
+	return a.publisher.PublishJob(ctx, RoutingKeyProductLookupSync, msg)
+}
+
+// PublishErpIntegration publishes an ERP integration batch-step job
+// (plan-04 P3-T4); subtype is the step (load_demand, coverage, ...).
+func (a *JobPublisherAdapter) PublishErpIntegration(ctx context.Context, jobID, subtype, period, createdBy string) error {
+	msg := JobMessage{
+		JobID:     jobID,
+		JobType:   "erp_integration",
+		Subtype:   subtype,
+		Period:    period,
+		CreatedBy: createdBy,
+	}
+	return a.publisher.PublishJob(ctx, RoutingKeyErpIntegration, msg)
+}
+
+// PublishErpMasterSync publishes an ERP master replica sync job (P6-T3d);
+// subtype is "" (all), om_item, om_grade or apply_grade_groups.
+func (a *JobPublisherAdapter) PublishErpMasterSync(ctx context.Context, jobID, subtype, createdBy string) error {
+	msg := JobMessage{
+		JobID:     jobID,
+		JobType:   "erp_master_sync",
+		Subtype:   subtype,
+		CreatedBy: createdBy,
+	}
+	return a.publisher.PublishJob(ctx, RoutingKeyErpMasterSync, msg)
 }

@@ -351,6 +351,60 @@ func getRequiredPermission(fullMethod string) string {
 	// Permission mapping for Finance service.
 	// Format: {service}.{module}.{entity}.{action}
 	permissions := map[string]string{
+		// ErpIntegrationService
+		"/finance.v1.ErpIntegrationService/CreateErpBatch":               "finance.cost.erpintegration.trigger",
+		"/finance.v1.ErpIntegrationService/ListErpBatches":               "finance.cost.erpintegration.view",
+		"/finance.v1.ErpIntegrationService/GetErpBatch":                  "finance.cost.erpintegration.view",
+		"/finance.v1.ErpIntegrationService/AbandonErpBatch":              "finance.cost.erpintegration.trigger",
+		"/finance.v1.ErpIntegrationService/LoadErpDemand":                "finance.cost.erpintegration.trigger",
+		"/finance.v1.ErpIntegrationService/RunErpCoverage":               "finance.cost.erpintegration.trigger",
+		"/finance.v1.ErpIntegrationService/RunErpDerive":                 "finance.cost.erpintegration.trigger",
+		"/finance.v1.ErpIntegrationService/ValidateErpBatch":             "finance.cost.erpintegration.validate",
+		"/finance.v1.ErpIntegrationService/ReconErpBatch":                "finance.cost.erpintegration.trigger",
+		"/finance.v1.ErpIntegrationService/ListErpCoverage":              "finance.cost.erpintegration.view",
+		"/finance.v1.ErpIntegrationService/ExportErpCoverage":            "finance.cost.erpintegration.export",
+		"/finance.v1.ErpIntegrationService/ExportErpRecon":               "finance.cost.erpintegration.export",
+		"/finance.v1.ErpIntegrationService/AckErpWarnings":               "finance.cost.erpintegration.approve",
+		"/finance.v1.ErpIntegrationService/ListErpStdCost":               "finance.cost.erpintegration.view",
+		"/finance.v1.ErpIntegrationService/PreviewErpPush":               "finance.cost.erpintegration.push",
+		"/finance.v1.ErpIntegrationService/PushErpBatch":                 "finance.cost.erpintegration.push",
+		"/finance.v1.ErpIntegrationService/PreviewErpAdjOperation":       "finance.cost.erpintegration.approve",
+		"/finance.v1.ErpIntegrationService/GetErpAdjPreview":             "finance.cost.erpintegration.view",
+		"/finance.v1.ErpIntegrationService/ExecuteErpAdjOperation":       "finance.cost.erpintegration.approve",
+		"/finance.v1.ErpIntegrationService/LockErpBatch":                 "finance.cost.erpintegration.lock",
+		"/finance.v1.ErpIntegrationService/ListErpOracleCalls":           "finance.cost.erpintegration.view",
+		"/finance.v1.ErpIntegrationService/LockErpPeriod":                "finance.cost.erpintegration.lock",
+		"/finance.v1.ErpIntegrationService/UnlockErpPeriod":              "finance.cost.erpintegration.unlock",
+		"/finance.v1.ErpIntegrationService/GetErpPeriodLock":             "finance.cost.erpintegration.view",
+		"/finance.v1.ErpIntegrationService/LinkErpToProduct":             "finance.cost.erpintegration.update",
+		"/finance.v1.ErpIntegrationService/CreateCostProductFromDemand":  "finance.cost.erpintegration.update",
+		"/finance.v1.ErpIntegrationService/GetErpItemLinkReport":         "finance.cost.erpintegration.view",
+		"/finance.v1.ErpIntegrationService/RunErpAttributeBackfill":      "finance.cost.erpintegration.update",
+		"/finance.v1.ErpIntegrationService/RunErpMasterSync":             "finance.cost.erpintegration.sync",
+		"/finance.v1.ErpIntegrationService/ExportErpManualSample":        "finance.cost.erpintegration.export",
+		"/finance.v1.ErpIntegrationService/GetErpCurrencySanity":         "finance.cost.erpintegration.view",
+		"/finance.v1.ErpIntegrationService/GetErpIntegrationConfig":      "finance.cost.erpintegration.view",
+		"/finance.v1.ErpIntegrationService/GetErpIntegrationSchedule":    "finance.cost.erpintegration.view",
+		"/finance.v1.ErpIntegrationService/UpdateErpIntegrationSchedule": "finance.cost.erpintegration.update",
+		"/finance.v1.ErpIntegrationService/RunErpBacktest":               "finance.cost.erpintegration.trigger",
+		"/finance.v1.ErpIntegrationService/GetErpBacktestReport":         "finance.cost.erpintegration.view",
+
+		// ErpRuleService
+		"/finance.v1.ErpRuleService/ListValLossRules":    "finance.cost.erprule.view",
+		"/finance.v1.ErpRuleService/CreateValLossRule":   "finance.cost.erprule.create",
+		"/finance.v1.ErpRuleService/UpdateValLossRule":   "finance.cost.erprule.update",
+		"/finance.v1.ErpRuleService/DeleteValLossRule":   "finance.cost.erprule.delete",
+		"/finance.v1.ErpRuleService/ListSellPrices":      "finance.cost.erprule.view",
+		"/finance.v1.ErpRuleService/UpsertSellPrice":     "finance.cost.erprule.update",
+		"/finance.v1.ErpRuleService/ListGradeGroups":     "finance.cost.erprule.view",
+		"/finance.v1.ErpRuleService/UpdateGradeGroup":    "finance.cost.erprule.update",
+		"/finance.v1.ErpRuleService/GetRuleSnapshotDiff": "finance.cost.erprule.view",
+		"/finance.v1.ErpRuleService/ExportErpRules":      "finance.cost.erprule.export",
+
+		// ErpIntegrationService
+
+		// ErpRuleService
+
 		// UOM Service
 		"/finance.v1.UOMService/CreateUOM":  "finance.master.uom.create",
 		"/finance.v1.UOMService/GetUOM":     "finance.master.uom.view",
@@ -621,7 +675,10 @@ func getRequiredPermission(fullMethod string) string {
 		// F2 (B2): DuplicateProduct mints a new product master row -- reuses the same
 		// create-like permission as CreateCostProductMaster/UpdateCostProductMaster per the
 		// locked design decision (no new IAM codes/migrations for this plan).
-		"/finance.v1.CostProductMasterService/DuplicateProduct": "finance.product.route.create",
+		"/finance.v1.CostProductMasterService/DuplicateProduct":       "finance.product.route.create",
+		"/finance.v1.CostProductMasterService/ListRMDenierOverrides":  "finance.product.route.view",
+		"/finance.v1.CostProductMasterService/UpsertRMDenierOverride": "finance.product.route.create",
+		"/finance.v1.CostProductMasterService/DeleteRMDenierOverride": "finance.product.route.create",
 
 		// CostProductParamBulkService (F4, B4): Bulk Edit Product Params reuses the
 		// same finance.product.route.* codes as CostProductParameterService per the
@@ -631,6 +688,14 @@ func getRequiredPermission(fullMethod string) string {
 		"/finance.v1.CostProductParamBulkService/BulkEditProductParams":           "finance.product.route.create",
 		"/finance.v1.CostProductParamBulkService/GetBulkProductParamJobStatus":    "finance.product.route.view",
 		"/finance.v1.CostProductParamBulkService/ListBulkProductParamJobFailures": "finance.product.route.view",
+
+		// CostProductLookupSyncService (master-lookup-sync P5): read RPCs reuse the
+		// product-param view code; Apply mutates many products, same as BulkEditProductParams.
+		"/finance.v1.CostProductLookupSyncService/CountLookupUsage":          "finance.product.route.view",
+		"/finance.v1.CostProductLookupSyncService/PreviewLookupSync":         "finance.product.route.view",
+		"/finance.v1.CostProductLookupSyncService/ApplyLookupSync":           "finance.product.route.create",
+		"/finance.v1.CostProductLookupSyncService/GetLookupSyncJobStatus":    "finance.product.route.view",
+		"/finance.v1.CostProductLookupSyncService/ListLookupSyncJobFailures": "finance.product.route.view",
 
 		// CostProductTypeService oil config (oil-cost-rm-group D15): guarded from birth by the
 		// EXISTING product-type codes seeded in IAM 000038 (view/update, SUPER_ADMIN) and linked
@@ -667,6 +732,15 @@ func getRequiredPermission(fullMethod string) string {
 		"/finance.v1.ShadeService/DeactivateShade": "finance.master.shade.delete",
 		"/finance.v1.ShadeService/ListShades":      "finance.master.shade.view",
 		"/finance.v1.ShadeService/SyncShades":      "finance.master.shade.sync",
+
+		// SuperbaCostSpService (topic superba-mb-cost-sp) — permissions seeded by
+		// iam migration 000095.
+		"/finance.v1.SuperbaCostSpService/CreateSuperbaCostSp": "finance.master.superbacostsp.create",
+		"/finance.v1.SuperbaCostSpService/GetSuperbaCostSp":    "finance.master.superbacostsp.view",
+		"/finance.v1.SuperbaCostSpService/UpdateSuperbaCostSp": "finance.master.superbacostsp.update",
+		"/finance.v1.SuperbaCostSpService/DeleteSuperbaCostSp": "finance.master.superbacostsp.delete",
+		"/finance.v1.SuperbaCostSpService/ListSuperbaCostSps":  "finance.master.superbacostsp.view",
+		"/finance.v1.SuperbaCostSpService/SyncSuperbaCostSps":  "finance.master.superbacostsp.sync",
 
 		// YarnTxWeightService (TX Weight master, backlog1 T5) — guarded FROM BIRTH
 		// by finance.master.yarntxweight.* (seeded by iam migration 000093,

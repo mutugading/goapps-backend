@@ -33,6 +33,11 @@ type JobMessage struct {
 	// The requesting handler resolves any filter to explicit IDs before
 	// publishing, so the worker never re-runs the filter query.
 	ProductSysIDs []int64 `json:"product_sys_ids,omitempty"`
+	// Layout is the workbook layout for product_cost_sheet_export jobs
+	// ("horizontal" / "vertical"). Empty means the original combined layout;
+	// the worker then also consults the job params, so messages published
+	// before this field existed keep rendering exactly as before.
+	Layout string `json:"layout,omitempty"`
 	// MbhID is the target mst_mb_head.mbh_id for mb_bulk_transition jobs — each
 	// child job carries exactly one. Subtype carries the action
 	// (force_unvalidate/submit/validate, see application/mbheadbulk's Action
@@ -50,6 +55,12 @@ type JobMessage struct {
 	// for product_param_bulk jobs — controls UpsertValue op behavior when the
 	// param is not yet CAPP-applicable to ProductSysID.
 	SkipMissingApplicable bool `json:"skip_missing_applicable,omitempty"`
+	// LookupSyncScope is the JSON-encoded lookupsync.Scope (without the
+	// product list) a product_lookup_sync child re-plans for ProductSysID.
+	LookupSyncScope string `json:"lookup_sync_scope,omitempty"`
+	// PlanFingerprint is the preview plan fingerprint the product_lookup_sync
+	// batch was confirmed against (traceability only).
+	PlanFingerprint string `json:"plan_fingerprint,omitempty"`
 }
 
 // Publisher publishes messages to RabbitMQ exchanges.

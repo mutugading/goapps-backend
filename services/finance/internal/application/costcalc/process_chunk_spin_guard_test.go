@@ -82,6 +82,17 @@ func (f *spinFakeLoader) LoadProductTypeCodes(context.Context, []int64) (map[int
 	return map[int64]string{}, nil
 }
 
+// LoadProductRMRatioModes reports no modes, so every product stays INPUT
+// (legacy route-ratio behavior).
+func (f *spinFakeLoader) LoadProductRMRatioModes(context.Context, []int64) (map[int64]string, error) {
+	return map[int64]string{}, nil
+}
+
+// LoadRMGroupDeniers reports no group deniers.
+func (f *spinFakeLoader) LoadRMGroupDeniers(context.Context, []string) (map[string]float64, map[string]bool, error) {
+	return map[string]float64{}, map[string]bool{}, nil
+}
+
 func (f *spinFakeLoader) LoadSellingSnapshots(_ context.Context, _ []int64, _ string) (map[int64]map[string]float64, error) {
 	return map[int64]map[string]float64{}, nil
 }
@@ -290,4 +301,19 @@ func TestBuildCalculationLog_RecordsSpinPoolPeriod(t *testing.T) {
 			assert.Equal(t, tt.poolPeriod, got)
 		})
 	}
+}
+
+// LoadSuperbaCost reports no SUPERBA-class products.
+func (f *spinFakeLoader) LoadSuperbaCost(context.Context, []int64) (map[int64]*SuperbaCost, error) {
+	return map[int64]*SuperbaCost{}, nil
+}
+
+// LoadUpstreamDeniers reports no upstream deniers.
+func (f *spinFakeLoader) LoadUpstreamDeniers(context.Context, []int64) (map[int64]float64, error) {
+	return map[int64]float64{}, nil
+}
+
+// LoadRMDenierOverrides reports no RM denier overrides.
+func (f *spinFakeLoader) LoadRMDenierOverrides(context.Context, []int64) (map[int64]costroute.DenierOverrides, error) {
+	return map[int64]costroute.DenierOverrides{}, nil
 }

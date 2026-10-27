@@ -336,6 +336,7 @@ func (h *CostCalcHandler) RequestProductCostSheetExport(
 		ShadeCodes:       req.GetShadeCodes(),
 		RMGroupCodes:     req.GetRmGroupCodes(),
 		ProductSysIDs:    req.GetProductSysIds(),
+		Layout:           protoToExportLayout(req.GetLayout()),
 		RequestingUserID: userID,
 		CreatedBy:        getUserFromContext(ctx),
 	})
@@ -360,7 +361,37 @@ func productCostSheetExportJobInfoFromExecution(exec *job.Execution) *financev1.
 		TotalChildren:     safeIntToInt32(exec.TotalChildren()),
 		CompletedChildren: safeIntToInt32(exec.CompletedChildren()),
 		FailedChildren:    safeIntToInt32(exec.FailedChildren()),
+		Layout:            exportLayoutToProto(costsheet.LayoutFromParams(exec.Params())),
 	}
+}
+
+// protoToExportLayout maps the wire layout to the application layout.
+// UNSPECIFIED (and any unknown value) is the original combined layout.
+func protoToExportLayout(l financev1.CostSheetExportLayout) costsheet.ExportLayout {
+	switch l {
+	case financev1.CostSheetExportLayout_COST_SHEET_EXPORT_LAYOUT_HORIZONTAL:
+		return costsheet.LayoutHorizontal
+	case financev1.CostSheetExportLayout_COST_SHEET_EXPORT_LAYOUT_VERTICAL:
+		return costsheet.LayoutVertical
+	case financev1.CostSheetExportLayout_COST_SHEET_EXPORT_LAYOUT_UNSPECIFIED,
+		financev1.CostSheetExportLayout_COST_SHEET_EXPORT_LAYOUT_COMBINED:
+		return costsheet.LayoutCombined
+	}
+	return costsheet.LayoutCombined
+}
+
+// exportLayoutToProto maps a job's layout to the wire enum. Jobs queued before
+// layouts existed resolve to combined and report COMBINED.
+func exportLayoutToProto(l costsheet.ExportLayout) financev1.CostSheetExportLayout {
+	switch l {
+	case costsheet.LayoutHorizontal:
+		return financev1.CostSheetExportLayout_COST_SHEET_EXPORT_LAYOUT_HORIZONTAL
+	case costsheet.LayoutVertical:
+		return financev1.CostSheetExportLayout_COST_SHEET_EXPORT_LAYOUT_VERTICAL
+	case costsheet.LayoutCombined:
+		return financev1.CostSheetExportLayout_COST_SHEET_EXPORT_LAYOUT_COMBINED
+	}
+	return financev1.CostSheetExportLayout_COST_SHEET_EXPORT_LAYOUT_COMBINED
 }
 
 // GetProductCostSheetDownloadURL presigns the finished export artifact for the
@@ -591,6 +622,7 @@ func exportJobSummaryFromExecution(exec *job.Execution) *financev1.ExportJobSumm
 		FailedChildren:    safeIntToInt32(exec.FailedChildren()),
 		QueuedAt:          timestamppb.New(exec.QueuedAt()),
 		IsBatch:           exec.IsParent(),
+		Layout:            exportLayoutToProto(costsheet.LayoutFromParams(exec.Params())),
 	}
 }
 
@@ -1011,6 +1043,8 @@ func resultToProto(r *costcalcdom.Result) *financev1.CostResult {
 		CalculatedBy:    r.CalculatedBy(),
 		VerifiedAt:      timePtrToProto(r.VerifiedAt()),
 		VerifiedBy:      r.VerifiedBy(),
+		ApprovedAt:      erpRuleTimePtr(r.ApprovedAt()),
+		ApprovedBy:      r.ApprovedBy(),
 	}
 }
 
@@ -1168,6 +1202,9 @@ func rmDetailsToProto(details []costcalcdom.RMDetailSummary) []*financev1.CostRM
 			Ratio:        formatNumeric(d.Ratio),
 			Contribution: formatNumeric(d.Contribution),
 			RouteLevel:   d.RouteLevel,
+			Denier:       d.Denier,
+			RatioSource:  d.RatioSource,
+			DenierSource: d.DenierSource,
 		})
 	}
 	return out

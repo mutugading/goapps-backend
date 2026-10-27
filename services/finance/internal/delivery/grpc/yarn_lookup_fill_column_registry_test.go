@@ -88,18 +88,6 @@ var t6Exceptions = map[masterColumn]string{
 	{"MACHINE", "mc_box_cost"}:           "registered by 000425 ahead of its reader — no machine.Entity getter yet",
 	{"MACHINE", "mc_captive_per_bobbin"}: "registered by 000425 ahead of its reader — no machine.Entity getter yet",
 
-	// Registered by 000412 (which also removed the stale bbcr_* rows) and 000421.
-	// fillFromBoxBobbinCost still reads rates off the *rate* rows via ListRates
-	// and knows nothing about these per-master Oracle columns.
-	{"BOX_BOBBIN_COST", "bbn_reuse"}:      "registered by 000412 — fillFromBoxBobbinCost has no case for it",
-	{"BOX_BOBBIN_COST", "box_reuse"}:      "registered by 000412 — fillFromBoxBobbinCost has no case for it",
-	{"BOX_BOBBIN_COST", "box_cost"}:       "registered by 000412 — fillFromBoxBobbinCost has no case for it",
-	{"BOX_BOBBIN_COST", "bobin_cost"}:     "registered by 000412 — fillFromBoxBobbinCost has no case for it",
-	{"BOX_BOBBIN_COST", "box_cost_val"}:   "registered by 000412 — fillFromBoxBobbinCost has no case for it",
-	{"BOX_BOBBIN_COST", "bobin_cost_val"}: "registered by 000412 — fillFromBoxBobbinCost has no case for it",
-	{"BOX_BOBBIN_COST", "bbn_reuse_val"}:  "registered by 000421/000425 — fillFromBoxBobbinCost has no case for it",
-	{"BOX_BOBBIN_COST", "box_reuse_val"}:  "registered by 000421/000425 — fillFromBoxBobbinCost has no case for it",
-
 	// Registered by 000412 for the product-grade master; no productgrade.Entity
 	// getter exists for either, so no reader can be written yet.
 	{"PRODUCT_GRADE", "loss_pct"}: "registered by 000412 — no productgrade.Entity getter yet",
@@ -130,6 +118,8 @@ var t7Exceptions = map[masterColumn]string{
 	// at them; they resolve from the rate rows, not from a master column.
 	{"BOX_BOBBIN_COST", "bbcr_bob_rate_mkt"}: "de-registered by 000412; switch case kept for legacy params — resolved from rate rows, not a master column",
 	{"BOX_BOBBIN_COST", "bbcr_box_rate_mkt"}: "de-registered by 000412; switch case kept for legacy params — resolved from rate rows, not a master column",
+	{"BOX_BOBBIN_COST", "bbcr_bob_rate_val"}: "legacy alias seeded by 000407 for DELIVERY_BOB_RATE (never a real column); aliased to bobin_cost_val; repointed by 000562",
+	{"BOX_BOBBIN_COST", "bbcr_box_rate_val"}: "legacy alias seeded by 000407 for DELIVERY_BOX_RATE (never a real column); aliased to box_cost_val; repointed by 000562",
 }
 
 // ─── Go-side inventory ──────────────────────────────────────────────────────
@@ -279,41 +269,6 @@ func TestLookupColumnParserSanity(t *testing.T) {
 			"no Go readers inventoried for lookup master %q — goReaderColumns() is out of sync with the reader "+
 				"maps in yarn_lookup_fill_handler.go", master)
 	}
-}
-
-// TestBoxBobbinSwitchColumnsMatchSource keeps boxBobbinCostColumns honest.
-// fillFromBoxBobbinCost resolves columns with a literal switch, so unlike the
-// reader maps it cannot be enumerated at runtime — the list above is a copy, and
-// a copy is exactly the kind of hand-maintained duplicate R30 is about. This
-// reads the handler source and asserts the copy still matches the switch.
-func TestBoxBobbinSwitchColumnsMatchSource(t *testing.T) {
-	raw, err := os.ReadFile("yarn_lookup_fill_handler.go")
-	require.NoError(t, err, "reading yarn_lookup_fill_handler.go")
-
-	src := string(raw)
-	start := strings.Index(src, "func (h *YarnLookupFillHandler) fillFromBoxBobbinCost(")
-	require.NotEqual(t, -1, start, "fillFromBoxBobbinCost not found — was it renamed? Update this test.")
-	end := strings.Index(src[start:], "\nfunc ")
-	require.NotEqual(t, -1, end, "could not delimit fillFromBoxBobbinCost body")
-	body := src[start : start+end]
-
-	caseRe := regexp.MustCompile(`(?m)^\s*case\s+"([a-z0-9_]+)":`)
-	found := caseRe.FindAllStringSubmatch(body, -1)
-	require.NotEmpty(t, found, "no `case \"...\":` labels found in fillFromBoxBobbinCost — the switch shape "+
-		"changed and this check would otherwise pass vacuously")
-
-	inSource := make([]string, 0, len(found))
-	for _, m := range found {
-		inSource = append(inSource, m[1])
-	}
-	sort.Strings(inSource)
-	copied := append([]string(nil), boxBobbinCostColumns...)
-	sort.Strings(copied)
-
-	assert.Equal(t, inSource, copied,
-		"boxBobbinCostColumns is out of sync with the switch in fillFromBoxBobbinCost. Update the slice in "+
-			"yarn_lookup_fill_handler.go to match the case labels, otherwise the BOX_BOBBIN_COST side of the R30 "+
-			"drift check — and the startup divergence check that shares this inventory — is wrong.")
 }
 
 // ─── The two-way check ──────────────────────────────────────────────────────

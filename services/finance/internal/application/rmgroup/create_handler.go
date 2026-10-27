@@ -28,6 +28,10 @@ type CreateCommand struct {
 	MarketingFlag           string
 	// IsOilGroup marks the new group as an oil RM group (OIL_NAME option).
 	IsOilGroup bool
+	// Denier is the nominal denier; nil or 0 = not set, >0 = set, <0 = invalid.
+	Denier *float64
+	// DenierUseDraft divides the denier by the product's SPANDEX_DRAFT (spandex).
+	DenierUseDraft bool
 }
 
 // CreateHandler handles CreateHead commands.
@@ -60,6 +64,10 @@ func (h *CreateHandler) Handle(ctx context.Context, cmd CreateCommand) (*rmgroup
 		return nil, err
 	}
 	head.SetOilGroup(cmd.IsOilGroup)
+	head.SetDenierUseDraft(cmd.DenierUseDraft)
+	if err := applyDenierPatch(head, cmd.Denier); err != nil {
+		return nil, err
+	}
 	if err := h.repo.CreateHead(ctx, head); err != nil {
 		if errors.Is(err, rmgroup.ErrCodeAlreadyExists) {
 			return nil, rmgroup.ErrCodeAlreadyExists

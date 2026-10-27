@@ -80,6 +80,17 @@ func (f *mbGuardLoader) LoadProductTypeCodes(context.Context, []int64) (map[int6
 	return map[int64]string{}, nil
 }
 
+// LoadProductRMRatioModes reports no modes, so every product stays INPUT
+// (legacy route-ratio behavior).
+func (f *mbGuardLoader) LoadProductRMRatioModes(context.Context, []int64) (map[int64]string, error) {
+	return map[int64]string{}, nil
+}
+
+// LoadRMGroupDeniers reports no group deniers.
+func (f *mbGuardLoader) LoadRMGroupDeniers(context.Context, []string) (map[string]float64, map[string]bool, error) {
+	return map[string]float64{}, map[string]bool{}, nil
+}
+
 func (f *mbGuardLoader) LoadSellingSnapshots(_ context.Context, _ []int64, _ string) (map[int64]map[string]float64, error) {
 	return map[int64]map[string]float64{}, nil
 }
@@ -136,11 +147,13 @@ func (r *recordingProductRepo) MarkFailed(_ context.Context, _, pid int64, msg s
 // recordingResultRepo captures which products were persisted into cst_product_cost.
 type recordingResultRepo struct {
 	costcalcdom.ResultRepository
-	upserted []int64
+	upserted   []int64
+	currencies []string
 }
 
 func (r *recordingResultRepo) UpsertWithSupersede(_ context.Context, res *costcalcdom.Result) (int64, int, float64, int64, error) {
 	r.upserted = append(r.upserted, res.ProductSysID())
+	r.currencies = append(r.currencies, res.Currency())
 	return 1, 0, 0, 0, nil
 }
 
@@ -249,4 +262,19 @@ func TestProcessChunk_GuardError_AbortsChunk(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, errors.Is(err, sentinel))
 	require.Empty(t, resRepo.upserted, "no cost row may be written when MB membership is unknown")
+}
+
+// LoadSuperbaCost reports no SUPERBA-class products.
+func (f *mbGuardLoader) LoadSuperbaCost(context.Context, []int64) (map[int64]*SuperbaCost, error) {
+	return map[int64]*SuperbaCost{}, nil
+}
+
+// LoadUpstreamDeniers reports no upstream deniers.
+func (f *mbGuardLoader) LoadUpstreamDeniers(context.Context, []int64) (map[int64]float64, error) {
+	return map[int64]float64{}, nil
+}
+
+// LoadRMDenierOverrides reports no RM denier overrides.
+func (f *mbGuardLoader) LoadRMDenierOverrides(context.Context, []int64) (map[int64]costroute.DenierOverrides, error) {
+	return map[int64]costroute.DenierOverrides{}, nil
 }

@@ -36,7 +36,62 @@ type CostProductMasterHandler struct {
 	storageSvc        storage.Service
 	importPublisher   *rabbitmq.JobPublisherAdapter
 	validation        *ValidationHelper
-	auditRepo         costauditlog.Repository // optional; nil means no audit
+	auditRepo         costauditlog.Repository           // optional; nil means no audit
+	erpAttrs          erpAttrUpdater                    // optional; nil ignores ERP attribute fields
+	overrideRepo      domain.RMDenierOverrideRepository // RM denier override RPCs; nil → 500
+	rmRatioMode       rmRatioModeUpdater                // optional; nil ignores rm_ratio_mode_override
+}
+
+// rmRatioModeUpdater is the seam over app.UpdateRMRatioModeHandler.
+type rmRatioModeUpdater interface {
+	Handle(ctx context.Context, cmd app.UpdateRMRatioModeCommand) (*domain.CostProductMaster, error)
+}
+
+// WithRMRatioMode enables persisting the per-product rm_ratio_mode_override carried by Update (000579).
+func (h *CostProductMasterHandler) WithRMRatioMode(u rmRatioModeUpdater) { h.rmRatioMode = u }
+
+// applyRMRatioMode applies the optional override after the main write succeeded.
+// mode nil = unchanged; "" clears (follow product type).
+func (h *CostProductMasterHandler) applyRMRatioMode(ctx context.Context, cur *domain.CostProductMaster, mode *string, actor string) (*domain.CostProductMaster, error) {
+	if h.rmRatioMode == nil || mode == nil {
+		return cur, nil
+	}
+	up, err := h.rmRatioMode.Handle(ctx, app.UpdateRMRatioModeCommand{ProductSysID: cur.ProductSysID(), Mode: *mode, ActorUserID: actor})
+	if err != nil || up == nil {
+		return cur, err
+	}
+	return up, nil
+}
+
+// erpAttrUpdater is the seam over app.UpdateErpAttributesHandler.
+type erpAttrUpdater interface {
+	Handle(ctx context.Context, cmd app.UpdateErpAttributesCommand) (*domain.CostProductMaster, error)
+}
+
+// WithErpAttributes enables persisting the 5 ERP attribute fields carried by Create/Update.
+func (h *CostProductMasterHandler) WithErpAttributes(u erpAttrUpdater) { h.erpAttrs = u }
+
+// erpAttrPatch builds a patch from the request fields; an empty string means no change.
+func erpAttrPatch(fgType, chp, msBatch, itemType, prdPerDay string) domain.ErpAttributesPatch {
+	opt := func(v string) *string {
+		if v == "" {
+			return nil
+		}
+		return &v
+	}
+	return domain.ErpAttributesPatch{FgType: opt(fgType), ChpItemCode: opt(chp), MsBatchItem: opt(msBatch), ItemType: opt(itemType), PrdPerDay: opt(prdPerDay)}
+}
+
+// applyErpAttrs applies a non-empty patch after the main write succeeded.
+func (h *CostProductMasterHandler) applyErpAttrs(ctx context.Context, cur *domain.CostProductMaster, patch domain.ErpAttributesPatch, actor string) (*domain.CostProductMaster, error) {
+	if h.erpAttrs == nil || patch.IsEmpty() {
+		return cur, nil
+	}
+	up, err := h.erpAttrs.Handle(ctx, app.UpdateErpAttributesCommand{ProductSysID: cur.ProductSysID(), Patch: patch, ActorUserID: actor})
+	if err != nil || up == nil {
+		return cur, err
+	}
+	return up, nil
 }
 
 // NewCostProductMasterHandler constructs the handler. typeRepo is used by the create path
@@ -59,6 +114,13 @@ func NewCostProductMasterHandler(repo domain.Repository, typeRepo cptdomain.Repo
 		templateHandler:   costbulkimport.NewTemplateHandler(),
 		validation:        v,
 	}, nil
+}
+
+// WithMBSourceAutoFill wires the best-effort shade-driven MB source auto-fill into the create
+// and update paths (decision Q3, 2026-10-10).
+func (h *CostProductMasterHandler) WithMBSourceAutoFill(f app.MBSourceAutoFiller) {
+	h.createHandler.WithMBSourceAutoFill(f)
+	h.updateHandler.WithMBSourceAutoFill(f)
 }
 
 // WithImportSupport wires the job repo, storage, and publisher needed for async CPM imports.
@@ -112,6 +174,11 @@ func (h *CostProductMasterHandler) CreateCostProductMaster(ctx context.Context, 
 	if err != nil {
 		return &financev1.CreateCostProductMasterResponse{Base: productMasterErrToBase(err)}, nil
 	}
+	up, aerr := h.applyErpAttrs(ctx, p, erpAttrPatch(req.GetErpFgType(), req.GetErpChpItemCode(), req.GetErpMsBatchItem(), req.GetErpItemType(), req.GetErpPrdPerDay()), actor)
+	if aerr != nil {
+		return &financev1.CreateCostProductMasterResponse{Base: productMasterErrToBase(aerr)}, nil
+	}
+	p = up
 	h.emitAudit(ctx, costauditlog.OpInsert, p.ProductSysID(), actor)
 	return &financev1.CreateCostProductMasterResponse{
 		Base: successResponse("Cost product master created"),
@@ -169,6 +236,16 @@ func (h *CostProductMasterHandler) UpdateCostProductMaster(ctx context.Context, 
 	if err != nil {
 		return &financev1.UpdateCostProductMasterResponse{Base: productMasterErrToBase(err)}, nil
 	}
+	up, aerr := h.applyErpAttrs(ctx, p, erpAttrPatch(req.GetErpFgType(), req.GetErpChpItemCode(), req.GetErpMsBatchItem(), req.GetErpItemType(), req.GetErpPrdPerDay()), actor)
+	if aerr != nil {
+		return &financev1.UpdateCostProductMasterResponse{Base: productMasterErrToBase(aerr)}, nil
+	}
+	p = up
+	up, merr := h.applyRMRatioMode(ctx, p, req.RmRatioModeOverride, actor)
+	if merr != nil {
+		return &financev1.UpdateCostProductMasterResponse{Base: productMasterErrToBase(merr)}, nil
+	}
+	p = up
 	h.emitAudit(ctx, costauditlog.OpUpdate, p.ProductSysID(), actor)
 	return &financev1.UpdateCostProductMasterResponse{
 		Base: successResponse("Cost product master updated"),
@@ -381,6 +458,11 @@ func costProductMasterToProto(p *domain.CostProductMaster) *financev1.CostProduc
 		Flex_02:        p.Flex02(),
 		Flex_03:        p.Flex03(),
 		ErpItemCode:    p.ErpItemCode(),
+		ErpFgType:      p.ErpAttributes().FgType,
+		ErpChpItemCode: p.ErpAttributes().ChpItemCode,
+		ErpMsBatchItem: p.ErpAttributes().MsBatchItem,
+		ErpItemType:    p.ErpAttributes().ItemType,
+		ErpPrdPerDay:   erpPrdPerDayString(p.ErpAttributes()),
 		ErpGradeCode_1: p.ErpGradeCode1(),
 		ErpGradeCode_2: p.ErpGradeCode2(),
 		ErpLinkedAt:    erpLinkedAt,
@@ -388,6 +470,9 @@ func costProductMasterToProto(p *domain.CostProductMaster) *financev1.CostProduc
 		IsActive:       p.IsActive(),
 		Source:         p.Source(),
 		IsLocked:       p.IsLocked(),
+		// 000579 per-product RM ratio mode.
+		RmRatioModeOverride:  p.RMRatioModeOverride(),
+		EffectiveRmRatioMode: p.EffectiveRMRatioMode(),
 		Audit: &commonv1.AuditInfo{
 			CreatedAt: p.CreatedAt().Format(time.RFC3339),
 			CreatedBy: p.CreatedBy(),
@@ -405,7 +490,8 @@ func productMasterErrToBase(err error) *commonv1.BaseResponse {
 		return ConflictResponse(err.Error())
 	case errors.Is(err, domain.ErrInvalidProductName),
 		errors.Is(err, domain.ErrInvalidGradeCode),
-		errors.Is(err, domain.ErrInactive):
+		errors.Is(err, domain.ErrInactive),
+		errors.Is(err, domain.ErrInvalidRMRatioModeOverride):
 		return ErrorResponse("400", err.Error())
 	// ErrMBProductNotManuallyCreatable → 400: the caller asked for a product type that is
 	// not addressable through this API at all. Without this arm it fell through to
@@ -417,4 +503,13 @@ func productMasterErrToBase(err error) *commonv1.BaseResponse {
 	default:
 		return InternalErrorResponse(err.Error())
 	}
+}
+
+// erpPrdPerDayString renders the optional prd-per-day as a decimal string
+// ("" when NULL).
+func erpPrdPerDayString(a domain.ErpAttributes) string {
+	if !a.PrdPerDay.Valid {
+		return ""
+	}
+	return a.PrdPerDay.Decimal.String()
 }

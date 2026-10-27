@@ -71,6 +71,11 @@ type ResultRepository interface {
 	// ListResults lists active cost results across products for a filter, with
 	// product code/name resolved via join. Returns rows + total + resolved period.
 	ListResults(ctx context.Context, f ResultListFilter) ([]*ResultSummary, int, string, error)
+	// ListProductSysIDs returns the distinct product_sys_ids matching f with
+	// exactly ListResults' filter semantics, across all pages (Page/PageSize
+	// are ignored), in ListResults' order. A lean id-only query for callers
+	// that need the full matching product set (e.g. export resolution).
+	ListProductSysIDs(ctx context.Context, f ResultListFilter) ([]int64, error)
 	// ListByProductIDsPeriodType returns the active result for each requested
 	// product in one round-trip, keyed by product_sys_id. Products with no
 	// result for the tuple are absent from the map (not an error) — a route
@@ -163,6 +168,11 @@ type RMDetailSummary struct {
 	UnitCost     float64 `json:"unit_cost"`
 	Ratio        float64 `json:"ratio"`
 	Contribution float64 `json:"contribution"`
+	// Denier and RatioSource are only set for DENIER ratio-mode products.
+	Denier      float64 `json:"denier,omitempty"`
+	RatioSource string  `json:"ratio_source,omitempty"`
+	// DenierSource is MASTER / OVERRIDE for denier lines (000578), else "".
+	DenierSource string `json:"denier_source,omitempty"`
 }
 
 // AuditHistoryRepository persists AuditHistoryEntry rows.
