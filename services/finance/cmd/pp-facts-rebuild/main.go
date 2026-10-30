@@ -34,24 +34,31 @@ func main() {
 	}
 }
 
+// parseRange validates the -d1/-d2 flags (both required, YYYY-MM-DD, d2 not before d1).
+func parseRange(d1s, d2s string) (d1, d2 time.Time, err error) {
+	if d1s == "" || d2s == "" {
+		return d1, d2, errors.New("-d1 and -d2 are required (YYYY-MM-DD)")
+	}
+	if d1, err = time.Parse(dateLayout, d1s); err != nil {
+		return d1, d2, fmt.Errorf("-d1: %w", err)
+	}
+	if d2, err = time.Parse(dateLayout, d2s); err != nil {
+		return d1, d2, fmt.Errorf("-d2: %w", err)
+	}
+	if d2.Before(d1) {
+		return d1, d2, errors.New("-d2 before -d1")
+	}
+	return d1, d2, nil
+}
+
 func run() error {
 	d1s := flag.String("d1", "", "first pack date (YYYY-MM-DD)")
 	d2s := flag.String("d2", "", "last pack date (YYYY-MM-DD)")
 	timeout := flag.Duration("timeout", defaultTimeout, "overall timeout")
 	flag.Parse()
-	if *d1s == "" || *d2s == "" {
-		return errors.New("-d1 and -d2 are required (YYYY-MM-DD)")
-	}
-	d1, err := time.Parse(dateLayout, *d1s)
+	d1, d2, err := parseRange(*d1s, *d2s)
 	if err != nil {
-		return fmt.Errorf("-d1: %w", err)
-	}
-	d2, err := time.Parse(dateLayout, *d2s)
-	if err != nil {
-		return fmt.Errorf("-d2: %w", err)
-	}
-	if d2.Before(d1) {
-		return errors.New("-d2 before -d1")
+		return err
 	}
 	if d1.Weekday() != time.Monday {
 		log.Printf("WARNING: -d1 %s is not a Monday; the first WEEKLY period may be stored partial", *d1s)
