@@ -174,13 +174,14 @@ ORDER BY pa_nik, pa_type, pa_id`, q.CompanyID, q.Division, q.YYMM, nikArray(q.NI
 	return out, rows.Err()
 }
 
-// loadSnapshot reads the newest locked attendance snapshot of the period (2 queries).
+// loadSnapshot reads the newest attendance snapshot of the period (2 queries). pas_locked only blocks
+// sync (approve locks, reopen unlocks, D-40), so a re-run after reopen reads the same snapshot (05§6).
 // Keys of pasr_data (MPAR_DAY_WORK, MPARA_SHIFT, ...) become lower case without prefix
 // (day_work, shift), the names the engine reads. Missing recap = absent from the map (D2).
 func loadSnapshot(ctx context.Context, tx *sql.Tx, q Query) (int64, map[string]snapRow, error) {
 	var id int64
 	err := tx.QueryRowContext(ctx, `SELECT pas_snapshot_id FROM payroll.pyr_att_snapshot
- WHERE pas_company_id = $1 AND pas_division = $2 AND pas_yymm = $3 AND pas_locked
+ WHERE pas_company_id = $1 AND pas_division = $2 AND pas_yymm = $3
  ORDER BY pas_snapshot_id DESC LIMIT 1`, q.CompanyID, q.Division, q.YYMM).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, nil, fmt.Errorf("%w: %s %d", ErrNoSnapshot, q.Division, q.YYMM)

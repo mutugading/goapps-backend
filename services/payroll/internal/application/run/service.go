@@ -85,7 +85,7 @@ type CommitResult struct {
 // tables, again by fn_guard_closed (04§9).
 func (s *Service) Commit(ctx context.Context, cmd CommitCommand) (out CommitResult, err error) {
 	start := time.Now()
-	if err = inScope(ctx, cmd.CompanyID, cmd.Division); err != nil {
+	if err = InScope(ctx, cmd.CompanyID, cmd.Division); err != nil {
 		return out, err
 	}
 	period, err := periodOf(cmd.YYMM)
@@ -102,7 +102,7 @@ func (s *Service) Commit(ctx context.Context, cmd CommitCommand) (out CommitResu
 	q := Query{CompanyID: cmd.CompanyID, Division: cmd.Division, YYMM: cmd.YYMM}
 
 	err = s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
-		if e := lockRun(ctx, tx, q); e != nil {
+		if e := Lock(ctx, tx, q); e != nil {
 			return e
 		}
 		if e := ensurePeriodOpen(ctx, tx, q, period.Start, period.End); e != nil {
@@ -123,7 +123,7 @@ func (s *Service) Commit(ctx context.Context, cmd CommitCommand) (out CommitResu
 		if res.Summary.EmpCount == 0 {
 			return apperr.New(apperr.CodeBusinessRule, "tidak ada karyawan yang terhitung; run tidak disimpan", nil)
 		}
-		actor, _ := scope.FromContext(ctx) //nolint:errcheck // checked by inScope
+		actor, _ := scope.FromContext(ctx) //nolint:errcheck // checked by InScope
 		p := persistRun{q: q, ruleSetID: cmd.RuleSetID, snapshotID: loaded.SnapshotID, payDate: payDate,
 			actor: actor.UserID, res: res, inputs: loaded.Inputs}
 		ids, e := p.save(ctx, tx)
@@ -148,9 +148,9 @@ func (s *Service) Commit(ctx context.Context, cmd CommitCommand) (out CommitResu
 	return out, nil
 }
 
-// lockRun takes the transaction advisory lock of (company, yymm, division) without waiting (03§3 step 1):
+// Lock takes the transaction advisory lock of (company, yymm, division) without waiting (03§3 step 1):
 // a second run of the same period fails fast with RUN_IN_PROGRESS instead of queueing.
-func lockRun(ctx context.Context, tx *sql.Tx, q Query) error {
+func Lock(ctx context.Context, tx *sql.Tx, q Query) error {
 	var ok bool
 	key := fmt.Sprintf("%d:%d:%s", q.CompanyID, q.YYMM, q.Division)
 	if err := tx.QueryRowContext(ctx, `SELECT pg_try_advisory_xact_lock(hashtext('payroll.run'), hashtext($1))`, key).
@@ -185,8 +185,8 @@ WHERE pp_company_id = $1 AND pp_yymm = $2 AND pp_division = $3 FOR UPDATE`, q.Co
 	}
 }
 
-// inScope requires company:division in the caller scope (RLS would only hide the rows).
-func inScope(ctx context.Context, companyID int16, division string) error {
+// InScope requires company:division in the caller scope (RLS would only hide the rows).
+func InScope(ctx context.Context, companyID int16, division string) error {
 	id, ok := scope.FromContext(ctx)
 	if !ok {
 		return scope.ErrNoIdentity

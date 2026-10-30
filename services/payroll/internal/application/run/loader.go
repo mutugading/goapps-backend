@@ -16,7 +16,7 @@ import (
 
 // Loader errors.
 var (
-	ErrNoSnapshot          = errors.New("run: no locked attendance snapshot for the period")
+	ErrNoSnapshot          = errors.New("run: no attendance snapshot for the period")
 	ErrMissingAttdDays     = errors.New("run: MISSING_ATTD_DAYS: pyr_attd_days has no row for the period")
 	ErrMissingAttendance   = errors.New("run: MISSING_ATTENDANCE: active employee without attendance recap")
 	ErrBadComponentCode    = errors.New("run: component code is not T/P + number")
