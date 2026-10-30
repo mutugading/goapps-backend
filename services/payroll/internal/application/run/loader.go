@@ -42,9 +42,9 @@ const (
 
 // Issue is a validation finding of the load step (03§3 step 2).
 type Issue struct {
-	NIK     string
-	Code    string
-	Message string
+	NIK     string `json:"nik,omitempty"`
+	Code    string `json:"code"`
+	Message string `json:"message,omitempty"`
 }
 
 // Query selects what to load. NIKs empty = every active employee of the division.
@@ -65,8 +65,9 @@ type Rules struct {
 
 // Result is the loaded batch plus its warnings.
 type Result struct {
-	Inputs   []engine.Input
-	Warnings []Issue
+	Inputs     []engine.Input
+	Warnings   []Issue
+	SnapshotID int64 // locked attendance snapshot the inputs were read from (pr_snapshot_id)
 }
 
 // Loader reads the run input with a fixed number of set-based queries per division.
@@ -86,7 +87,7 @@ func (l Loader) Load(ctx context.Context, tx *sql.Tx, q Query, rules Rules) (Res
 	if err != nil {
 		return Result{}, err
 	}
-	snap, err := loadSnapshot(ctx, tx, q)
+	snapID, snap, err := loadSnapshot(ctx, tx, q)
 	if err != nil {
 		return Result{}, err
 	}
@@ -118,7 +119,7 @@ func (l Loader) Load(ctx context.Context, tx *sql.Tx, q Query, rules Rules) (Res
 		}
 	}
 
-	res := Result{Warnings: taxIssues}
+	res := Result{Warnings: taxIssues, SnapshotID: snapID}
 	for _, e := range emps {
 		in := engine.Input{
 			Period: period, Division: q.Division, Emp: e, Components: comps[e.NIK],

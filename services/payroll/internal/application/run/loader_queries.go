@@ -177,22 +177,22 @@ ORDER BY pa_nik, pa_type, pa_id`, q.CompanyID, q.Division, q.YYMM, nikArray(q.NI
 // loadSnapshot reads the newest locked attendance snapshot of the period (2 queries).
 // Keys of pasr_data (MPAR_DAY_WORK, MPARA_SHIFT, ...) become lower case without prefix
 // (day_work, shift), the names the engine reads. Missing recap = absent from the map (D2).
-func loadSnapshot(ctx context.Context, tx *sql.Tx, q Query) (map[string]snapRow, error) {
+func loadSnapshot(ctx context.Context, tx *sql.Tx, q Query) (int64, map[string]snapRow, error) {
 	var id int64
 	err := tx.QueryRowContext(ctx, `SELECT pas_snapshot_id FROM payroll.pyr_att_snapshot
  WHERE pas_company_id = $1 AND pas_division = $2 AND pas_yymm = $3 AND pas_locked
  ORDER BY pas_snapshot_id DESC LIMIT 1`, q.CompanyID, q.Division, q.YYMM).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("%w: %s %d", ErrNoSnapshot, q.Division, q.YYMM)
+		return 0, nil, fmt.Errorf("%w: %s %d", ErrNoSnapshot, q.Division, q.YYMM)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("find snapshot: %w", err)
+		return 0, nil, fmt.Errorf("find snapshot: %w", err)
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT pasr_kind, pasr_nik, pasr_data::text, pasr_premi_fail, pasr_beras_fail
 FROM payroll.pyr_att_snapshot_row WHERE pasr_snapshot_id = $1 AND ($2::text[] = '{}' OR pasr_nik = ANY($2::text[]))
 ORDER BY pasr_nik, pasr_kind`, id, nikArray(q.NIKs))
 	if err != nil {
-		return nil, fmt.Errorf("load snapshot rows: %w", err)
+		return 0, nil, fmt.Errorf("load snapshot rows: %w", err)
 	}
 	defer closeRows(rows)
 	out := map[string]snapRow{}
@@ -200,11 +200,11 @@ ORDER BY pasr_nik, pasr_kind`, id, nikArray(q.NIKs))
 		var kind, nik, data string
 		var premi, beras sql.NullInt32
 		if err := rows.Scan(&kind, &nik, &data, &premi, &beras); err != nil {
-			return nil, fmt.Errorf("scan snapshot row: %w", err)
+			return 0, nil, fmt.Errorf("scan snapshot row: %w", err)
 		}
 		r := out[nik]
 		if err := r.apply(kind, data); err != nil {
-			return nil, fmt.Errorf("snapshot %s %s: %w", nik, kind, err)
+			return 0, nil, fmt.Errorf("snapshot %s %s: %w", nik, kind, err)
 		}
 		if kind == "REKAP" {
 			r.premiFail, r.berasFail = int(premi.Int32), int(beras.Int32)
@@ -212,7 +212,7 @@ ORDER BY pasr_nik, pasr_kind`, id, nikArray(q.NIKs))
 		out[nik] = r
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 	// A recap exists only with a REKAP row; ADD/SCH alone leave Att nil (legacy D2).
 	for nik, r := range out {
@@ -220,7 +220,7 @@ ORDER BY pasr_nik, pasr_kind`, id, nikArray(q.NIKs))
 			delete(out, nik)
 		}
 	}
-	return out, nil
+	return id, out, nil
 }
 
 // apply folds one snapshot row into the recap of its NIK.

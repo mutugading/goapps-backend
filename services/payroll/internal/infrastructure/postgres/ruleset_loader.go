@@ -25,6 +25,18 @@ var (
 	ErrRuleCompType     = errors.New("unknown pyr_rule_component type")
 )
 
+// IsRuleError reports whether err means the rule set itself is unusable for the run (a caller
+// maps it to RULE_INCOMPLETE), as opposed to a database or scope failure.
+func IsRuleError(err error) bool {
+	for _, e := range []error{ErrRuleSetNotFound, ErrRuleSetStatus, ErrSubsidyNoLimit, ErrSubsidyNoAmount,
+		ErrStaticValueParse, ErrStaticValueDup, ErrRuleCompType, engine.ErrNoTaxTable, engine.ErrNoAnnualTaxTable} {
+		if errors.Is(err, e) {
+			return true
+		}
+	}
+	return false
+}
+
 // RuleQuery selects the rules of one run: rule set, company, division and period.
 type RuleQuery struct {
 	RuleSetID int
