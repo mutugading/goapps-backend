@@ -107,7 +107,7 @@ func readPPFacts(ctx context.Context, t *testing.T, db *sql.DB) map[string]ppFac
 }
 
 // Gated by INTEGRATION_TEST=true. Needs a database migrated through 000610 (bi_fact_metric,
-// HRIS_ORACLE, PACK_* registry). Verifies ETL§D (DAILY/MONTHLY, PP-06) inside the staging
+// HRIS_ORACLE, PACK_* registry). Verifies ETL§D (DAILY/WEEKLY/MONTHLY, PP-06/P007) inside the staging
 // transaction: per-type filters, group labels/orders, 5 long-format metrics, idempotency, rows
 // dropped at the source disappearing, month-cutting windows recomputing the whole month from
 // staging, and the ETL§F reconciliation (a mismatch would fail ReplacePackProdDaily).
@@ -148,7 +148,9 @@ func TestBiPPStagingRepository_ReplacePackProdDaily_Facts(t *testing.T) {
 
 	// Early January, loaded by an earlier run (outside the later daily window).
 	early := at(twt, "1999-01-03")
-	load("1999-01-01", "1999-01-05", early)
+	// early2 (Saturday 1999-01-09) shares week 1999-W01 with the first window day (Sunday 01-10).
+	early2 := at(twt, "1999-01-09")
+	load("1999-01-01", "1999-01-09", early, early2)
 
 	// Window 1999-01-10..1999-02-05 cuts January: its MONTHLY must include 1999-01-03 from staging.
 	txt := ppFixture{dept: "TXT", txType: "PACKING TX", txTypeMC: "PACKING TX MC", groupType: "Rewinding",
@@ -170,9 +172,9 @@ func TestBiPPStagingRepository_ReplacePackProdDaily_Facts(t *testing.T) {
 		return f.Value
 	}
 
-	// SUMMARY January TWT = 1999-01-03 + two 1999-01-12 TWT rows (whole month from staging).
-	require.Equal(t, "28.5200", val(key("PP_PACK_SUMMARY", "TWISTING", "PACKING TW", "Regular", "", "MONTHLY", "1999-01-01", "PACK_TOTAL")))
-	require.Equal(t, "20.5000", val(key("PP_PACK_SUMMARY", "TWISTING", "PACKING TW", "Regular", "", "MONTHLY", "1999-01-01", "PACK_AX")))
+	// SUMMARY January TWT = 1999-01-03, 01-09 + two 1999-01-12 TWT rows (whole month from staging).
+	require.Equal(t, "42.2800", val(key("PP_PACK_SUMMARY", "TWISTING", "PACKING TW", "Regular", "", "MONTHLY", "1999-01-01", "PACK_TOTAL")))
+	require.Equal(t, "30.7500", val(key("PP_PACK_SUMMARY", "TWISTING", "PACKING TW", "Regular", "", "MONTHLY", "1999-01-01", "PACK_AX")))
 	require.Equal(t, "199901", first[key("PP_PACK_SUMMARY", "TWISTING", "PACKING TW", "Regular", "", "MONTHLY", "1999-01-01", "PACK_AX")].Label)
 	// The early daily fact is outside the window and untouched; DAILY label is YYYY-MM-DD.
 	require.Equal(t, "13.7600", val(key("PP_PACK_SUMMARY", "TWISTING", "PACKING TW", "Regular", "", "DAILY", "1999-01-03", "PACK_TOTAL")))
@@ -190,13 +192,25 @@ func TestBiPPStagingRepository_ReplacePackProdDaily_Facts(t *testing.T) {
 	require.Equal(t, "1.0000", val(key("PP_PACK_PRODUCT", "TWISTING", "PACKING TW", "Regular", "", "DAILY", "1999-01-12", "PACK_TOTAL")))
 	// MACHINE: grade_eligible='Y' only, group_2 = transaction_type_mc.
 	require.NotContains(t, first, key("PP_PACK_MACHINE", "TEXTURISING", "PACKING TX MC", "Rewinding", "MC9", "DAILY", "1999-01-12", "PACK_TOTAL"))
-	require.Equal(t, "28.5200", val(key("PP_PACK_MACHINE", "TWISTING", "PACKING TW MC", "Regular", "MC1", "MONTHLY", "1999-01-01", "PACK_TOTAL")))
+	require.Equal(t, "42.2800", val(key("PP_PACK_MACHINE", "TWISTING", "PACKING TW MC", "Regular", "MC1", "MONTHLY", "1999-01-01", "PACK_TOTAL")))
 	// POLY: all rows, group_2 = transaction_type_mc.
 	require.Equal(t, "203.5000", val(key("PP_PACK_POLY", "TEXTURISING", "PACKING TX MC", "Rewinding", "P2", "MONTHLY", "1999-01-01", "PACK_TOTAL")))
-	// No WEEKLY facts (PP-06); every fact has 5 metrics.
+	// WEEKLY (P007): week_start Monday, label IYYY-"W"IW. The window (starting Sunday 01-10) cuts
+	// week 01-04: it still sums early2 from staging; week 12-28 (ISO year 1998, W53, from the Sunday
+	// 01-03 load) lies before the window and stays untouched.
+	sumTW := func(week string) string {
+		return key("PP_PACK_SUMMARY", "TWISTING", "PACKING TW", "Regular", "", "WEEKLY", week, "PACK_TOTAL")
+	}
+	require.Equal(t, "13.7600", val(sumTW("1998-12-28")))
+	require.Equal(t, "1998-W53", first[sumTW("1998-12-28")].Label)
+	require.Equal(t, "13.7600", val(sumTW("1999-01-04")))
+	require.Equal(t, "1999-W01", first[sumTW("1999-01-04")].Label)
+	require.Equal(t, "14.7600", val(sumTW("1999-01-11")))
+	require.Equal(t, "1999-W02", first[sumTW("1999-01-11")].Label)
+	require.Equal(t, "13.7600", val(sumTW("1999-02-01")))
+	require.Equal(t, "14.7600", val(key("PP_PACK_MACHINE", "TWISTING", "PACKING TW MC", "Regular", "MC1", "WEEKLY", "1999-01-11", "PACK_TOTAL")))
 	perMetric := map[string]int{}
 	for _, f := range first {
-		require.NotEqual(t, "WEEKLY", f.Grain)
 		perMetric[f.Metric]++
 	}
 	require.Len(t, perMetric, 5)
@@ -206,6 +220,13 @@ func TestBiPPStagingRepository_ReplacePackProdDaily_Facts(t *testing.T) {
 
 	// Second identical run: identical facts.
 	load("1999-01-10", "1999-02-05", window...)
+	require.Equal(t, first, readPPFacts(ctx, t, raw))
+
+	// P007 one-shot: WEEKLY history missing for staged days is rebuilt from staging alone.
+	_, err = raw.ExecContext(ctx, `DELETE FROM bi_fact_metric WHERE periode_grain = 'WEEKLY' AND type LIKE 'PP_PACK_%' AND periode_date < DATE '2000-01-01'`)
+	require.NoError(t, err)
+	_, err = repo.RebuildPackProdFacts(ctx, d("1999-01-01"), d("1999-02-05"), srcID)
+	require.NoError(t, err)
 	require.Equal(t, first, readPPFacts(ctx, t, raw))
 
 	// Source drops the TXT row: its facts vanish, January MONTHLY is recomputed, early daily stays.
@@ -221,7 +242,10 @@ func TestBiPPStagingRepository_ReplacePackProdDaily_Facts(t *testing.T) {
 	// An empty source empties the window, but January MONTHLY still counts the early staging day.
 	load("1999-01-10", "1999-02-05")
 	got = readPPFacts(ctx, t, raw)
-	require.Equal(t, "13.7600", got[key("PP_PACK_SUMMARY", "TWISTING", "PACKING TW", "Regular", "", "MONTHLY", "1999-01-01", "PACK_TOTAL")].Value)
+	require.Equal(t, "27.5200", got[key("PP_PACK_SUMMARY", "TWISTING", "PACKING TW", "Regular", "", "MONTHLY", "1999-01-01", "PACK_TOTAL")].Value)
+	require.Equal(t, "13.7600", got[sumTW("1999-01-04")].Value)
+	require.NotContains(t, got, sumTW("1999-01-11"))
+	require.NotContains(t, got, sumTW("1999-02-01"))
 	require.NotContains(t, got, key("PP_PACK_SUMMARY", "TWISTING", "PACKING TW", "Regular", "", "MONTHLY", "1999-02-01", "PACK_TOTAL"))
 
 	// The ETL§F reconciliation does catch a mismatch (PP-08): a staging value finer than the 4dp

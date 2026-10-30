@@ -12,7 +12,7 @@ import (
 )
 
 // TargetPPPack is the job target_type of ETL_PP_PACK_DAILY (PP-03): VIEW_BI_PACK_PROD_DAILY →
-// bi_pp_stg_pack_prod_daily → PP_PACK_* facts (DAILY/MONTHLY, PP-06).
+// bi_pp_stg_pack_prod_daily → PP_PACK_* facts (DAILY/WEEKLY/MONTHLY, PP-06, P007).
 const TargetPPPack = "PP_PACK"
 
 // PPWindowDays is the re-pull horizon of the packed-production job (PP-03).

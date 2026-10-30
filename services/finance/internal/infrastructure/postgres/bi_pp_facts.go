@@ -11,14 +11,15 @@ import (
 )
 
 // ppDeleteFactsSQL clears the PP_PACK_* facts of the window, widened to the start of d1's month for
-// MONTHLY (ETL§D). WEEKLY is not written yet (PP-06). $1 = d1, $2 = d2 as 'YYYY-MM-DD'.
+// WEEKLY (back to the Monday of d1's week) and MONTHLY (ETL§D). $1 = d1, $2 = d2 as 'YYYY-MM-DD'.
 const ppDeleteFactsSQL = `DELETE FROM bi_fact_metric
  WHERE type IN ('PP_PACK_SUMMARY', 'PP_PACK_PRODUCT', 'PP_PACK_MACHINE', 'PP_PACK_POLY')
    AND scenario = 'ACTUAL'
    AND (   (periode_grain = 'DAILY'   AND periode_date BETWEEN $1::date AND $2::date)
+        OR (periode_grain = 'WEEKLY'  AND periode_date BETWEEN date_trunc('week', $1::date)::date AND $2::date)
         OR (periode_grain = 'MONTHLY' AND periode_date BETWEEN date_trunc('month', $1::date)::date AND $2::date))`
 
-// ppInsertFactsSQL is ETL§D without the WEEKLY branch (PP-06): one aggregate row per (type, group,
+// ppInsertFactsSQL is ETL§D: one aggregate row per (type, group,
 // dimension, grain, period) from the full staging data, unpivoted to the 5 PACK_* metrics.
 // $1 = d1, $2 = d2 as 'YYYY-MM-DD', $3 = source_id.
 const ppInsertFactsSQL = `INSERT INTO bi_fact_metric (
@@ -44,8 +45,9 @@ SELECT a.type, a.group_1, a.group_2, a.group_3,
                MIN (s.prd_type_order)                                               AS group_2_order,
                MIN (s.group_type_order)                                             AS group_3_order,
                g.periode_grain,
-               CASE g.periode_grain WHEN 'DAILY' THEN s.pack_date ELSE s.month_start END AS periode_date,
-               CASE g.periode_grain WHEN 'DAILY' THEN to_char (s.pack_date, 'YYYY-MM-DD') ELSE s.period END AS periode_label,
+               CASE g.periode_grain WHEN 'DAILY' THEN s.pack_date WHEN 'WEEKLY' THEN s.week_start ELSE s.month_start END AS periode_date,
+               CASE g.periode_grain WHEN 'DAILY' THEN to_char (s.pack_date, 'YYYY-MM-DD')
+                                    WHEN 'WEEKLY' THEN to_char (s.week_start, 'IYYY-"W"IW') ELSE s.period END AS periode_label,
                CASE t.type
                    WHEN 'PP_PACK_PRODUCT' THEN COALESCE (s.merge_no, '')
                    WHEN 'PP_PACK_MACHINE' THEN COALESCE (s.mc_no, '')
@@ -58,7 +60,7 @@ SELECT a.type, a.group_1, a.group_2, a.group_3,
                SUM (s.dg_qty)    AS dg_qty,
                SUM (s.jlt_qty)   AS jlt_qty
           FROM bi_pp_stg_pack_prod_daily s
-               CROSS JOIN (VALUES ('DAILY'), ('MONTHLY')) g (periode_grain)
+               CROSS JOIN (VALUES ('DAILY'), ('WEEKLY'), ('MONTHLY')) g (periode_grain)
                -- filter per type = old mail alert report filter
                JOIN (VALUES ('PP_PACK_SUMMARY', FALSE),
                             ('PP_PACK_PRODUCT', FALSE),
@@ -68,6 +70,7 @@ SELECT a.type, a.group_1, a.group_2, a.group_3,
                     OR (t.type = 'PP_PACK_PRODUCT' AND s.group_type NOT IN ('Boughtout', 'Rewinding'))
                     OR (t.type = 'PP_PACK_MACHINE' AND s.grade_eligible = 'Y')
          WHERE (   (g.periode_grain = 'DAILY'   AND s.pack_date   BETWEEN $1::date AND $2::date)
+                OR (g.periode_grain = 'WEEKLY'  AND s.week_start  BETWEEN date_trunc('week', $1::date)::date AND $2::date)
                 OR (g.periode_grain = 'MONTHLY' AND s.month_start BETWEEN date_trunc('month', $1::date)::date AND $2::date))
       GROUP BY 1, 2, 3, 4, 8, 9, 10, 11
        ) a
@@ -77,7 +80,7 @@ SELECT a.type, a.group_1, a.group_2, a.group_3,
                                   ('PACK_DG',    a.dg_qty),
                                   ('PACK_JLT',   a.jlt_qty)) m (metric_name, value)`
 
-// ppReconSQL is ETL§F without WEEKLY (PP-08): PP_PACK_SUMMARY PACK_TOTAL per grain/period vs the staging
+// ppReconSQL is ETL§F (PP-08): PP_PACK_SUMMARY PACK_TOTAL per grain/period vs the staging
 // sum. Every returned row is a mismatch. $1 = d1, $2 = d2 as 'YYYY-MM-DD'.
 const ppReconSQL = `SELECT COALESCE (f.periode_grain, s.periode_grain), COALESCE (f.periode_date, s.periode_date)::text,
        COALESCE (f.fact_total, 0)::text, COALESCE (s.stg_total, 0)::text
@@ -87,24 +90,26 @@ const ppReconSQL = `SELECT COALESCE (f.periode_grain, s.periode_grain), COALESCE
              -- per-grain window, same as the staging side (PP-08: the spec's single month-start
              -- bound reports DAILY facts before d1 as mismatches)
              AND (   (periode_grain = 'DAILY'   AND periode_date BETWEEN $1::date AND $2::date)
+                  OR (periode_grain = 'WEEKLY'  AND periode_date BETWEEN date_trunc('week', $1::date)::date AND $2::date)
                   OR (periode_grain = 'MONTHLY' AND periode_date BETWEEN date_trunc('month', $1::date)::date AND $2::date))
         GROUP BY periode_grain, periode_date) f
        FULL JOIN
        (  SELECT g.periode_grain,
-                 CASE g.periode_grain WHEN 'DAILY' THEN pack_date ELSE month_start END AS periode_date,
+                 CASE g.periode_grain WHEN 'DAILY' THEN pack_date WHEN 'WEEKLY' THEN week_start ELSE month_start END AS periode_date,
                  SUM (total_qty) AS stg_total
             FROM bi_pp_stg_pack_prod_daily
-                 CROSS JOIN (VALUES ('DAILY'), ('MONTHLY')) g (periode_grain)
+                 CROSS JOIN (VALUES ('DAILY'), ('WEEKLY'), ('MONTHLY')) g (periode_grain)
            WHERE (   (g.periode_grain = 'DAILY'   AND pack_date   BETWEEN $1::date AND $2::date)
+                  OR (g.periode_grain = 'WEEKLY'  AND week_start  BETWEEN date_trunc('week', $1::date)::date AND $2::date)
                   OR (g.periode_grain = 'MONTHLY' AND month_start BETWEEN date_trunc('month', $1::date)::date AND $2::date))
         GROUP BY 1, 2) s
        ON s.periode_grain = f.periode_grain AND s.periode_date = f.periode_date
  WHERE COALESCE (f.fact_total, 0) <> COALESCE (s.stg_total, 0)
  ORDER BY 1, 2`
 
-// replacePPFacts recomputes the DAILY and MONTHLY PP_PACK_* facts of [d1, d2] from staging inside
+// replacePPFacts recomputes the DAILY, WEEKLY and MONTHLY PP_PACK_* facts of [d1, d2] from staging inside
 // the caller's transaction (ETL§D, PP-06): facts of the window are deleted and re-inserted, so
-// combinations removed at the source disappear. MONTHLY covers every month the window touches,
+// combinations removed at the source disappear. WEEKLY/MONTHLY cover every week/month the window touches,
 // summed from the full staging data. The ETL§F reconciliation then runs in the same transaction;
 // any mismatch aborts it. Returns fact rows inserted.
 func replacePPFacts(ctx context.Context, tx *sql.Tx, d1, d2 time.Time, sourceID uuid.UUID) (int64, error) {

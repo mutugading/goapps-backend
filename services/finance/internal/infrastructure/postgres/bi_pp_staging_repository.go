@@ -37,7 +37,7 @@ func NewBiPPStagingRepository(db *DB) *BiPPStagingRepository {
 }
 
 // ReplacePackProdDaily deletes staging rows with pack_date in [d1, d2], batch-inserts rows (ETL§C),
-// then re-aggregates the DAILY/MONTHLY PP_PACK_* facts of the window and reconciles them (ETL§D/§F),
+// then re-aggregates the DAILY/WEEKLY/MONTHLY PP_PACK_* facts of the window and reconciles them (ETL§D/§F),
 // all in one transaction, so combinations that vanished from the source vanish from staging and
 // facts too. sourceID is stamped on the facts. Returns staging rows inserted.
 func (r *BiPPStagingRepository) ReplacePackProdDaily(
@@ -73,6 +73,33 @@ func (r *BiPPStagingRepository) ReplacePackProdDaily(
 		return 0, fmt.Errorf("commit: %w", err)
 	}
 	return len(rows), nil
+}
+
+// RebuildPackProdFacts re-aggregates the PP_PACK_* facts of [d1, d2] from the existing staging
+// without touching Oracle or staging (P007: fills WEEKLY history for periods staged before the
+// WEEKLY grain existed). Same transaction, lock and ETL§F reconciliation as ReplacePackProdDaily.
+// Returns fact rows inserted.
+func (r *BiPPStagingRepository) RebuildPackProdFacts(ctx context.Context, d1, d2 time.Time, sourceID uuid.UUID) (int64, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			_ = rbErr
+		}
+	}()
+	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, "bi_pp_replace:pack_prod_daily"); err != nil {
+		return 0, fmt.Errorf("advisory lock: %w", err)
+	}
+	n, err := replacePPFacts(ctx, tx, d1, d2, sourceID)
+	if err != nil {
+		return 0, fmt.Errorf("aggregate pack prod facts: %w", err)
+	}
+	if err = tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit: %w", err)
+	}
+	return n, nil
 }
 
 // insertPPBatch inserts rows with one parameterized multi-row INSERT.
