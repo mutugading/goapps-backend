@@ -117,25 +117,39 @@ func computeCrossRatioKPI(
 	}, now)
 
 	grain := d.PeriodGrain().String()
-	buildQuery := func(group1 string) factmetric.PlannedQuery {
-		args := []any{d.FilterType(), group1, grain, effPeriod.From, effPeriod.To}
+	// Metric mode (PP-10): numerator/denominator are metric_names over all groups of the type;
+	// otherwise they are group_1 values with metric_name = 'VALUE'.
+	byMetric := k.CrossRatioNumeratorMetric != "" && k.CrossRatioDenominatorMetric != ""
+	buildQuery := func(key string) factmetric.PlannedQuery {
+		args := []any{d.FilterType(), key, grain, effPeriod.From, effPeriod.To}
+		match := "group_1 = $2"
+		if byMetric {
+			match = "metric_name = $2"
+		}
 		sql := `SELECT 'kpi'::text AS category, NULL::date AS periode_date,
                        ''::text AS periode_label,
                        COALESCE(SUM(display_value), 0) AS value,
                        0::numeric AS prev_value, 0::int AS order_seq
                 FROM bi_fact_metric
-                WHERE type = $1 AND group_1 = $2 AND periode_grain = $3
+                WHERE type = $1 AND ` + match + ` AND periode_grain = $3
                   AND periode_date BETWEEN $4 AND $5
-                  AND is_active = TRUE AND metric_name = 'VALUE'`
+                  AND is_active = TRUE`
+		if !byMetric {
+			sql += ` AND metric_name = 'VALUE'`
+		}
 		return factmetric.PlannedQuery{SQL: sql, Args: args, TargetTable: "bi_fact_metric"}
 	}
+	numKey, denKey := k.CrossRatioNumeratorGroup1, k.CrossRatioDenominatorGroup1
+	if byMetric {
+		numKey, denKey = k.CrossRatioNumeratorMetric, k.CrossRatioDenominatorMetric
+	}
 
-	numRows, err := repo.QueryAggregate(ctx, buildQuery(k.CrossRatioNumeratorGroup1))
+	numRows, err := repo.QueryAggregate(ctx, buildQuery(numKey))
 	if err != nil {
 		return factmetric.KpiRow{Label: k.Label}, fmt.Errorf("cross ratio numerator: %w", err)
 	}
 
-	denRows, err := repo.QueryAggregate(ctx, buildQuery(k.CrossRatioDenominatorGroup1))
+	denRows, err := repo.QueryAggregate(ctx, buildQuery(denKey))
 	if err != nil {
 		return factmetric.KpiRow{Label: k.Label}, fmt.Errorf("cross ratio denominator: %w", err)
 	}

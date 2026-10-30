@@ -25,6 +25,11 @@ type KpiEntry struct {
 	CrossRatioNumeratorGroup1   string  // e.g. "NET PROFIT"
 	CrossRatioDenominatorGroup1 string  // e.g. "EBITDA"
 	CrossRatioScale             float64 // e.g. 100 for percentage; default 1
+
+	// When both metric fields are set, the ratio is SUM(numerator metric) / SUM(denominator metric)
+	// over the dashboard's type (all groups) instead of comparing two group_1 values (PP-10).
+	CrossRatioNumeratorMetric   string // e.g. "PACK_AX"
+	CrossRatioDenominatorMetric string // e.g. "PACK_TOTAL"
 }
 
 // KpiConfig is the ordered list of KPI cards a dashboard renders above its main chart.
@@ -137,6 +142,7 @@ func parseKpiEntry(m map[string]any, idx int) (KpiEntry, error) {
 	}
 
 	crossNumer, crossDenom, crossScale := parseCrossRatioFields(agg, m)
+	numMetric, denMetric := parseCrossRatioMetrics(agg, m)
 
 	return KpiEntry{
 		Label:                       label,
@@ -152,6 +158,8 @@ func parseKpiEntry(m map[string]any, idx int) (KpiEntry, error) {
 		CrossRatioNumeratorGroup1:   crossNumer,
 		CrossRatioDenominatorGroup1: crossDenom,
 		CrossRatioScale:             crossScale,
+		CrossRatioNumeratorMetric:   numMetric,
+		CrossRatioDenominatorMetric: denMetric,
 	}, nil
 }
 
@@ -168,6 +176,27 @@ func parseCrossRatioFields(agg string, m map[string]any) (numer, denom string, s
 		scale = v
 	}
 	return numer, denom, scale
+}
+
+// parseCrossRatioMetrics reads the optional metric-mode fields of a cross_ratio KPI (PP-10).
+func parseCrossRatioMetrics(agg string, m map[string]any) (numerator, denominator string) {
+	if agg != kpiAggCrossRatio {
+		return "", ""
+	}
+	return mapStringVal(m, "numerator_metric"), mapStringVal(m, "denominator_metric")
+}
+
+// putCrossRatio writes the cross_ratio fields of e into m.
+func putCrossRatio(m map[string]any, e KpiEntry) {
+	m["numerator_group_1"] = e.CrossRatioNumeratorGroup1
+	m["denominator_group_1"] = e.CrossRatioDenominatorGroup1
+	if e.CrossRatioNumeratorMetric != "" {
+		m["numerator_metric"] = e.CrossRatioNumeratorMetric
+		m["denominator_metric"] = e.CrossRatioDenominatorMetric
+	}
+	if e.CrossRatioScale != 0 && e.CrossRatioScale != 1 {
+		m["scale"] = e.CrossRatioScale
+	}
 }
 
 // parseKpiAgg reads and validates the aggregation key, defaulting to "sum".
@@ -242,11 +271,7 @@ func (k KpiConfig) MarshalToList() []map[string]any {
 			}
 		}
 		if e.Agg == kpiAggCrossRatio {
-			m["numerator_group_1"] = e.CrossRatioNumeratorGroup1
-			m["denominator_group_1"] = e.CrossRatioDenominatorGroup1
-			if e.CrossRatioScale != 0 && e.CrossRatioScale != 1 {
-				m["scale"] = e.CrossRatioScale
-			}
+			putCrossRatio(m, e)
 		}
 		out[i] = m
 	}

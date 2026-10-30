@@ -55,3 +55,20 @@ func TestPackProdJob610MigrationText(t *testing.T) {
 	assert.Contains(t, up, "ON CONFLICT (job_name) DO NOTHING")
 	assert.Contains(t, down, "job_name = 'ETL_PP_PACK_DAILY'")
 }
+
+// P006: seed dashboard PP_PACK_* (000611).
+func TestPackProdDashboards611MigrationText(t *testing.T) {
+	up := readMig(t, "000611_seed_bi_pp_pack_dashboards.up.sql")
+	down := readMig(t, "000611_seed_bi_pp_pack_dashboards.down.sql")
+	for _, c := range []string{"PP_PACK_SUMMARY", "PP_PACK_PRODUCT", "PP_PACK_MACHINE", "PP_PACK_POLY"} {
+		assert.Contains(t, up, "'"+c+"'")
+		assert.Contains(t, down, "'"+c+"'")
+	}
+	assert.Contains(t, up, `"group":"PACKPROD"`)
+	assert.Contains(t, up, `"numerator_metric":"PACK_AX"`)
+	assert.Contains(t, up, `"numerator_metric":"PACK_FQ"`)
+	assert.Contains(t, up, `"category_field":"dimension_key"`)
+	assert.Contains(t, up, "ON CONFLICT (dashboard_code) DO NOTHING")
+	assert.Contains(t, up, "MV_REFRESH_PP_PACK")
+	assert.Contains(t, down, "MV_REFRESH_PP_PACK")
+}

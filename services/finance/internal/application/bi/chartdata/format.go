@@ -100,7 +100,8 @@ func Shape(d *dashboarddomain.Dashboard, rows []factmetric.AggRow, kpis []factme
 	// Multi-metric detection: when the dashboard has metric_filter.include_metrics set,
 	// AggRows come from planMultiMetric() where Category = metric_name.
 	// Route to shapeMultiMetric() to produce one Series per metric.
-	if metrics := d.ChartConfig().MetricFilter.IncludeMetrics; len(metrics) > 0 {
+	// Dimension charts (PP-10) also set metric_filter but their Category is the dimension label.
+	if metrics := d.ChartConfig().MetricFilter.IncludeMetrics; len(metrics) > 0 && d.ChartConfig().CategoryField != CategoryFieldDimensionKey {
 		multiSeries := shapeMultiMetric(rows, staticMetricLabels, numFmt, decimals)
 
 		// Build ordered categories from unique period labels as they appear in the rows.
