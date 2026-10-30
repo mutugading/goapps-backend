@@ -19,9 +19,15 @@ import (
 // ErrYTDNPWPConflict rejects a run whose YTD chain mixes two NPWPs (13§3.3).
 var ErrYTDNPWPConflict = errors.New("run: YTD_NPWP_CONFLICT: pe_prev_employee_id chain has a different NPWP")
 
+// ErrYTDOutOfScope rejects a v2 run whose YTD would miss placements in divisions outside the scope.
+var ErrYTDOutOfScope = errors.New("run: YTD_PLACEMENT_OUT_OF_SCOPE: YTD placement in a division outside app.scopes")
+
 const (
 	// CodeThrNotLoaded warns that a December run has no THR/Bonus in YTD/YTDCompany yet (B-THR).
 	CodeThrNotLoaded = "THR_NOT_LOADED"
+	// CodeYTDOutOfScope flags a placement of the tax subject in a division outside app.scopes whose
+	// YTD is not summed (v1 warning, v2 error; T016e).
+	CodeYTDOutOfScope = "YTD_PLACEMENT_OUT_OF_SCOPE"
 	// CodeYTDNoNPWP warns that the YTD of an employee without NPWP follows pe_prev_employee_id (13§3.3).
 	CodeYTDNoNPWP = "YTD_NO_NPWP" //nolint:gosec // issue code, not a credential
 
@@ -54,6 +60,11 @@ func loadTax(ctx context.Context, tx *sql.Tx, q Query, legacy bool, basisPeriod 
 		if issues, err = loadYTD(ctx, tx, q, get); err != nil {
 			return nil, nil, err
 		}
+		scopeIssues, err := ytdOutOfScope(ctx, tx, q, legacy)
+		if err != nil {
+			return nil, nil, err
+		}
+		issues = append(issues, scopeIssues...)
 		issues = append(issues, Issue{Code: CodeThrNotLoaded,
 			Message: "THR/Bonus Jan–Des belum masuk YTD PPh tahunan dan P5 (menunggu B-THR)"})
 		if err := loadTaxAdj(ctx, tx, q, get); err != nil {
@@ -178,6 +189,38 @@ func loadYTD(ctx context.Context, tx *sql.Tx, q Query, get func(string) *taxInpu
 	}
 	if len(conflicts) > 0 {
 		return nil, fmt.Errorf("%w: %s", ErrYTDNPWPConflict, strings.Join(conflicts, ", "))
+	}
+	return issues, nil
+}
+
+// ytdOutOfScope detects placements outside app.scopes through the SECURITY DEFINER function
+// fn_ytd_out_of_scope (counts only, no amounts). v1 warns per NIK, v2 fails the load (T016e).
+func ytdOutOfScope(ctx context.Context, tx *sql.Tx, q Query, legacy bool) ([]Issue, error) {
+	year := q.YYMM / 100 * 100
+	rows, err := tx.QueryContext(ctx,
+		`SELECT out_nik, out_placements FROM payroll.fn_ytd_out_of_scope($1, $2, $3, $4, $5::text[], $6) ORDER BY 1`,
+		q.CompanyID, q.Division, year+1, q.YYMM-1, nikArray(q.NIKs), ytdChainDepth)
+	if err != nil {
+		return nil, fmt.Errorf("load YTD out of scope: %w", err)
+	}
+	defer closeRows(rows)
+	var issues []Issue
+	var niks []string
+	for rows.Next() {
+		var nik string
+		var n int
+		if err := rows.Scan(&nik, &n); err != nil {
+			return nil, fmt.Errorf("scan YTD out of scope: %w", err)
+		}
+		niks = append(niks, nik)
+		issues = append(issues, Issue{NIK: nik, Code: CodeYTDOutOfScope,
+			Message: fmt.Sprintf("%d penempatan di divisi di luar scope tidak masuk YTD; tambahkan scope divisi itu", n)})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if !legacy && len(niks) > 0 {
+		return nil, fmt.Errorf("%w: %s", ErrYTDOutOfScope, strings.Join(niks, ", "))
 	}
 	return issues, nil
 }
