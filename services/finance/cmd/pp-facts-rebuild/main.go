@@ -2,11 +2,15 @@
 // date range from the existing staging table bi_pp_stg_pack_prod_daily, without touching Oracle
 // (P007). Run it once after the WEEKLY grain lands to fill WEEKLY history; it is idempotent and
 // reconciles (ETL§F) before committing.
+// -d1 should be a Monday (and the first day of a month for a full MONTHLY) at or after the start of
+// staging data: weeks/months are summed only from staging, so a -d1 inside a period stores it partial
+// and the reconciliation (staging vs staging) cannot detect that.
 // Usage: pp-facts-rebuild -d1 2025-01-01 -d2 2026-10-29
 package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -35,6 +39,9 @@ func run() error {
 	d2s := flag.String("d2", "", "last pack date (YYYY-MM-DD)")
 	timeout := flag.Duration("timeout", defaultTimeout, "overall timeout")
 	flag.Parse()
+	if *d1s == "" || *d2s == "" {
+		return errors.New("-d1 and -d2 are required (YYYY-MM-DD)")
+	}
 	d1, err := time.Parse(dateLayout, *d1s)
 	if err != nil {
 		return fmt.Errorf("-d1: %w", err)
@@ -44,7 +51,10 @@ func run() error {
 		return fmt.Errorf("-d2: %w", err)
 	}
 	if d2.Before(d1) {
-		return fmt.Errorf("-d2 before -d1")
+		return errors.New("-d2 before -d1")
+	}
+	if d1.Weekday() != time.Monday {
+		log.Printf("WARNING: -d1 %s is not a Monday; the first WEEKLY period may be stored partial", *d1s)
 	}
 
 	cfg, err := config.Load()
@@ -76,7 +86,7 @@ func run() error {
 	log.Printf("rebuilt %d PP_PACK fact rows for %s..%s", n, *d1s, *d2s)
 	// Dashboards read mv_bi_metric_g1/g2; refresh so the rebuilt facts show without waiting for a job.
 	if err = postgres.NewBiUploadRepository(db).RefreshViews(ctx); err != nil {
-		return fmt.Errorf("refresh BI views: %w", err)
+		return fmt.Errorf("facts committed but refresh BI views failed (safe to re-run): %w", err)
 	}
 	log.Printf("refreshed BI materialized views")
 	return nil

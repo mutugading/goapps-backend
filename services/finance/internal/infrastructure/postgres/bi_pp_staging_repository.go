@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 
 	oracleinfra "github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/oracle"
 )
@@ -49,7 +50,7 @@ func (r *BiPPStagingRepository) ReplacePackProdDaily(
 	}
 	defer func() {
 		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
-			_ = rbErr
+			log.Warn().Err(rbErr).Msg("bi_pp: rollback failed")
 		}
 	}()
 
@@ -86,7 +87,7 @@ func (r *BiPPStagingRepository) RebuildPackProdFacts(ctx context.Context, d1, d2
 	}
 	defer func() {
 		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
-			_ = rbErr
+			log.Warn().Err(rbErr).Msg("bi_pp: rollback failed")
 		}
 	}()
 	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, "bi_pp_replace:pack_prod_daily"); err != nil {
