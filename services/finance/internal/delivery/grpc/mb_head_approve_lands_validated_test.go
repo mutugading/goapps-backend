@@ -73,6 +73,10 @@ func (f *approveFakeRepo) List(_ context.Context, _ mbhead.ListFilter) ([]*mbhea
 
 func (f *approveFakeRepo) Update(_ context.Context, _ *mbhead.Entity) error { return nil }
 
+func (f *approveFakeRepo) UpdateWithCascade(_ context.Context, _ *mbhead.Entity, _ string, _ *mbhead.ParamSnapshot) ([]uuid.UUID, error) {
+	return nil, nil
+}
+
 func (f *approveFakeRepo) SoftDelete(_ context.Context, _ uuid.UUID, _ string) error { return nil }
 
 func (f *approveFakeRepo) ExistsByMBCosting(_ context.Context, _ string) (bool, error) {
@@ -114,6 +118,10 @@ func (f *approveFakeRepo) ExistsByVSNumber(_ context.Context, _ string, _ uuid.U
 }
 
 func (f *approveFakeRepo) ExistsByDevCode(_ context.Context, _ string, _ uuid.UUID) (bool, error) {
+	return false, nil
+}
+
+func (f *approveFakeRepo) ExistsByOrionItemCode(_ context.Context, _ string, _ uuid.UUID) (bool, error) {
 	return false, nil
 }
 

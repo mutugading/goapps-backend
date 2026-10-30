@@ -3,10 +3,15 @@ package mbhead
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbhead"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbparam"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/shade"
 )
 
 // UpdateCommand represents the update MB Head command.
@@ -48,16 +53,59 @@ type UpdateCommand struct {
 	// the legacy edit form — which never sends additional_shades — would wipe every
 	// shade row on each save.
 	ReplaceAdditionalShades bool
+
+	// OrionItemCode: nil leaves the stored code untouched, "" (or blank) clears it, any
+	// other value is trimmed and must not already be used by another live head.
+	OrionItemCode *string
 }
+
+// LookupSyncTrigger queues a master-lookup sync for the yarn products that reference an
+// MB master record, after an MB Recipe edit cascaded into it. Implementations are
+// best-effort: the caller only logs a returned error, it never fails the save.
+type LookupSyncTrigger interface {
+	// TriggerSpinSync queues a sync for products referencing one MB Spin (key mbs_id).
+	// There is deliberately no head-keyed (mb_costing) trigger: yarn rows never hold the
+	// head costing text, so every cascaded change reaches them through the spins.
+	TriggerSpinSync(ctx context.Context, spinID uuid.UUID, actor string) error
+}
+
+// lookupSyncTriggerTimeout bounds the detached after-commit lookup-sync queueing.
+const lookupSyncTriggerTimeout = 2 * time.Minute
 
 // UpdateHandler handles the UpdateMBHead command.
 type UpdateHandler struct {
-	repo mbhead.Repository
+	repo      mbhead.Repository
+	shadeRepo shade.Repository
+	// paramRepo backs the CPP re-freeze of the cascade; nil skips the re-freeze.
+	paramRepo mbparam.Repository
+	// lookupSync is the after-commit lookup-sync port; nil disables it.
+	lookupSync LookupSyncTrigger
 }
 
-// NewUpdateHandler creates a new UpdateHandler.
-func NewUpdateHandler(repo mbhead.Repository) *UpdateHandler {
-	return &UpdateHandler{repo: repo}
+// NewUpdateHandler creates a new UpdateHandler. shadeRepo backs the best-effort
+// shade-master auto-create after a successful save; nil disables it.
+func NewUpdateHandler(repo mbhead.Repository, shadeRepo shade.Repository) *UpdateHandler {
+	return &UpdateHandler{repo: repo, shadeRepo: shadeRepo}
+}
+
+// WithShadeRepo attaches the shade master repository used by the best-effort
+// shade auto-create and returns the handler for chaining.
+func (h *UpdateHandler) WithShadeRepo(shadeRepo shade.Repository) *UpdateHandler {
+	h.shadeRepo = shadeRepo
+	return h
+}
+
+// WithParamRepo attaches the MB param master repository so an edit of a head that
+// already has an MB cost product re-freezes its CPP params in the same transaction.
+func (h *UpdateHandler) WithParamRepo(paramRepo mbparam.Repository) *UpdateHandler {
+	h.paramRepo = paramRepo
+	return h
+}
+
+// WithLookupSyncTrigger attaches the after-commit lookup-sync port. nil disables it.
+func (h *UpdateHandler) WithLookupSyncTrigger(t LookupSyncTrigger) *UpdateHandler {
+	h.lookupSync = t
+	return h
 }
 
 // Handle executes the update MB Head command.
@@ -80,8 +128,26 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*mbhead.
 		return nil, err
 	}
 
+	if err := h.assertOrionItemCodeFree(ctx, entity, cmd.OrionItemCode); err != nil {
+		return nil, err
+	}
+
+	oldCosting := entity.MBCosting()
+	oldMachineID := copyUUIDPtr(entity.MachineID())
+	costingChanged := mbCostingChanged(oldCosting, cmd.MBCosting)
+	mbCosting := cmd.MBCosting
+	if costingChanged {
+		if err := h.assertMBCostingFree(ctx, *cmd.MBCosting); err != nil {
+			return nil, err
+		}
+	} else {
+		// A trim-equal value is a no-op: never let a whitespace-only edit drift the
+		// head away from the cost product / spin rows that copied its costing.
+		mbCosting = nil
+	}
+
 	if err := entity.Update(mbhead.UpdateInput{
-		MBCosting:       cmd.MBCosting,
+		MBCosting:       mbCosting,
 		MgtName:         cmd.MgtName,
 		Denier:          cmd.Denier,
 		Filament:        cmd.Filament,
@@ -100,6 +166,7 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*mbhead.
 		MachineID:       cmd.MachineID,
 		VSNumber:        cmd.VSNumber,
 		NoOfProcess:     cmd.NoOfProcess,
+		OrionItemCode:   cmd.OrionItemCode,
 	}, cmd.UpdatedBy); err != nil {
 		return nil, err
 	}
@@ -110,9 +177,14 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*mbhead.
 		}
 	}
 
-	if err := h.repo.Update(ctx, entity); err != nil {
+	refreeze := cppInputsChanged(oldMachineID, entity)
+	spinIDs, err := h.persist(ctx, entity, oldCosting, costingChanged, refreeze)
+	if err != nil {
 		return nil, err
 	}
+	// The cascade transaction is committed at this point, so queue the lookup sync now:
+	// a later ReplaceShades failure must not stop the yarn rows following the spins.
+	h.triggerLookupSync(ctx, entity, spinIDs, cmd.UpdatedBy)
 
 	if cmd.ReplaceAdditionalShades {
 		if err := h.repo.ReplaceShades(ctx, entity.ID(), entity.AdditionalShades(), cmd.UpdatedBy); err != nil {
@@ -120,7 +192,109 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*mbhead.
 		}
 	}
 
+	ensureShadeMaster(ctx, h.shadeRepo, entity, cmd.UpdatedBy)
+
 	return entity, nil
+}
+
+// persist writes the head and returns the spin IDs the cascade touched.
+//
+// A head that already has an MB cost product (it has been validated, so its spins and
+// product exist) goes through UpdateWithCascade: spins, cost product and — when the
+// param master is wired — the CPP re-freeze change in the same transaction as the
+// head (MB Recipe cascade design §3.2). The re-freeze runs ONLY when refreeze is true, i.e.
+// a head field feeding the frozen CPP changed in this update (see cppInputsChanged): a
+// cosmetic edit must neither pull changed mst_mb_param / mst_machine master values into a
+// validated recipe nor be blocked by a broken master row. A costing rename on a head without a product
+// keeps the pre-cascade rename of its spins; any other edit is a plain Update.
+func (h *UpdateHandler) persist(ctx context.Context, entity *mbhead.Entity, oldCosting string, costingChanged, refreeze bool) ([]uuid.UUID, error) {
+	if entity.CostProductID() == 0 {
+		if costingChanged {
+			_, err := h.repo.UpdateWithCascade(ctx, entity, oldCosting, nil)
+			return nil, err
+		}
+		return nil, h.repo.Update(ctx, entity)
+	}
+
+	var params *mbhead.ParamSnapshot
+	if refreeze && h.paramRepo != nil {
+		p, err := resolveRefreezeSnapshot(ctx, h.paramRepo, entity)
+		if err != nil {
+			return nil, err
+		}
+		params = p
+	}
+	return h.repo.UpdateWithCascade(ctx, entity, oldCosting, params)
+}
+
+// cppInputsChanged reports whether this update changed a head field that feeds the frozen
+// CPP rows written by mbFreezeCostParams (mbBuildParamValues). Of the inputs there — the
+// frozen mbh_param_* snapshot, is_boughtout, current_version and machine_id — only
+// machine_id (MACHINE_MB_FIXED_TOTAL) is writable through UpdateInput. mbh_no_of_process
+// (the live choice) is NOT mbh_param_no_of_process (the frozen snapshot), so it does not
+// count.
+func cppInputsChanged(oldMachineID *uuid.UUID, entity *mbhead.Entity) bool {
+	return !uuidPtrEqual(oldMachineID, entity.MachineID())
+}
+
+func copyUUIDPtr(id *uuid.UUID) *uuid.UUID {
+	if id == nil {
+		return nil
+	}
+	v := *id
+	return &v
+}
+
+func uuidPtrEqual(a, b *uuid.UUID) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
+}
+
+// triggerLookupSync queues, AFTER commit and detached from the request, a lookup sync
+// for every cascaded spin so yarn products holding copies of the spin values follow
+// (design §3.3). Strictly best-effort: failures are logged as warnings and never
+// surface to the caller.
+func (h *UpdateHandler) triggerLookupSync(ctx context.Context, entity *mbhead.Entity, spinIDs []uuid.UUID, actor string) {
+	if h.lookupSync == nil || entity.CostProductID() == 0 || len(spinIDs) == 0 {
+		return
+	}
+	trigger := h.lookupSync
+	logger := log.With().Str("mbh_id", entity.ID().String()).Logger()
+	bg := context.WithoutCancel(ctx)
+	go func() {
+		bgCtx, cancel := context.WithTimeout(bg, lookupSyncTriggerTimeout)
+		defer cancel()
+		for _, id := range spinIDs {
+			if err := trigger.TriggerSpinSync(bgCtx, id, actor); err != nil {
+				logger.Warn().Err(err).Str("mbs_id", id.String()).Msg("MB recipe cascade: lookup sync for spin not queued")
+			}
+		}
+	}()
+}
+
+// mbCostingChanged reports whether an incoming MB Costing really renames the head.
+// nil (field absent) and a value equal to the stored one after trimming are no-ops.
+func mbCostingChanged(current string, incoming *string) bool {
+	if incoming == nil {
+		return false
+	}
+	return strings.TrimSpace(*incoming) != strings.TrimSpace(current)
+}
+
+// assertMBCostingFree rejects a rename onto an MB Costing another live head already
+// uses (unique index uix_mst_mb_head_mb_costing). Only called when the value changes,
+// so the head's own row can never collide with itself.
+func (h *UpdateHandler) assertMBCostingFree(ctx context.Context, incoming string) error {
+	taken, err := h.repo.ExistsByMBCosting(ctx, incoming)
+	if err != nil {
+		return err
+	}
+	if taken {
+		return mbhead.ErrAlreadyExists
+	}
+	return nil
 }
 
 // assertVSNumberFree checks VS Number uniqueness ONLY when the value actually
@@ -164,4 +338,18 @@ func (h *UpdateHandler) assertDevCodeFree(ctx context.Context, entity *mbhead.En
 		return mbhead.ErrDuplicateDevCode
 	}
 	return nil
+}
+
+// assertOrionItemCodeFree checks Orion Item Code uniqueness ONLY when the value actually
+// changes. nil (absent) and a cleared/blank value are never probed, and an unchanged code
+// is never re-checked, so heads already sharing a legacy code stay editable.
+func (h *UpdateHandler) assertOrionItemCodeFree(ctx context.Context, entity *mbhead.Entity, incoming *string) error {
+	if incoming == nil {
+		return nil
+	}
+	code := mbhead.NormalizeOrionItemCode(incoming)
+	if code == mbhead.NormalizeOrionItemCode(entity.OrionItemCode()) {
+		return nil
+	}
+	return assertOrionItemCodeFree(ctx, h.repo, code, entity.ID())
 }

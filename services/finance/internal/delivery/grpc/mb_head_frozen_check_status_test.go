@@ -51,6 +51,10 @@ func (f *fakeFrozenMBHeadRepo) Update(_ context.Context, e *mbhead.Entity) error
 	return nil
 }
 
+func (f *fakeFrozenMBHeadRepo) UpdateWithCascade(ctx context.Context, e *mbhead.Entity, _ string, _ *mbhead.ParamSnapshot) ([]uuid.UUID, error) {
+	return nil, f.Update(ctx, e)
+}
+
 func (f *fakeFrozenMBHeadRepo) SoftDelete(_ context.Context, _ uuid.UUID, _ string) error { return nil }
 
 func (f *fakeFrozenMBHeadRepo) ExistsByMBCosting(_ context.Context, _ string) (bool, error) {
@@ -86,6 +90,10 @@ func (f *fakeFrozenMBHeadRepo) ExistsByVSNumber(_ context.Context, _ string, _ u
 }
 
 func (f *fakeFrozenMBHeadRepo) ExistsByDevCode(_ context.Context, _ string, _ uuid.UUID) (bool, error) {
+	return false, nil
+}
+
+func (f *fakeFrozenMBHeadRepo) ExistsByOrionItemCode(_ context.Context, _ string, _ uuid.UUID) (bool, error) {
 	return false, nil
 }
 

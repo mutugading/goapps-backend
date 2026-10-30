@@ -25,6 +25,15 @@ type Repository interface {
 	// Update persists changes to an existing MB Head.
 	Update(ctx context.Context, entity *Entity) error
 
+	// UpdateWithCascade persists changes like Update and, in the same transaction, cascades
+	// the head onto the rows its Validate auto-gen copied it into. With a cost product
+	// (CostProductID() != 0): every live MB Spin's head-derived fields, the root spin's
+	// guarded LDR, the cost product's name/shade and — when params is non-nil — the
+	// frozen param snapshot plus the CPP re-freeze; the touched spin IDs are returned.
+	// Without one: only an MB Costing rename (oldCosting -> entity.MBCosting()) reaches
+	// the spins still carrying oldCosting, and no IDs are returned.
+	UpdateWithCascade(ctx context.Context, entity *Entity, oldCosting string, params *ParamSnapshot) ([]uuid.UUID, error)
+
 	// SoftDelete marks an MB Head as deleted.
 	SoftDelete(ctx context.Context, id uuid.UUID, deletedBy string) error
 
@@ -83,6 +92,12 @@ type Repository interface {
 	// application-layer rule applied only to values that are actually being set or
 	// changed, and the empty string is exempt.
 	ExistsByDevCode(ctx context.Context, devCode string, excludeID uuid.UUID) (bool, error)
+
+	// ExistsByOrionItemCode reports whether any other live head already carries the given
+	// mbh_orion_item_code (exact, case-sensitive match), excluding excludeID (pass uuid.Nil
+	// on create). HELPER ONLY, same contract as ExistsByDevCode: there is ⛔ NO UNIQUE
+	// constraint, legacy duplicates stay untouched, and "" is never probed.
+	ExistsByOrionItemCode(ctx context.Context, code string, excludeID uuid.UUID) (bool, error)
 
 	// ForceUnvalidateTransition atomically forces a VALIDATED head back to DRAFT for the Bulk
 	// MB Head Regenerate feature (Phase B): updates mst_mb_head's entry_status/state_reason,

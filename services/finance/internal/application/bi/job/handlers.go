@@ -28,6 +28,21 @@ func (h *ListHandler) Handle(ctx context.Context, includeInactive bool) ([]*jobd
 	return h.repo.List(ctx, includeInactive)
 }
 
+// EtlStatusHandler returns the last-run summary of ETL_HR_* jobs only (HD-27).
+type EtlStatusHandler struct{ repo jobdomain.Repository }
+
+// NewEtlStatusHandler constructs an EtlStatusHandler.
+func NewEtlStatusHandler(r jobdomain.Repository) *EtlStatusHandler { return &EtlStatusHandler{repo: r} }
+
+// Handle returns the status per ETL_HR_* job.
+func (h *EtlStatusHandler) Handle(ctx context.Context) ([]*jobdomain.EtlStatus, error) {
+	out, err := h.repo.ListEtlStatus(ctx, jobdomain.EtlStatusJobPrefix)
+	if err != nil {
+		return nil, fmt.Errorf("list etl status: %w", err)
+	}
+	return out, nil
+}
+
 // ListLogsQuery is the payload for ListLogsHandler.
 type ListLogsQuery struct {
 	JobID    uuid.UUID
@@ -143,11 +158,7 @@ func (h *TriggerHandler) Handle(ctx context.Context, cmd TriggerCommand) (*jobdo
 	case strings.HasPrefix(kind, "etl_"):
 		// Generic ETL dispatch: works for any target_type without code changes.
 		// target_type and source_view come from the job's config (auto-set on create).
-		targetType := configString(theJob.Config, "target_type")
-		sourceView := configString(theJob.Config, "source_view")
-		return h.handleETL(ctx, entry, now, func(c context.Context) (int, error) {
-			return h.etlRunner.Load(c, targetType, sourceView, theJob.SourceID)
-		})
+		return h.handleETL(ctx, entry, now, h.etlRun(theJob))
 	default:
 		// MVP placeholder: resolve immediately to SUCCESS without real work.
 		ended := time.Now().UTC()
@@ -190,11 +201,7 @@ func (h *TriggerHandler) CronTrigger(ctx context.Context, jobID uuid.UUID) (*job
 	case kind == "mv_refresh":
 		return h.handleMVRefresh(ctx, entry, now)
 	case strings.HasPrefix(kind, "etl_"):
-		targetType := configString(theJob.Config, "target_type")
-		sourceView := configString(theJob.Config, "source_view")
-		return h.handleETL(ctx, entry, now, func(c context.Context) (int, error) {
-			return h.etlRunner.Load(c, targetType, sourceView, theJob.SourceID)
-		})
+		return h.handleETL(ctx, entry, now, h.etlRun(theJob))
 	default:
 		// Unknown kind — mark success immediately (no-op placeholder).
 		ended := time.Now().UTC()
@@ -278,6 +285,25 @@ func (h *TriggerHandler) handleMVRefresh(ctx context.Context, entry *jobdomain.L
 // configString extracts a string value from a job config map.
 // Returns "" when the key is absent or the value is not a string.
 // Avoids blank-identifier type assertions that errcheck flags.
+// etlRun returns the ETL body of a job: load target_type/source_view from its config and, when
+// config.refresh_mvs is true, refresh the BI materialized views afterwards so dashboards reading
+// mv_bi_metric_g1/g2 see the load without waiting for MV_REFRESH (H013, HR jobs).
+func (h *TriggerHandler) etlRun(theJob *jobdomain.Job) func(context.Context) (int, error) {
+	targetType := configString(theJob.Config, "target_type")
+	sourceView := configString(theJob.Config, "source_view")
+	refresh, _ := theJob.Config["refresh_mvs"].(bool) //nolint:errcheck // type assertion, absent = false
+	return func(c context.Context) (int, error) {
+		n, err := h.etlRunner.Load(c, targetType, sourceView, theJob.SourceID)
+		if err != nil || !refresh || h.mvRefresher == nil {
+			return n, err
+		}
+		if rErr := h.mvRefresher.RefreshMVs(c); rErr != nil {
+			return n, fmt.Errorf("refresh MVs after ETL: %w", rErr)
+		}
+		return n, nil
+	}
+}
+
 func configString(config map[string]any, key string) string {
 	if v, ok := config[key]; ok {
 		if s, ok := v.(string); ok {

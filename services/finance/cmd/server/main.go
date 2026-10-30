@@ -256,6 +256,9 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	// does not reuse mbRecipeFullExportRepo: that repo owns the 37-column export's
 	// query, which must stay byte-for-byte unchanged.
 	mbHeadHandler = mbHeadHandler.WithCostCalcDetail(postgres.NewMBCostCalcDetailExportRepository(db))
+	// Recipe create/update auto-creates a MANUAL shade master row for an unknown shade
+	// code (best-effort, never fails the save).
+	mbHeadHandler = mbHeadHandler.WithShadeMaster(shadeRepo)
 
 	// Full wiring: duplicate spin + child-recalc cascade. mbSpinRepo supplies both
 	// the read side and the recalc write side; mbDozingImpactRepo is READ-ONLY and
@@ -593,11 +596,18 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	if err != nil {
 		return fmt.Errorf("new cost product lookup sync handler: %w", err)
 	}
+	lookupSyncEnqueuer := lookupsyncjob.NewEnqueuer(jobRepo, lookupSyncPublisher, lookupSyncPlanner)
 	lookupSyncJobs := grpcdelivery.NewLookupSyncJobAdapter(
-		lookupsyncjob.NewEnqueuer(jobRepo, lookupSyncPublisher, lookupSyncPlanner),
+		lookupSyncEnqueuer,
 		lookupsyncjob.NewTracker(jobRepo, costProductMasterRepo),
 	)
 	costProductLookupSyncHandler.WithEnqueuer(lookupSyncJobs).WithJobTracker(lookupSyncJobs)
+	// MB Recipe cascade: an edit of a validated recipe queues a lookup sync per cascaded
+	// spin after commit (best-effort). Only wired with RabbitMQ — without it the trigger
+	// would only ever log ErrPublisherUnavailable.
+	if lookupSyncPublisher != nil {
+		mbHeadHandler = mbHeadHandler.WithLookupSyncTrigger(lookupsyncjob.NewCascadeTrigger(lookupSyncPlanner, lookupSyncEnqueuer))
+	}
 
 	// Fill-assignment repositories + handlers.
 	fillConfigRepo := postgres.NewCostFillConfigRepository(db)
@@ -839,6 +849,11 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 				log.Warn().Err(cErr).Msg("Failed to close Oracle HRIS connection")
 			}
 		}()
+		hrStaging := postgres.NewBiHRStagingRepository(db)
+		biETLRouter.Register(bietl.SourceHRISOracle, bietl.NewHRISLoader(
+			oracleinfra.NewHRISOTRepository(hrisClient),
+			hrStaging,
+		).WithATT(oracleinfra.NewHRISATTRepository(hrisClient), hrStaging))
 		// The HRIS loader is registered here by H010 (bietl.SourceHRISOracle).
 		// Packed production (PP-03): same connection, routed by target_type PP_PACK.
 		biETLRouter.RegisterTarget(bietl.SourceHRISOracle, bietl.TargetPPPack, bietl.NewPPLoader(
@@ -905,6 +920,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	biJobHandler, err := grpcdelivery.NewBIJobHandler(
 		jobapp.NewListHandler(biJobRepo),
 		jobapp.NewListLogsHandler(biJobRepo),
+		jobapp.NewEtlStatusHandler(biJobRepo),
 		biJobTriggerHandler,
 		jobapp.NewCreateHandler(biJobRepo),
 		jobapp.NewUpdateHandler(biJobRepo),
