@@ -30,7 +30,7 @@ require (
 	github.com/minio/minio-go/v7 v7.0.98
 	github.com/mutugading/goapps-backend/gen v0.0.0-00010101000000-000000000000
 	github.com/prometheus/client_golang v1.23.2
-	github.com/rabbitmq/amqp091-go v1.10.0
+	github.com/rabbitmq/amqp091-go v1.16.0
 	github.com/redis/go-redis/v9 v9.17.3
 	github.com/rs/cors v1.11.1
 	github.com/sijms/go-ora/v2 v2.9.0

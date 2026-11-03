@@ -7,7 +7,7 @@ require (
 	github.com/mutugading/goapps-backend/gen v0.0.0-20260507090826-c04d7f4f0da8
 	github.com/mutugading/goapps-backend/pkg/costcalc v0.0.0-00010101000000-000000000000
 	github.com/prometheus/client_golang v1.23.2
-	github.com/rabbitmq/amqp091-go v1.11.0
+	github.com/rabbitmq/amqp091-go v1.16.0
 	github.com/rs/zerolog v1.35.1
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
