@@ -137,7 +137,7 @@ func reconcilePPFacts(ctx context.Context, tx *sql.Tx, p1, p2 string) error {
 	if err != nil {
 		return fmt.Errorf("reconcile facts: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer closeRows(rows)
 	var diffs []string
 	count := 0
 	for rows.Next() {
