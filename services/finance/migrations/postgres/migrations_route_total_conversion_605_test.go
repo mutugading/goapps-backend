@@ -41,6 +41,9 @@ func TestRouteTotalConversion605MigrationText(t *testing.T) {
 	assert.Contains(t, up, "np.param_code IN ('CAP_CONV_STAGE','DEL_CONV_STAGE','TOTAL_CAP_CONV','TOTAL_DEL_CONV')")
 	assert.Contains(t, up, "pt.cpt_type_code <> 'MB'")
 	assert.Contains(t, up, "bp.param_code = 'CAPTIVE_COST_QLTY_LOSS'")
+	// Backfill is gated on the explicit COST_STAGE_OUT sink so findTerminalFormula can never
+	// pick a new conversion formula as a product's final cost.
+	assert.Contains(t, up, "sp.param_code = 'COST_STAGE_OUT'")
 	assert.Contains(t, up, "ON CONFLICT ON CONSTRAINT capp_unique_product_param DO NOTHING")
 	assert.Contains(t, up, "'seed_000605'")
 	assert.Contains(t, up, "'seed_route_total_conv_000605'")

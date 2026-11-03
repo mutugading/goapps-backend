@@ -236,6 +236,18 @@ JOIN cost_product_master pm ON pm.cpm_product_sys_id = base.capp_product_sys_id
 JOIN cost_product_type pt ON pt.cpt_type_id = pm.cpm_product_type_id AND pt.cpt_type_code <> 'MB'
 CROSS JOIN mst_parameter np
 WHERE np.deleted_at IS NULL
+  -- Only products whose final cost is pinned by the explicit COST_STAGE_OUT sink
+  -- (000515). Without it, resolveFinalCost falls back to findTerminalFormula
+  -- (deepest terminal formula), and F_YARN_TOTAL_DEL_CONV could become that
+  -- terminal and change cpc_cost_per_unit. With the sink present the new
+  -- formulas are informational only and no existing cost number can move.
+  AND EXISTS (
+      SELECT 1
+      FROM cost_product_applicable_param so
+      JOIN mst_parameter sp ON sp.id = so.capp_param_id
+       AND sp.param_code = 'COST_STAGE_OUT' AND sp.deleted_at IS NULL
+      WHERE so.capp_product_sys_id = base.capp_product_sys_id
+  )
   AND np.param_code IN ('CAP_CONV_STAGE','DEL_CONV_STAGE','TOTAL_CAP_CONV','TOTAL_DEL_CONV')
 ON CONFLICT ON CONSTRAINT capp_unique_product_param DO NOTHING;
 
