@@ -154,6 +154,9 @@ func parseKpiEntry(m map[string]any, idx int) (KpiEntry, error) {
 	crossNumer, crossDenom, crossScale := parseCrossRatioFields(agg, m)
 	crossNumerType, crossDenomType := parseCrossRatioTypes(agg, m)
 	numMetric, denMetric := parseCrossRatioMetrics(agg, m)
+	if (numMetric == "") != (denMetric == "") {
+		return KpiEntry{}, fmt.Errorf("%w: entry %d cross_ratio needs both numerator_metric and denominator_metric", ErrInvalidKpiConfig, idx)
+	}
 
 	return KpiEntry{
 		Label:                       label,
