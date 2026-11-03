@@ -85,9 +85,11 @@ func Plan(d *dashboarddomain.Dashboard, f ViewerFilters, now time.Time) (factmet
 
 	// Dimension path (PP-10): categorical chart grouped by dimension_key.
 	if d.ChartConfig().CategoryField == CategoryFieldDimensionKey {
-		if metrics := metricFilter(d); len(metrics) > 0 {
-			return planDimension(d, f, now, metrics[0])
+		metrics := metricFilter(d)
+		if len(metrics) == 0 {
+			return factmetric.PlannedQuery{}, fmt.Errorf("%w: category_field=dimension_key requires metric_filter.include_metrics", factmetric.ErrInvalidPlan)
 		}
+		return planDimension(d, f, now, metrics[0])
 	}
 
 	// Multi-metric path: chart_config.metric_filter.include_metrics is set.

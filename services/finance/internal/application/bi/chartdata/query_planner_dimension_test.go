@@ -78,3 +78,17 @@ func TestPlan_DimensionKey_RejectsUnsafeMetricName(t *testing.T) {
 	_, err = chartdata.Plan(d, chartdata.ViewerFilters{}, time.Now())
 	require.Error(t, err)
 }
+
+func TestPlan_DimensionKey_RequiresMetricFilter(t *testing.T) {
+	d, err := dashboarddomain.NewDashboard(dashboarddomain.NewDashboardParams{
+		Code: "PP_NOMETRIC", Title: "PP", FilterType: "PP_PACK_POLY", PeriodGrain: "MONTHLY",
+		DefaultPeriod: "THIS_MONTH", ChartType: "bar",
+		ChartConfigRaw: map[string]any{
+			"x_axis_field": "group_1", "y_axis_field": "value", "category_field": "dimension_key",
+		},
+		MaxDrillLevel: 2, CacheTTLSec: 60, GroupID: uuid.New(), IsActive: true, CreatedBy: uuid.New(),
+	})
+	require.NoError(t, err)
+	_, err = chartdata.Plan(d, chartdata.ViewerFilters{}, time.Now())
+	require.ErrorIs(t, err, factmetric.ErrInvalidPlan)
+}
