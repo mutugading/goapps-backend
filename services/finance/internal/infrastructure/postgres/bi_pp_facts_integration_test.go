@@ -106,7 +106,7 @@ func readPPFacts(ctx context.Context, t *testing.T, db *sql.DB) map[string]ppFac
 	return out
 }
 
-// Gated by INTEGRATION_TEST=true. Needs a database migrated through 000610 (bi_fact_metric,
+// Gated by INTEGRATION_TEST=true. Needs a database migrated through 000602 (bi_fact_metric,
 // HRIS_ORACLE, PACK_* registry). Verifies ETL§D (DAILY/WEEKLY/MONTHLY, PP-06/P007) inside the staging
 // transaction: per-type filters, group labels/orders, 5 long-format metrics, idempotency, rows
 // dropped at the source disappearing, month-cutting windows recomputing the whole month from

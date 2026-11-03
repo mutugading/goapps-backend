@@ -16,7 +16,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/postgres"
 )
 
-// Gated by INTEGRATION_TEST=true. Applies migration 000608 (idempotent) and verifies ETL§C
+// Gated by INTEGRATION_TEST=true. Applies migration 000600 (idempotent) and verifies ETL§C
 // replace-in-window semantics: two identical runs give identical staging, rows that vanished from
 // the source vanish, rows outside the window are kept, NULLs and decimals round-trip exactly.
 func TestBiPPStagingRepository_ReplacePackProdDaily(t *testing.T) {
@@ -33,7 +33,7 @@ func TestBiPPStagingRepository_ReplacePackProdDaily(t *testing.T) {
 	require.NoError(t, waitForDB(raw, 30*time.Second))
 	defer func() { _ = raw.Close() }()
 
-	ddl, err := os.ReadFile("../../../migrations/postgres/000608_create_bi_pp_stg_pack_prod_daily.up.sql")
+	ddl, err := os.ReadFile("../../../migrations/postgres/000600_create_bi_pp_stg_pack_prod_daily.up.sql")
 	require.NoError(t, err)
 	_, err = raw.ExecContext(ctx, string(ddl))
 	require.NoError(t, err)
