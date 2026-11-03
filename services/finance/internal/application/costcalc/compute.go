@@ -288,6 +288,16 @@ func ComputeProduct(ctx context.Context, in ComputeInput) (*ComputeOutput, error
 	// below must skip; nil means "compute as before".
 	inherited := applyInheritedVBLoss(in, scope, zeroFilled)
 
+	// DENIER-mode products derive their RM line ratios from denier share;
+	// nil for INPUT-mode products, which keeps the legacy aggregation intact.
+	// Pure on in, so it is built here and shared by the upstream conversion
+	// injection below and the RM aggregation (step 2).
+	ratioPlan := planRMRatios(in)
+
+	// 1-'. Route total conversion: inject UPSTREAM_TOTAL_CAP_CONV (Σ effective
+	// ratio × upstream TOTAL_CAP_CONV) for products whose formulas consume it.
+	applyUpstreamTotalCapConv(in, ratioPlan, scope, zeroFilled)
+
 	// 1a. Oil-class products resolve OIL_RATE from their oil RM group's
 	// cst_rm_cost row for the period, overwriting any imported CAPP value.
 	// A missing/unusable oil rate blocks the product (MISSING_RM_COST) —
@@ -312,10 +322,8 @@ func ComputeProduct(ctx context.Context, in ComputeInput) (*ComputeOutput, error
 		return nil, err
 	}
 
-	// 2. Aggregate RM cost across every sequence in the route.
-	// 2-. DENIER-mode products derive their RM line ratios from denier share;
-	// nil for INPUT-mode products, which keeps the legacy aggregation intact.
-	ratioPlan := planRMRatios(in)
+	// 2. Aggregate RM cost across every sequence in the route (ratioPlan
+	// built above).
 	totalRM, rmDetail, levelMap, err := aggregateRMCost(in, ratioPlan, resolveRMUnitCost)
 	if err != nil {
 		recordProductSpanError(span, err)
