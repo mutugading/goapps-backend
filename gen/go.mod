@@ -1,8 +1,6 @@
 module github.com/mutugading/goapps-backend/gen
 
-go 1.24.0
-
-toolchain go1.24.13
+go 1.25.0
 
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.11-20251209175733-2a1774d88802.1
