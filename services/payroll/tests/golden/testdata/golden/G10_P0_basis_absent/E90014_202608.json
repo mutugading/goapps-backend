@@ -1,0 +1,279 @@
+{
+  "formula": "G10_P0_basis_absent",
+  "yymm": 202608,
+  "rule_set_id": 1,
+  "features": [
+    "synthetic",
+    "G10"
+  ],
+  "input": {
+    "Period": {
+      "YYMM": 202608,
+      "Start": "2026-07-26T00:00:00Z",
+      "End": "2026-08-25T00:00:00Z"
+    },
+    "Division": "SOLO",
+    "Emp": {
+      "NIK": "E90014",
+      "Name": "",
+      "Level": "staff",
+      "TaxStatus": "TK",
+      "Dept": "",
+      "HasNPWP": false,
+      "BirthDate": null,
+      "JoinDate": null,
+      "GapokSts": "F"
+    },
+    "Components": [
+      {
+        "Key": {
+          "Type": "T",
+          "ID": 1
+        },
+        "Amount": "5600000",
+        "Sts": "F",
+        "Tax": true,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": true,
+        "SubsidyOT": false,
+        "Frozen": false
+      },
+      {
+        "Key": {
+          "Type": "T",
+          "ID": 7
+        },
+        "Amount": "4450000",
+        "Sts": "F",
+        "Tax": true,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": true,
+        "SubsidyOT": false,
+        "Frozen": false
+      },
+      {
+        "Key": {
+          "Type": "P",
+          "ID": 0
+        },
+        "Amount": "0",
+        "Sts": "F",
+        "Tax": false,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": false,
+        "SubsidyOT": false,
+        "Frozen": false
+      },
+      {
+        "Key": {
+          "Type": "P",
+          "ID": 1
+        },
+        "Amount": "0",
+        "Sts": "F",
+        "Tax": false,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": false,
+        "SubsidyOT": false,
+        "Frozen": false
+      }
+    ],
+    "Att": {
+      "pay_tot": "26"
+    },
+    "AttAdd": null,
+    "Sch": null,
+    "Workdays": 26,
+    "Daily": {
+      "PremiFail": 0,
+      "BerasFail": 0
+    },
+    "YTD": {
+      "Gross": "0",
+      "Deduct": "0",
+      "TaxPaid": "0",
+      "Months": 0
+    },
+    "TaxAdj": {
+      "Earn": "0",
+      "Deduct": "0"
+    },
+    "Thr": {
+      "Gross": "0",
+      "PPhPaid": "0"
+    },
+    "YTDCompany": {
+      "Gross": "0",
+      "CompanyPaid": "0",
+      "Deduct": "0",
+      "ThrBonus": "0",
+      "P5Paid": "0"
+    },
+    "Subsidy": {
+      "Rules": [
+        {
+          "ID": 7,
+          "Name": "SOLO 2026",
+          "Priority": 100,
+          "ValidFrom": 202601,
+          "ValidTo": 0,
+          "Divisions": [
+            "SOLO"
+          ],
+          "Depts": null,
+          "BasisPeriod": 202601,
+          "Limit": "10000000",
+          "Kind": "FULL_PPH"
+        }
+      ],
+      "Override": null,
+      "Basis": null,
+      "PrevBasis": null,
+      "Locked": null,
+      "LockedYYMM": 0
+    }
+  },
+  "expected": {
+    "lines": [
+      {
+        "type": "P",
+        "id": 1,
+        "amount": "201000"
+      },
+      {
+        "type": "P",
+        "id": 0,
+        "amount": "0"
+      }
+    ]
+  },
+  "source": {
+    "kind": "SYNTHETIC",
+    "division": "SOLO"
+  },
+  "rules": {
+    "legacy": true,
+    "constants": {
+      "DAYS_MONTH": "30",
+      "HOURS_MONTH": "173",
+      "BERAS_DAYS": "25",
+      "NAKMIN": "2592154",
+      "KESMIN": "2592154",
+      "PENMIN": "2592154",
+      "KESMAX": "12000000",
+      "PENMAX": "11086300"
+    }
+  },
+  "tax": {
+    "Category": {
+      "K0": "A",
+      "K1": "B",
+      "K2": "B",
+      "K3": "C",
+      "TK": "A",
+      "TK1": "A",
+      "TK2": "B",
+      "TK3": "B"
+    },
+    "TER": {
+      "A": [
+        {
+          "Min": "0",
+          "Max": "5400000",
+          "Rate": "0"
+        },
+        {
+          "Min": "5400001",
+          "Max": "5650000",
+          "Rate": "0.25"
+        },
+        {
+          "Min": "9650001",
+          "Max": "10050000",
+          "Rate": "2"
+        }
+      ],
+      "B": [
+        {
+          "Min": "0",
+          "Max": "6200000",
+          "Rate": "0"
+        },
+        {
+          "Min": "6200001",
+          "Max": "6500000",
+          "Rate": "0.25"
+        },
+        {
+          "Min": "6500001",
+          "Max": "6850000",
+          "Rate": "0.5"
+        }
+      ],
+      "C": [
+        {
+          "Min": "0",
+          "Max": "6600000",
+          "Rate": "0"
+        },
+        {
+          "Min": "6600001",
+          "Max": "6950000",
+          "Rate": "0.25"
+        }
+      ]
+    },
+    "PTKP": {
+      "TK": "4500000",
+      "TK1": "4875000",
+      "TK2": "5250000",
+      "TK3": "5625000",
+      "K": "4875000",
+      "K0": "4875000",
+      "K1": "5250000",
+      "K2": "5625000",
+      "K3": "6000000"
+    },
+    "PTKPCompany": {
+      "TK": "4500000",
+      "K": "4875000",
+      "K0": "4875000",
+      "K1": "5250000",
+      "K2": "5625000",
+      "K3": "6000000"
+    },
+    "JobCost": {
+      "Rate": "5",
+      "MaxMonthly": "500000"
+    },
+    "Progressive": [
+      {
+        "Min": "1",
+        "Max": "60000000",
+        "Rate": "5"
+      },
+      {
+        "Min": "60000001",
+        "Max": "250000000",
+        "Rate": "15"
+      },
+      {
+        "Min": "250000001",
+        "Max": "500000000",
+        "Rate": "25"
+      },
+      {
+        "Min": "500000001",
+        "Max": "5000000000",
+        "Rate": "30"
+      },
+      {
+        "Min": "5000000001",
+        "Max": "9000000000",
+        "Rate": "35"
+      }
+    ]
+  },
+  "note": "[V] 06\u00a76.4: no 202601 DETAIL -> running tax_subsidy=Y components 5600000+4450000=10050000 > limit -> P0 0 (a basis of 0 would wrongly subsidize)",
+  "partial": true
+}
