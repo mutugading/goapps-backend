@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 
@@ -144,6 +145,103 @@ func TestPeriodTransitions(t *testing.T) {
 		wantCode(t, svc.Approve(ctx, period.Command{CompanyID: 1, Division: "SOLO", YYMM: 203208}), apperr.CodeBusinessRule)
 		wantCode(t, svc.Approve(ctx, period.Command{CompanyID: 1, Division: "SOLO", YYMM: 209901}), apperr.CodeNotFound)
 		wantCode(t, svc.Approve(asScopes(t, "JAKARTA"), cmd), apperr.CodeDivisionForbidden)
+	})
+	t.Run("approve clears reopen reason; reopen from APPROVED", func(t *testing.T) {
+		if err := svc.Approve(ctx, cmd); err != nil {
+			t.Fatal(err)
+		}
+		re := cmd
+		re.Reason = "salah hitung lembur"
+		if err := svc.Reopen(ctx, re); err != nil {
+			t.Fatalf("reopen dari APPROVED: %v", err)
+		}
+		if got := scalar(t, `SELECT pp_status||'/'||pp_reopen_reason`+where); got != "DRAFT/salah hitung lembur" {
+			t.Fatalf("period = %s", got)
+		}
+		if err := svc.Approve(ctx, cmd); err != nil {
+			t.Fatal(err)
+		}
+		if got := scalar(t, `SELECT pp_status||'/'||(pp_reopen_reason IS NULL)`+where); got != "APPROVED/true" {
+			t.Fatalf("alasan reopen tidak dikosongkan: %s", got)
+		}
+		if err := svc.Reopen(ctx, re); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("LEGACY run: reopen refused", func(t *testing.T) {
+		for _, q := range []string{
+			`INSERT INTO payroll.pyr_period (pp_company_id, pp_yymm, pp_division, pp_date_from, pp_date_to, pp_status)
+			 VALUES (1,203209,'SOLO','2032-08-26','2032-09-25','OPEN')`,
+			`INSERT INTO payroll.pyr_run (pr_company_id, pr_yymm, pr_division, pr_pay_date, pr_rule_set_id, pr_status, pr_kind)
+			 VALUES (1,203209,'SOLO','2032-09-25',0,'ACTIVE','LEGACY')`,
+			`UPDATE payroll.pyr_period SET pp_status='CLOSED', closed_by='etl',
+			   pp_active_run_id=(SELECT pr_id FROM payroll.pyr_run WHERE pr_yymm=203209 AND pr_division='SOLO')
+			 WHERE pp_company_id=1 AND pp_yymm=203209 AND pp_division='SOLO'`,
+		} {
+			if _, err := ownDB.Exec(q); err != nil {
+				t.Fatalf("%v\n%s", err, q)
+			}
+		}
+		wantCode(t, svc.Reopen(ctx, period.Command{CompanyID: 1, Division: "SOLO", YYMM: 203209, Reason: "koreksi data lama"}), apperr.CodeBusinessRule)
+		if got := scalar(t, `SELECT pp_status::text FROM payroll.pyr_period WHERE pp_yymm=203209 AND pp_division='SOLO'`); got != "CLOSED" {
+			t.Fatalf("status = %s", got)
+		}
+	})
+	t.Run("I24: JAKARTA user vs SOLO CLOSED period", func(t *testing.T) {
+		if _, err := ownDB.Exec(`UPDATE payroll.pyr_period SET pp_status='DRAFT', closed_by=NULL, closed_at=NULL, approved_by=NULL, approved_at=NULL
+			WHERE pp_company_id=1 AND pp_yymm=203207 AND pp_division='SOLO'`); err != nil {
+			t.Fatal(err)
+		}
+		if err := svc.Approve(ctx, cmd); err != nil {
+			t.Fatal(err)
+		}
+		if err := svc.Close(ctx, cmd); err != nil {
+			t.Fatal(err)
+		}
+		jkt := asScopes(t, "JAKARTA")
+		wantCode(t, svc.Reopen(jkt, period.Command{CompanyID: 1, Division: "SOLO", YYMM: 203207, Reason: "bukan divisi saya"}), apperr.CodeDivisionForbidden)
+		wantCode(t, svc.Close(jkt, cmd), apperr.CodeDivisionForbidden)
+		// SOLO CLOSED does not block JAKARTA of the same yymm (no JAKARTA period = OPEN).
+		if err := app.ScopedTx(jkt, func(tx *sql.Tx) error { return period.Guard(jkt, tx, 1, 203207, "JAKARTA") }); err != nil {
+			t.Fatalf("JAKARTA terblokir oleh SOLO CLOSED: %v", err)
+		}
+		if got := scalar(t, `SELECT pp_status::text`+where); got != "CLOSED" {
+			t.Fatalf("status SOLO = %s", got)
+		}
+		re := cmd
+		re.Reason = "buka lagi untuk tes"
+		if err := svc.Reopen(ctx, re); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("Guard waits for a concurrent approve and sees APPROVED", func(t *testing.T) {
+		tx, err := ownDB.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = tx.Rollback() }() //nolint:errcheck // no-op after commit
+		if _, err := tx.Exec(`SELECT 1` + where + ` FOR UPDATE`); err != nil {
+			t.Fatal(err)
+		}
+		done := make(chan error, 1)
+		go func() { done <- guard() }()
+		select {
+		case err := <-done:
+			t.Fatalf("Guard tidak menunggu row lock: %v", err)
+		case <-time.After(400 * time.Millisecond):
+		}
+		if _, err := tx.Exec(`UPDATE payroll.pyr_period SET pp_status='APPROVED'` + where[len(` FROM payroll.pyr_period`):]); err != nil {
+			t.Fatal(err)
+		}
+		if err := tx.Commit(); err != nil {
+			t.Fatal(err)
+		}
+		wantCode(t, <-done, apperr.CodePeriodApproved)
+		re := cmd
+		re.Reason = "pulihkan setelah tes konkuren"
+		if err := svc.Reopen(ctx, re); err != nil {
+			t.Fatal(err)
+		}
 	})
 	t.Run("run lock held: transition fails fast", func(t *testing.T) {
 		hold, err := raw.Begin()

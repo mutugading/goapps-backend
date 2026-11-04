@@ -82,8 +82,9 @@ type AttachmentRepository interface {
 	// PeriodClosed reports whether the (company, yymm, division) period is CLOSED (04§9).
 	PeriodClosed(ctx context.Context, tx *sql.Tx, k EmployeeKey, yymm int) (bool, error)
 	// PeriodLockedFrom returns the first yymm >= from whose period of the employee's
-	// company/division is not OPEN (DRAFT/APPROVED/CLOSED), or 0 when none.
-	PeriodLockedFrom(ctx context.Context, tx *sql.Tx, k EmployeeKey, from int) (int, error)
+	// company/division is not OPEN (DRAFT/APPROVED/CLOSED) with its status, or 0 when none.
+	// DRAFT blocks on purpose: it already holds an ACTIVE run that a change would make stale (D-40).
+	PeriodLockedFrom(ctx context.Context, tx *sql.Tx, k EmployeeKey, from int) (int, string, error)
 	Upsert(ctx context.Context, tx *sql.Tx, k EmployeeKey, a Attachment, actor string) error
 	Delete(ctx context.Context, tx *sql.Tx, k EmployeeKey, sysid int64) error
 	// Snapshot copies the current row to the history table at yymm.

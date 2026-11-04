@@ -125,7 +125,8 @@ func snapChecksum(rows []snapRow) string {
 
 // writeSnapshots upserts one locked LEGACY snapshot per group and its rows. pasr_premi_fail/beras_fail stay NULL:
 // the historical source of those figures is still an open question (TASKS T009d).
-func writeSnapshots(ctx context.Context, tx *sql.Tx, company int16, groups map[snapKey][]snapRow) error {
+func writeSnapshots(ctx context.Context, tx *sql.Tx, company int16, groups map[snapKey][]snapRow) ([]string, error) {
+	var skipped []string
 	keys := make([]snapKey, 0, len(groups))
 	for k := range groups {
 		keys = append(keys, k)
@@ -138,30 +139,41 @@ func writeSnapshots(ctx context.Context, tx *sql.Tx, company int16, groups map[s
 	})
 	for _, k := range keys {
 		rows := groups[k]
+		// A period that already has an ACTIVE ENGINE run keeps its snapshot as is: re-locking or re-checksumming it
+		// would change the input of a run that is already committed (D-40; LEGACY runs carry no snapshot, so they do not count). The condition sits in the upsert
+		// itself so the check and the write are one statement.
 		var id int64
 		err := tx.QueryRowContext(ctx, `
 INSERT INTO payroll.pyr_att_snapshot (pas_company_id, pas_yymm, pas_division, pas_source_batch_ids, pas_checksum, pas_locked, created_by)
 VALUES ($1,$2,$3,'{}',$4,true,'etl')
 ON CONFLICT (pas_company_id, pas_yymm, pas_division) WHERE pas_source_batch_ids = '{}'
 DO UPDATE SET pas_checksum = EXCLUDED.pas_checksum, pas_locked = true
+WHERE NOT EXISTS (SELECT 1 FROM payroll.pyr_run x WHERE x.pr_company_id = EXCLUDED.pas_company_id
+  AND x.pr_yymm = EXCLUDED.pas_yymm AND x.pr_division = EXCLUDED.pas_division AND x.pr_status = 'ACTIVE' AND x.pr_kind = 'ENGINE')
 RETURNING pas_snapshot_id`, company, k.yymm, k.division, snapChecksum(rows)).Scan(&id)
+		if errors.Is(err, sql.ErrNoRows) {
+			msg := fmt.Sprintf("%s/%s: periode sudah punya run ENGINE ACTIVE, snapshot legacy tidak diubah", k.yymm, k.division)
+			log.Warn().Msg("etl: " + msg)
+			skipped = append(skipped, msg)
+			continue
+		}
 		if err != nil {
-			return fmt.Errorf("snapshot %s/%s: %w", k.yymm, k.division, err)
+			return nil, fmt.Errorf("snapshot %s/%s: %w", k.yymm, k.division, err)
 		}
 		for _, r := range rows {
 			js, err := json.Marshal(r.data)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if _, err := tx.ExecContext(ctx, `
 INSERT INTO payroll.pyr_att_snapshot_row (pasr_snapshot_id, pasr_kind, pasr_nik, pasr_data) VALUES ($1,$2,$3,$4::jsonb)
 ON CONFLICT (pasr_snapshot_id, pasr_kind, pasr_nik) DO UPDATE SET pasr_data = EXCLUDED.pasr_data`,
 				id, r.kind, r.nik, string(js)); err != nil {
-				return fmt.Errorf("snapshot %s/%s nik %s %s: %w", k.yymm, k.division, r.nik, r.kind, err)
+				return nil, fmt.Errorf("snapshot %s/%s nik %s %s: %w", k.yymm, k.division, r.nik, r.kind, err)
 			}
 		}
 	}
-	return nil
+	return skipped, nil
 }
 
 // RunAttLegacy loads the historical attendance recaps into LEGACY snapshots in ONE transaction (idempotent).
@@ -205,8 +217,13 @@ func RunAttLegacy(ctx context.Context, db *sql.DB, src Source, o AttLegacyOption
 			log.Warn().Err(rbErr).Msg("etl: rollback failed")
 		}
 	}()
-	if err := writeSnapshots(ctx, tx, o.CompanyID, groups); err != nil {
+	skipped, err := writeSnapshots(ctx, tx, o.CompanyID, groups)
+	if err != nil {
 		return reps, err
+	}
+	if len(reps) > 0 {
+		// Periods with an ACTIVE run are reported, not hidden in the log (D-40).
+		reps[0].Skipped = append(reps[0].Skipped, skipped...)
 	}
 	for _, r := range reps {
 		if err := logReport(ctx, tx, o.CompanyID, r); err != nil {

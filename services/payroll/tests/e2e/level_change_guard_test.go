@@ -104,8 +104,8 @@ func TestApplyLevelChange_BlockedByLaterNonOpenPeriod(t *testing.T) {
 	}()
 	_, err := handler.ApplyLevelChange(ctx, &payrollv1.ApplyLevelChangeRequest{Nik: "GD003", CompanyId: 1, Division: "SOLO",
 		NewLevel: "LV-GB", EffectiveYymm: 202801, IfMatch: emp.GetEtag()})
-	if code(t, err) != apperr.CodePeriodClosed {
-		t.Fatalf("apply with later DRAFT period = %v, want PERIOD_CLOSED", err)
+	if code(t, err) != apperr.CodeConflict {
+		t.Fatalf("apply with later DRAFT period = %v, want CONFLICT", err)
 	}
 }
 

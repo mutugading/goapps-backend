@@ -287,10 +287,10 @@ func (s *Service) PreviewLevelChange(ctx context.Context, nik string, companyID 
 		if e2 != nil {
 			return e2
 		}
-		if blocked, e3 := s.att.PeriodLockedFrom(ctx, tx, keyOf(e), yymm); e3 != nil {
+		if blocked, st, e3 := s.att.PeriodLockedFrom(ctx, tx, keyOf(e), yymm); e3 != nil {
 			return e3
 		} else if blocked != 0 {
-			return apperr.PeriodClosed(blocked, e.Division)
+			return periodBlocked(blocked, st, e.Division)
 		}
 		p, e2 := s.buildLevelPlan(ctx, tx, e, newLevel, yymm, false)
 		if e2 != nil {
@@ -321,10 +321,10 @@ func (s *Service) ApplyLevelChange(ctx context.Context, nik string, companyID in
 			lc = LevelChange{CurrentLevel: e.Level, NewLevel: newLevel}
 			return nil
 		}
-		if blocked, e3 := s.att.PeriodLockedFrom(ctx, tx, k, yymm); e3 != nil {
+		if blocked, st, e3 := s.att.PeriodLockedFrom(ctx, tx, k, yymm); e3 != nil {
 			return e3
 		} else if blocked != 0 {
-			return apperr.PeriodClosed(blocked, e.Division)
+			return periodBlocked(blocked, st, e.Division)
 		}
 		p, e2 := s.buildLevelPlan(ctx, tx, e, newLevel, yymm, false)
 		if e2 != nil {
@@ -401,4 +401,18 @@ func (s *Service) attachFromLevel(ctx context.Context, tx *sql.Tx, e domain.Empl
 			Strs("missing", p.Missing).Msg("level rule components absent in company; skipped (D-21)")
 	}
 	return s.writePlan(ctx, tx, keyOf(e), p, yymm, actor)
+}
+
+// periodBlocked maps the status of the blocking period to its 409: DRAFT blocks because the period already
+// has an ACTIVE run (reopen/re-run first), so it is a CONFLICT, not PERIOD_CLOSED.
+func periodBlocked(yymm int, status, division string) error {
+	switch status {
+	case "CLOSED":
+		return apperr.PeriodClosed(yymm, division)
+	case "APPROVED":
+		return apperr.PeriodApproved(yymm, division)
+	default:
+		return apperr.New(apperr.CodeConflict, "periode berstatus "+status+" sudah punya run; perubahan level memerlukan periode OPEN",
+			map[string]string{"yymm": strconv.Itoa(yymm), "division": division, "status": status})
+	}
 }

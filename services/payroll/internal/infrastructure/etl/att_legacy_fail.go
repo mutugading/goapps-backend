@@ -143,7 +143,9 @@ const updateFailSQL = `
 UPDATE payroll.pyr_att_snapshot_row r SET pasr_premi_fail = coalesce($4::int, r.pasr_premi_fail), pasr_beras_fail = coalesce($5::int, r.pasr_beras_fail)
 FROM payroll.pyr_att_snapshot s
 WHERE r.pasr_snapshot_id = s.pas_snapshot_id AND s.pas_source_batch_ids = '{}' AND s.pas_yymm = $1::int AND s.pas_division = $2::payroll.division
-  AND r.pasr_kind = 'REKAP' AND r.pasr_nik = $3`
+  AND r.pasr_kind = 'REKAP' AND r.pasr_nik = $3
+  AND NOT EXISTS (SELECT 1 FROM payroll.pyr_run x WHERE x.pr_company_id = s.pas_company_id AND x.pr_yymm = s.pas_yymm
+                  AND x.pr_division = s.pas_division AND x.pr_status = 'ACTIVE' AND x.pr_kind = 'ENGINE')`
 
 func (c *failCollector) write(ctx context.Context, tx *sql.Tx) error {
 	stmt, err := tx.PrepareContext(ctx, updateFailSQL)

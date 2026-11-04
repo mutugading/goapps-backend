@@ -54,6 +54,7 @@ type state struct {
 	status     string
 	runID      sql.NullInt64
 	runStatus  sql.NullString
+	runKind    sql.NullString
 	snapshotID sql.NullInt64
 }
 
@@ -98,6 +99,11 @@ func (s *Service) Reopen(ctx context.Context, cmd Command) error {
 	return s.transition(ctx, cmd, ActionReopen, func(tx *sql.Tx, st state, _ string) (string, error) {
 		if st.status != run.PeriodApproved && st.status != run.PeriodClosed {
 			return "", wrongStatus(cmd, st.status, "reopen", run.PeriodApproved+"/"+run.PeriodClosed)
+		}
+		// A LEGACY run is Oracle history loaded by the ETL (no snapshot, no engine input): reopening would let
+		// a re-run supersede it with engine output, so the period stays closed (D-40).
+		if st.runKind.String == "LEGACY" {
+			return "", apperr.New(apperr.CodeBusinessRule, "periode hasil migrasi legacy tidak bisa dibuka kembali", details(cmd))
 		}
 		if st.snapshotID.Valid {
 			if _, err := tx.ExecContext(ctx, `UPDATE payroll.pyr_att_snapshot SET pas_locked = false WHERE pas_snapshot_id = $1`,
@@ -165,10 +171,10 @@ func (s *Service) transition(ctx context.Context, cmd Command, action string, fn
 // lockPeriod reads the period with its ACTIVE run FOR UPDATE.
 func lockPeriod(ctx context.Context, tx *sql.Tx, cmd Command) (state, error) {
 	var st state
-	err := tx.QueryRowContext(ctx, `SELECT p.pp_status::text, p.pp_active_run_id, r.pr_status::text, r.pr_snapshot_id
+	err := tx.QueryRowContext(ctx, `SELECT p.pp_status::text, p.pp_active_run_id, r.pr_status::text, r.pr_snapshot_id, r.pr_kind
 FROM payroll.pyr_period p LEFT JOIN payroll.pyr_run r ON r.pr_id = p.pp_active_run_id
 WHERE p.pp_company_id = $1 AND p.pp_yymm = $2 AND p.pp_division = $3 FOR UPDATE OF p`,
-		cmd.CompanyID, cmd.YYMM, cmd.Division).Scan(&st.status, &st.runID, &st.runStatus, &st.snapshotID)
+		cmd.CompanyID, cmd.YYMM, cmd.Division).Scan(&st.status, &st.runID, &st.runStatus, &st.snapshotID, &st.runKind)
 	if errors.Is(err, sql.ErrNoRows) {
 		return st, apperr.New(apperr.CodeNotFound, "periode tidak ditemukan", details(cmd))
 	}
@@ -181,7 +187,7 @@ WHERE p.pp_company_id = $1 AND p.pp_yymm = $2 AND p.pp_division = $3 FOR UPDATE 
 // Period updates: $1-$3 = key, $4 = actor or reopen reason. The status predicate repeats the check made
 // on the locked row (D-39), so exactly one row must change.
 const (
-	sqlApprove = `UPDATE payroll.pyr_period SET pp_status = 'APPROVED', approved_by = $4, approved_at = now()
+	sqlApprove = `UPDATE payroll.pyr_period SET pp_status = 'APPROVED', approved_by = $4, approved_at = now(), pp_reopen_reason = NULL
 WHERE pp_company_id = $1 AND pp_yymm = $2 AND pp_division = $3 AND pp_status = 'DRAFT'`
 	sqlClose = `UPDATE payroll.pyr_period SET pp_status = 'CLOSED', closed_by = $4, closed_at = now()
 WHERE pp_company_id = $1 AND pp_yymm = $2 AND pp_division = $3 AND pp_status = 'APPROVED'`
