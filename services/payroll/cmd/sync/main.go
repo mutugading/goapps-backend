@@ -13,8 +13,19 @@ import (
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/etl"
 )
 
+// commands maps each subcommand to its handler.
+var commands = map[string]func([]string) error{
+	"migrate":         migrate,
+	"employees":       employees,
+	"inputs":          inputs,
+	"att-legacy":      attLegacy,
+	"salary-legacy":   salaryLegacy,
+	"att-legacy-fail": attLegacyFail,
+	"prune-excluded":  pruneExcluded,
+}
+
 func main() {
-	if len(os.Args) < 2 || (os.Args[1] != "migrate" && os.Args[1] != "employees" && os.Args[1] != "inputs" && os.Args[1] != "att-legacy" && os.Args[1] != "salary-legacy" && os.Args[1] != "att-legacy-fail" && os.Args[1] != "prune-excluded") {
+	if len(os.Args) < 2 || commands[os.Args[1]] == nil {
 		fmt.Fprintln(os.Stderr, "usage: sync migrate -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-valid-from 202001] [-expect-master 133 -expect-template 762]")
 		fmt.Fprintln(os.Stderr, "       sync employees -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-emp 2860 -expect-compe 117827]  (kunci: PAYROLL_PII_KEY, PAYROLL_PII_HMAC_KEY)")
 		fmt.Fprintln(os.Stderr, "       sync att-legacy -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-rekap 68925 -expect-add 870 -expect-sch 3996]")
@@ -24,21 +35,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "       sync prune-excluded -owner-dsn <payroll_owner/migrator dsn> [-company 1] [-apply]  (hapus run LEGACY di luar cakupan D-35.1; default dry-run)")
 		os.Exit(2)
 	}
-	run := migrate
-	switch os.Args[1] {
-	case "employees":
-		run = employees
-	case "inputs":
-		run = inputs
-	case "att-legacy":
-		run = attLegacy
-	case "salary-legacy":
-		run = salaryLegacy
-	case "att-legacy-fail":
-		run = attLegacyFail
-	case "prune-excluded":
-		run = pruneExcluded
-	}
+	run := commands[os.Args[1]]
 	if err := run(os.Args[2:]); err != nil {
 		fmt.Fprintln(os.Stderr, os.Args[1]+":", err)
 		os.Exit(1)

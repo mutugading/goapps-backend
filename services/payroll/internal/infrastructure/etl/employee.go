@@ -80,14 +80,15 @@ func (t *Table) SubTable(col string, vals ...string) (*Table, error) {
 	return out, nil
 }
 
-type empKey struct{ nik, div string }
+// EmpKey identifies a loaded employee (NIK within a division).
+type EmpKey struct{ nik, div string }
 
 // LoadEmployees fills pyr_employee + pyr_employee_nik_hist (PAYROLL_NIK) for one division's rows.
 // PII is encrypted in SQL (pgcrypto) with keys passed as bind parameters (D-17); PE_PASSWORD, photo
 // links and address are not migrated. hris maps NIK → HMEMD_SYS_ID (nil = unmatched warning for all).
-func LoadEmployees(ctx context.Context, tx *sql.Tx, src *Table, division string, hris map[string]string, o EmployeeOptions) (TableReport, map[empKey]bool, error) {
+func LoadEmployees(ctx context.Context, tx *sql.Tx, src *Table, division string, hris map[string]string, o EmployeeOptions) (TableReport, map[EmpKey]bool, error) {
 	rep := TableReport{Table: fmt.Sprintf("%s[%s]", TableEmployee, division), SrcRows: len(src.Rows), Checksum: src.Checksum()}
-	loaded := map[empKey]bool{}
+	loaded := map[EmpKey]bool{}
 	idx, err := bindCols(src, employeeCols)
 	if err != nil {
 		return rep, nil, err
@@ -129,7 +130,7 @@ func LoadEmployees(ctx context.Context, tx *sql.Tx, src *Table, division string,
 VALUES ($1,$2,COALESCE($3::date,'2000-01-01'),'PAYROLL_NIK') ON CONFLICT DO NOTHING`, id, nik, nullable(dates[0])); err != nil {
 			return rep, nil, fmt.Errorf("%s: nik_hist: %w", where, err)
 		}
-		loaded[empKey{nik, division}] = true
+		loaded[EmpKey{nik, division}] = true
 	}
 	err = tx.QueryRowContext(ctx, `SELECT count(*) FROM payroll.pyr_employee WHERE pe_company_id=$1 AND pe_division=$2::payroll.division`,
 		o.CompanyID, division).Scan(&rep.DstRows)
@@ -266,7 +267,7 @@ func norm(s string) string {
 // LoadEmployeeComponents fills pyr_employee_component for one division via legacy_map (D-20).
 // A row is labeled TEMPLATE when it equals the level template (D-22) and MANUAL otherwise.
 // Rows whose employee was not loaded or whose (type,id) has no sysid map are reported as exceptions.
-func LoadEmployeeComponents(ctx context.Context, tx *sql.Tx, src *Table, division string, emps map[empKey]bool, o EmployeeOptions) (TableReport, error) {
+func LoadEmployeeComponents(ctx context.Context, tx *sql.Tx, src *Table, division string, emps map[EmpKey]bool, o EmployeeOptions) (TableReport, error) {
 	rep := TableReport{Table: fmt.Sprintf("%s[%s]", TableEmployeeComponent, division), SrcRows: len(src.Rows), Checksum: src.Checksum()}
 	idx, err := bindCols(src, []string{"MPCE_NIK", "MPCE_TYPE", "MPCE_ID", "MPCE_NAME", "MPCE_STS", "MPCE_TAX", "MPCE_AMOUNT",
 		"MPCE_FRZ_FLAG", "MPCE_LEVEL", "MPCE_TAX_PAID_COMPANY"})
@@ -295,7 +296,7 @@ func LoadEmployeeComponents(ctx context.Context, tx *sql.Tx, src *Table, divisio
 		}
 		typ := compType(c("MPCE_TYPE"))
 		where := fmt.Sprintf("%s/%s %s/%d (baris %d)", c("MPCE_NIK"), division, typ, id, i+2)
-		if !emps[empKey{c("MPCE_NIK"), division}] {
+		if !emps[EmpKey{c("MPCE_NIK"), division}] {
 			rep.Exceptions = append(rep.Exceptions, where+": karyawan tidak ada di pyr_employee")
 			continue
 		}
@@ -438,8 +439,8 @@ func readHRIS(src Source) (map[string]string, []string, error) {
 }
 
 func loadDivisions(ctx context.Context, tx *sql.Tx, emp, ce *Table, hris map[string]string, o EmployeeOptions) ([]TableReport, error) {
-	var reps []TableReport
-	loaded := map[string]map[empKey]bool{}
+	reps := make([]TableReport, 0, len(o.Divisions)*2)
+	loaded := map[string]map[EmpKey]bool{}
 	for _, d := range o.Divisions {
 		sub, err := emp.SubTable("PE_DIVISION", d)
 		if err != nil {
@@ -486,7 +487,7 @@ VALUES ($1,$2,$3,$4,$5,true)`, o.CompanyID, r.Table, r.SrcRows, r.DstRows, r.Che
 }
 
 // hrisMap indexes HMEMD_SYS_ID by NIK. A NIK with several different sys_ids keeps the last row (legacy
-// behaviour) but yields a warning naming every candidate so HR can decide which is right.
+// behavior) but yields a warning naming every candidate so HR can decide which is right.
 func hrisMap(t *Table) (map[string]string, []string, error) {
 	ni, err := t.Col("HMEMD_NIK")
 	if err != nil {

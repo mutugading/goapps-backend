@@ -34,7 +34,7 @@ type persistRun struct {
 	snapshotID int64
 	payDate    time.Time
 	actor      string
-	res        RunResult
+	res        DryRunResult
 	inputs     []engine.Input
 }
 
@@ -42,6 +42,9 @@ type runIDs struct{ run, superseded int64 }
 
 func (p persistRun) save(ctx context.Context, tx *sql.Tx) (runIDs, error) {
 	var ids runIDs
+	if err := checkTotals(p.res.Results); err != nil {
+		return ids, err
+	}
 	// The period predicates repeat the service check: fn_guard_closed only covers head/detail/addition.
 	err := tx.QueryRowContext(ctx, `UPDATE payroll.pyr_run SET pr_status = 'SUPERSEDED'
 WHERE pr_company_id = $1 AND pr_yymm = $2 AND pr_division = $3 AND pr_status = 'ACTIVE' AND pr_parent_run_id IS NULL
@@ -84,6 +87,30 @@ WHERE pp_company_id = $1 AND pp_yymm = $2 AND pp_division = $3 AND pp_status IN 
 		return ids, fmt.Errorf("%w: period %d %s not OPEN/DRAFT", errPeriodMoved, p.q.YYMM, p.q.Division)
 	}
 	return ids, nil
+}
+
+// errTotalsMismatch: a header total differs from Σ of its lines (engine bug; nothing is persisted).
+var errTotalsMismatch = errors.New("run: header total != sum of lines")
+
+// checkTotals asserts per NIK that the header totals equal Σ line (T/P) before anything is written.
+func checkTotals(results []engine.Result) error {
+	for _, r := range results {
+		if r.Header == nil {
+			continue
+		}
+		var t, p decimal.Decimal
+		for _, l := range r.Lines {
+			if l.Key.Type == engine.CompT {
+				t = t.Add(l.AmountOrZero())
+			} else {
+				p = p.Add(l.AmountOrZero())
+			}
+		}
+		if !t.Equal(r.Header.TotTunjangan) || !p.Equal(r.Header.TotPotongan) {
+			return fmt.Errorf("%w: nik %s T %s/%s P %s/%s", errTotalsMismatch, r.NIK, t, r.Header.TotTunjangan, p, r.Header.TotPotongan)
+		}
+	}
+	return nil
 }
 
 // headRow is one pyr_salary_head row; the employee attributes are joined from pyr_employee.
@@ -147,7 +174,7 @@ type detailRow struct {
 	Sts     string          `json:"sts"`
 	Tax     int             `json:"tax"`
 	TPC     string          `json:"tpc"`
-	Base    string          `json:"base"`
+	Base    *string         `json:"base"` // nil = line without basis → psd_basis_amount NULL
 	Qty     string          `json:"qty"`
 	Rate    string          `json:"rate"`
 	Formula string          `json:"formula"`
@@ -184,7 +211,7 @@ func newDetailRow(nik string, l engine.Line, sts string) (detailRow, error) {
 		typ = "Potongan"
 	}
 	d := detailRow{NIK: nik, Type: typ, ID: l.Key.ID, Code: l.Key.String(), Amount: money(l.Amount), Sts: sts, Tax: taxNo,
-		TPC: "N", Base: l.Base.StringFixed(2), Qty: l.Qty.Round(4).String(), Rate: l.Rate.Round(6).String(),
+		TPC: "N", Base: basisOf(l.Base), Qty: l.Qty.Round(4).String(), Rate: l.Rate.Round(6).String(),
 		Formula: l.Formula, Remark: l.Remark}
 	if l.Tax {
 		d.Tax = taxYes
@@ -250,6 +277,16 @@ func jamLemburJSON(m map[string]decimal.Decimal) (json.RawMessage, error) {
 		out[key] = json.Number(v.String())
 	}
 	return json.Marshal(out)
+}
+
+// basisOf: a zero Base means the component has no calculation basis (engine.Line carries no pointer), so
+// psd_basis_amount stays NULL instead of a misleading 0.00.
+func basisOf(d decimal.Decimal) *string {
+	if d.IsZero() {
+		return nil
+	}
+	s := d.StringFixed(2)
+	return &s
 }
 
 func money(d *decimal.Decimal) *string {

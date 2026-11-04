@@ -120,8 +120,8 @@ func (s *Service) Commit(ctx context.Context, cmd CommitCommand) (out CommitResu
 		if e != nil {
 			return e
 		}
-		if res.Summary.EmpCount == 0 {
-			return apperr.New(apperr.CodeBusinessRule, "tidak ada karyawan yang terhitung; run tidak disimpan", nil)
+		if e := checkDry(ctx, tx, q, &res); e != nil {
+			return e
 		}
 		actor, _ := scope.FromContext(ctx) //nolint:errcheck // checked by InScope
 		p := persistRun{q: q, ruleSetID: cmd.RuleSetID, snapshotID: loaded.SnapshotID, payDate: payDate,
@@ -227,4 +227,12 @@ func ruleErr(err error) error {
 	default:
 		return fmt.Errorf("load rules: %w", err)
 	}
+}
+
+// checkDry rejects a run without calculated employees and adds the stale-lock warning (D-39).
+func checkDry(ctx context.Context, tx *sql.Tx, q Query, res *DryRunResult) error {
+	if res.Summary.EmpCount == 0 {
+		return apperr.New(apperr.CodeBusinessRule, "tidak ada karyawan yang terhitung; run tidak disimpan", nil)
+	}
+	return addLockStaleWarning(ctx, tx, q, res)
 }

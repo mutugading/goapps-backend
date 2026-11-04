@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash"
+	"io"
 	"reflect"
 	"runtime"
 	"sort"
@@ -36,8 +38,8 @@ type Summary struct {
 	TotalP    decimal.Decimal // Σ Potongan lines
 }
 
-// RunResult is the outcome of a dry run. Results and Warnings are ordered by NIK; nothing is persisted.
-type RunResult struct {
+// DryRunResult is the outcome of a dry run. Results and Warnings are ordered by NIK; nothing is persisted.
+type DryRunResult struct {
 	Results   []engine.Result
 	Warnings  []Issue // loader warnings, per-NIK errors and engine warnings
 	Summary   Summary
@@ -55,7 +57,7 @@ func NewRunner() Runner { return Runner{} }
 
 // DryRun calculates every input. Errors per NIK become warnings and that NIK is left out of Results;
 // only context cancellation fails the run. Incomplete results are excluded as well (never persisted).
-func (r Runner) DryRun(ctx context.Context, loaded Result) (RunResult, error) {
+func (r Runner) DryRun(ctx context.Context, loaded Result) (DryRunResult, error) {
 	inputs := append([]engine.Input(nil), loaded.Inputs...)
 	sort.SliceStable(inputs, func(i, j int) bool { return inputs[i].Emp.NIK < inputs[j].Emp.NIK })
 
@@ -82,17 +84,17 @@ func (r Runner) DryRun(ctx context.Context, loaded Result) (RunResult, error) {
 			}
 			if err := inputs[i].Validate(); err != nil {
 				slots[i].err = err
-				return nil
+				return nil //nolint:nilerr // per-NIK error is recorded in the slot and becomes a warning (D-27)
 			}
 			slots[i].res, slots[i].err = calc(inputs[i])
 			return nil
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return RunResult{}, err
+		return DryRunResult{}, err
 	}
 
-	out := RunResult{Warnings: append([]Issue(nil), loaded.Warnings...)}
+	out := DryRunResult{Warnings: append([]Issue(nil), loaded.Warnings...)}
 	for i, s := range slots {
 		nik := inputs[i].Emp.NIK
 		if s.err != nil {
@@ -164,74 +166,88 @@ func isCode(s string) bool {
 // The text form is canonical: map keys are sorted, decimals print via String().
 func hashInputs(inputs []engine.Input) string {
 	h := sha256.New()
+	w := canonWriter{h}
 	if len(inputs) > 0 {
 		in := inputs[0]
-		fmt.Fprintf(h, "%s|rules=%d/%v|", hashSharedLabel, in.Rules.ID(), in.Rules.LegacyCompat())
-		canon(h, reflect.ValueOf(in.Tax))
+		w.printf("%s|rules=%d/%v|", hashSharedLabel, in.Rules.ID(), in.Rules.LegacyCompat())
+		canon(w, reflect.ValueOf(in.Tax))
 	}
 	for _, in := range inputs {
 		in.Tax, in.Rules = engine.TaxTables{}, nil
-		fmt.Fprintf(h, "\nnik=%s|", in.Emp.NIK)
-		canon(h, reflect.ValueOf(in))
+		w.printf("\nnik=%s|", in.Emp.NIK)
+		canon(w, reflect.ValueOf(in))
 	}
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-type sink interface{ Write([]byte) (int, error) }
+// canonWriter feeds a hash.Hash, whose Write never fails (hash.Hash contract), so errors are dropped here once.
+type canonWriter struct{ h hash.Hash }
 
-func canon(w sink, v reflect.Value) {
+func (w canonWriter) str(s string) { _, _ = io.WriteString(w.h, s) } //nolint:errcheck // hash.Hash.Write never errors
+
+func (w canonWriter) printf(format string, a ...any) { _, _ = fmt.Fprintf(w.h, format, a...) } //nolint:errcheck // hash.Hash.Write never errors
+
+func canon(w canonWriter, v reflect.Value) {
 	if !v.IsValid() {
-		_, _ = w.Write([]byte("nil;"))
+		w.str("nil;")
 		return
 	}
 	if v.CanInterface() {
 		if s, ok := v.Interface().(fmt.Stringer); ok && v.Kind() != reflect.Ptr && v.Kind() != reflect.Interface {
-			fmt.Fprintf(w, "%s;", s.String())
+			w.printf("%s;", s.String())
 			return
 		}
 	}
 	switch v.Kind() {
 	case reflect.Ptr, reflect.Interface:
 		if v.IsNil() {
-			_, _ = w.Write([]byte("nil;"))
+			w.str("nil;")
 			return
 		}
 		canon(w, v.Elem())
 	case reflect.Struct:
-		_, _ = w.Write([]byte("{"))
-		for i := 0; i < v.NumField(); i++ {
-			if v.Type().Field(i).IsExported() {
-				canon(w, v.Field(i))
-			}
-		}
-		_, _ = w.Write([]byte("}"))
+		canonStruct(w, v)
 	case reflect.Slice, reflect.Array:
-		fmt.Fprintf(w, "[%d:", v.Len())
+		w.printf("[%d:", v.Len())
 		for i := 0; i < v.Len(); i++ {
 			canon(w, v.Index(i))
 		}
-		_, _ = w.Write([]byte("]"))
+		w.str("]")
 	case reflect.Map:
-		type kv struct {
-			k string
-			v reflect.Value
-		}
-		kvs := make([]kv, 0, v.Len())
-		for it := v.MapRange(); it.Next(); {
-			kvs = append(kvs, kv{fmt.Sprintf("%v", it.Key().Interface()), it.Value()})
-		}
-		sort.Slice(kvs, func(i, j int) bool { return kvs[i].k < kvs[j].k })
-		fmt.Fprintf(w, "<%d:", len(kvs))
-		for _, e := range kvs {
-			fmt.Fprintf(w, "%s=", e.k)
-			canon(w, e.v)
-		}
-		_, _ = w.Write([]byte(">"))
+		canonMap(w, v)
 	case reflect.Func, reflect.Chan:
-		_, _ = w.Write([]byte("fn;"))
+		w.str("fn;")
 	default:
 		if v.CanInterface() {
-			fmt.Fprintf(w, "%v;", v.Interface())
+			w.printf("%v;", v.Interface())
 		}
 	}
+}
+
+func canonStruct(w canonWriter, v reflect.Value) {
+	w.str("{")
+	for i := 0; i < v.NumField(); i++ {
+		if v.Type().Field(i).IsExported() {
+			canon(w, v.Field(i))
+		}
+	}
+	w.str("}")
+}
+
+func canonMap(w canonWriter, v reflect.Value) {
+	type kv struct {
+		k string
+		v reflect.Value
+	}
+	kvs := make([]kv, 0, v.Len())
+	for it := v.MapRange(); it.Next(); {
+		kvs = append(kvs, kv{fmt.Sprintf("%v", it.Key().Interface()), it.Value()})
+	}
+	sort.Slice(kvs, func(i, j int) bool { return kvs[i].k < kvs[j].k })
+	w.printf("<%d:", len(kvs))
+	for _, e := range kvs {
+		w.printf("%s=", e.k)
+		canon(w, e.v)
+	}
+	w.str(">")
 }
