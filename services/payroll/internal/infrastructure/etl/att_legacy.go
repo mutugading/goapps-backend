@@ -142,6 +142,13 @@ func writeSnapshots(ctx context.Context, tx *sql.Tx, company int16, groups map[s
 		// A period that already has an ACTIVE ENGINE run keeps its snapshot as is: re-locking or re-checksumming it
 		// would change the input of a run that is already committed (D-40; LEGACY runs carry no snapshot, so they do not count). The condition sits in the upsert
 		// itself so the check and the write are one statement.
+		// The NOT EXISTS below sees the statement snapshot: a Commit that finishes while this upsert waits on a
+		// row lock would be missed. So take the run advisory lock (same key as run.Lock, D-39) first, waiting:
+		// a running Commit finishes before the check starts, a later Commit fails fast with RUN_IN_PROGRESS.
+		if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext('payroll.run'), hashtext($1))`,
+			fmt.Sprintf("%d:%s:%s", company, k.yymm, k.division)); err != nil {
+			return nil, fmt.Errorf("run lock %s/%s: %w", k.yymm, k.division, err)
+		}
 		var id int64
 		err := tx.QueryRowContext(ctx, `
 INSERT INTO payroll.pyr_att_snapshot (pas_company_id, pas_yymm, pas_division, pas_source_batch_ids, pas_checksum, pas_locked, created_by)
