@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -147,7 +148,41 @@ WHERE r.pasr_snapshot_id = s.pas_snapshot_id AND s.pas_source_batch_ids = '{}' A
   AND NOT EXISTS (SELECT 1 FROM payroll.pyr_run x WHERE x.pr_company_id = s.pas_company_id AND x.pr_yymm = s.pas_yymm
                   AND x.pr_division = s.pas_division AND x.pr_status = 'ACTIVE' AND x.pr_kind = 'ENGINE')`
 
+// lockRuns takes the run advisory lock (same key as run.Lock, D-39) of every period touched, in sorted order
+// (no deadlock between ETLs), before the first UPDATE: the NOT EXISTS in updateFailSQL sees the statement snapshot,
+// so a Commit that finishes while an UPDATE waits on a row lock would be missed (T017f/T017g, D-40).
+func (c *failCollector) lockRuns(ctx context.Context, tx *sql.Tx) error {
+	seen := map[[2]string]bool{}
+	var periods [][2]string
+	for _, k := range c.order {
+		p := [2]string{k.yymm, k.division}
+		if !seen[p] {
+			seen[p] = true
+			periods = append(periods, p)
+		}
+	}
+	sort.Slice(periods, func(i, j int) bool {
+		if periods[i][0] != periods[j][0] {
+			return periods[i][0] < periods[j][0]
+		}
+		return periods[i][1] < periods[j][1]
+	})
+	for _, p := range periods {
+		if _, err := tx.ExecContext(ctx, `
+SELECT pg_advisory_xact_lock(hashtext('payroll.run'), hashtext(k))
+FROM (SELECT DISTINCT pas_company_id::text || ':' || pas_yymm::text || ':' || pas_division::text AS k
+      FROM payroll.pyr_att_snapshot WHERE pas_source_batch_ids = '{}' AND pas_yymm = $1::int AND pas_division = $2::payroll.division
+      ORDER BY 1) q`, p[0], p[1]); err != nil {
+			return fmt.Errorf("run lock %s/%s: %w", p[0], p[1], err)
+		}
+	}
+	return nil
+}
+
 func (c *failCollector) write(ctx context.Context, tx *sql.Tx) error {
+	if err := c.lockRuns(ctx, tx); err != nil {
+		return err
+	}
 	stmt, err := tx.PrepareContext(ctx, updateFailSQL)
 	if err != nil {
 		return err

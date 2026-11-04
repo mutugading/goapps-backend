@@ -125,6 +125,8 @@ func snapChecksum(rows []snapRow) string {
 
 // writeSnapshots upserts one locked LEGACY snapshot per group and its rows. pasr_premi_fail/beras_fail stay NULL:
 // the historical source of those figures is still an open question (TASKS T009d).
+// The run advisory lock taken per period is held for the whole ETL transaction: Commit/Approve/Reopen of that
+// period fail with RUN_IN_PROGRESS while the ETL runs.
 func writeSnapshots(ctx context.Context, tx *sql.Tx, company int16, groups map[snapKey][]snapRow) ([]string, error) {
 	var skipped []string
 	keys := make([]snapKey, 0, len(groups))
