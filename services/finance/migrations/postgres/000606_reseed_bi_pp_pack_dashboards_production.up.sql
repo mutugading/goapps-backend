@@ -2,7 +2,7 @@
 -- PRODUCTION (OPERATIONS sudah tidak ada) sehingga INSERT ... SELECT FROM grp menghasilkan 0 baris tanpa error.
 -- Migrasi ini memasang 4 dashboard yang sama persis dengan 000603 di grup PRODUCTION (fallback OPERATIONS),
 -- lalu gagal keras bila grup tidak ada atau hasil akhirnya bukan 4 dashboard. Lingkungan yang sudah benar dari
--- 000603 tidak diubah (ON CONFLICT DO NOTHING). Baris buatan migrasi ini ditandai layout_config.seeded_by='000605'
+-- 000603 tidak diubah (ON CONFLICT DO NOTHING). Baris buatan migrasi ini ditandai layout_config.seeded_by='000606'
 -- supaya down hanya menghapus yang dibuatnya. 000603 tidak diubah (sudah jalan di production).
 BEGIN;
 
@@ -34,7 +34,7 @@ FROM grp, (VALUES
    'Kgs packed per departemen / jenis transaksi / grup (pengganti VIEW_PACKDET_MAIL_ALERT_SUM)',
    'PP_PACK_SUMMARY', 'bar',
    '{"x_axis_field":"group_1","y_axis_field":"value","single_metric":"PACK_TOTAL","number_format":"raw","decimals":0,"drill_to":"group_2","empty_message":"Belum ada data packed production untuk periode ini"}',
-   '{"nav_tab":{"group":"PACKPROD","label":"Summary","permission":"finance.bi.dashboard.view"},"seeded_by":"000605"}',
+   '{"nav_tab":{"group":"PACKPROD","label":"Summary","permission":"finance.bi.dashboard.view"},"seeded_by":"000606"}',
    '[{"label":"Total Kgs (bulan ini)","value_field":"value","metric_name":"PACK_TOTAL","agg":"sum","period":"current_month","compare":"MoM","format":"raw","decimals":0},
      {"label":"AX % (bulan ini)","agg":"cross_ratio","numerator_metric":"PACK_AX","denominator_metric":"PACK_TOTAL","period":"current_month","compare":"none","format":"percent","decimals":1},
      {"label":"FQ % (bulan ini)","agg":"cross_ratio","numerator_metric":"PACK_FQ","denominator_metric":"PACK_TOTAL","period":"current_month","compare":"none","format":"percent","decimals":1}]',
@@ -43,21 +43,21 @@ FROM grp, (VALUES
    'Kgs packed per produk (merge_no; tanpa Boughtout/Rewinding)',
    'PP_PACK_PRODUCT', 'bar',
    '{"x_axis_field":"group_1","y_axis_field":"value","category_field":"dimension_key","metric_filter":{"include_metrics":["PACK_TOTAL"]},"number_format":"raw","decimals":0,"empty_message":"Belum ada data produk untuk periode ini"}',
-   '{"nav_tab":{"group":"PACKPROD","label":"Produk","permission":"finance.bi.dashboard.view"},"seeded_by":"000605"}',
+   '{"nav_tab":{"group":"PACKPROD","label":"Produk","permission":"finance.bi.dashboard.view"},"seeded_by":"000606"}',
    '[{"label":"Total Kgs (bulan ini)","value_field":"value","metric_name":"PACK_TOTAL","agg":"sum","period":"current_month","compare":"MoM","format":"raw","decimals":0}]',
    FALSE, 1, 20),
   ('PP_PACK_MACHINE', 'Packed Production per Mesin',
    'Kgs packed per mesin (mc_no, urut mach_order_rep; hanya grade_eligible=Y)',
    'PP_PACK_MACHINE', 'bar',
    '{"x_axis_field":"group_1","y_axis_field":"value","category_field":"dimension_key","metric_filter":{"include_metrics":["PACK_TOTAL"]},"number_format":"raw","decimals":0,"empty_message":"Belum ada data mesin untuk periode ini"}',
-   '{"nav_tab":{"group":"PACKPROD","label":"Mesin","permission":"finance.bi.dashboard.view"},"seeded_by":"000605"}',
+   '{"nav_tab":{"group":"PACKPROD","label":"Mesin","permission":"finance.bi.dashboard.view"},"seeded_by":"000606"}',
    '[{"label":"Total Kgs (bulan ini)","value_field":"value","metric_name":"PACK_TOTAL","agg":"sum","period":"current_month","compare":"MoM","format":"raw","decimals":0}]',
    FALSE, 1, 30),
   ('PP_PACK_POLY', 'Packed Production per Poly',
    'Kgs packed per jenis poly (poly_type)',
    'PP_PACK_POLY', 'bar',
    '{"x_axis_field":"group_1","y_axis_field":"value","category_field":"dimension_key","metric_filter":{"include_metrics":["PACK_TOTAL"]},"number_format":"raw","decimals":0,"empty_message":"Belum ada data poly untuk periode ini"}',
-   '{"nav_tab":{"group":"PACKPROD","label":"Poly","permission":"finance.bi.dashboard.view"},"seeded_by":"000605"}',
+   '{"nav_tab":{"group":"PACKPROD","label":"Poly","permission":"finance.bi.dashboard.view"},"seeded_by":"000606"}',
    '[{"label":"Total Kgs (bulan ini)","value_field":"value","metric_name":"PACK_TOTAL","agg":"sum","period":"current_month","compare":"MoM","format":"raw","decimals":0}]',
    FALSE, 1, 40)
 ) AS v(code, title, descr, ftype, chart, cfg, layout, kpi, drill, max_drill, ord)

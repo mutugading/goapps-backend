@@ -85,10 +85,10 @@ func TestPackProdSchedule604MigrationText(t *testing.T) {
 	assert.Contains(t, down, "schedule_cron = '15 7 * * *'")
 }
 
-// P014 / PP-15: seed ulang dashboard di grup PRODUCTION (000605).
-func TestPackProdDashboards605MigrationText(t *testing.T) {
-	up := readMig(t, "000605_reseed_bi_pp_pack_dashboards_production.up.sql")
-	down := readMig(t, "000605_reseed_bi_pp_pack_dashboards_production.down.sql")
+// P014 / PP-15: seed ulang dashboard di grup PRODUCTION (000606).
+func TestPackProdDashboards606MigrationText(t *testing.T) {
+	up := readMig(t, "000606_reseed_bi_pp_pack_dashboards_production.up.sql")
+	down := readMig(t, "000606_reseed_bi_pp_pack_dashboards_production.down.sql")
 	for _, c := range []string{"PP_PACK_SUMMARY", "PP_PACK_PRODUCT", "PP_PACK_MACHINE", "PP_PACK_POLY"} {
 		assert.Contains(t, up, "'"+c+"'")
 		assert.Contains(t, down, "'"+c+"'")
@@ -96,8 +96,8 @@ func TestPackProdDashboards605MigrationText(t *testing.T) {
 	assert.Contains(t, up, "WHEN 'PRODUCTION' THEN 1")
 	assert.Contains(t, up, "ON CONFLICT (dashboard_code) DO NOTHING")
 	assert.Len(t, regexp.MustCompile(`RAISE EXCEPTION`).FindAllString(up, -1), 2)
-	assert.Equal(t, 4, strings.Count(up, `"seeded_by":"000605"`))
-	assert.Contains(t, down, "layout_config->>'seeded_by' = '000605'")
+	assert.Equal(t, 4, strings.Count(up, `"seeded_by":"000606"`))
+	assert.Contains(t, down, "layout_config->>'seeded_by' = '000606'")
 
 	// Isi dashboard wajib identik dengan 000603 selain penanda seeded_by.
 	block := func(s string) string {
@@ -107,5 +107,5 @@ func TestPackProdDashboards605MigrationText(t *testing.T) {
 		return s[i:j]
 	}
 	seed603 := readMig(t, "000603_seed_bi_pp_pack_dashboards.up.sql")
-	assert.Equal(t, block(seed603), strings.ReplaceAll(block(up), `,"seeded_by":"000605"`, ""))
+	assert.Equal(t, block(seed603), strings.ReplaceAll(block(up), `,"seeded_by":"000606"`, ""))
 }
