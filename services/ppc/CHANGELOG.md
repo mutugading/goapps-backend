@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/mutugading/goapps-backend/compare/ppc-service/v0.4.0...ppc-service/v0.4.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* **deps:** bump Go toolchain to 1.26 and patch vulnerable Go dependencies ([#265](https://github.com/mutugading/goapps-backend/issues/265)) ([263d9b6](https://github.com/mutugading/goapps-backend/commit/263d9b61a9e7ffd0be9248593eec0fa55b44760e))
+
 ## [0.4.0](https://github.com/mutugading/goapps-backend/compare/ppc-service/v0.3.0...ppc-service/v0.4.0) (2026-08-29)
 
 
