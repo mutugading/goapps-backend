@@ -34,6 +34,7 @@ func diffCmd(args []string, stdout, stderr io.Writer) int {
 	target := fs.String("target", recon.TargetDry, "dry | run:<id> (run ENGINE periode yang sama)")
 	ruleSet := fs.Int("rule-set", 1, "rule set untuk dry-run (v1 = 1)")
 	out := fs.String("out", "", "berkas laporan JSON (kosong = stdout); memuat NIK & gaji nyata, jangan dikomit")
+	xlsx := fs.String("xlsx", "", "berkas laporan xlsx (Ringkasan, Top50, PerNIK); memuat NIK & gaji nyata, jangan dikomit")
 	dsn := fs.String("dsn", os.Getenv("PAYROLL_RO_DSN"), "DSN role payroll_ro (read-only)")
 	if err := fs.Parse(args); err != nil {
 		return exitError
@@ -44,6 +45,11 @@ func diffCmd(args []string, stdout, stderr io.Writer) int {
 	}
 	if err := writeReport(rep, *out, stdout); err != nil {
 		return fail(err)
+	}
+	if *xlsx != "" {
+		if err := writeXLSXFile(rep, *xlsx); err != nil {
+			return fail(err)
+		}
 	}
 	printSummary(stderr, rep)
 	if !rep.Summary.Parity {
@@ -88,6 +94,18 @@ func writeReport(rep recon.DiffReport, path string, stdout io.Writer) error {
 		return err
 	}
 	return os.WriteFile(path, b, 0o600)
+}
+
+func writeXLSXFile(rep recon.DiffReport, path string) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600) //nolint:gosec // path is an operator flag
+	if err != nil {
+		return fmt.Errorf("xlsx: %w", err)
+	}
+	if err := recon.WriteXLSX(rep, f); err != nil {
+		_ = f.Close() //nolint:errcheck // already failing
+		return fmt.Errorf("xlsx: %w", err)
+	}
+	return f.Close()
 }
 
 func printSummary(w io.Writer, rep recon.DiffReport) {
