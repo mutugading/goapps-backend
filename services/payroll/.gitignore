@@ -19,3 +19,6 @@ config.local.yml
 
 # Air build log
 build-errors.log
+
+# T018a: golden cases extracted from real legacy runs (real salary data, never committed)
+tests/golden/out/
