@@ -53,6 +53,9 @@ type Query struct {
 	Division  string
 	YYMM      int
 	NIKs      []string
+	// SnapshotID pins the attendance snapshot (recon reads the LEGACY run's snapshot, 09§4 step 2);
+	// 0 = the newest snapshot of the period.
+	SnapshotID int64
 }
 
 // Rules is the part of the T016a rule set loader output that every Input shares.
