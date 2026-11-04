@@ -55,6 +55,7 @@ type state struct {
 	runID      sql.NullInt64
 	runStatus  sql.NullString
 	runKind    sql.NullString
+	hasLegacy  bool
 	snapshotID sql.NullInt64
 }
 
@@ -101,8 +102,9 @@ func (s *Service) Reopen(ctx context.Context, cmd Command) error {
 			return "", wrongStatus(cmd, st.status, "reopen", run.PeriodApproved+"/"+run.PeriodClosed)
 		}
 		// A LEGACY run is Oracle history loaded by the ETL (no snapshot, no engine input): reopening would let
-		// a re-run supersede it with engine output, so the period stays closed (D-40).
-		if st.runKind.String == "LEGACY" {
+		// a re-run supersede it with engine output, so the period stays closed (D-40). Any LEGACY run of the
+		// period counts, also when pp_active_run_id is NULL or points elsewhere.
+		if st.runKind.String == "LEGACY" || st.hasLegacy {
 			return "", apperr.New(apperr.CodeBusinessRule, "periode hasil migrasi legacy tidak bisa dibuka kembali", details(cmd))
 		}
 		if st.snapshotID.Valid {
@@ -171,10 +173,12 @@ func (s *Service) transition(ctx context.Context, cmd Command, action string, fn
 // lockPeriod reads the period with its ACTIVE run FOR UPDATE.
 func lockPeriod(ctx context.Context, tx *sql.Tx, cmd Command) (state, error) {
 	var st state
-	err := tx.QueryRowContext(ctx, `SELECT p.pp_status::text, p.pp_active_run_id, r.pr_status::text, r.pr_snapshot_id, r.pr_kind
+	err := tx.QueryRowContext(ctx, `SELECT p.pp_status::text, p.pp_active_run_id, r.pr_status::text, r.pr_snapshot_id, r.pr_kind,
+  EXISTS (SELECT 1 FROM payroll.pyr_run l WHERE l.pr_company_id = p.pp_company_id AND l.pr_yymm = p.pp_yymm
+    AND l.pr_division = p.pp_division AND l.pr_kind = 'LEGACY')
 FROM payroll.pyr_period p LEFT JOIN payroll.pyr_run r ON r.pr_id = p.pp_active_run_id
 WHERE p.pp_company_id = $1 AND p.pp_yymm = $2 AND p.pp_division = $3 FOR UPDATE OF p`,
-		cmd.CompanyID, cmd.YYMM, cmd.Division).Scan(&st.status, &st.runID, &st.runStatus, &st.snapshotID, &st.runKind)
+		cmd.CompanyID, cmd.YYMM, cmd.Division).Scan(&st.status, &st.runID, &st.runStatus, &st.snapshotID, &st.runKind, &st.hasLegacy)
 	if errors.Is(err, sql.ErrNoRows) {
 		return st, apperr.New(apperr.CodeNotFound, "periode tidak ditemukan", details(cmd))
 	}

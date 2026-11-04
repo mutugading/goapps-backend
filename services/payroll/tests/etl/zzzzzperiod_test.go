@@ -187,6 +187,19 @@ func TestPeriodTransitions(t *testing.T) {
 			t.Fatalf("status = %s", got)
 		}
 	})
+	t.Run("LEGACY run not active: reopen still refused", func(t *testing.T) {
+		for _, q := range []string{
+			`INSERT INTO payroll.pyr_period (pp_company_id, pp_yymm, pp_division, pp_date_from, pp_date_to, pp_status, closed_by)
+			 VALUES (1,203210,'SOLO','2032-09-26','2032-10-25','CLOSED','etl')`,
+			`INSERT INTO payroll.pyr_run (pr_company_id, pr_yymm, pr_division, pr_pay_date, pr_rule_set_id, pr_status, pr_kind)
+			 VALUES (1,203210,'SOLO','2032-10-25',0,'SUPERSEDED','LEGACY')`,
+		} {
+			if _, err := ownDB.Exec(q); err != nil {
+				t.Fatalf("%v\n%s", err, q)
+			}
+		}
+		wantCode(t, svc.Reopen(ctx, period.Command{CompanyID: 1, Division: "SOLO", YYMM: 203210, Reason: "koreksi data lama"}), apperr.CodeBusinessRule)
+	})
 	t.Run("I24: JAKARTA user vs SOLO CLOSED period", func(t *testing.T) {
 		if _, err := ownDB.Exec(`UPDATE payroll.pyr_period SET pp_status='DRAFT', closed_by=NULL, closed_at=NULL, approved_by=NULL, approved_at=NULL
 			WHERE pp_company_id=1 AND pp_yymm=203207 AND pp_division='SOLO'`); err != nil {
@@ -225,10 +238,21 @@ func TestPeriodTransitions(t *testing.T) {
 		}
 		done := make(chan error, 1)
 		go func() { done <- guard() }()
-		select {
-		case err := <-done:
-			t.Fatalf("Guard tidak menunggu row lock: %v", err)
-		case <-time.After(400 * time.Millisecond):
+		// Guard is blocked once a lock request is queued in pg_locks (no fixed sleep).
+		deadline := time.Now().Add(10 * time.Second)
+		for {
+			select {
+			case err := <-done:
+				t.Fatalf("Guard tidak menunggu row lock: %v", err)
+			default:
+			}
+			if scalar(t, `SELECT count(*) FROM pg_locks WHERE NOT granted`) != "0" {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("Guard tidak pernah terlihat menunggu lock")
+			}
+			time.Sleep(20 * time.Millisecond)
 		}
 		if _, err := tx.Exec(`UPDATE payroll.pyr_period SET pp_status='APPROVED'` + where[len(` FROM payroll.pyr_period`):]); err != nil {
 			t.Fatal(err)
