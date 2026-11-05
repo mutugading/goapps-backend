@@ -35,9 +35,10 @@ type SalaryLegacyOptions struct {
 	ExpectMain, ExpectDetail int
 }
 
-// legacySkipped reports D-35.1 out-of-scope periods: JAKARTA before 202601 is trial data, SOLO 202607 has DETAIL without MAIN.
+// legacySkipped reports D-35.1 out-of-scope periods: JAKARTA before 202601 is trial data. SOLO 202607 is in scope again
+// (D-43): its DETAIL without MAIN is handled by the synthetic MAIN of D-35.2.
 func legacySkipped(k snapKey) bool {
-	return (k.division == "JAKARTA" && k.yymm < "202601") || (k.division == "SOLO" && k.yymm == "202607")
+	return k.division == "JAKARTA" && k.yymm < "202601"
 }
 
 // noSnapshotOK reports D-35.3 periods that never had an attendance recap (201712-202003): loaded without a snapshot.

@@ -307,7 +307,7 @@ func TestETL_SalaryLegacyRuns(t *testing.T) {
 			t.Errorf("%s src=%d dst=%d exc=%d", r.Table, r.SrcRows, r.DstRows, len(r.Exceptions))
 		}
 	}
-	// 202607 SOLO di-skip (D-35.1). MAIN: 202608 tanpa snapshot + 2027 kotor; DETAIL: 202608 (tanpa snapshot) + 2027
+	// 202512 JAKARTA (trial) di-skip (D-35.1/D-43). MAIN: 202608 tanpa snapshot + 2027 kotor; DETAIL: 202608 (tanpa snapshot) + 2027
 	if len(reps[0].Exceptions) != 2 || len(reps[1].Exceptions) != 2 {
 		t.Errorf("exception main=%d detail=%d, want 2/2", len(reps[0].Exceptions), len(reps[1].Exceptions))
 	}
@@ -548,7 +548,7 @@ func TestETL_AttLegacyFail(t *testing.T) {
 	}
 }
 
-// T009e5 (D-35): skip trial/202607, MAIN sintetis dari DETAIL, periode 201712 tanpa snapshot, yatim tidak menahan periode.
+// T009e5 (D-35, D-43): skip trial Jakarta, MAIN sintetis dari DETAIL, periode 201712 tanpa snapshot, yatim tidak menahan periode.
 func TestETL_SalaryLegacyScope(t *testing.T) {
 	ctx := context.Background()
 	if _, err := etl.Run(ctx, etlDB, etl.PSVDir{Dir: "testdata"}, etl.Options{CompanyID: 1, ValidFrom: 202001}); err != nil {
@@ -584,7 +584,7 @@ VALUES (1,202603,'SOLO','{}','x',true)`); err != nil {
 		drow("202603", "2026-0001", "Tunjangan", "1", "SOLO", "10", "Gaji Pokok") +
 		drow("202603", "2026-0009", "Tunjangan", "1", "SOLO", "100.005", "Gaji Pokok") + // yatim: tanpa MAIN
 		drow("202603", "2026-0009", "Potongan", "32", "SOLO", "1.234", "Pinjaman Pokok") +
-		drow("202607", "2026-0001", "Tunjangan", "1", "SOLO", "5", "Gaji Pokok") + // SOLO 202607: skip
+		drow("202511", "2026-0001", "Tunjangan", "1", "JAKARTA", "5", "Gaji Pokok") + // trial: skip
 		drow("202512", "2026-0001", "Tunjangan", "1", "JAKARTA", "99", "Gaji Pokok") // trial: skip
 	for f, c := range map[string]string{"MGT_PAYROLL_MAIN.psv": mainRows, "MGT_PAYROLL_DETAIL.psv": detRows} {
 		if err := os.WriteFile(filepath.Join(dir, f), []byte(c), 0o600); err != nil {
@@ -607,10 +607,10 @@ VALUES (1,202603,'SOLO','{}','x',true)`); err != nil {
 		t.Errorf("warning MAIN sintetis = %v, want 2", reps[0].Warnings)
 	}
 	for q, want := range map[string]string{
-		`SELECT count(*) FROM payroll.pyr_run WHERE pr_kind='LEGACY' AND pr_yymm IN (201712,202603,202512,202607)`:                  "2",
+		`SELECT count(*) FROM payroll.pyr_run WHERE pr_kind='LEGACY' AND pr_yymm IN (201712,202603,202512,202511)`:                  "2",
 		`SELECT count(*) FROM payroll.pyr_run WHERE pr_yymm=201712 AND pr_snapshot_id IS NULL`:                                      "1",
 		`SELECT count(*) FROM payroll.pyr_run WHERE pr_yymm=202603 AND pr_snapshot_id IS NOT NULL`:                                  "1",
-		`SELECT count(*) FROM payroll.pyr_period WHERE pp_yymm IN (202512,202607)`:                                                  "0",
+		`SELECT count(*) FROM payroll.pyr_period WHERE pp_yymm IN (202512,202511)`:                                                  "0",
 		`SELECT pp_date_from||'..'||pp_date_to FROM payroll.pyr_period WHERE pp_yymm=201712`:                                        "2017-11-26..2017-12-25",
 		`SELECT pr_emp_count||'/'||pr_line_count FROM payroll.pyr_run WHERE pr_yymm=202603`:                                         "2/3",
 		`SELECT psh_tot_tunjangan||'/'||psh_tot_potongan||'/'||psh_rounding FROM payroll.pyr_salary_head WHERE psh_nik='2026-0009'`: "100.01/1.23/0.00",
