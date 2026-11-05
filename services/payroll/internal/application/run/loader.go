@@ -86,7 +86,7 @@ func (l Loader) Load(ctx context.Context, tx *sql.Tx, q Query, rules Rules) (Res
 	if err != nil {
 		return Result{}, err
 	}
-	workdays, err := loadWorkdays(ctx, tx, q)
+	workdays, err := loadWorkdays(ctx, tx, q, rules.Set.LegacyCompat())
 	if err != nil {
 		return Result{}, err
 	}

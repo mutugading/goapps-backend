@@ -44,12 +44,17 @@ func nikArray(niks []string) string {
 	return "{" + strings.Join(q, ",") + "}"
 }
 
-// loadWorkdays reads pyr_attd_days (1 query).
-func loadWorkdays(ctx context.Context, tx *sql.Tx, q Query) (*int, error) {
+// loadWorkdays reads pyr_attd_days (1 query). Rule v1 outside JAKARTA mirrors legacy C_WORKDAYS: a missing
+// row is NULL (SOLO never had ATTD_DAYS rows; T8 yields NULL, D-45). JAKARTA needs the row (P4 divides by it,
+// legacy ORA-01476) and every v2 run too, so those are rejected with MISSING_ATTD_DAYS (07§4).
+func loadWorkdays(ctx context.Context, tx *sql.Tx, q Query, legacyCompat bool) (*int, error) {
 	var d int
 	err := tx.QueryRowContext(ctx, `SELECT pad_days FROM payroll.pyr_attd_days
  WHERE pad_company_id = $1 AND pad_division = $2 AND pad_yymm = $3`, q.CompanyID, q.Division, q.YYMM).Scan(&d)
 	if errors.Is(err, sql.ErrNoRows) {
+		if legacyCompat && !strings.EqualFold(q.Division, divJakarta) {
+			return nil, nil //nolint:nilnil // NULL workdays is a valid v1 input outside JAKARTA (D-45)
+		}
 		return nil, fmt.Errorf("%w: %s %d", ErrMissingAttdDays, q.Division, q.YYMM)
 	}
 	if err != nil {
@@ -262,11 +267,12 @@ func (r *snapRow) apply(kind, data string) error {
 }
 
 // recapColumns lower-cases the column names and drops the prefix; null values are absent
-// (the engine reads an absent column as zero, legacy NVL).
+// (the engine reads an absent column as zero, legacy NVL). The name column (<prefix>NAMA, text in the
+// production recap) is not an attendance figure and is skipped.
 func recapColumns(raw map[string]any, prefix string) (engine.AttRekap, error) {
 	m := engine.AttRekap{}
 	for k, v := range raw {
-		if !strings.HasPrefix(k, prefix) {
+		if !strings.HasPrefix(k, prefix) || k == prefix+"NAMA" {
 			continue
 		}
 		d, ok, err := toDecimal(v)

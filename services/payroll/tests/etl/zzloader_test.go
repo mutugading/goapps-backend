@@ -186,8 +186,16 @@ func TestRunLoader_ThreeNIKFixture(t *testing.T) {
 		}
 	})
 	t.Run("missing ATTD_DAYS and snapshot", func(t *testing.T) {
-		if _, err := load(run.Query{CompanyID: 1, Division: "SOLO", YYMM: 203004}, true); !errors.Is(err, run.ErrMissingAttdDays) {
-			t.Fatalf("attd days: %v", err)
+		if _, err := load(run.Query{CompanyID: 1, Division: "SOLO", YYMM: 203004}, false); !errors.Is(err, run.ErrMissingAttdDays) {
+			t.Fatalf("attd days v2: %v", err)
+		}
+		// Rule v1 outside JAKARTA: no ATTD_DAYS row = NULL workdays, so the loader moves on to the snapshot (D-45).
+		if _, err := load(run.Query{CompanyID: 1, Division: "SOLO", YYMM: 203004}, true); !errors.Is(err, run.ErrNoSnapshot) {
+			t.Fatalf("attd days v1 SOLO: %v", err)
+		}
+		// JAKARTA P4 divides by ATTD_DAYS (legacy ORA-01476): still rejected, so a commit cannot drop NIKs silently.
+		if _, err := load(run.Query{CompanyID: 1, Division: "JAKARTA", YYMM: 203004}, true); !errors.Is(err, run.ErrMissingAttdDays) {
+			t.Fatalf("attd days v1 JAKARTA: %v", err)
 		}
 		if _, err := ownDB.Exec(`INSERT INTO payroll.pyr_attd_days (pad_company_id, pad_yymm, pad_division, pad_days) VALUES (1,203004,'SOLO',26)`); err != nil {
 			t.Fatal(err)
