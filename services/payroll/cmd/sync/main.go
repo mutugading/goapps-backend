@@ -7,6 +7,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
+	"strings"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // driver
 
@@ -231,11 +233,16 @@ func attLegacyFail(args []string) error {
 	fs := flag.NewFlagSet("att-legacy-fail", flag.ExitOnError)
 	dir := fs.String("dir", "", "folder .psv hasil spool sqlplus (08§1): MGT_PAYROLL_DETAIL + MGT_PAYROLL_COMPNT_EMP")
 	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl")
+	open := fs.String("open-periods", "", "yymm dipisah koma yang masih OPEN saat dump (D-46: T40 tanpa baris DETAIL ⇒ PF=1; butuh MGT_PAYROLL_MAIN). Kosong = hanya D-33")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *dir == "" || *dsn == "" {
 		return fmt.Errorf("-dir dan -dsn (atau PAYROLL_ETL_DSN) wajib")
+	}
+	var o etl.AttLegacyFailOptions
+	if *open != "" {
+		o.OpenPeriods = strings.Split(*open, ",")
 	}
 	db, err := sql.Open("pgx", *dsn)
 	if err != nil {
@@ -246,10 +253,18 @@ func attLegacyFail(args []string) error {
 			fmt.Fprintln(os.Stderr, "close:", cerr)
 		}
 	}()
-	r, err := etl.RunAttLegacyFail(context.Background(), db, etl.PSVDir{Dir: *dir})
-	fmt.Printf("T40 detail=%d premi_fail set=%d (gagal=%d) | T74 detail=%d beras_fail set=%d | baris snapshot diubah=%d\n",
-		r.PremiDetail, r.PremiSet, r.PremiFailed, r.BerasDetail, r.BerasSet, r.Updated)
+	r, err := etl.RunAttLegacyFail(context.Background(), db, etl.PSVDir{Dir: *dir}, o)
+	fmt.Printf("T40 detail=%d premi_fail set=%d (gagal=%d, tanpa baris DETAIL=%d) | T74 detail=%d beras_fail set=%d | baris snapshot diubah=%d\n",
+		r.PremiDetail, r.PremiSet, r.PremiFailed, r.PremiNoRow, r.BerasDetail, r.BerasSet, r.Updated)
 	fmt.Printf("residu BF (NULL)=%d, tanpa baris REKAP=%d\n", len(r.BerasResidue), len(r.NoSnapshotRow))
+	periods := make([]string, 0, len(r.PremiNoRowBy))
+	for p := range r.PremiNoRowBy {
+		periods = append(periods, p)
+	}
+	sort.Strings(periods)
+	for _, p := range periods { // D-46: hanya periode yang OPEN saat dump boleh muncul di sini
+		fmt.Printf("  PF=1 tanpa baris DETAIL %s: %d\n", p, r.PremiNoRowBy[p])
+	}
 	for _, e := range r.BerasResidue {
 		fmt.Println("  RESIDU", e)
 	}

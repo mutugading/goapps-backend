@@ -160,7 +160,7 @@ func TestETL_AttLegacyVsCommitConcurrent(t *testing.T) {
 // not touch the REKAP rows (sentinel 7 stays).
 func TestETL_AttLegacyFailVsCommitConcurrent(t *testing.T) {
 	concRace(t, func() error {
-		_, err := etl.RunAttLegacyFail(context.Background(), etlDB, etl.PSVDir{Dir: "testdata_fail"})
+		_, err := etl.RunAttLegacyFail(context.Background(), etlDB, etl.PSVDir{Dir: "testdata_fail"}, etl.AttLegacyFailOptions{})
 		return err
 	})
 	if got := scalar(t, `SELECT count(*) FROM payroll.pyr_att_snapshot_row r JOIN payroll.pyr_att_snapshot s ON s.pas_snapshot_id = r.pasr_snapshot_id `+

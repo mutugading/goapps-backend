@@ -540,12 +540,12 @@ func TestETL_AttLegacyFail(t *testing.T) {
 	state := func() string {
 		return scalar(t, `SELECT md5(string_agg(pasr_nik||(pasr_data->>'MPAR_DAY_WORK')||coalesce(pasr_premi_fail::text,'n')||coalesce(pasr_beras_fail::text,'n'), ',' ORDER BY 1)) FROM payroll.pyr_att_snapshot_row WHERE pasr_kind='REKAP'`)
 	}
-	rep, err := etl.RunAttLegacyFail(ctx, etlDB, src)
+	rep, err := etl.RunAttLegacyFail(ctx, etlDB, src, etl.AttLegacyFailOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	first := state()
-	if _, err = etl.RunAttLegacyFail(ctx, etlDB, src); err != nil {
+	if _, err = etl.RunAttLegacyFail(ctx, etlDB, src, etl.AttLegacyFailOptions{}); err != nil {
 		t.Fatalf("run ulang: %v", err)
 	}
 	if state() != first {

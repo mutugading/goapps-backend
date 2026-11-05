@@ -107,7 +107,7 @@ func TestETL_AttLegacyFailSkipsPeriodWithActiveRun(t *testing.T) {
 	if got := scalar(t, `SELECT count(*) `+rows+` AND r.pasr_premi_fail=7`); got == "0" {
 		t.Fatal("fixture: tidak ada baris REKAP 202606 JAKARTA")
 	}
-	if _, err := etl.RunAttLegacyFail(ctx, etlDB, etl.PSVDir{Dir: "testdata_fail"}); err != nil {
+	if _, err := etl.RunAttLegacyFail(ctx, etlDB, etl.PSVDir{Dir: "testdata_fail"}, etl.AttLegacyFailOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	if got := scalar(t, `SELECT count(*) `+rows+` AND (r.pasr_premi_fail IS DISTINCT FROM 7 OR r.pasr_beras_fail IS DISTINCT FROM 7)`); got != "0" {

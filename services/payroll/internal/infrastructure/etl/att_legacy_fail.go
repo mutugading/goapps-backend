@@ -15,25 +15,35 @@ import (
 
 // Legacy component ids whose DETAIL rows carry the attendance-failure signal (D-33, 06§3).
 const (
-	legacyPremiHadir = 40 // T40 PREMI_HADIR: NULL amount = premi gagal (D10)
+	legacyPremiHadir = 40 // T40 PREMI_HADIR: NULL amount or no row (OPEN period, D-46) = premi gagal (D10)
 	legacyBeras      = 74 // T74 BERAS: tipe D = A − A/BD × BF
 	berasDays        = 25 // BD (pyr_rule_constant BERAS_DAYS)
 )
 
 // AttLegacyFailReport counts what the reversal of T40/T74 produced (T009e3, D-33).
 type AttLegacyFailReport struct {
-	PremiDetail, BerasDetail int      // DETAIL rows T40 / T74 read (known yymm/division)
-	PremiSet, PremiFailed    int      // pasr_premi_fail written / of which = 1
-	BerasSet                 int      // pasr_beras_fail written
-	BerasResidue             []string // tipe D whose BF is not an integer (or A missing): column left NULL
-	NoSnapshotRow            []string // T40/T74 rows without a REKAP snapshot row: nothing written
-	Updated                  int      // snapshot rows touched
+	PremiDetail, BerasDetail int            // DETAIL rows T40 / T74 read (known yymm/division)
+	PremiSet, PremiFailed    int            // pasr_premi_fail written / of which = 1
+	PremiNoRow               int            // of PremiFailed: T40 attached (frz=2) but no DETAIL row, OPEN periods only (D-46)
+	PremiNoRowBy             map[string]int // PremiNoRow per "yymm/division": a CLOSED period listed by mistake shows up here
+	BerasSet                 int            // pasr_beras_fail written
+	BerasResidue             []string       // tipe D whose BF is not an integer (or A missing): column left NULL
+	NoSnapshotRow            []string       // T40/T74 rows without a REKAP snapshot row: nothing written
+	Updated                  int            // snapshot rows touched
 }
 
 type failKey struct{ yymm, division, nik string }
 
 type failVal struct {
 	premi, beras *int
+	noRow        bool // premi = 1 because DETAIL has no T40 row (D-46)
+}
+
+// AttLegacyFailOptions selects the periods (yymm) that were still OPEN when the spool was taken. Only there is the
+// "T40 attached but no DETAIL row ⇒ PF=1" rule applied (D-46): COMPNT_EMP is the state at dump time (D-44), so on
+// CLOSED periods it would invent failures. Empty = D-33 only.
+type AttLegacyFailOptions struct {
+	OpenPeriods []string
 }
 
 // berasFail reverses A − A/BD×BF = v (type D) into BF. ok=false: not an integer or A unusable (residue).
@@ -53,6 +63,7 @@ func berasFail(a, v decimal.Decimal) (int, bool) {
 type failCollector struct {
 	rep     *AttLegacyFailReport
 	amounts map[failKey]string // T74 attachment amount (A) per nik/division
+	premiOn map[failKey]bool   // T40 attached with frz=2 per nik/division (D-46)
 	vals    map[failKey]*failVal
 	order   []failKey
 }
@@ -72,11 +83,49 @@ func (c *failCollector) loadAmounts(ce *Table) error {
 	if err != nil {
 		return err
 	}
+	frzIdx := -1
+	if c.premiOn != nil {
+		if frzIdx, err = ce.Col("MPCE_FRZ_FLAG"); err != nil {
+			return err
+		}
+	}
 	for _, r := range ce.Rows {
 		id, aerr := strconv.Atoi(r[ci["MPCE_ID"]])
-		if aerr == nil && id == legacyBeras && strings.EqualFold(r[ci["MPCE_TYPE"]], "Tunjangan") {
-			c.amounts[failKey{"", r[ci["MPCE_DIVISION"]], r[ci["MPCE_NIK"]]}] = r[ci["MPCE_AMOUNT"]]
+		if aerr != nil || !strings.EqualFold(r[ci["MPCE_TYPE"]], "Tunjangan") {
+			continue
 		}
+		k := failKey{"", r[ci["MPCE_DIVISION"]], r[ci["MPCE_NIK"]]}
+		switch {
+		case id == legacyBeras:
+			c.amounts[k] = r[ci["MPCE_AMOUNT"]]
+		case id == legacyPremiHadir && frzIdx >= 0:
+			// empty = 2, as LoadEmployeeComponents; several T40 rows for one nik: any frz=2 row counts.
+			if frz := strings.TrimSpace(r[frzIdx]); frz == "2" || frz == "" {
+				c.premiOn[k] = true
+			}
+		}
+	}
+	return nil
+}
+
+// markMissingPremi applies D-46 after DETAIL is scanned: a MAIN nik of an OPEN period with T40 attached (frz=2)
+// and no DETAIL T40 row gets PF=1. A DETAIL row (NULL or not) keeps the D-33 value.
+func (c *failCollector) markMissingPremi(mn *Table, open map[string]bool) error {
+	mi, err := bindCols(mn, []string{"PM_YYMM", "PM_NIK", "PM_DIVISION"})
+	if err != nil {
+		return err
+	}
+	for _, r := range mn.Rows {
+		k := failKey{r[mi["PM_YYMM"]], r[mi["PM_DIVISION"]], r[mi["PM_NIK"]]}
+		if !open[k.yymm] || !c.premiOn[failKey{"", k.division, k.nik}] {
+			continue
+		}
+		if v := c.vals[k]; v != nil && v.premi != nil {
+			continue // DETAIL row present (or MAIN duplicated)
+		}
+		pf := 1
+		v := c.get(k)
+		v.premi, v.noRow = &pf, true
 	}
 	return nil
 }
@@ -203,22 +252,55 @@ func (c *failCollector) write(ctx context.Context, tx *sql.Tx) error {
 			continue
 		}
 		c.rep.Updated += int(n)
-		if v.premi != nil {
-			c.rep.PremiSet++
-			c.rep.PremiFailed += *v.premi
-		}
-		if v.beras != nil {
-			c.rep.BerasSet++
-		}
+		c.count(k, v)
 	}
 	return nil
 }
 
-// RunAttLegacyFail fills pasr_premi_fail/pasr_beras_fail on the LEGACY REKAP rows from DETAIL T40/T74 (D-33).
-// One transaction, idempotent (same input = same values). Needs att-legacy (T009d) loaded; DETAIL/COMPNT_EMP are read
-// from the PSV spool, so payroll_etl never needs SELECT on salary tables.
-func RunAttLegacyFail(ctx context.Context, db *sql.DB, src Source) (AttLegacyFailReport, error) {
+// count adds one written snapshot row to the report.
+func (c *failCollector) count(k failKey, v *failVal) {
+	if v.beras != nil {
+		c.rep.BerasSet++
+	}
+	if v.premi == nil {
+		return
+	}
+	c.rep.PremiSet++
+	c.rep.PremiFailed += *v.premi
+	if !v.noRow {
+		return
+	}
+	c.rep.PremiNoRow++
+	if c.rep.PremiNoRowBy == nil {
+		c.rep.PremiNoRowBy = map[string]int{}
+	}
+	c.rep.PremiNoRowBy[k.yymm+"/"+k.division]++
+}
+
+// openSet validates the OPEN periods (yymm domain) and returns them as a set (empty when none).
+func openSet(periods []string) (map[string]bool, error) {
+	set := make(map[string]bool, len(periods))
+	idx := map[string]int{"OPEN_YYMM": 0}
+	for _, p := range periods {
+		p = strings.TrimSpace(p)
+		if e := badYYMM([]string{p}, idx, []string{"OPEN_YYMM"}); e != "" {
+			return nil, fmt.Errorf("periode OPEN: %s", e)
+		}
+		set[p] = true
+	}
+	return set, nil
+}
+
+// RunAttLegacyFail fills pasr_premi_fail/pasr_beras_fail on the LEGACY REKAP rows from DETAIL T40/T74 (D-33), plus
+// PF=1 for T40 without a DETAIL row in o.OpenPeriods (D-46, needs MAIN). One transaction, idempotent (same input =
+// same values). Needs att-legacy (T009d) loaded; DETAIL/COMPNT_EMP/MAIN are read from the PSV spool, so
+// payroll_etl never needs SELECT on salary tables.
+func RunAttLegacyFail(ctx context.Context, db *sql.DB, src Source, o AttLegacyFailOptions) (AttLegacyFailReport, error) {
 	var rep AttLegacyFailReport
+	open, err := openSet(o.OpenPeriods)
+	if err != nil {
+		return rep, err
+	}
 	dt, err := src.Read(TableSalaryDetail)
 	if err != nil {
 		return rep, err
@@ -228,11 +310,23 @@ func RunAttLegacyFail(ctx context.Context, db *sql.DB, src Source) (AttLegacyFai
 		return rep, err
 	}
 	c := &failCollector{rep: &rep, amounts: map[failKey]string{}, vals: map[failKey]*failVal{}}
+	if len(open) > 0 {
+		c.premiOn = map[failKey]bool{}
+	}
 	if err := c.loadAmounts(ce); err != nil {
 		return rep, err
 	}
 	if err := c.scanDetail(dt); err != nil {
 		return rep, err
+	}
+	if len(open) > 0 {
+		mn, err := src.Read(TableSalaryMain)
+		if err != nil {
+			return rep, err
+		}
+		if err := c.markMissingPremi(mn, open); err != nil {
+			return rep, err
+		}
 	}
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
