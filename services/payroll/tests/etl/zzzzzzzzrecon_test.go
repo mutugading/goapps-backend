@@ -17,7 +17,8 @@ const reconYYMM = 203305
 
 // seedRecon: three SOLO employees, a legacy snapshot A and a newer snapshot B (R00002 recap changed), an ACTIVE
 // LEGACY run on A and a SUPERSEDED ENGINE run on B. Legacy lines: R00001 matches, R00002 has another basis
-// (INPUT_MASTER on the dry target), R00003 is 500 off (FORMULA), R00004 exists only in legacy.
+// (INPUT_MASTER on the dry target), R00003 is 500 off (FORMULA), R00004 exists only in legacy and not in the
+// master (MASTER_DRIFT, D-47), R00005 has a synthetic legacy MAIN (KNOWN_DEFECT, D-47).
 func seedRecon(t *testing.T) (legacyRun, engineRun int64) {
 	t.Helper()
 	y := fmt.Sprint(reconYYMM)
@@ -63,6 +64,13 @@ func seedRecon(t *testing.T) (legacyRun, engineRun int64) {
 	}
 	lines(legacyRun, `('R00001',3000000::numeric,3000000::numeric),('R00002',3100000,3100000),('R00003',3000500,3000000),('R00004',100,100)`)
 	lines(engineRun, `('R00001',3000000::numeric,NULL::numeric),('R00002',2300000,NULL),('R00003',3000000,NULL)`)
+	// A real legacy MAIN carries PM_DATE/PM_DEPT_CODE/PM_PEMBAYARAN; R00005 gets the synthetic MAIN of D-35.2 (none).
+	exec(`UPDATE payroll.pyr_salary_head SET psh_pay_date = '2033-05-25', psh_dept_code = 'PRD', psh_pembayaran = 'TRANSFER'
+	 WHERE psh_run_id = $1`, legacyRun)
+	exec(`INSERT INTO payroll.pyr_salary_detail (psd_run_id, psd_nik, psd_type, psd_id, psd_amount, psd_basis_amount, psd_sts)
+	 VALUES ($1, 'R00005', 'Tunjangan', 1, 25, 25, 'F')`, legacyRun)
+	exec(`INSERT INTO payroll.pyr_salary_head (psh_run_id, psh_nik, psh_yymm, psh_division, psh_tot_tunjangan, psh_tot_potongan, psh_rounding, psh_company_id)
+	 VALUES ($1, 'R00005', `+y+`, 'SOLO', 25, 0, 0, 1)`, legacyRun)
 	return legacyRun, engineRun
 }
 
@@ -88,9 +96,13 @@ func TestRecon_DiffSourcePG(t *testing.T) {
 			t.Fatalf("meta %+v att %v", in.Meta, in.AttChanged)
 		}
 		got := t001(recon.Diff(in))
-		want := map[string]string{"R00002": recon.CatInputMaster, "R00003": recon.CatFormula, "R00004": recon.CatOnlyLegacy}
+		want := map[string]string{"R00002": recon.CatInputMaster, "R00003": recon.CatFormula, "R00004": recon.CatMasterDrift,
+			"R00005": recon.CatKnownDefect}
 		if fmt.Sprint(got) != fmt.Sprint(want) {
 			t.Fatalf("T001 categories %v, want %v", got, want)
+		}
+		if !in.Drift.SyntheticMain["R00005"] || len(in.Drift.SyntheticMain) != 1 || !in.Drift.Missing["R00004"] || len(in.Drift.Inactive) != 0 {
+			t.Fatalf("drift %+v", in.Drift)
 		}
 	})
 	t.Run("run target compares snapshots", func(t *testing.T) {
@@ -104,7 +116,8 @@ func TestRecon_DiffSourcePG(t *testing.T) {
 		}
 		rep := recon.Diff(in)
 		got := t001(rep)
-		want := map[string]string{"R00002": recon.CatInputAtt, "R00003": recon.CatFormula, "R00004": recon.CatOnlyLegacy}
+		want := map[string]string{"R00002": recon.CatInputAtt, "R00003": recon.CatFormula, "R00004": recon.CatMasterDrift,
+			"R00005": recon.CatKnownDefect}
 		if fmt.Sprint(got) != fmt.Sprint(want) || rep.Summary.Parity {
 			t.Fatalf("T001 categories %v, want %v (parity %t)", got, want, rep.Summary.Parity)
 		}

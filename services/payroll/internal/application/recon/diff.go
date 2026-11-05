@@ -9,8 +9,9 @@ import (
 	"github.com/mutugading/goapps-backend/services/payroll/internal/engine"
 )
 
-// Diff categories of 09§4 step 3. ATT_DERIVED waits for the attendance sync (D-41) and KNOWN_DEFECT
-// is a v2-only category; both are listed so the JSON keys stay stable, but rule set v1 never emits them.
+// Diff categories of 09§4 step 3. ATT_DERIVED waits for the attendance sync (D-41). KNOWN_DEFECT is the v2
+// category of 09§4; under v1 it only holds the lines of NIKs with a synthetic MAIN (defect D2, D-47).
+// MASTER_DRIFT (D-47) holds the lines of NIKs whose current master no longer matches the legacy period.
 const (
 	CatMatch       = "MATCH"
 	CatRounding    = "ROUNDING"
@@ -21,11 +22,12 @@ const (
 	CatOnlyLegacy  = "ONLY_LEGACY"
 	CatOnlyTarget  = "ONLY_TARGET"
 	CatKnownDefect = "KNOWN_DEFECT"
+	CatMasterDrift = "MASTER_DRIFT"
 )
 
 // Categories lists every category in report order.
 var Categories = []string{CatMatch, CatRounding, CatFormula, CatInputAtt, CatAttDerived, CatInputMaster,
-	CatOnlyLegacy, CatOnlyTarget, CatKnownDefect}
+	CatOnlyLegacy, CatOnlyTarget, CatMasterDrift, CatKnownDefect}
 
 // roundingLimit is the largest |Δ| (rupiah) that counts as ROUNDING (09§4).
 var roundingLimit = decimal.NewFromInt(1)
@@ -73,7 +75,9 @@ type DiffInput struct {
 	Components map[string][]engine.EmpComponent
 	// AttChanged marks NIKs whose recap in the target snapshot differs from the legacy snapshot.
 	AttChanged map[string]bool
-	Warnings   []run.Issue
+	// Drift holds the master attributes of the D-47 exclusions; zero value = no exclusion.
+	Drift    DriftInput
+	Warnings []run.Issue
 }
 
 // LineDiff is a non-MATCH line. Delta = target − legacy, NULL counted as 0.
@@ -88,12 +92,14 @@ type LineDiff struct {
 
 // HeadDiff is a NIK whose header totals or take-home differ (or exist on one side only).
 type HeadDiff struct {
-	NIK    string      `json:"nik"`
-	Legacy *HeadTotals `json:"legacy"`
-	Target *HeadTotals `json:"target"`
+	NIK      string      `json:"nik"`
+	Legacy   *HeadTotals `json:"legacy"`
+	Target   *HeadTotals `json:"target"`
+	Excluded string      `json:"excluded,omitempty"` // D-47 reason; not counted in HeadMismatch
 }
 
-// DiffSummary holds the counts and the parity verdict of rule set v1 (09§4).
+// DiffSummary holds the counts and the parity verdict of rule set v1 (09§4). Counts, head mismatches and the
+// take-home sums cover the included NIKs only; excluded NIKs (D-47) are aggregated in Excluded.
 type DiffSummary struct {
 	Categories     map[string]int            `json:"categories"`
 	PerComponent   map[string]map[string]int `json:"per_component"` // component → category → count (non-MATCH)
@@ -104,6 +110,7 @@ type DiffSummary struct {
 	TakeHomeTarget decimal.Decimal           `json:"take_home_target"`
 	TakeHomeDelta  decimal.Decimal           `json:"take_home_delta"`
 	Parity         bool                      `json:"parity"`
+	Excluded       map[string]ExclusionStat  `json:"excluded"` // reason → aggregate (D-47)
 }
 
 // DiffReport is the JSON report for CI. It holds real NIKs and amounts: never commit it.
@@ -129,41 +136,41 @@ func Diff(in DiffInput) DiffReport {
 		s.Categories[c] = 0
 	}
 	s.PerComponent = map[string]map[string]int{}
+	s.Excluded = make(map[string]ExclusionStat, len(Exclusions))
+	for _, e := range Exclusions {
+		s.Excluded[e] = ExclusionStat{}
+	}
 
 	for _, nik := range unionNIKs(in.Legacy, in.Target) {
-		rep.addNIK(nik, in.Legacy[nik], in.Target[nik], in.AttChanged[nik], masterChanged(in.Legacy[nik].Lines, in.Components[nik]))
+		leg, tgt := in.Legacy[nik], in.Target[nik]
+		if ex := exclusionOf(in.Drift, nik, leg, in.Components[nik]); ex.reason != "" {
+			rep.addExcluded(nik, ex, leg, tgt)
+			continue
+		}
+		rep.addNIK(nik, leg, tgt, in.AttChanged[nik], masterChanged(leg.Lines, in.Components[nik]))
 	}
 	s.TakeHomeDelta = s.TakeHomeTarget.Sub(s.TakeHomeLegacy)
-	s.Parity = s.Categories[CatFormula] == 0 && s.Categories[CatRounding] == 0 && s.TakeHomeDelta.IsZero()
+	// Header per NIK (09§4) is part of parity: a mismatch of an included NIK fails it.
+	s.Parity = s.Categories[CatFormula] == 0 && s.Categories[CatRounding] == 0 && s.TakeHomeDelta.IsZero() &&
+		s.HeadMismatch == 0
 	return rep
 }
 
 // addNIK joins the lines of one NIK and adds them and its header to the report.
 func (rep *DiffReport) addNIK(nik string, leg, tgt DiffEmp, att, master bool) {
 	s := &rep.Summary
-	if len(leg.Lines) > 0 || leg.Head != nil {
-		s.NIKLegacy++
-	}
-	if len(tgt.Lines) > 0 || tgt.Head != nil {
-		s.NIKTarget++
-	}
+	countNIK(s, leg, tgt)
 	lm, tm := indexLines(leg.Lines), indexLines(tgt.Lines)
 	for _, k := range unionKeys(lm, tm) {
 		l, inL := lm[k]
 		t, inT := tm[k]
 		delta := orZero(t.Amount).Sub(orZero(l.Amount))
 		cat := categorize(inL, inT, delta, att, master)
-		s.Categories[cat]++
 		if cat == CatMatch {
+			s.Categories[CatMatch]++
 			continue
 		}
-		comp := k.String()
-		if s.PerComponent[comp] == nil {
-			s.PerComponent[comp] = map[string]int{}
-		}
-		s.PerComponent[comp][cat]++
-		rep.Lines = append(rep.Lines, LineDiff{NIK: nik, Component: comp, Legacy: l.Amount, Target: t.Amount,
-			Delta: delta, Category: cat})
+		rep.addLine(LineDiff{NIK: nik, Component: k.String(), Legacy: l.Amount, Target: t.Amount, Delta: delta, Category: cat})
 	}
 	if leg.Head != nil {
 		s.TakeHomeLegacy = s.TakeHomeLegacy.Add(leg.Head.TakeHome)
@@ -175,6 +182,26 @@ func (rep *DiffReport) addNIK(nik string, leg, tgt DiffEmp, att, master bool) {
 		s.HeadMismatch++
 		rep.Heads = append(rep.Heads, HeadDiff{NIK: nik, Legacy: leg.Head, Target: tgt.Head})
 	}
+}
+
+func countNIK(s *DiffSummary, leg, tgt DiffEmp) {
+	if len(leg.Lines) > 0 || leg.Head != nil {
+		s.NIKLegacy++
+	}
+	if len(tgt.Lines) > 0 || tgt.Head != nil {
+		s.NIKTarget++
+	}
+}
+
+// addLine records a non-MATCH line and its category count.
+func (rep *DiffReport) addLine(l LineDiff) {
+	s := &rep.Summary
+	s.Categories[l.Category]++
+	if s.PerComponent[l.Component] == nil {
+		s.PerComponent[l.Component] = map[string]int{}
+	}
+	s.PerComponent[l.Component][l.Category]++
+	rep.Lines = append(rep.Lines, l)
 }
 
 func categorize(inLegacy, inTarget bool, delta decimal.Decimal, attChanged, masterChanged bool) string {

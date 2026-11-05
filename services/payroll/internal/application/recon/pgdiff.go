@@ -86,6 +86,9 @@ func (s DiffSource) Load(ctx context.Context, q DiffQuery) (DiffInput, error) {
 			return fmt.Errorf("load inputs: %w", err)
 		}
 		out.Components = componentsByNIK(loaded.Inputs)
+		if out.Drift, err = loadDrift(ctx, tx, rq, out.Meta.LegacyRunID); err != nil {
+			return err
+		}
 		targetSnap, err := s.loadTarget(ctx, tx, rq, targetRun, loaded, &out)
 		if err != nil {
 			return err
@@ -262,4 +265,86 @@ func decPtr(s sql.NullString) (*decimal.Decimal, error) {
 		return nil, fmt.Errorf("recon: amount %q: %w", s.String, err)
 	}
 	return &d, nil
+}
+
+// loadDrift reads the attributes of the D-47 exclusions for the LEGACY run (4 queries).
+func loadDrift(ctx context.Context, tx *sql.Tx, q run.Query, legacyRun int64) (DriftInput, error) {
+	var d DriftInput
+	var err error
+	// The ETL has no explicit marker for the synthetic MAIN of D-35.2 (follow-up T009e10): it is the only LEGACY head
+	// written with PM_DATE, PM_DEPT_CODE, PM_PEMBAYARAN, PM_DAY_PAY, lembur and remarks empty and rounding 0
+	// (salary_legacy.go). Dump 2026-11-05: 83 heads match, all of them synthetic.
+	if d.SyntheticMain, err = nikSet(ctx, tx, `SELECT psh_nik FROM payroll.pyr_salary_head WHERE psh_run_id = $1
+  AND psh_pay_date IS NULL AND psh_dept_code IS NULL AND psh_pembayaran IS NULL AND psh_day_pay IS NULL
+  AND psh_jam_lembur IS NULL AND psh_remarks IS NULL AND psh_rounding = 0`, legacyRun); err != nil {
+		return d, fmt.Errorf("synthetic main: %w", err)
+	}
+	// Legacy calculated (MAIN) a NIK the current master no longer marks active, or no longer has.
+	const inactive = `SELECT h.psh_nik FROM payroll.pyr_salary_head h
+LEFT JOIN payroll.pyr_employee e ON e.pe_company_id = $2 AND e.pe_division = $3 AND e.pe_nik = h.psh_nik
+WHERE h.psh_run_id = $1 AND `
+	if d.Inactive, err = nikSet(ctx, tx, inactive+`e.pe_nik IS NOT NULL AND e.pe_sts_payroll IS DISTINCT FROM 2`,
+		legacyRun, q.CompanyID, q.Division); err != nil {
+		return d, fmt.Errorf("inactive master: %w", err)
+	}
+	if d.Missing, err = nikSet(ctx, tx, inactive+`e.pe_nik IS NULL`, legacyRun, q.CompanyID, q.Division); err != nil {
+		return d, fmt.Errorf("missing master: %w", err)
+	}
+	d.Frozen, err = frozenComponents(ctx, tx, q)
+	return d, err
+}
+
+func nikSet(ctx context.Context, tx *sql.Tx, query string, args ...any) (map[string]bool, error) {
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer closeRows(rows)
+	out := map[string]bool{}
+	for rows.Next() {
+		var nik string
+		if err := rows.Scan(&nik); err != nil {
+			return nil, err
+		}
+		out[nik] = true
+	}
+	return out, rows.Err()
+}
+
+// frozenComponents lists the master components with frz_flag <> 2 inside the validity window of the period.
+func frozenComponents(ctx context.Context, tx *sql.Tx, q run.Query) (map[string]map[engine.CompKey]bool, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT e.pec_nik, c.pc_type::text, c.pc_code
+FROM payroll.pyr_employee_component e JOIN payroll.pyr_component c ON c.pc_sysid = e.pec_component_sysid
+WHERE e.pec_company_id = $1 AND e.pec_division = $2 AND e.pec_frz_flag IS DISTINCT FROM 2
+  AND (e.pec_valid_from IS NULL OR e.pec_valid_from <= $3) AND (e.pec_valid_to IS NULL OR e.pec_valid_to >= $3)`,
+		q.CompanyID, q.Division, q.YYMM)
+	if err != nil {
+		return nil, fmt.Errorf("frozen components: %w", err)
+	}
+	defer closeRows(rows)
+	out := map[string]map[engine.CompKey]bool{}
+	for rows.Next() {
+		var nik, typ, code string
+		if err := rows.Scan(&nik, &typ, &code); err != nil {
+			return nil, fmt.Errorf("scan frozen component: %w", err)
+		}
+		k, err := compKeyOf(typ, code)
+		if err != nil {
+			return nil, err
+		}
+		if out[nik] == nil {
+			out[nik] = map[engine.CompKey]bool{}
+		}
+		out[nik][k] = true
+	}
+	return out, rows.Err()
+}
+
+// compKeyOf maps (pc_type, pc_code 'T015') to the legacy key.
+func compKeyOf(typ, code string) (engine.CompKey, error) {
+	n, err := strconv.Atoi(strings.TrimLeft(code, "TPtp"))
+	if err != nil || len(code) < 2 {
+		return engine.CompKey{}, fmt.Errorf("recon: component code %q", code)
+	}
+	return engine.CompKey{Type: compType(typ), ID: n}, nil
 }

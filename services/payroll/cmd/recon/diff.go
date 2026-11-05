@@ -118,6 +118,11 @@ func printSummary(w io.Writer, rep recon.DiffReport) {
 	}
 	fmt.Fprintf(&b, "  head_mismatch %d · Σ take_home legacy=%s target=%s Δ=%s · warnings %d\n",
 		s.HeadMismatch, s.TakeHomeLegacy, s.TakeHomeTarget, s.TakeHomeDelta, len(rep.Warnings))
+	for _, e := range recon.Exclusions {
+		x := s.Excluded[e]
+		fmt.Fprintf(&b, "  dikecualikan %-17s nik=%d baris=%d (komponen lain %d) head=%d Δ take_home=%s\n",
+			e, x.NIK, x.Lines, x.OtherLines, x.HeadMismatch, x.TakeHomeDelta)
+	}
 	fmt.Fprintf(&b, "  parity=%t\n", s.Parity)
 	_, _ = io.WriteString(w, b.String()) //nolint:errcheck // summary is informational
 }
