@@ -66,7 +66,7 @@ func (absen) Eval(ctx *EvalCtx, c EmpComponent, _ Params) (*decimal.Decimal, str
 	}
 	var days *decimal.Decimal
 	if b.hasRekap && b.GapokSts == stsFull {
-		v := ctx.In.Att.Get(colAlpa).Add(ctx.In.Att.Get(colIjin))
+		v := money.Add(ctx.In.Att.Get(colAlpa), ctx.In.Att.Get(colIjin))
 		days = &v
 	}
 	var div decimal.Decimal
@@ -92,7 +92,7 @@ func (absen) Eval(ctx *EvalCtx, c EmpComponent, _ Params) (*decimal.Decimal, str
 	if err != nil {
 		return nil, "", err
 	}
-	a := q.Mul(*days)
+	a := money.Mul(q, *days)
 	return &a, fmt.Sprintf("%s / %s × %s hari alpa+ijin", b.Gapok, div, *days), nil
 }
 
@@ -124,7 +124,7 @@ func (loan) Eval(ctx *EvalCtx, c EmpComponent, p Params) (*decimal.Decimal, stri
 		if p[paramLoanPart] == loanInterest {
 			v = l.Interest
 		}
-		sum = sum.Add(v)
+		sum = money.Add(sum, v)
 		r := l.Remark
 		if r == "" {
 			r = fmt.Sprintf("Pinjaman %d ke-%d", l.LoanID, l.Seq)

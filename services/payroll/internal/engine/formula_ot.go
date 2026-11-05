@@ -132,7 +132,7 @@ func (otHours) Eval(ctx *EvalCtx, c EmpComponent, p Params) (*decimal.Decimal, s
 	if err != nil {
 		return nil, "", err
 	}
-	a := rate.Mul(hours).Mul(mult)
+	a := money.Mul(money.Mul(rate, hours), mult)
 	return &a, fmt.Sprintf("Rate per jam %s × %s jam × %s", money.Round(rate, 3), hours, mult), nil
 }
 
@@ -155,7 +155,7 @@ func (otAddition) Eval(ctx *EvalCtx, c EmpComponent, _ Params) (*decimal.Decimal
 		if !ok {
 			return nil, "", nil
 		}
-		a := rate.Mul(add)
+		a := money.Mul(rate, add)
 		return &a, strings.TrimSpace(fmt.Sprintf("Rate per jam %s × %s jam %s", money.Round(rate, 3), add, rem)), nil
 	}
 	return nil, "", nil
@@ -196,11 +196,11 @@ func (r inworkRule) ratio(fail decimal.Decimal) (decimal.Decimal, error) {
 		return decimal.Zero, nil
 	}
 	h := decimal.RequireFromString(r.hours)
-	tot, err := money.Div(h.Mul(decimal.NewFromInt(r.weeks)).Mul(decimal.NewFromInt(52)), decimal.NewFromInt(12))
+	tot, err := money.Div(money.Mul(money.Mul(h, decimal.NewFromInt(r.weeks)), decimal.NewFromInt(52)), decimal.NewFromInt(12))
 	if err != nil {
 		return decimal.Zero, err
 	}
-	return money.Div(tot.Sub(h.Mul(fail).Mul(decimal.NewFromInt(r.perFail))), tot)
+	return money.Div(money.Sub(tot, money.Mul(money.Mul(h, fail), decimal.NewFromInt(r.perFail))), tot)
 }
 
 // otInwork is T6 / T36: F → A, D → RATEOTOPR × A × ratio, where RATEOTOPR is Σ T{1,7,55}
@@ -222,7 +222,7 @@ func (f otInwork) Eval(ctx *EvalCtx, c EmpComponent, _ Params) (*decimal.Decimal
 	if err != nil {
 		return nil, "", err
 	}
-	a := ctx.Basis.OTOpr.Mul(c.Amount).Mul(ratio)
+	a := money.Mul(money.Mul(ctx.Basis.OTOpr, c.Amount), ratio)
 	return &a, fmt.Sprintf("Rate %s × %s%% × %s%%", ctx.Basis.OTOpr, c.Amount.Shift(2), money.Round(ratio.Shift(2), 3)), nil
 }
 
@@ -249,8 +249,8 @@ func (otFixed) Eval(ctx *EvalCtx, c EmpComponent, _ Params) (*decimal.Decimal, s
 	if err != nil {
 		return nil, "", err
 	}
-	days := wd.Sub(decr)
-	a := q.Mul(days)
+	days := money.Sub(wd, decr)
+	a := money.Mul(q, days)
 	return &a, fmt.Sprintf("%s / %s × %s hari", c.Amount, wd, days), nil
 }
 
@@ -273,7 +273,7 @@ func (f shift) Eval(ctx *EvalCtx, c EmpComponent, _ Params) (*decimal.Decimal, s
 	if !ok {
 		return nil, "", nil
 	}
-	a := c.Amount.Mul(days)
+	a := money.Mul(c.Amount, days)
 	return &a, fmt.Sprintf("%s × %s hari", c.Amount, days), nil
 }
 
@@ -295,7 +295,7 @@ func (otOprAdd) Eval(ctx *EvalCtx, c EmpComponent, _ Params) (*decimal.Decimal, 
 		return nil, "", err
 	}
 	days := ctx.In.AttAdd.Get(colPayTotAdd)
-	a := perDay.Mul(c.Amount).Mul(days)
+	a := money.Mul(money.Mul(perDay, c.Amount), days)
 	return &a, fmt.Sprintf("Rate per hari %s × %s%% × %s hari", money.Round(perDay, 3), c.Amount.Shift(2), days), nil
 }
 

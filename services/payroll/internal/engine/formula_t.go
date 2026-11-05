@@ -67,7 +67,7 @@ func (c *EvalCtx) addition(k CompKey) (decimal.Decimal, string, bool) {
 	sum := decimal.Zero
 	rems := make([]string, 0, len(adds))
 	for _, a := range adds {
-		sum = sum.Add(a.Amount)
+		sum = money.Add(sum, a.Amount)
 		if a.Remark != "" {
 			rems = append(rems, a.Remark)
 		}
@@ -111,7 +111,7 @@ func prorate(ctx *EvalCtx, x decimal.Decimal) (*decimal.Decimal, string, error) 
 	if err != nil {
 		return nil, "", err
 	}
-	a := q.Mul(payTot)
+	a := money.Mul(q, payTot)
 	return &a, fmt.Sprintf("%s / %s × %s hari", x, ctx.Basis.DaysMonth, payTot), nil
 }
 
@@ -158,14 +158,14 @@ func (subsidiPPh) Eval(ctx *EvalCtx, c EmpComponent, _ Params) (*decimal.Decimal
 			return nil, "", err
 		}
 		// Legacy C_SUBSIDI_PPH_JKT uses recap alpa+ijin (no T1 join), not Daily.BerasFail.
-		fail := ctx.In.Att.Get(colAlpa).Add(ctx.In.Att.Get(colIjin))
+		fail := money.Add(ctx.In.Att.Get(colAlpa), ctx.In.Att.Get(colIjin))
 		q, err := money.Div(t74.Amount, bd)
 		if err != nil {
 			return nil, "", err
 		}
-		v := t74.Amount.Sub(q.Mul(fail))
+		v := money.Sub(t74.Amount, money.Mul(q, fail))
 		if sum != nil {
-			v = v.Add(*sum)
+			v = money.Add(v, *sum)
 		}
 		sum = &v
 	}
@@ -176,7 +176,7 @@ func (subsidiPPh) Eval(ctx *EvalCtx, c EmpComponent, _ Params) (*decimal.Decimal
 	if err != nil {
 		return nil, "", err
 	}
-	v, err := money.Div(gross.Mul(decimal.NewFromInt(5)), decimal.NewFromInt(100))
+	v, err := money.Div(money.Mul(gross, decimal.NewFromInt(5)), decimal.NewFromInt(100))
 	if err != nil {
 		return nil, "", err
 	}
@@ -206,7 +206,7 @@ func (premiHadir) Eval(ctx *EvalCtx, c EmpComponent, _ Params) (*decimal.Decimal
 		if err != nil {
 			return nil, "", err
 		}
-		a := q.Mul(dayWork)
+		a := money.Mul(q, dayWork)
 		return &a, fmt.Sprintf("%s / %s × %s hari kerja", c.Amount, ctx.Basis.DaysMonth, dayWork), nil
 	}
 	return nil, "", nil
@@ -232,7 +232,7 @@ func (beras) Eval(ctx *EvalCtx, c EmpComponent, _ Params) (*decimal.Decimal, str
 		if err != nil {
 			return nil, "", err
 		}
-		a := c.Amount.Sub(q.Mul(fail))
+		a := money.Sub(c.Amount, money.Mul(q, fail))
 		return &a, fmt.Sprintf("%s − %s / %s × %s hari", c.Amount, c.Amount, bd, fail), nil
 	}
 	return nil, "", nil
@@ -251,7 +251,7 @@ func (f daysPct) Eval(ctx *EvalCtx, c EmpComponent, p Params) (*decimal.Decimal,
 	}
 	switch c.Sts {
 	case stsFull:
-		a := c.Amount.Mul(pct)
+		a := money.Mul(c.Amount, pct)
 		return &a, fmt.Sprintf("%s × %s", c.Amount, pct), nil
 	case stsProrate:
 		days, ok := ctx.rekap(p[paramCol])
@@ -262,7 +262,7 @@ func (f daysPct) Eval(ctx *EvalCtx, c EmpComponent, p Params) (*decimal.Decimal,
 		if err != nil {
 			return nil, "", err
 		}
-		a := q.Mul(days).Mul(pct)
+		a := money.Mul(money.Mul(q, days), pct)
 		return &a, fmt.Sprintf("%s / %s × %s hari × %s", c.Amount, ctx.Basis.DaysMonth, days, pct), nil
 	}
 	return nil, "", nil
@@ -290,7 +290,7 @@ func (notWorking) Eval(ctx *EvalCtx, c EmpComponent, p Params) (*decimal.Decimal
 		if err != nil {
 			return nil, "", err
 		}
-		a := q.Mul(sch)
+		a := money.Mul(q, sch)
 		return &a, fmt.Sprintf("%s / 2 / %s × %s hari %s", c.Amount, ctx.Basis.DaysMonth, sch, p[paramSchedule]), nil
 	}
 	return nil, "", nil
@@ -336,7 +336,7 @@ func (f bpjs) Eval(ctx *EvalCtx, c EmpComponent, _ Params) (*decimal.Decimal, st
 	case base.LessThan(lo):
 		base = lo
 	}
-	a := base.Mul(c.Amount)
+	a := money.Mul(base, c.Amount)
 	return &a, fmt.Sprintf("Basis %s × %s", base, c.Amount), nil
 }
 

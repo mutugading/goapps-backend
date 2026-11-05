@@ -60,8 +60,8 @@ func TestTrunc_Property_TowardZero(t *testing.T) {
 }
 
 // TestDiv_Property_MatchesExactQuotient checks Div against the exact rational a/b:
-// at most SigDigits significant digits, error within half a unit in the 38th digit,
-// and no trailing fractional zeros.
+// at most 2*MantissaDigits significant digits, error within half a unit in the last
+// digit Oracle NUMBER keeps, and no trailing fractional zeros.
 func TestDiv_Property_MatchesExactQuotient(t *testing.T) {
 	f := func(seedA, seedB int64) bool {
 		a := randDec(rand.New(rand.NewSource(seedA)))
@@ -85,7 +85,7 @@ func checkQuotient(t *testing.T, a, b, q decimal.Decimal) bool {
 	if a.IsZero() {
 		return q.IsZero()
 	}
-	if int32(q.NumDigits()) > SigDigits { //nolint:gosec // test only
+	if int32(q.NumDigits()) > 2*MantissaDigits { //nolint:gosec // test only
 		t.Logf("Div(%s, %s) = %s has %d digits", a, b, q, q.NumDigits())
 		return false
 	}
@@ -95,9 +95,9 @@ func checkQuotient(t *testing.T, a, b, q decimal.Decimal) bool {
 	}
 	exact := new(big.Rat).Quo(a.Rat(), b.Rat())
 	diff := new(big.Rat).Abs(new(big.Rat).Sub(q.Rat(), exact))
-	// Half ulp of the 38th significant digit of the exact quotient (msd taken from q,
-	// which is within one ulp of the exact value, or from q/10 after a carry).
-	halfUlp := decimal.New(5, msdPos(q)-SigDigits-1).Rat()
+	// Half ulp of the last kept digit (layout taken from q, which is within one ulp
+	// of the exact value; after a carry q's grid is coarser, so this stays an upper bound).
+	halfUlp := decimal.New(5, -numberPlaces(msdPos(q))-1).Rat()
 	if diff.Cmp(halfUlp) > 0 {
 		t.Logf("Div(%s, %s) = %s, off by %s", a, b, q, diff.FloatString(50))
 		return false

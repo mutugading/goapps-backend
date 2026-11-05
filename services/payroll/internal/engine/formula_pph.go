@@ -95,10 +95,10 @@ func pphGrossWhere(ctx *EvalCtx, drop func(CompKey, Line) bool, droppedCounts bo
 			continue
 		}
 		if l.Tax {
-			gross, ok = gross.Add(l.AmountOrZero()), true
+			gross, ok = money.Add(gross, l.AmountOrZero()), true
 		}
 		if k == (CompKey{CompP, idAbsen}) || k == (CompKey{CompP, idDeductionImpact}) {
-			gross, ok = gross.Sub(l.AmountOrZero()), true
+			gross, ok = money.Sub(gross, l.AmountOrZero()), true
 		}
 	}
 	return gross, ok
@@ -125,14 +125,14 @@ func (pph21) Eval(ctx *EvalCtx, _ EmpComponent, _ Params) (*decimal.Decimal, str
 	if len(in.Tax.Category) == 0 || len(in.Tax.TER) == 0 {
 		return nil, "", ErrNoTaxTable
 	}
-	g := gross.Add(thr.Gross)
+	g := money.Add(gross, thr.Gross)
 	p, cat, b, okBr := terTax(ctx, g)
 	if !okBr {
 		return nil, "", nil
 	}
 	remark := fmt.Sprintf("Kategori : %s | Penghasilan : %s - %s | Tarif : %s %%", cat, thousands(b.Min), thousands(b.Max), b.Rate)
 	if !thr.Gross.IsZero() || !thr.PPhPaid.IsZero() {
-		p = p.Sub(thr.PPhPaid)
+		p = money.Sub(p, thr.PPhPaid)
 		remark += fmt.Sprintf(" | THR : %s | PPh THR : %s", thousands(thr.Gross), thousands(thr.PPhPaid))
 	}
 	if p.IsNegative() && !allowNegativePPh(in.Rules) {
@@ -151,7 +151,7 @@ func terTax(ctx *EvalCtx, g decimal.Decimal) (p decimal.Decimal, cat string, b T
 		ctx.warn(fmt.Sprintf("%s: %s status pajak %q, bruto %s", WarnPPhNoBracket, in.Emp.NIK, in.Emp.TaxStatus, g))
 		return decimal.Zero, cat, b, false
 	}
-	return money.Round(g.Mul(b.Rate).Shift(-2), 0), cat, b, true // ÷ 100, exact
+	return money.Round(money.Mul(g, b.Rate).Shift(-2), 0), cat, b, true // ÷ 100, exact
 }
 
 // allowNegativePPh reads ALLOW_NEGATIVE_PPH; the default allows it for parity (06§6.1).

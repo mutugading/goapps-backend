@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"maps"
 	"testing"
 
 	"github.com/shopspring/decimal"
@@ -66,6 +67,10 @@ func TestTFormulas(t *testing.T) {
 	add := func(id int, amt, rem string) map[CompKey][]Addition {
 		return map[CompKey][]Addition{{CompT, id}: {{Amount: d(amt), Remark: rem}}}
 	}
+	dirum3 := func(in *Input) {
+		in.Att = maps.Clone(in.Att)
+		in.Att["dirumahkan"] = d("3")
+	}
 	cases := []struct {
 		name string
 		id   int
@@ -96,6 +101,10 @@ func TestTFormulas(t *testing.T) {
 		{"T101 F", 101, nil, tc(101, "3000000", "F"), "1500000"},
 		{"T101 D dirumahkan", 101, nil, tc(101, "3000000", "D"), "300000"}, // 3000000/30×6×0.5
 		{"T155 D own amount", 155, nil, tc(155, "300000", "D"), "30000"},
+		// T019f SOLO 202610 (T018c, D-48): Oracle NUMBER rounds 2022610/30×3 to 202261 before
+		// ×0.5, so legacy pays 101131; exact multiplication would give 101130.4999… → 101130.
+		{"T101 D dirumahkan Oracle precision", 101, dirum3, tc(101, "2022610", "D"), "101131"},
+		{"T155 D dirumahkan Oracle precision", 155, dirum3, tc(155, "2022610", "D"), "101131"},
 		{"T401 D sakit 75", 401, nil, tc(401, "3000000", "D"), "150000"}, // /30×2×0.75
 		{"T456 D sakit 50", 456, nil, tc(456, "300000", "D"), "20000"},   // /30×4×0.5
 		{"T427 D sakit 25", 427, nil, tc(427, "600000", "D"), "5000"},    // /30×1×0.25

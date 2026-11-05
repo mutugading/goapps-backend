@@ -34,15 +34,15 @@ func (pphCompany) Eval(ctx *EvalCtx, _ EmpComponent, _ Params) (*decimal.Decimal
 		return nil, "", ErrNoTaxTable
 	}
 	// THR enters both sides like P1 (D-28c), so P5 stays the difference of what P1 withholds.
-	pAll, _, _, ok := terTax(ctx, all.Add(in.Thr.Gross))
+	pAll, _, _, ok := terTax(ctx, money.Add(all, in.Thr.Gross))
 	if !ok {
 		return nil, "", nil
 	}
-	pOwn, _, _, ok := terTax(ctx, own.Add(in.Thr.Gross))
+	pOwn, _, _, ok := terTax(ctx, money.Add(own, in.Thr.Gross))
 	if !ok {
 		return nil, "", nil
 	}
-	p := pOwn.Sub(pAll)
+	p := money.Sub(pOwn, pAll)
 	remark := fmt.Sprintf("Bruto : %s | Bruto Ditanggung Karyawan : %s | PPh : %s | PPh Ditanggung Karyawan : %s",
 		thousands(all), thousands(own), thousands(pAll), thousands(pOwn))
 	return &p, remark, nil
@@ -61,15 +61,15 @@ func pphCompanyAnnual(ctx *EvalCtx) (*decimal.Decimal, string, error) {
 			continue
 		}
 		if l.Tax {
-			cur = cur.Add(l.AmountOrZero())
+			cur = money.Add(cur, l.AmountOrZero())
 			if l.TaxPaidCompany {
-				curPaid = curPaid.Add(l.AmountOrZero())
+				curPaid = money.Add(curPaid, l.AmountOrZero())
 			}
 		}
 	}
 	for _, id := range companyDeductIDs {
 		if l, ok := ctx.lines[CompKey{CompP, id}]; ok {
-			curDeduct = curDeduct.Add(l.AmountOrZero())
+			curDeduct = money.Add(curDeduct, l.AmountOrZero())
 		}
 	}
 	t := in.Tax
@@ -87,27 +87,27 @@ func pphCompanyAnnual(ctx *EvalCtx) (*decimal.Decimal, string, error) {
 	}
 	twelve := decimal.NewFromInt(12)
 	gross := money.Sum(y.Gross, cur, y.ThrBonus)
-	paid := y.CompanyPaid.Add(curPaid)
-	deduct := y.Deduct.Add(curDeduct)
-	ptkp = ptkp.Mul(twelve)
+	paid := money.Add(y.CompanyPaid, curPaid)
+	deduct := money.Add(y.Deduct, curDeduct)
+	ptkp = money.Mul(ptkp, twelve)
 	jobCost := func(g decimal.Decimal) decimal.Decimal {
-		return decimal.Min(g.Mul(t.JobCost.Rate).Shift(-2), t.JobCost.MaxMonthly.Mul(twelve))
+		return decimal.Min(money.Mul(g, t.JobCost.Rate).Shift(-2), money.Mul(t.JobCost.MaxMonthly, twelve))
 	}
 	layers := sortedLayers(t.Progressive)
 	var taxAll, taxOwn decimal.Decimal
 	p := decimal.Zero
 	if in.Rules.LegacyCompat() {
-		nett := gross.Sub(deduct).Sub(jobCost(gross)).Sub(ptkp)
+		nett := money.Sub(money.Sub(money.Sub(gross, deduct), jobCost(gross)), ptkp)
 		taxAll = progressiveLegacy(layers, nett)
-		taxOwn = progressiveLegacy(layers, nett.Sub(paid))
-		p = taxOwn.Sub(taxAll).Sub(y.P5Paid) // D-31b: YTD P5 is subtracted in v1 too
+		taxOwn = progressiveLegacy(layers, money.Sub(nett, paid))
+		p = money.Sub(money.Sub(taxOwn, taxAll), y.P5Paid) // D-31b: YTD P5 is subtracted in v1 too
 	} else {
 		pkp := func(g decimal.Decimal) decimal.Decimal {
-			return decimal.Max(money.Trunc(g.Sub(deduct).Sub(jobCost(g)).Sub(ptkp), -3), decimal.Zero)
+			return decimal.Max(money.Trunc(money.Sub(money.Sub(money.Sub(g, deduct), jobCost(g)), ptkp), -3), decimal.Zero)
 		}
 		taxAll = progressive(layers, pkp(gross))
-		taxOwn = progressive(layers, pkp(gross.Sub(paid)))
-		p = taxOwn.Sub(taxAll).Sub(y.P5Paid)
+		taxOwn = progressive(layers, pkp(money.Sub(gross, paid)))
+		p = money.Sub(money.Sub(taxOwn, taxAll), y.P5Paid)
 	}
 	remark := fmt.Sprintf("Bruto : %s | Ditanggung Perusahaan : %s | Pengurang : %s | PTKP : %s | PPh Setahun : %s | PPh Ditanggung Karyawan : %s | P5 Jan-Nov : %s",
 		thousands(gross), thousands(paid), thousands(deduct), thousands(ptkp), thousands(taxAll), thousands(taxOwn), thousands(y.P5Paid))

@@ -87,14 +87,14 @@ func prorateBasis(base, dm, payTot, dirumahkan decimal.Decimal) (decimal.Decimal
 	if err != nil {
 		return decimal.Zero, err
 	}
-	half, err := money.Div(dirumahkan.Mul(base), dm)
+	half, err := money.Div(money.Mul(dirumahkan, base), dm)
 	if err != nil {
 		return decimal.Zero, err
 	}
 	if half, err = money.Div(half, decimal.NewFromInt(2)); err != nil {
 		return decimal.Zero, err
 	}
-	return perDay.Mul(payTot).Add(half), nil
+	return money.Add(money.Mul(perDay, payTot), half), nil
 }
 
 // amountOf sums the amounts of the T components with the given ids.
@@ -102,7 +102,7 @@ func amountOf(comps map[CompKey]EmpComponent, ids ...int) decimal.Decimal {
 	sum := decimal.Zero
 	for _, id := range ids {
 		if c, ok := comps[CompKey{CompT, id}]; ok {
-			sum = sum.Add(c.Amount)
+			sum = money.Add(sum, c.Amount)
 		}
 	}
 	return sum

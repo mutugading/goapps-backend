@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/shopspring/decimal"
+
+	"github.com/mutugading/goapps-backend/services/payroll/internal/engine/money"
 )
 
 // Subsidy kinds and override actions (pyr_subsidy_rule.psr_subsidy_kind, pyr_subsidy_override.pso_action).
@@ -244,10 +246,10 @@ func provisionalSubsidyBasis(ctx *EvalCtx) decimal.Decimal {
 			continue
 		}
 		if spec, _ := specFor(c.Key); spec.Code == FormulaFixedOrProrate && c.Sts == stsProrate {
-			sum = sum.Add(c.Amount)
+			sum = money.Add(sum, c.Amount)
 			continue
 		}
-		sum = sum.Add(ctx.lines[c.Key].AmountOrZero())
+		sum = money.Add(sum, ctx.lines[c.Key].AmountOrZero())
 	}
 	return sum
 }
@@ -275,7 +277,7 @@ func currentSubsidyLines(ctx *EvalCtx) decimal.Decimal {
 	var sum decimal.Decimal
 	for k, l := range ctx.lines {
 		if k.Type == CompT && l.Tax && l.TaxSubsidy {
-			sum = sum.Add(l.AmountOrZero())
+			sum = money.Add(sum, l.AmountOrZero())
 		}
 	}
 	return sum

@@ -61,18 +61,18 @@ func pph21Annual(ctx *EvalCtx) (*decimal.Decimal, string, error) {
 	b := annualBasis{
 		gross:  money.Sum(in.YTD.Gross, cur, in.Thr.Gross, in.TaxAdj.Earn),
 		deduct: money.Sum(in.YTD.Deduct, curDeduct, in.TaxAdj.Deduct),
-		ptkp:   ptkp.Mul(twelve),
-		paid:   in.YTD.TaxPaid.Add(in.Thr.PPhPaid),
+		ptkp:   money.Mul(ptkp, twelve),
+		paid:   money.Add(in.YTD.TaxPaid, in.Thr.PPhPaid),
 	}
-	b.jobCost = decimal.Min(b.gross.Mul(t.JobCost.Rate).Shift(-2), t.JobCost.MaxMonthly.Mul(twelve))
-	nett := b.gross.Sub(b.deduct).Sub(b.jobCost).Sub(b.ptkp)
+	b.jobCost = decimal.Min(money.Mul(b.gross, t.JobCost.Rate).Shift(-2), money.Mul(t.JobCost.MaxMonthly, twelve))
+	nett := money.Sub(money.Sub(money.Sub(b.gross, b.deduct), b.jobCost), b.ptkp)
 	if in.Rules.LegacyCompat() {
 		b.pkp, b.tax = nett, progressiveLegacy(layers, nett)
 	} else {
 		b.pkp = decimal.Max(money.Trunc(nett, -3), decimal.Zero)
 		b.tax = progressive(layers, b.pkp)
 	}
-	p := money.Round(b.tax.Sub(b.paid), 0)
+	p := money.Round(money.Sub(b.tax, b.paid), 0)
 	remark := fmt.Sprintf("Bruto : %s | Pengurang : %s | Biaya Jabatan : %s | PTKP : %s | PKP : %s | PPh Setahun : %s | PPh Dibayar : %s",
 		thousands(b.gross), thousands(b.deduct), thousands(b.jobCost), thousands(b.ptkp), thousands(b.pkp), thousands(b.tax), thousands(b.paid))
 	return &p, remark, nil
@@ -82,7 +82,7 @@ func pph21Annual(ctx *EvalCtx) (*decimal.Decimal, string, error) {
 func annualDeduct(ctx *EvalCtx) (sum decimal.Decimal, ok bool) {
 	for _, id := range annualDeductIDs {
 		if l, found := ctx.lines[CompKey{CompP, id}]; found {
-			sum, ok = sum.Add(l.AmountOrZero()), true
+			sum, ok = money.Add(sum, l.AmountOrZero()), true
 		}
 	}
 	return sum, ok
@@ -103,14 +103,14 @@ func progressiveLegacy(layers []TaxLayer, pkp decimal.Decimal) decimal.Decimal {
 	var tax decimal.Decimal
 	for _, l := range layers {
 		var base decimal.Decimal
-		lower := l.Min.Sub(decimal.NewFromInt(1))
+		lower := money.Sub(l.Min, decimal.NewFromInt(1))
 		switch {
 		case pkp.GreaterThan(l.Max):
 			base = l.Max
 		case pkp.LessThan(l.Max) && pkp.GreaterThanOrEqual(lower):
-			base = pkp.Sub(lower)
+			base = money.Sub(pkp, lower)
 		}
-		tax = tax.Add(base.Mul(l.Rate).Shift(-2))
+		tax = money.Add(tax, money.Mul(base, l.Rate).Shift(-2))
 	}
 	return tax
 }
@@ -120,7 +120,7 @@ func progressiveLegacy(layers []TaxLayer, pkp decimal.Decimal) decimal.Decimal {
 func progressive(layers []TaxLayer, pkp decimal.Decimal) decimal.Decimal {
 	var tax decimal.Decimal
 	for i, l := range layers {
-		lower := l.Min.Sub(decimal.NewFromInt(1))
+		lower := money.Sub(l.Min, decimal.NewFromInt(1))
 		if !pkp.GreaterThan(lower) {
 			break
 		}
@@ -128,7 +128,7 @@ func progressive(layers []TaxLayer, pkp decimal.Decimal) decimal.Decimal {
 		if i < len(layers)-1 {
 			upper = decimal.Min(pkp, l.Max)
 		}
-		tax = tax.Add(upper.Sub(lower).Mul(l.Rate).Shift(-2))
+		tax = money.Add(tax, money.Mul(money.Sub(upper, lower), l.Rate).Shift(-2))
 	}
 	return tax
 }

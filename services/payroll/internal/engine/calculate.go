@@ -57,7 +57,7 @@ func CalculateWith(reg Registry, in Input) (Result, error) {
 	}
 	SortLines(res.Lines)
 	h := buildHeader(in, basis, res.Lines)
-	if net := h.TotTunjangan.Sub(h.TotPotongan); len(in.Loans) > 0 && net.IsNegative() {
+	if net := money.Sub(h.TotTunjangan, h.TotPotongan); len(in.Loans) > 0 && net.IsNegative() {
 		res.Warnings = append(res.Warnings, fmt.Sprintf("%s: net %s setelah cicilan pinjaman", WarnLoanNetNegative, net))
 	}
 	if !in.Rules.LegacyCompat() || (in.HasRekap() && hasDetailRow(res.Lines)) {
@@ -147,12 +147,12 @@ func buildHeader(in Input, b Basis, lines []Line) *Header {
 	var totT, totP decimal.Decimal
 	for _, l := range lines {
 		if l.Key.Type == CompT {
-			totT = totT.Add(l.AmountOrZero())
+			totT = money.Add(totT, l.AmountOrZero())
 		} else {
-			totP = totP.Add(l.AmountOrZero())
+			totP = money.Add(totP, l.AmountOrZero())
 		}
 	}
-	net := totT.Sub(totP)
+	net := money.Sub(totT, totP)
 	takeHome := money.Round(net, -2)
 	return &Header{
 		BasicPay:          componentAmount(in, 1),
@@ -163,7 +163,7 @@ func buildHeader(in Input, b Basis, lines []Line) *Header {
 		RatePerJam:        b.rateJam,
 		TotTunjangan:      totT,
 		TotPotongan:       totP,
-		Rounding:          net.Sub(takeHome),
+		Rounding:          money.Sub(net, takeHome),
 		TakeHome:          takeHome,
 		JamLembur:         jamLembur(in),
 		Remarks:           headerRemarks(in),
@@ -200,7 +200,7 @@ func jamLembur(in Input) map[string]decimal.Decimal {
 	out := make(map[string]decimal.Decimal, len(mult))
 	for col, m := range mult {
 		if v, ok := in.Att[col]; ok { // NULL × k stays NULL: the key is left out
-			out[col] = v.Mul(decimal.RequireFromString(m))
+			out[col] = money.Mul(v, decimal.RequireFromString(m))
 		}
 	}
 	return out
@@ -219,7 +219,7 @@ func headerRemarks(in Input) string {
 	if a == nil {
 		return ""
 	}
-	total := a.Get(colPayTot).Add(a.Get(colDirumahkan)).Add(a.Get(colAlpa)).Add(a.Get(colIjin))
+	total := money.Add(money.Add(money.Add(a.Get(colPayTot), a.Get(colDirumahkan)), a.Get(colAlpa)), a.Get(colIjin))
 	s := fmt.Sprintf("Working : %s Days, Off : %s Days, Leave : %s Days, Alpa : %s Days, Ijin : %s Days, Total : %s Days",
 		a.Get(colDayWork), a.Get("dayoff"), a.Get("cuti"), a.Get(colAlpa), a.Get(colIjin), total)
 	if bd := birthdayLine(in.Period, in.Emp.BirthDate); bd != "" {
