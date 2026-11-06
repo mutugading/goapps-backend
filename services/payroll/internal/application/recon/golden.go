@@ -53,6 +53,7 @@ type ExpectedHead struct {
 	TotTunjangan string `json:"tot_tunjangan"`
 	TotPotongan  string `json:"tot_potongan"`
 	Rounding     string `json:"rounding"`
+	TakeHome     string `json:"take_home,omitempty"`
 }
 
 // InputDoc is the serializable form of engine.Input without Rules and Tax tables.

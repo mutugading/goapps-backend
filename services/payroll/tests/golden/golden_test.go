@@ -16,7 +16,7 @@ import (
 )
 
 // goldenCase is a golden case plus what the engine needs besides the input: the rule constants and tax tables.
-// Synthetic fixtures (G1–G12, T018b) carry them inline; extracted real cases get them from GOLDEN_RULES.
+// Synthetic fixtures (G1–G14) share testdata/tax.json and carry the rule constants inline; extracted real cases get them from GOLDEN_RULES.
 type goldenCase struct {
 	recon.Case
 	Rules   ruleDoc          `json:"rules"`
@@ -48,6 +48,20 @@ type rulesFile struct {
 	Tax   engine.TaxTables `json:"tax"`
 }
 
+// sharedTax is the tax table every synthetic fixture uses (testdata/tax.json).
+func sharedTax(t *testing.T) engine.TaxTables {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("testdata", "tax.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tax engine.TaxTables
+	if err := json.Unmarshal(b, &tax); err != nil {
+		t.Fatalf("tax.json: %v", err)
+	}
+	return tax
+}
+
 func loadCases(t *testing.T, root string, rf *rulesFile) []goldenCase {
 	t.Helper()
 	var paths []string
@@ -73,6 +87,8 @@ func loadCases(t *testing.T, root string, rf *rulesFile) []goldenCase {
 		}
 		if rf != nil {
 			f.Rules, f.Tax = rf.Rules, rf.Tax
+		} else {
+			f.Tax = sharedTax(t)
 		}
 		out = append(out, f)
 	}
@@ -129,7 +145,11 @@ func compareHead(f goldenCase, res engine.Result) []string {
 		{"tot_tunjangan", h.TotTunjangan, res.Header.TotTunjangan},
 		{"tot_potongan", h.TotPotongan, res.Header.TotPotongan},
 		{"rounding", h.Rounding, res.Header.Rounding},
+		{"take_home", h.TakeHome, res.Header.TakeHome},
 	} {
+		if c.want == "" { // fixtures without take_home (real extracts) skip it
+			continue
+		}
 		if !decimal.RequireFromString(c.want).Equal(c.got) {
 			diffs = append(diffs, fmt.Sprintf("header.%s: want %s, got %s", c.name, c.want, c.got))
 		}
