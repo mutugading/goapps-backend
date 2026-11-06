@@ -100,6 +100,10 @@ func TestExclusionOf(t *testing.T) {
 		{"synthetic wins", DriftInput{SyntheticMain: map[string]bool{"N": true}, Inactive: map[string]bool{"N": true}}, paid, nil, ExclSyntheticMain},
 		{"inactive with MAIN", DriftInput{Inactive: map[string]bool{"N": true}}, paid, nil, ExclMasterDrift},
 		{"inactive without MAIN", DriftInput{Inactive: map[string]bool{"N": true}}, DiffEmp{Lines: paid.Lines}, nil, ""},
+		{"late join no legacy (D-50)", DriftInput{LateJoin: map[string]bool{"N": true}}, DiffEmp{}, nil, ExclNoLegacyD2},
+		{"late join but legacy has lines", DriftInput{LateJoin: map[string]bool{"N": true}}, DiffEmp{Lines: paid.Lines}, nil, ""},
+		{"late join but legacy has head", DriftInput{LateJoin: map[string]bool{"N": true}}, DiffEmp{Head: paid.Head}, nil, ""},
+		{"no late join flag, no legacy", DriftInput{}, DiffEmp{}, nil, ""},
 		{"missing from master", DriftInput{Missing: map[string]bool{"N": true}}, paid, nil, ExclMasterDrift},
 		{"frozen paid", DriftInput{Frozen: frozen}, paid, nil, ExclMasterDrift},
 		{"frozen but zero in legacy", DriftInput{Frozen: frozen},
@@ -126,5 +130,27 @@ func TestDiff_DriftOtherLines(t *testing.T) {
 	}
 	if !rep.Summary.Parity {
 		t.Fatalf("excluded NIK must not fail parity: %+v", rep.Summary)
+	}
+}
+
+// D-50: a late-joining NIK without any legacy row is excluded, reported as an aggregate and keeps parity.
+func TestDiff_NoLegacyD2(t *testing.T) {
+	in := driftFixture()
+	in.Target["L"] = DiffEmp{Lines: []DiffLine{{Key: key(engine.CompT, 11), Amount: dp("100")}, {Key: key(engine.CompP, 11), Amount: dp("20")}}}
+	in.Drift.LateJoin = map[string]bool{"L": true}
+	rep := Diff(in)
+	x := rep.Summary.Excluded[ExclNoLegacyD2]
+	if x.NIK != 1 || x.Lines != 2 || x.HeadMismatch != 0 {
+		t.Fatalf("no-legacy %+v", x)
+	}
+	if !rep.Summary.Parity || rep.Summary.Categories[CatOnlyTarget] != 0 {
+		t.Fatalf("parity must hold: %+v", rep.Summary)
+	}
+	found := false
+	for _, w := range rep.Warnings {
+		found = found || (w.NIK == "L" && w.Code == CodeExclNoLegacyD2)
+	}
+	if !found {
+		t.Error("missing EXCLUDED_NO_LEGACY_D2 warning")
 	}
 }

@@ -17,15 +17,19 @@ const (
 	ExclSyntheticMain = "SYNTHETIC_MAIN_D2"
 	// ExclMasterDrift: the current master differs from what legacy calculated the period with.
 	ExclMasterDrift = "MASTER_DRIFT"
+	// ExclNoLegacyD2: D-50, NIK joined after the period end, no legacy row/header at all and no attendance recap
+	// (MISSING_ATTENDANCE in the target): defect D2 like ExclSyntheticMain, but without the ETL marker.
+	ExclNoLegacyD2 = "NO_LEGACY_D2"
 )
 
 // Exclusions lists every exclusion reason in report order.
-var Exclusions = []string{ExclSyntheticMain, ExclMasterDrift}
+var Exclusions = []string{ExclSyntheticMain, ExclMasterDrift, ExclNoLegacyD2}
 
 // Warning codes of excluded NIKs.
 const (
 	CodeExclSyntheticMain = "EXCLUDED_" + ExclSyntheticMain
 	CodeExclMasterDrift   = "EXCLUDED_" + ExclMasterDrift
+	CodeExclNoLegacyD2    = "EXCLUDED_" + ExclNoLegacyD2
 )
 
 // DriftInput holds the master attributes that tell whether the legacy result of a NIK is comparable (D-47).
@@ -36,6 +40,9 @@ type DriftInput struct {
 	Inactive map[string]bool
 	// Missing marks NIKs with a LEGACY MAIN but no master row in the division (ETL master / NIK mapping).
 	Missing map[string]bool
+	// LateJoin marks active NIKs whose join date is after the period end and that have no attendance recap in the
+	// legacy snapshot (D-50); exclusionOf also requires that legacy has no line and no header.
+	LateJoin map[string]bool
 	// Frozen lists, per NIK, the components with frz_flag <> 2 in the master now (validity window of the period).
 	Frozen map[string]map[engine.CompKey]bool
 }
@@ -65,6 +72,8 @@ func exclusionOf(d DriftInput, nik string, leg DiffEmp, comps []engine.EmpCompon
 	switch {
 	case d.SyntheticMain[nik]:
 		return exclusion{reason: ExclSyntheticMain, detail: "MAIN legacy sintetis (D-35.2, D2)"}
+	case d.LateJoin[nik] && leg.Head == nil && len(leg.Lines) == 0:
+		return exclusion{reason: ExclNoLegacyD2, detail: "join sesudah akhir periode, tanpa rekap absensi dan tanpa baris/header legacy (D-50, D2)"}
 	case leg.Head != nil && d.Missing[nik]:
 		return exclusion{reason: ExclMasterDrift, detail: "tidak ada di master divisi ini, legacy punya MAIN"}
 	case leg.Head != nil && d.Inactive[nik]:
@@ -122,7 +131,7 @@ func (rep *DiffReport) addExcluded(nik string, ex exclusion, leg, tgt DiffEmp) {
 	st := s.Excluded[reason]
 	st.NIK++
 	cat := CatMasterDrift
-	if reason == ExclSyntheticMain {
+	if reason == ExclSyntheticMain || reason == ExclNoLegacyD2 {
 		cat = CatKnownDefect
 	}
 	lm, tm := indexLines(leg.Lines), indexLines(tgt.Lines)
@@ -152,8 +161,11 @@ func (rep *DiffReport) addExcluded(nik string, ex exclusion, leg, tgt DiffEmp) {
 	}
 	s.Excluded[reason] = st
 	code := CodeExclMasterDrift
-	if reason == ExclSyntheticMain {
+	switch reason {
+	case ExclSyntheticMain:
 		code = CodeExclSyntheticMain
+	case ExclNoLegacyD2:
+		code = CodeExclNoLegacyD2
 	}
 	rep.Warnings = append(rep.Warnings, run.Issue{NIK: nik, Code: code, Message: ex.detail})
 }

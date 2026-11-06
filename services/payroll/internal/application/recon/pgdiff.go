@@ -86,7 +86,7 @@ func (s DiffSource) Load(ctx context.Context, q DiffQuery) (DiffInput, error) {
 			return fmt.Errorf("load inputs: %w", err)
 		}
 		out.Components = componentsByNIK(loaded.Inputs)
-		if out.Drift, err = loadDrift(ctx, tx, rq, out.Meta.LegacyRunID); err != nil {
+		if out.Drift, err = loadDrift(ctx, tx, rq, out.Meta.LegacyRunID, out.Meta.LegacySnapshotID); err != nil {
 			return err
 		}
 		targetSnap, err := s.loadTarget(ctx, tx, rq, targetRun, loaded, &out)
@@ -271,8 +271,8 @@ func decPtr(s sql.NullString) (*decimal.Decimal, error) {
 // value, the layers cannot import each other and tests/etl compares them).
 const SyntheticMainRemark = "[ETL:SYNTHETIC_MAIN D-35.2]"
 
-// loadDrift reads the attributes of the D-47 exclusions for the LEGACY run (4 queries).
-func loadDrift(ctx context.Context, tx *sql.Tx, q run.Query, legacyRun int64) (DriftInput, error) {
+// loadDrift reads the attributes of the D-47 exclusions for the LEGACY run (5 queries).
+func loadDrift(ctx context.Context, tx *sql.Tx, q run.Query, legacyRun, legacySnap int64) (DriftInput, error) {
 	var d DriftInput
 	var err error
 	// The ETL marks the synthetic MAIN of D-35.2 explicitly in psh_remarks (T009e10); LEGACY runs loaded before that
@@ -291,6 +291,19 @@ WHERE h.psh_run_id = $1 AND `
 	}
 	if d.Missing, err = nikSet(ctx, tx, inactive+`e.pe_nik IS NULL`, legacyRun, q.CompanyID, q.Division); err != nil {
 		return d, fmt.Errorf("missing master: %w", err)
+	}
+	// D-50: active master, not resigned, joined after the period end, no REKAP row in the legacy snapshot.
+	// Without a legacy snapshot the "no recap" condition cannot be proven, so nothing is excluded.
+	if legacySnap != 0 {
+		if d.LateJoin, err = nikSet(ctx, tx, `SELECT e.pe_nik FROM payroll.pyr_employee e
+JOIN payroll.pyr_period p ON p.pp_company_id = e.pe_company_id AND p.pp_division = e.pe_division AND p.pp_yymm = $3
+WHERE e.pe_company_id = $1 AND e.pe_division = $2 AND e.pe_sts_payroll = 2 AND e.pe_date_join > p.pp_date_to
+  AND (e.pe_resign_date IS NULL OR e.pe_resign_date > p.pp_date_to)
+  AND NOT EXISTS (SELECT 1 FROM payroll.pyr_att_snapshot_row r WHERE r.pasr_snapshot_id = $4
+    AND r.pasr_kind = 'REKAP' AND r.pasr_nik = e.pe_nik)`,
+			q.CompanyID, q.Division, q.YYMM, legacySnap); err != nil {
+			return d, fmt.Errorf("late join: %w", err)
+		}
 	}
 	d.Frozen, err = frozenComponents(ctx, tx, q)
 	return d, err
