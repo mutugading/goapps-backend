@@ -3,6 +3,8 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,6 +15,8 @@ import (
 
 	payrollv1 "github.com/mutugading/goapps-backend/gen/payroll/v1"
 	masterapp "github.com/mutugading/goapps-backend/services/payroll/internal/application/master"
+	periodapp "github.com/mutugading/goapps-backend/services/payroll/internal/application/period"
+	runapp "github.com/mutugading/goapps-backend/services/payroll/internal/application/run"
 	grpcdelivery "github.com/mutugading/goapps-backend/services/payroll/internal/delivery/grpc"
 	httpdelivery "github.com/mutugading/goapps-backend/services/payroll/internal/delivery/httpdelivery"
 	auditinfra "github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/audit"
@@ -84,6 +88,19 @@ func setupTracing(ctx context.Context, cfg *config.Config) func() {
 	}
 }
 
+// rulesFunc wires the rule set loader (T016a) into the run service.
+func rulesFunc(ctx context.Context, tx *sql.Tx, q runapp.Query, ruleSetID int) (runapp.Rules, error) {
+	rr, err := postgres.NewRuleSetLoader().Load(ctx, tx, postgres.RuleQuery{RuleSetID: ruleSetID, CompanyID: q.CompanyID,
+		Division: q.Division, YYMM: q.YYMM})
+	if postgres.IsRuleError(err) {
+		return runapp.Rules{}, fmt.Errorf("%w: %w", runapp.ErrRuleIncomplete, err)
+	}
+	if err != nil {
+		return runapp.Rules{}, err
+	}
+	return runapp.Rules{Set: rr.Rules, Tax: rr.Tax, Subsidy: rr.Subsidy}, nil
+}
+
 // startServers starts the gRPC and HTTP servers and handles graceful shutdown.
 func startServers(ctx context.Context, cfg *config.Config) error {
 	db, err := postgres.NewConnection(&cfg.Database)
@@ -105,7 +122,12 @@ func startServers(ctx context.Context, cfg *config.Config) error {
 	}
 
 	masterSvc := masterapp.NewService(db, postgres.NewMasterRepository(), auditinfra.NewWriter(), cfg.PII.EncKey, cfg.PII.HMACKey).WithComponents(postgres.NewComponentRepository()).WithAttachments(postgres.NewAttachmentRepository())
-	payrollv1.RegisterPayrollServiceServer(grpcServer.GRPCServer(), grpcdelivery.NewMasterHandler(masterSvc))
+	auditWriter := auditinfra.NewWriter()
+	runSvc := runapp.NewService(db, rulesFunc, auditWriter)
+	periodSvc := periodapp.NewService(db, auditWriter)
+	payrollv1.RegisterPayrollServiceServer(grpcServer.GRPCServer(), grpcdelivery.NewPayrollHandler(
+		grpcdelivery.NewMasterHandler(masterSvc),
+		grpcdelivery.NewRunHandler(runSvc, periodSvc, postgres.NewRunQuery(db))))
 
 	// Start gRPC server.
 	go func() {

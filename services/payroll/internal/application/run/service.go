@@ -88,12 +88,9 @@ func (s *Service) Commit(ctx context.Context, cmd CommitCommand) (out CommitResu
 	if err = InScope(ctx, cmd.CompanyID, cmd.Division); err != nil {
 		return out, err
 	}
-	period, err := periodOf(cmd.YYMM)
+	period, err := validateRun(cmd.YYMM, cmd.RuleSetID)
 	if err != nil {
-		return out, apperr.New(apperr.CodeValidation, "yymm tidak valid", map[string]string{"field": "yymm"})
-	}
-	if cmd.RuleSetID <= 0 {
-		return out, apperr.New(apperr.CodeValidation, "rule set wajib diisi", map[string]string{"field": "rule_set_id"})
+		return out, err
 	}
 	payDate := cmd.PayDate
 	if payDate.IsZero() {

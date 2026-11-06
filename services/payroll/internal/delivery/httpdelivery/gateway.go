@@ -88,7 +88,7 @@ func (s *Server) Start(ctx context.Context) error {
 		Addr:         fmt.Sprintf(":%d", s.config.HTTPPort),
 		Handler:      corsHandler,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		WriteTimeout: 130 * time.Second, // CreateRun is synchronous, up to 120 s (D-51)
 		IdleTimeout:  60 * time.Second,
 	}
 

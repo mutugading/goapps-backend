@@ -60,12 +60,16 @@ func TimeoutInterceptor(timeout time.Duration) grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
 		req interface{},
-		_ *grpc.UnaryServerInfo,
+		info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
 	) (interface{}, error) {
 		if _, ok := ctx.Deadline(); !ok {
+			d := timeout // per request: the closure variable must stay at the default for the next RPC
+			if long, found := methodTimeouts[info.FullMethod]; found {
+				d = long
+			}
 			var cancel context.CancelFunc
-			ctx, cancel = context.WithTimeout(ctx, timeout)
+			ctx, cancel = context.WithTimeout(ctx, d)
 			defer cancel()
 		}
 
