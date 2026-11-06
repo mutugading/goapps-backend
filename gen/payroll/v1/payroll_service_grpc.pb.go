@@ -44,6 +44,14 @@ const (
 	PayrollService_PutEmployeeComponents_FullMethodName = "/payroll.v1.PayrollService/PutEmployeeComponents"
 	PayrollService_PreviewLevelChange_FullMethodName    = "/payroll.v1.PayrollService/PreviewLevelChange"
 	PayrollService_ApplyLevelChange_FullMethodName      = "/payroll.v1.PayrollService/ApplyLevelChange"
+	PayrollService_CreateRun_FullMethodName             = "/payroll.v1.PayrollService/CreateRun"
+	PayrollService_GetRun_FullMethodName                = "/payroll.v1.PayrollService/GetRun"
+	PayrollService_ListRuns_FullMethodName              = "/payroll.v1.PayrollService/ListRuns"
+	PayrollService_ListRunLines_FullMethodName          = "/payroll.v1.PayrollService/ListRunLines"
+	PayrollService_ListPeriods_FullMethodName           = "/payroll.v1.PayrollService/ListPeriods"
+	PayrollService_ApprovePeriod_FullMethodName         = "/payroll.v1.PayrollService/ApprovePeriod"
+	PayrollService_ClosePeriod_FullMethodName           = "/payroll.v1.PayrollService/ClosePeriod"
+	PayrollService_ReopenPeriod_FullMethodName          = "/payroll.v1.PayrollService/ReopenPeriod"
 )
 
 // PayrollServiceClient is the client API for PayrollService service.
@@ -91,6 +99,15 @@ type PayrollServiceClient interface {
 	PutEmployeeComponents(ctx context.Context, in *PutEmployeeComponentsRequest, opts ...grpc.CallOption) (*PutEmployeeComponentsResponse, error)
 	PreviewLevelChange(ctx context.Context, in *PreviewLevelChangeRequest, opts ...grpc.CallOption) (*PreviewLevelChangeResponse, error)
 	ApplyLevelChange(ctx context.Context, in *ApplyLevelChangeRequest, opts ...grpc.CallOption) (*ApplyLevelChangeResponse, error)
+	// ── Run & period (T022a, D-51) ─────────────────────────────────────────────
+	CreateRun(ctx context.Context, in *CreateRunRequest, opts ...grpc.CallOption) (*CreateRunResponse, error)
+	GetRun(ctx context.Context, in *GetRunRequest, opts ...grpc.CallOption) (*GetRunResponse, error)
+	ListRuns(ctx context.Context, in *ListRunsRequest, opts ...grpc.CallOption) (*ListRunsResponse, error)
+	ListRunLines(ctx context.Context, in *ListRunLinesRequest, opts ...grpc.CallOption) (*ListRunLinesResponse, error)
+	ListPeriods(ctx context.Context, in *ListPeriodsRequest, opts ...grpc.CallOption) (*ListPeriodsResponse, error)
+	ApprovePeriod(ctx context.Context, in *ApprovePeriodRequest, opts ...grpc.CallOption) (*ApprovePeriodResponse, error)
+	ClosePeriod(ctx context.Context, in *ClosePeriodRequest, opts ...grpc.CallOption) (*ClosePeriodResponse, error)
+	ReopenPeriod(ctx context.Context, in *ReopenPeriodRequest, opts ...grpc.CallOption) (*ReopenPeriodResponse, error)
 }
 
 type payrollServiceClient struct {
@@ -351,6 +368,86 @@ func (c *payrollServiceClient) ApplyLevelChange(ctx context.Context, in *ApplyLe
 	return out, nil
 }
 
+func (c *payrollServiceClient) CreateRun(ctx context.Context, in *CreateRunRequest, opts ...grpc.CallOption) (*CreateRunResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateRunResponse)
+	err := c.cc.Invoke(ctx, PayrollService_CreateRun_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) GetRun(ctx context.Context, in *GetRunRequest, opts ...grpc.CallOption) (*GetRunResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetRunResponse)
+	err := c.cc.Invoke(ctx, PayrollService_GetRun_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) ListRuns(ctx context.Context, in *ListRunsRequest, opts ...grpc.CallOption) (*ListRunsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRunsResponse)
+	err := c.cc.Invoke(ctx, PayrollService_ListRuns_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) ListRunLines(ctx context.Context, in *ListRunLinesRequest, opts ...grpc.CallOption) (*ListRunLinesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRunLinesResponse)
+	err := c.cc.Invoke(ctx, PayrollService_ListRunLines_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) ListPeriods(ctx context.Context, in *ListPeriodsRequest, opts ...grpc.CallOption) (*ListPeriodsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListPeriodsResponse)
+	err := c.cc.Invoke(ctx, PayrollService_ListPeriods_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) ApprovePeriod(ctx context.Context, in *ApprovePeriodRequest, opts ...grpc.CallOption) (*ApprovePeriodResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ApprovePeriodResponse)
+	err := c.cc.Invoke(ctx, PayrollService_ApprovePeriod_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) ClosePeriod(ctx context.Context, in *ClosePeriodRequest, opts ...grpc.CallOption) (*ClosePeriodResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClosePeriodResponse)
+	err := c.cc.Invoke(ctx, PayrollService_ClosePeriod_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) ReopenPeriod(ctx context.Context, in *ReopenPeriodRequest, opts ...grpc.CallOption) (*ReopenPeriodResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReopenPeriodResponse)
+	err := c.cc.Invoke(ctx, PayrollService_ReopenPeriod_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PayrollServiceServer is the server API for PayrollService service.
 // All implementations must embed UnimplementedPayrollServiceServer
 // for forward compatibility.
@@ -396,6 +493,15 @@ type PayrollServiceServer interface {
 	PutEmployeeComponents(context.Context, *PutEmployeeComponentsRequest) (*PutEmployeeComponentsResponse, error)
 	PreviewLevelChange(context.Context, *PreviewLevelChangeRequest) (*PreviewLevelChangeResponse, error)
 	ApplyLevelChange(context.Context, *ApplyLevelChangeRequest) (*ApplyLevelChangeResponse, error)
+	// ── Run & period (T022a, D-51) ─────────────────────────────────────────────
+	CreateRun(context.Context, *CreateRunRequest) (*CreateRunResponse, error)
+	GetRun(context.Context, *GetRunRequest) (*GetRunResponse, error)
+	ListRuns(context.Context, *ListRunsRequest) (*ListRunsResponse, error)
+	ListRunLines(context.Context, *ListRunLinesRequest) (*ListRunLinesResponse, error)
+	ListPeriods(context.Context, *ListPeriodsRequest) (*ListPeriodsResponse, error)
+	ApprovePeriod(context.Context, *ApprovePeriodRequest) (*ApprovePeriodResponse, error)
+	ClosePeriod(context.Context, *ClosePeriodRequest) (*ClosePeriodResponse, error)
+	ReopenPeriod(context.Context, *ReopenPeriodRequest) (*ReopenPeriodResponse, error)
 	mustEmbedUnimplementedPayrollServiceServer()
 }
 
@@ -480,6 +586,30 @@ func (UnimplementedPayrollServiceServer) PreviewLevelChange(context.Context, *Pr
 }
 func (UnimplementedPayrollServiceServer) ApplyLevelChange(context.Context, *ApplyLevelChangeRequest) (*ApplyLevelChangeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ApplyLevelChange not implemented")
+}
+func (UnimplementedPayrollServiceServer) CreateRun(context.Context, *CreateRunRequest) (*CreateRunResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateRun not implemented")
+}
+func (UnimplementedPayrollServiceServer) GetRun(context.Context, *GetRunRequest) (*GetRunResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetRun not implemented")
+}
+func (UnimplementedPayrollServiceServer) ListRuns(context.Context, *ListRunsRequest) (*ListRunsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListRuns not implemented")
+}
+func (UnimplementedPayrollServiceServer) ListRunLines(context.Context, *ListRunLinesRequest) (*ListRunLinesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListRunLines not implemented")
+}
+func (UnimplementedPayrollServiceServer) ListPeriods(context.Context, *ListPeriodsRequest) (*ListPeriodsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListPeriods not implemented")
+}
+func (UnimplementedPayrollServiceServer) ApprovePeriod(context.Context, *ApprovePeriodRequest) (*ApprovePeriodResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ApprovePeriod not implemented")
+}
+func (UnimplementedPayrollServiceServer) ClosePeriod(context.Context, *ClosePeriodRequest) (*ClosePeriodResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ClosePeriod not implemented")
+}
+func (UnimplementedPayrollServiceServer) ReopenPeriod(context.Context, *ReopenPeriodRequest) (*ReopenPeriodResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReopenPeriod not implemented")
 }
 func (UnimplementedPayrollServiceServer) mustEmbedUnimplementedPayrollServiceServer() {}
 func (UnimplementedPayrollServiceServer) testEmbeddedByValue()                        {}
@@ -952,6 +1082,150 @@ func _PayrollService_ApplyLevelChange_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PayrollService_CreateRun_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateRunRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).CreateRun(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_CreateRun_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).CreateRun(ctx, req.(*CreateRunRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_GetRun_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRunRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).GetRun(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_GetRun_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).GetRun(ctx, req.(*GetRunRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_ListRuns_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRunsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).ListRuns(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_ListRuns_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).ListRuns(ctx, req.(*ListRunsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_ListRunLines_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRunLinesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).ListRunLines(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_ListRunLines_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).ListRunLines(ctx, req.(*ListRunLinesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_ListPeriods_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPeriodsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).ListPeriods(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_ListPeriods_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).ListPeriods(ctx, req.(*ListPeriodsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_ApprovePeriod_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApprovePeriodRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).ApprovePeriod(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_ApprovePeriod_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).ApprovePeriod(ctx, req.(*ApprovePeriodRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_ClosePeriod_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClosePeriodRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).ClosePeriod(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_ClosePeriod_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).ClosePeriod(ctx, req.(*ClosePeriodRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_ReopenPeriod_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReopenPeriodRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).ReopenPeriod(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_ReopenPeriod_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).ReopenPeriod(ctx, req.(*ReopenPeriodRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PayrollService_ServiceDesc is the grpc.ServiceDesc for PayrollService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1058,6 +1332,38 @@ var PayrollService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ApplyLevelChange",
 			Handler:    _PayrollService_ApplyLevelChange_Handler,
+		},
+		{
+			MethodName: "CreateRun",
+			Handler:    _PayrollService_CreateRun_Handler,
+		},
+		{
+			MethodName: "GetRun",
+			Handler:    _PayrollService_GetRun_Handler,
+		},
+		{
+			MethodName: "ListRuns",
+			Handler:    _PayrollService_ListRuns_Handler,
+		},
+		{
+			MethodName: "ListRunLines",
+			Handler:    _PayrollService_ListRunLines_Handler,
+		},
+		{
+			MethodName: "ListPeriods",
+			Handler:    _PayrollService_ListPeriods_Handler,
+		},
+		{
+			MethodName: "ApprovePeriod",
+			Handler:    _PayrollService_ApprovePeriod_Handler,
+		},
+		{
+			MethodName: "ClosePeriod",
+			Handler:    _PayrollService_ClosePeriod_Handler,
+		},
+		{
+			MethodName: "ReopenPeriod",
+			Handler:    _PayrollService_ReopenPeriod_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

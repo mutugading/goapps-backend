@@ -950,6 +950,327 @@
           "PayrollService"
         ]
       }
+    },
+    "/api/v1/payroll/periods": {
+      "get": {
+        "operationId": "PayrollService_ListPeriods",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListPeriodsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "division",
+            "description": "Empty = all in scope.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
+    "/api/v1/payroll/periods/{yymm}/{division}:approve": {
+      "post": {
+        "operationId": "PayrollService_ApprovePeriod",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ApprovePeriodResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "yymm",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "division",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PayrollServiceApprovePeriodBody"
+            }
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
+    "/api/v1/payroll/periods/{yymm}/{division}:close": {
+      "post": {
+        "operationId": "PayrollService_ClosePeriod",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ClosePeriodResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "yymm",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "division",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PayrollServiceClosePeriodBody"
+            }
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
+    "/api/v1/payroll/periods/{yymm}/{division}:reopen": {
+      "post": {
+        "operationId": "PayrollService_ReopenPeriod",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ReopenPeriodResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "yymm",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "division",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PayrollServiceReopenPeriodBody"
+            }
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
+    "/api/v1/payroll/runs": {
+      "get": {
+        "operationId": "PayrollService_ListRuns",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListRunsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "yymm",
+            "description": "0 = all.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "division",
+            "description": "Empty = all in scope.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      },
+      "post": {
+        "summary": "── Run \u0026 period (T022a, D-51) ─────────────────────────────────────────────",
+        "operationId": "PayrollService_CreateRun",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateRunResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateRunRequest"
+            }
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
+    "/api/v1/payroll/runs/{runId}": {
+      "get": {
+        "operationId": "PayrollService_GetRun",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetRunResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
+    "/api/v1/payroll/runs/{runId}/lines": {
+      "get": {
+        "operationId": "PayrollService_ListRunLines",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListRunLinesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "nik",
+            "description": "Empty = all.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "page",
+            "description": "0 = 1.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pageSize",
+            "description": "0 = 100.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
     }
   },
   "definitions": {
@@ -975,6 +1296,12 @@
           "description": "Employee etag."
         }
       }
+    },
+    "PayrollServiceApprovePeriodBody": {
+      "type": "object"
+    },
+    "PayrollServiceClosePeriodBody": {
+      "type": "object"
     },
     "PayrollServiceCreateDivisionBody": {
       "type": "object",
@@ -1038,6 +1365,15 @@
         }
       },
       "description": "PutEmployeeComponentsRequest replaces the attachment set of one employee.\nListed components that are not attached yet become MANUAL; attached ones keep\ntheir source. Components that are not listed are detached."
+    },
+    "PayrollServiceReopenPeriodBody": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "description": "Mandatory, at least 10 characters (spec 07§5)."
+        }
+      }
     },
     "PayrollServiceRetireComponentBody": {
       "type": "object",
@@ -1165,6 +1501,17 @@
         }
       }
     },
+    "v1ApprovePeriodResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Period"
+        }
+      }
+    },
     "v1AuditInfo": {
       "type": "object",
       "properties": {
@@ -1212,6 +1559,17 @@
         }
       },
       "description": "BaseResponse is the standard response wrapper for all API responses."
+    },
+    "v1ClosePeriodResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Period"
+        }
+      }
     },
     "v1Company": {
       "type": "object",
@@ -1533,6 +1891,55 @@
         },
         "data": {
           "$ref": "#/definitions/v1Employee"
+        }
+      }
+    },
+    "v1CreateRunRequest": {
+      "type": "object",
+      "properties": {
+        "yymm": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "division": {
+          "type": "string"
+        },
+        "companyId": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "processDate": {
+          "type": "string",
+          "title": "YYYY-MM-DD"
+        },
+        "mode": {
+          "$ref": "#/definitions/v1RunMode"
+        },
+        "nik": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Optional: limit the run to these NIKs (single-employee reprocess)."
+        }
+      }
+    },
+    "v1CreateRunResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Run"
+        },
+        "employees": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1RunEmployeeTotal"
+          },
+          "description": "Dry mode: per-employee totals. Commit mode: empty (use ListRunLines)."
         }
       }
     },
@@ -1993,6 +2400,17 @@
         }
       }
     },
+    "v1GetRunResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Run"
+        }
+      }
+    },
     "v1ListCompaniesResponse": {
       "type": "object",
       "properties": {
@@ -2076,6 +2494,125 @@
         }
       }
     },
+    "v1ListPeriodsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Period"
+          }
+        }
+      }
+    },
+    "v1ListRunLinesResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1RunLine"
+          }
+        },
+        "pagination": {
+          "$ref": "#/definitions/v1PaginationResponse"
+        }
+      }
+    },
+    "v1ListRunsResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Run"
+          }
+        }
+      }
+    },
+    "v1PaginationResponse": {
+      "type": "object",
+      "properties": {
+        "currentPage": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Current page number."
+        },
+        "pageSize": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of items per page."
+        },
+        "totalItems": {
+          "type": "string",
+          "format": "int64",
+          "description": "Total number of items across all pages."
+        },
+        "totalPages": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Total number of pages."
+        }
+      },
+      "description": "PaginationResponse contains pagination metadata for list responses."
+    },
+    "v1Period": {
+      "type": "object",
+      "properties": {
+        "yymm": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "division": {
+          "type": "string"
+        },
+        "dateFrom": {
+          "type": "string",
+          "title": "YYYY-MM-DD"
+        },
+        "dateTo": {
+          "type": "string",
+          "title": "YYYY-MM-DD"
+        },
+        "status": {
+          "type": "string",
+          "description": "OPEN | APPROVED | CLOSED."
+        },
+        "activeRunId": {
+          "type": "string",
+          "format": "int64",
+          "description": "0 = none."
+        },
+        "approvedBy": {
+          "type": "string"
+        },
+        "approvedAt": {
+          "type": "string"
+        },
+        "closedBy": {
+          "type": "string"
+        },
+        "closedAt": {
+          "type": "string"
+        },
+        "reopenReason": {
+          "type": "string"
+        }
+      },
+      "description": "Period is the payroll period status per (yymm, division) (≈ pyr_period)."
+    },
     "v1PreviewLevelChangeResponse": {
       "type": "object",
       "properties": {
@@ -2141,6 +2678,17 @@
         }
       }
     },
+    "v1ReopenPeriodResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Period"
+        }
+      }
+    },
     "v1RetireComponentResponse": {
       "type": "object",
       "properties": {
@@ -2151,6 +2699,159 @@
           "$ref": "#/definitions/v1Component"
         }
       }
+    },
+    "v1Run": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "yymm": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "division": {
+          "type": "string"
+        },
+        "processDate": {
+          "type": "string",
+          "title": "YYYY-MM-DD"
+        },
+        "status": {
+          "type": "string",
+          "description": "ACTIVE | SUPERSEDED | FAILED | DRY."
+        },
+        "employeeCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "lineCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "totalTunjangan": {
+          "type": "string",
+          "description": "Nominal: decimal string, or \"***\" when masked."
+        },
+        "totalPotongan": {
+          "type": "string",
+          "description": "Nominal: decimal string, or \"***\" when masked."
+        },
+        "ruleSetId": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "snapshotId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "nikFilter": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Warnings stay visible when nominals are masked."
+        },
+        "startedBy": {
+          "type": "string"
+        },
+        "startedAt": {
+          "type": "string",
+          "title": "RFC3339"
+        },
+        "finishedAt": {
+          "type": "string",
+          "description": "RFC3339, empty while running."
+        },
+        "durationMs": {
+          "type": "string",
+          "format": "int64"
+        }
+      },
+      "description": "Run is the summary of one payroll run (≈ pyr_run)."
+    },
+    "v1RunEmployeeTotal": {
+      "type": "object",
+      "properties": {
+        "nik": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "totalTunjangan": {
+          "type": "string",
+          "description": "Nominal: decimal string, or \"***\" when masked."
+        },
+        "totalPotongan": {
+          "type": "string",
+          "description": "Nominal: decimal string, or \"***\" when masked."
+        },
+        "takeHome": {
+          "type": "string",
+          "description": "Nominal: decimal string, or \"***\" when masked."
+        }
+      },
+      "description": "EmployeeTotal is the per-employee total of a run (≈ pyr_salary_head)."
+    },
+    "v1RunLine": {
+      "type": "object",
+      "properties": {
+        "nik": {
+          "type": "string"
+        },
+        "compType": {
+          "type": "string",
+          "description": "T = tunjangan, P = potongan."
+        },
+        "compId": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "description": {
+          "type": "string"
+        },
+        "amount": {
+          "type": "string",
+          "description": "Nominal: decimal string, or \"***\" when masked."
+        },
+        "base": {
+          "type": "string",
+          "description": "Nominal: decimal string, or \"***\" when masked."
+        },
+        "qty": {
+          "type": "string",
+          "description": "Quantity stays visible when masked."
+        },
+        "rate": {
+          "type": "string",
+          "description": "Nominal: decimal string, or \"***\" when masked."
+        },
+        "formula": {
+          "type": "string"
+        },
+        "remarks": {
+          "type": "string"
+        }
+      },
+      "description": "RunLine is one component line of one employee (≈ pyr_salary_detail)."
+    },
+    "v1RunMode": {
+      "type": "string",
+      "enum": [
+        "RUN_MODE_UNSPECIFIED",
+        "RUN_MODE_DRY",
+        "RUN_MODE_COMMIT"
+      ],
+      "default": "RUN_MODE_UNSPECIFIED",
+      "description": "RunMode selects dry-run (nothing persisted as ACTIVE) or commit."
     },
     "v1TemplateItem": {
       "type": "object",
