@@ -267,16 +267,18 @@ func decPtr(s sql.NullString) (*decimal.Decimal, error) {
 	return &d, nil
 }
 
+// SyntheticMainRemark is the psh_remarks marker the ETL writes on the synthetic MAIN (etl.SyntheticMainRemark; same
+// value, the layers cannot import each other and tests/etl compares them).
+const SyntheticMainRemark = "[ETL:SYNTHETIC_MAIN D-35.2]"
+
 // loadDrift reads the attributes of the D-47 exclusions for the LEGACY run (4 queries).
 func loadDrift(ctx context.Context, tx *sql.Tx, q run.Query, legacyRun int64) (DriftInput, error) {
 	var d DriftInput
 	var err error
-	// The ETL has no explicit marker for the synthetic MAIN of D-35.2 (follow-up T009e10): it is the only LEGACY head
-	// written with PM_DATE, PM_DEPT_CODE, PM_PEMBAYARAN, PM_DAY_PAY, lembur and remarks empty and rounding 0
-	// (salary_legacy.go). Dump 2026-11-05: 83 heads match, all of them synthetic.
+	// The ETL marks the synthetic MAIN of D-35.2 explicitly in psh_remarks (T009e10); LEGACY runs loaded before that
+	// must be reloaded with `sync salary-legacy` to carry the marker.
 	if d.SyntheticMain, err = nikSet(ctx, tx, `SELECT psh_nik FROM payroll.pyr_salary_head WHERE psh_run_id = $1
-  AND psh_pay_date IS NULL AND psh_dept_code IS NULL AND psh_pembayaran IS NULL AND psh_day_pay IS NULL
-  AND psh_jam_lembur IS NULL AND psh_remarks IS NULL AND psh_rounding = 0`, legacyRun); err != nil {
+  AND psh_remarks = $2`, legacyRun, SyntheticMainRemark); err != nil {
 		return d, fmt.Errorf("synthetic main: %w", err)
 	}
 	// Legacy calculated (MAIN) a NIK the current master no longer marks active, or no longer has.

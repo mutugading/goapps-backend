@@ -25,6 +25,10 @@ const (
 
 	legacyRuleSetZero = 0
 
+	// SyntheticMainRemark is written to psh_remarks of the synthetic MAIN of D-35.2 (T009e10). The recon (D-47) reads it
+	// to recognize defect D2; recon.SyntheticMainRemark must keep the same value (checked in tests/etl).
+	SyntheticMainRemark = "[ETL:SYNTHETIC_MAIN D-35.2]"
+
 	typeTunjangan = "tunjangan"
 	typePotongan  = "potongan"
 )
@@ -393,7 +397,7 @@ func loadSalaryGroup(ctx context.Context, tx pgx.Tx, o SalaryLegacyOptions, mn, 
 			repM.Warnings = append(repM.Warnings, fmt.Sprintf("%s %s/%s nik %s: atribut karyawan tidak ditemukan di EMP (nama kosong)", mn.Name, g.key.yymm, g.key.division, nik))
 		}
 		copyRow(&heads, "@RUN@", nik, g.key.yymm, g.key.division, at["nama"], at["dept"], "", at["section"], at["grade"], at["jabatan"], at["emp_type"], "",
-			at["join"], "", at["tax"], at["basic"], "", "", "", "", "", t.StringFixed(2), p.StringFixed(2), "0", "", "", "", strconv.Itoa(int(o.CompanyID)))
+			at["join"], "", at["tax"], at["basic"], "", "", "", "", "", t.StringFixed(2), p.StringFixed(2), "0", "", "", SyntheticMainRemark, strconv.Itoa(int(o.CompanyID)))
 		totT.add(t.StringFixed(2))
 		totP.add(p.StringFixed(2))
 		nHead++

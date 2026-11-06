@@ -633,6 +633,7 @@ VALUES (1,202603,'SOLO','{}','x',true)`); err != nil {
 		`SELECT pp_date_from||'..'||pp_date_to FROM payroll.pyr_period WHERE pp_yymm=201712`:                                        "2017-11-26..2017-12-25",
 		`SELECT pr_emp_count||'/'||pr_line_count FROM payroll.pyr_run WHERE pr_yymm=202603`:                                         "2/3",
 		`SELECT psh_tot_tunjangan||'/'||psh_tot_potongan||'/'||psh_rounding FROM payroll.pyr_salary_head WHERE psh_nik='2026-0009'`: "100.01/1.23/0.00",
+		`SELECT count(*) FROM payroll.pyr_salary_head WHERE psh_remarks = '`+etl.SyntheticMainRemark+`'`:                              "1", // T009e10: penanda eksplisit hanya di MAIN sintetis
 	} {
 		if got := scalar(t, q); got != want {
 			t.Errorf("%s = %s, want %s", q, got, want)

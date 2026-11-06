@@ -10,6 +10,7 @@ import (
 
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/recon"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/run"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/etl"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/postgres"
 )
 
@@ -64,14 +65,21 @@ func seedRecon(t *testing.T) (legacyRun, engineRun int64) {
 	}
 	lines(legacyRun, `('R00001',3000000::numeric,3000000::numeric),('R00002',3100000,3100000),('R00003',3000500,3000000),('R00004',100,100)`)
 	lines(engineRun, `('R00001',3000000::numeric,NULL::numeric),('R00002',2300000,NULL),('R00003',3000000,NULL)`)
-	// A real legacy MAIN carries PM_DATE/PM_DEPT_CODE/PM_PEMBAYARAN; R00005 gets the synthetic MAIN of D-35.2 (none).
+	// A real legacy MAIN carries PM_DATE/PM_DEPT_CODE/PM_PEMBAYARAN; R00005 gets the synthetic MAIN of D-35.2 with the explicit marker.
 	exec(`UPDATE payroll.pyr_salary_head SET psh_pay_date = '2033-05-25', psh_dept_code = 'PRD', psh_pembayaran = 'TRANSFER'
 	 WHERE psh_run_id = $1`, legacyRun)
 	exec(`INSERT INTO payroll.pyr_salary_detail (psd_run_id, psd_nik, psd_type, psd_id, psd_amount, psd_basis_amount, psd_sts)
 	 VALUES ($1, 'R00005', 'Tunjangan', 1, 25, 25, 'F')`, legacyRun)
-	exec(`INSERT INTO payroll.pyr_salary_head (psh_run_id, psh_nik, psh_yymm, psh_division, psh_tot_tunjangan, psh_tot_potongan, psh_rounding, psh_company_id)
-	 VALUES ($1, 'R00005', `+y+`, 'SOLO', 25, 0, 0, 1)`, legacyRun)
+	exec(`INSERT INTO payroll.pyr_salary_head (psh_run_id, psh_nik, psh_yymm, psh_division, psh_tot_tunjangan, psh_tot_potongan, psh_rounding, psh_remarks, psh_company_id)
+	 VALUES ($1, 'R00005', `+y+`, 'SOLO', 25, 0, 0, $2, 1)`, legacyRun, etl.SyntheticMainRemark)
 	return legacyRun, engineRun
+}
+
+// T009e10: the ETL marker and the recon marker must stay identical.
+func TestRecon_SyntheticMarkerInSync(t *testing.T) {
+	if etl.SyntheticMainRemark != recon.SyntheticMainRemark {
+		t.Fatalf("etl %q != recon %q", etl.SyntheticMainRemark, recon.SyntheticMainRemark)
+	}
 }
 
 func TestRecon_DiffSourcePG(t *testing.T) {
