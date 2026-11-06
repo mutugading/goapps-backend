@@ -14,7 +14,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/postgres"
 )
 
-// Exit codes of recon diff: 0 parity, 1 parity failed (FORMULA/ROUNDING > 0 or Σ take_home ≠ 0), 2 usage/run error.
+// Exit codes of recon diff: 0 parity, 1 parity failed (FORMULA/ROUNDING/ONLY_LEGACY/ONLY_TARGET > 0, Σ take_home ≠ 0, or a header mismatch), 2 usage/run error.
 const (
 	exitParity   = 0
 	exitNoParity = 1
@@ -124,5 +124,9 @@ func printSummary(w io.Writer, rep recon.DiffReport) {
 			e, x.NIK, x.Lines, x.OtherLines, x.HeadMismatch, x.TakeHomeDelta)
 	}
 	fmt.Fprintf(&b, "  parity=%t\n", s.Parity)
+	if n := s.Categories[recon.CatOnlyLegacy] + s.Categories[recon.CatOnlyTarget]; n > 0 {
+		fmt.Fprintf(&b, "  gagal paritas: ONLY_LEGACY=%d ONLY_TARGET=%d (D-49)\n",
+			s.Categories[recon.CatOnlyLegacy], s.Categories[recon.CatOnlyTarget])
+	}
 	_, _ = io.WriteString(w, b.String()) //nolint:errcheck // summary is informational
 }

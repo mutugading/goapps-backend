@@ -150,9 +150,10 @@ func Diff(in DiffInput) DiffReport {
 		rep.addNIK(nik, leg, tgt, in.AttChanged[nik], masterChanged(leg.Lines, in.Components[nik]))
 	}
 	s.TakeHomeDelta = s.TakeHomeTarget.Sub(s.TakeHomeLegacy)
-	// Header per NIK (09§4) is part of parity: a mismatch of an included NIK fails it.
+	// Header per NIK (09§4) is part of parity: a mismatch of an included NIK fails it. D-49: a non-zero-Δ row that
+	// exists on one side only (ONLY_*) of an included NIK fails it too; excluded NIKs (D-47) never reach here.
 	s.Parity = s.Categories[CatFormula] == 0 && s.Categories[CatRounding] == 0 && s.TakeHomeDelta.IsZero() &&
-		s.HeadMismatch == 0
+		s.HeadMismatch == 0 && s.Categories[CatOnlyLegacy] == 0 && s.Categories[CatOnlyTarget] == 0
 	return rep
 }
 

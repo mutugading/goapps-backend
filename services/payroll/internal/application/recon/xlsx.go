@@ -115,6 +115,7 @@ func (s *sheetWriter) summary(rep DiffReport) {
 	s.put("Σ take_home target", sm.TakeHomeTarget)
 	s.put("Σ take_home Δ", sm.TakeHomeDelta)
 	s.put("Header berbeda", sm.HeadMismatch)
+	s.put("ONLY_LEGACY / ONLY_TARGET (D-49, menggagalkan paritas)", sm.Categories[CatOnlyLegacy], sm.Categories[CatOnlyTarget])
 	s.put()
 	s.put("Dikecualikan (D-47)", "NIK", "Baris Δ≠0", "Baris komponen lain", "Header berbeda", "Σ take_home legacy", "Σ take_home target", "Σ take_home Δ")
 	for _, e := range Exclusions {

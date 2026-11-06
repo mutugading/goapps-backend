@@ -223,3 +223,37 @@ func TestParseTarget(t *testing.T) {
 		}
 	}
 }
+
+// D-49: ONLY_* rows of an included NIK fail parity even when every Δ is zero-sum; excluded NIKs do not.
+func TestDiff_ParityOnlyRows(t *testing.T) {
+	ln := func(id int, amt string) DiffLine { return DiffLine{Key: key(engine.CompT, id), Amount: dp(amt)} }
+	for name, tc := range map[string]struct {
+		legacy, target []DiffLine
+		cat            string
+	}{
+		"only_target": {[]DiffLine{ln(1, "100")}, []DiffLine{ln(1, "100"), ln(2, "0.50")}, CatOnlyTarget},
+		"only_legacy": {[]DiffLine{ln(1, "100"), ln(2, "0.50")}, []DiffLine{ln(1, "100")}, CatOnlyLegacy},
+	} {
+		in := DiffInput{
+			Legacy: map[string]DiffEmp{"A": {Lines: tc.legacy}},
+			Target: map[string]DiffEmp{"A": {Lines: tc.target}},
+		}
+		rep := Diff(in)
+		if rep.Summary.Parity || rep.Summary.Categories[tc.cat] != 1 {
+			t.Errorf("%s must fail parity: %+v", name, rep.Summary)
+		}
+		// Same row on an excluded NIK (synthetic MAIN, D-47) stays out of the count.
+		in.Drift = DriftInput{SyntheticMain: map[string]bool{"A": true}}
+		if rep := Diff(in); rep.Summary.Categories[tc.cat] != 0 {
+			t.Errorf("%s: excluded NIK counted: %+v", name, rep.Summary.Categories)
+		}
+	}
+	// Zero-Δ row on one side is MATCH and keeps parity.
+	in := DiffInput{
+		Legacy: map[string]DiffEmp{"A": {Lines: []DiffLine{ln(1, "100")}}},
+		Target: map[string]DiffEmp{"A": {Lines: []DiffLine{ln(1, "100"), ln(2, "0")}}},
+	}
+	if rep := Diff(in); !rep.Summary.Parity {
+		t.Errorf("zero-Δ only row must match: %+v", rep.Summary)
+	}
+}
