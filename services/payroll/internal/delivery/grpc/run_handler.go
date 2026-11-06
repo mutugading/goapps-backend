@@ -99,13 +99,16 @@ func requireDivision(ctx context.Context, companyID int16, division string) erro
 	return run.InScope(ctx, companyID, division)
 }
 
-func warningsPB(in []run.Issue) []string {
+// warningsPB keeps code and NIK; the free-text message can embed nominals (net, bruto), so it is masked
+// without payroll.salary.amount.view (I23).
+func warningsPB(in []run.Issue, see bool) []string {
 	out := make([]string, len(in))
 	for i, w := range in {
+		msg := mask(see, w.Message)
 		if w.NIK != "" {
-			out[i] = fmt.Sprintf(runWarningFmtNIK, w.Code, w.NIK, w.Message)
+			out[i] = fmt.Sprintf(runWarningFmtNIK, w.Code, w.NIK, msg)
 		} else {
-			out[i] = fmt.Sprintf(runWarningFmt, w.Code, w.Message)
+			out[i] = fmt.Sprintf(runWarningFmt, w.Code, msg)
 		}
 	}
 	return out
@@ -116,7 +119,7 @@ func runPB(r run.Info, see bool) *payrollv1.Run {
 		RunId: r.ID, Yymm: int32(r.YYMM), Division: r.Division, ProcessDate: r.PayDate, Status: r.Status, //nolint:gosec // validated yymm
 		EmployeeCount: int32(r.EmpCount), LineCount: int32(r.LineCount), //nolint:gosec // bounded by employees
 		TotalTunjangan: mask(see, r.TotT), TotalPotongan: mask(see, r.TotP), RuleSetId: int32(r.RuleSetID), //nolint:gosec // small id
-		SnapshotId: r.SnapshotID, NikFilter: r.NIKFilter, Warnings: warningsPB(r.Warnings), StartedBy: r.StartedBy,
+		SnapshotId: r.SnapshotID, NikFilter: r.NIKFilter, Warnings: warningsPB(r.Warnings, see), StartedBy: r.StartedBy,
 		StartedAt: r.StartedAt.UTC().Format(time.RFC3339), DurationMs: r.DurationMs,
 	}
 	if !r.FinishedAt.IsZero() {
