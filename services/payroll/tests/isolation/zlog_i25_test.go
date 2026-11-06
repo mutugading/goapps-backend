@@ -26,6 +26,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/master"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/run"
 	grpcdelivery "github.com/mutugading/goapps-backend/services/payroll/internal/delivery/grpc"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/apperr"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/engine"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/audit"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/postgres"
@@ -138,8 +139,17 @@ func buildSync(t *testing.T) string {
 
 func i25Seed(t *testing.T) {
 	t.Helper()
+	// The run API resolves the rule set itself (D-53): it needs an ACTIVE one (the RLS seed leaves it DRAFT).
+	var prevStatus string
+	if err := ownDB.QueryRow(`SELECT prs_status FROM payroll.pyr_rule_set WHERE prs_id=1`).Scan(&prevStatus); err != nil {
+		t.Fatalf("read rule set: %v", err)
+	}
+	if _, err := ownDB.Exec(`UPDATE payroll.pyr_rule_set SET prs_status='ACTIVE' WHERE prs_id=1`); err != nil {
+		t.Fatalf("activate rule set: %v", err)
+	}
 	t.Cleanup(func() {
 		for _, q := range []string{
+			`UPDATE payroll.pyr_rule_set SET prs_status='` + prevStatus + `' WHERE prs_id=1`,
 			`UPDATE payroll.pyr_period SET pp_status='OPEN', pp_active_run_id=NULL WHERE pp_company_id=1 AND pp_yymm=` + fmt.Sprint(i25Period),
 			`DELETE FROM payroll.pyr_run WHERE pr_company_id=1 AND pr_yymm=` + fmt.Sprint(i25Period),
 			`DELETE FROM payroll.pyr_period WHERE pp_company_id=1 AND pp_yymm=` + fmt.Sprint(i25Period),
@@ -248,6 +258,54 @@ func TestI25_LogsHoldNoNameOrSalary(t *testing.T) {
 	_, _ = h.CreateEmployee(pctx, &payrollv1.CreateEmployeeRequest{CompanyId: 1, Division: "SOLO", Nik: "I25-RPC", Input: in})  //nolint:errcheck // expected failure
 	_, _ = h.UpdateEmployee(pctx, &payrollv1.UpdateEmployeeRequest{Id: created.GetData().GetId(), Input: in, IfMatch: "999"})   //nolint:errcheck // expected failure
 	_, _ = h.CreateEmployee(pctx, &payrollv1.CreateEmployeeRequest{CompanyId: 1, Division: "JAKARTA", Nik: "I25-X", Input: in}) //nolint:errcheck // expected failure
+
+	// 4. Run API with JWT-style context: dry, commit, get, list, lines (full and masked), period list, plus error paths.
+	rh := newRunHandler()
+	full := ctxPerms(t, userSolo, permsRunAll...)
+	blind := ctxPerms(t, userSolo, permsRunNoAmount...)
+	if _, err := rh.CreateRun(full, runReq("SOLO", payrollv1.RunMode_RUN_MODE_DRY)); err != nil {
+		t.Fatalf("api dry: %v", err)
+	}
+	// Successful commit through the handler (reprocess of the period committed in step 2: supersedes it).
+	cm, err := rh.CreateRun(full, runReq("SOLO", payrollv1.RunMode_RUN_MODE_COMMIT))
+	if err != nil {
+		t.Fatalf("api commit: %v", err)
+	}
+	runID := cm.GetData().GetRunId()
+	if runID == 0 || runID == res.RunID {
+		t.Fatalf("api commit run id = %d (service commit %d)", runID, res.RunID)
+	}
+	for _, c := range []context.Context{full, blind} {
+		if _, err := rh.GetRun(c, &payrollv1.GetRunRequest{RunId: runID}); err != nil {
+			t.Fatalf("api get: %v", err)
+		}
+		if _, err := rh.ListRunLines(c, &payrollv1.ListRunLinesRequest{RunId: runID}); err != nil {
+			t.Fatalf("api lines: %v", err)
+		}
+		if _, err := rh.ListRuns(c, &payrollv1.ListRunsRequest{Division: "SOLO"}); err != nil {
+			t.Fatalf("api list: %v", err)
+		}
+		if _, err := rh.ListPeriods(c, &payrollv1.ListPeriodsRequest{Division: "SOLO"}); err != nil {
+			t.Fatalf("api periods: %v", err)
+		}
+	}
+	_, err = rh.CreateRun(full, runReq("JAKARTA", payrollv1.RunMode_RUN_MODE_COMMIT))
+	wantCode(t, "api commit JAKARTA", err, apperr.CodeDivisionForbidden)
+	if _, err := rh.ApprovePeriod(full, &payrollv1.ApprovePeriodRequest{Yymm: i25Period, Division: "SOLO"}); err != nil {
+		t.Fatalf("api approve: %v", err)
+	}
+	if _, err := rh.ClosePeriod(full, &payrollv1.ClosePeriodRequest{Yymm: i25Period, Division: "SOLO"}); err != nil {
+		t.Fatalf("api close: %v", err)
+	}
+	var st string
+	if err := ownDB.QueryRow(`SELECT pp_status FROM payroll.pyr_period WHERE pp_company_id=1 AND pp_yymm=$1 AND pp_division='SOLO'`, i25Period).Scan(&st); err != nil || st != "CLOSED" {
+		t.Fatalf("period status = %q (%v), want CLOSED", st, err)
+	}
+	// a commit into the CLOSED period is refused (error path, logs must stay clean too).
+	_, err = rh.CreateRun(full, runReq("SOLO", payrollv1.RunMode_RUN_MODE_COMMIT))
+	if err == nil {
+		t.Fatal("commit into CLOSED period succeeded")
+	}
 
 	logs := buf.String()
 	if !strings.Contains(logs, "i25 canary") {

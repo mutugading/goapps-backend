@@ -120,8 +120,3 @@ func TestI21_PIIEncryptedAndROCannotDecrypt(t *testing.T) {
 		t.Fatal("test key must not look like a real one")
 	}
 }
-
-func TestI22_I23_DeferredToAPI(t *testing.T) {
-	t.Skip("I22 (JWT payroll_scope -> 403 DIVISION_FORBIDDEN) needs the run API: B-API-RUN; " +
-		"I23 (nominal masked without payroll.salary.view) needs the permission in IAM: B-IAM1")
-}
