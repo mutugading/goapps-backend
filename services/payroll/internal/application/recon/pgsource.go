@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/rs/zerolog/log"
+	"github.com/shopspring/decimal"
 
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/run"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/engine"
@@ -29,6 +30,13 @@ func (s PGSource) Candidates(ctx context.Context, q SourceQuery) ([]Candidate, e
 		if err != nil {
 			return err
 		}
+		var snap sql.NullInt64
+		if err := tx.QueryRowContext(ctx, `SELECT pr_snapshot_id FROM payroll.pyr_run WHERE pr_id = $1`, runID).Scan(&snap); err != nil {
+			return fmt.Errorf("legacy snapshot: %w", err)
+		}
+		if snap.Valid {
+			rq.SnapshotID = snap.Int64 // inputs = the recap legacy calculated with (D-41, 09§4 step 2)
+		}
 		rules, err := s.Rules(ctx, tx, rq, q.RuleSetID)
 		if err != nil {
 			return fmt.Errorf("load rules: %w", err)
@@ -49,7 +57,15 @@ func (s PGSource) Candidates(ctx context.Context, q SourceQuery) ([]Candidate, e
 		if s.FormulaOf != nil {
 			formulaOf = s.FormulaOf(rules.Set)
 		}
+		drift, err := loadDrift(ctx, tx, rq, runID, snap.Int64)
+		if err != nil {
+			return err
+		}
 		out = buildCandidates(q.Division, loaded.Inputs, lines, heads, formulaOf)
+		for i := range out {
+			c := &out[i]
+			c.Excluded = exclusionOf(drift, c.NIK(), expectedEmp(c.Expected), c.Input.Components).reason
+		}
 		return nil
 	})
 	return out, err
@@ -143,4 +159,22 @@ func buildCandidates(div string, inputs []engine.Input, lines map[string][]Expec
 		out = append(out, c)
 	}
 	return out
+}
+
+// expectedEmp views the legacy expectation of a candidate as the DiffEmp the D-47 exclusion works on.
+func expectedEmp(e Expected) DiffEmp {
+	var d DiffEmp
+	for _, l := range e.Lines {
+		dl := DiffLine{Key: engine.CompKey{Type: engine.CompType(l.Type), ID: l.ID}}
+		if l.Amount != nil {
+			if v, err := decimal.NewFromString(*l.Amount); err == nil {
+				dl.Amount = &v
+			}
+		}
+		d.Lines = append(d.Lines, dl)
+	}
+	if e.Head != nil {
+		d.Head = &HeadTotals{}
+	}
+	return d
 }

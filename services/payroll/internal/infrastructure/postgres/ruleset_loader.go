@@ -75,6 +75,15 @@ func (r *RuleSet) Constant(key string) (decimal.Decimal, bool) {
 	return v, ok
 }
 
+// Constants returns a copy of the resolved constants (recon exports them for the golden rules file).
+func (r *RuleSet) Constants() map[string]decimal.Decimal {
+	out := make(map[string]decimal.Decimal, len(r.constants))
+	for k, v := range r.constants {
+		out[k] = v
+	}
+	return out
+}
+
 // Component returns the formula configured for k, if any. Params is a copy.
 func (r *RuleSet) Component(k engine.CompKey) (ComponentRule, bool) {
 	c, ok := r.components[k]

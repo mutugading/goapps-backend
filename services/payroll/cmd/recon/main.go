@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -20,7 +21,7 @@ import (
 )
 
 const usage = `usage:
-  recon extract-golden -yymm 202608 [-per-formula 20] [-company 1] [-divisions SOLO,JAKARTA] [-rule-set 1] [-out tests/golden/out] -dsn <payroll_ro dsn>
+  recon extract-golden -yymm 202608 [-per-formula 20] [-company 1] [-divisions SOLO,JAKARTA] [-rule-set 1] [-out tests/golden/out] [-rules-out rules.json] -dsn <payroll_ro dsn>
   recon diff -yymm 202608 -division SOLO [-company 1] [-target dry|run:<id>] [-rule-set 1] [-out report.json] -dsn <payroll_ro dsn>`
 
 func main() {
@@ -65,6 +66,7 @@ func extractGolden(args []string) error {
 	divs := fs.String("divisions", "SOLO,JAKARTA", "divisi, dipisah koma")
 	ruleSet := fs.Int("rule-set", 1, "rule set untuk memuat input (v1 = 1)")
 	out := fs.String("out", "tests/golden/out", "folder keluaran (gitignored; berisi gaji nyata)")
+	rulesOut := fs.String("rules-out", "", "berkas GOLDEN_RULES (rule set + tabel pajak periode itu) untuk TestGoldenReal")
 	dsn := fs.String("dsn", os.Getenv("PAYROLL_RO_DSN"), "DSN role payroll_ro (read-only)")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -93,6 +95,15 @@ func extractGolden(args []string) error {
 		return err
 	}
 	fmt.Printf("kandidat=%d berkas=%d out=%s\n", rep.Candidates, len(rep.Files), *out)
+	for _, e := range recon.Exclusions {
+		fmt.Printf("  dikecualikan %-17s %d (D-47/D-50)\n", e, rep.Excluded[e])
+	}
+	if *rulesOut != "" {
+		if err := writeRules(ctx, raw, *rulesOut, int16(*company), names, *yymm, *ruleSet); err != nil { //nolint:gosec // as above
+			return err
+		}
+		fmt.Printf("rules=%s\n", *rulesOut)
+	}
 	for f, n := range rep.PerFormula {
 		fmt.Printf("  %-24s %d\n", f, n)
 	}
@@ -124,4 +135,40 @@ func formulaOf(rs engine.RuleSet) recon.FormulaFunc {
 		}
 		return ""
 	}
+}
+
+// writeRules writes the GOLDEN_RULES document: constants and tax tables of the period. TestGoldenReal applies one
+// rule document to every case, so the divisions must resolve to identical rules or the export fails.
+func writeRules(ctx context.Context, raw *sql.DB, path string, company int16, divs []string, yymm, ruleSet int) error {
+	var first []byte
+	for _, d := range divs {
+		var doc []byte
+		err := postgres.NewDBFromSQL(raw).ScopedTx(ctx, func(tx *sql.Tx) error {
+			rr, err := ruleFunc(ctx, tx, run.Query{CompanyID: company, Division: d, YYMM: yymm}, ruleSet)
+			if err != nil {
+				return err
+			}
+			rs, ok := rr.Set.(*postgres.RuleSet)
+			if !ok {
+				return fmt.Errorf("rule set bukan *postgres.RuleSet")
+			}
+			consts := map[string]string{}
+			for k, v := range rs.Constants() {
+				consts[k] = v.String()
+			}
+			doc, err = json.MarshalIndent(map[string]any{
+				"rules": map[string]any{"legacy": rs.LegacyCompat(), "constants": consts},
+				"tax":   rr.Tax,
+			}, "", "  ")
+			return err
+		})
+		if err != nil {
+			return fmt.Errorf("rules %s: %w", d, err)
+		}
+		if first != nil && string(first) != string(doc) {
+			return fmt.Errorf("rules divisi %s berbeda dari %s: ekspor per divisi terpisah", d, divs[0])
+		}
+		first = doc
+	}
+	return os.WriteFile(path, append(first, '\n'), 0o600)
 }

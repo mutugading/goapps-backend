@@ -47,6 +47,8 @@ type FileReport struct {
 // Report summarizes an extraction.
 type Report struct {
 	Candidates int
+	// Excluded counts the candidates left out per D-47/D-50 reason (not golden cases).
+	Excluded   map[string]int
 	PerFormula map[string]int
 	Files      []FileReport
 }
@@ -64,9 +66,18 @@ func ExtractGolden(ctx context.Context, src Source, o Options) (Report, error) {
 		}
 		all = append(all, cs...)
 	}
+	rep := Report{Candidates: len(all), Excluded: map[string]int{}, PerFormula: map[string]int{}}
+	usable := all[:0:0]
+	for _, c := range all {
+		if c.Excluded != "" {
+			rep.Excluded[c.Excluded]++
+			continue
+		}
+		usable = append(usable, c)
+	}
+	all = usable
 	names := formulaNames(all)
 
-	rep := Report{Candidates: len(all), PerFormula: map[string]int{}}
 	pseudo := map[string]string{} // division/NIK -> pseudonym, assigned in output order; never persisted
 	for _, f := range names {
 		for _, c := range Select(all, f, o.PerFormula) {

@@ -170,3 +170,26 @@ func TestExtractGolden_BadOptions(t *testing.T) {
 func flatten(s fakeSource) []recon.Candidate {
 	return append(append([]recon.Candidate(nil), s.byDiv["SOLO"]...), s.byDiv["JAKARTA"]...)
 }
+
+func TestExtractGolden_SkipsExcludedNIK(t *testing.T) {
+	src := fixture()
+	solo := append([]recon.Candidate(nil), src.byDiv["SOLO"]...)
+	solo[1].Excluded = recon.ExclMasterDrift
+	solo[2].Excluded = recon.ExclSyntheticMain
+	src.byDiv["SOLO"] = solo
+	out, rep := extract(t, src, 10)
+	if rep.Excluded[recon.ExclMasterDrift] != 1 || rep.Excluded[recon.ExclSyntheticMain] != 1 || rep.Excluded[recon.ExclNoLegacyD2] != 0 {
+		t.Fatalf("excluded %+v", rep.Excluded)
+	}
+	files, _ := filepath.Glob(filepath.Join(out, "*", "*.json"))
+	if len(files) != len(rep.Files) {
+		t.Fatalf("berkas %d, laporan %d", len(files), len(rep.Files))
+	}
+	seen := map[string]bool{}
+	for _, f := range files {
+		seen[strings.SplitN(filepath.Base(f), "_", 2)[0]] = true
+	}
+	if len(seen) != 3 { // 5 candidates - 2 excluded
+		t.Fatalf("NIK pseudonim %d, want 3", len(seen))
+	}
+}

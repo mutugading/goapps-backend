@@ -23,6 +23,9 @@ type goldenCase struct {
 	Tax     engine.TaxTables `json:"tax"`
 	Partial bool             `json:"partial,omitempty"` // only the listed lines are compared (extra engine lines are fine)
 	Note    string           `json:"note,omitempty"`
+	// Real marks extracted cases: legacy stores no row for a NULL/zero component (D-46), so an engine line that is
+	// NULL or 0 without a legacy row is no difference (same Δ rule as recon diff).
+	Real bool `json:"-"`
 }
 
 // ruleDoc is a static legacy-compat (v1) rule set.
@@ -86,7 +89,7 @@ func loadCases(t *testing.T, root string, rf *rulesFile) []goldenCase {
 			t.Fatalf("%s: %v", p, err)
 		}
 		if rf != nil {
-			f.Rules, f.Tax = rf.Rules, rf.Tax
+			f.Rules, f.Tax, f.Real = rf.Rules, rf.Tax, true
 		} else {
 			f.Tax = sharedTax(t)
 		}
@@ -118,7 +121,7 @@ func compare(f goldenCase, res engine.Result) []string {
 	}
 	if !f.Partial {
 		for k := range got {
-			if !seen[k] {
+			if !seen[k] && !(f.Real && (got[k].Amount == nil || got[k].Amount.IsZero())) {
 				diffs = append(diffs, fmt.Sprintf("%s: ONLY_TARGET (got %s)", k, showDec(got[k].Amount)))
 			}
 		}

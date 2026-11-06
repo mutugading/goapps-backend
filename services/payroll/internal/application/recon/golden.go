@@ -136,6 +136,8 @@ type Candidate struct {
 	Input    engine.Input
 	Expected Expected
 	Formulas map[string]bool // formulas of the components the employee has a legacy line for
+	// Excluded is the D-47/D-50 reason ("" = usable): such a NIK is not a valid golden case (master drift, D2).
+	Excluded string
 }
 
 // NIK is the real NIK (never written out).
