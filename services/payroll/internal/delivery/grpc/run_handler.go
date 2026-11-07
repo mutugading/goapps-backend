@@ -94,6 +94,14 @@ func mask(see bool, v string) string {
 	return masked
 }
 
+// maskText masks free text that can embed nominals (engine remarks carry Gapok, PPh setahun); empty stays empty.
+func maskText(see bool, v string) string {
+	if see || v == "" {
+		return v
+	}
+	return masked
+}
+
 // requireDivision refuses a division outside the caller scope before anything is queried (I22).
 func requireDivision(ctx context.Context, companyID int16, division string) error {
 	return run.InScope(ctx, companyID, division)
@@ -130,7 +138,7 @@ func runPB(r run.Info, see bool) *payrollv1.Run {
 
 func linePB(l run.LineInfo, see bool) *payrollv1.RunLine {
 	return &payrollv1.RunLine{Nik: l.NIK, CompType: l.CompType, CompId: int32(l.CompID), Description: l.Description, //nolint:gosec // small id
-		Amount: mask(see, l.Amount), Base: mask(see, l.Base), Qty: l.Qty, Rate: mask(see, l.Rate), Formula: l.Formula, Remarks: l.Remarks}
+		Amount: mask(see, l.Amount), Base: mask(see, l.Base), Qty: l.Qty, Rate: mask(see, l.Rate), Formula: l.Formula, Remarks: maskText(see, l.Remarks)}
 }
 
 func periodPB(p run.PeriodInfo) *payrollv1.Period {

@@ -150,6 +150,11 @@ func TestI23_NominalMaskedWithoutPermission(t *testing.T) {
 		t.Fatalf("commit: %v", err)
 	}
 	id := cm.GetData().GetRunId()
+	// A numeric remark (Gapok / PPh setahun) must not reach a caller without the amount permission.
+	const remark = "Gapok 5000000 PPh setahun 1234567"
+	if _, err := ownDB.Exec(`UPDATE payroll.pyr_salary_detail SET psd_remarks=$1 WHERE psd_run_id=$2`, remark, id); err != nil {
+		t.Fatalf("seed remark: %v", err)
+	}
 	got, err := h.GetRun(blind, &payrollv1.GetRunRequest{RunId: id})
 	if err != nil {
 		t.Fatal(err)
@@ -162,7 +167,7 @@ func TestI23_NominalMaskedWithoutPermission(t *testing.T) {
 		t.Fatalf("ListRunLines: %v %v", lines, err)
 	}
 	for _, l := range lines.GetData() {
-		if l.GetAmount() != "***" || l.GetBase() != "***" || l.GetRate() != "***" {
+		if l.GetAmount() != "***" || l.GetBase() != "***" || l.GetRate() != "***" || l.GetRemarks() != "***" {
 			t.Errorf("line not masked: %v", l)
 		}
 	}
@@ -199,6 +204,9 @@ func TestI23_NominalMaskedWithoutPermission(t *testing.T) {
 	seen, err := h.ListRunLines(full, &payrollv1.ListRunLinesRequest{RunId: id})
 	if err != nil || len(seen.GetData()) == 0 {
 		t.Fatalf("ListRunLines with permission: %v %v", seen, err)
+	}
+	if r := seen.GetData()[0].GetRemarks(); r != remark {
+		t.Errorf("with permission remarks = %q, want %q", r, remark)
 	}
 	if a := seen.GetData()[0].GetAmount(); !strings.HasPrefix(a, "8765432") {
 		t.Errorf("with permission amount = %q", a)

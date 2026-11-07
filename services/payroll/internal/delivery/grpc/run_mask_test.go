@@ -13,7 +13,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/run"
 )
 
-var nominalField = regexp.MustCompile(`amount|total|take_home|^base$|^rate$`)
+var nominalField = regexp.MustCompile(`amount|total|take_home|^base$|^rate$|remarks`)
 
 // walkNominals visits every string field of m (recursively) whose name looks like a nominal.
 func walkNominals(m protoreflect.Message, path string, visit func(path string, v string, populated bool)) {
@@ -40,7 +40,8 @@ func walkNominals(m protoreflect.Message, path string, visit func(path string, v
 func TestMaskRunResponses(t *testing.T) {
 	info := run.Info{ID: 1, YYMM: 202611, Division: "SOLO", TotT: "1.00", TotP: "2.00", Status: "COMMITTED",
 		Warnings: []run.Issue{{Code: "LOAN_NET_NEGATIVE", NIK: "N1", Message: "net -1234567.89 setelah cicilan"}}, StartedAt: time.Now(), FinishedAt: time.Now()}
-	line := run.LineInfo{NIK: "N1", CompType: "T", CompID: 1, Amount: "3.00", Base: "4.00", Qty: "1", Rate: "5.00"}
+	line := run.LineInfo{NIK: "N1", CompType: "T", CompID: 1, Amount: "3.00", Base: "4.00", Qty: "1", Rate: "5.00",
+		Remarks: "Gapok 5.000.000 PPh setahun 1.234.567"}
 	emp := run.EmployeeTotal{NIK: "N1", TotT: "1.00", TotP: "2.00", TakeHome: "9.00"}
 	resps := map[string]proto.Message{
 		"CreateRun(dry)": &payrollv1.CreateRunResponse{Data: runPB(info, false), Employees: employeesPB([]run.EmployeeTotal{emp}, false)},
@@ -65,7 +66,8 @@ func TestMaskRunResponses(t *testing.T) {
 		t.Fatalf("masked warnings leak or lost code: %v", w)
 	}
 	// With permission the same builders must pass values through.
-	if got := linePB(line, true); got.GetAmount() != "3.00" || got.GetBase() != "4.00" || got.GetRate() != "5.00" || got.GetQty() != "1" {
+	if got := linePB(line, true); got.GetAmount() != "3.00" || got.GetBase() != "4.00" || got.GetRate() != "5.00" || got.GetQty() != "1" ||
+		got.GetRemarks() != line.Remarks {
 		t.Fatalf("visible line = %+v", got)
 	}
 	r := runPB(info, true)
@@ -82,5 +84,11 @@ func TestMaskRunResponses(t *testing.T) {
 	m := runPB(info, false)
 	if m.GetDivision() != "SOLO" || m.GetStatus() != "COMMITTED" || m.GetRunId() != 1 {
 		t.Fatalf("masked run lost non-nominal fields: %+v", m)
+	}
+}
+
+func TestMaskRemarksEmptyStaysEmpty(t *testing.T) {
+	if got := linePB(run.LineInfo{NIK: "N1"}, false).GetRemarks(); got != "" {
+		t.Fatalf("empty remarks = %q", got)
 	}
 }
