@@ -7,6 +7,7 @@ package period
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -29,16 +30,28 @@ const (
 	minReasonLength = 10
 )
 
-// Service is the period application service.
-type Service struct {
-	db    run.TxRunner
-	audit audit.Writer
+// InputHasher recomputes the input_hash of a full-division run inside tx (run.Service.InputHash).
+type InputHasher interface {
+	InputHash(ctx context.Context, tx *sql.Tx, q run.Query, ruleSetID int) (string, error)
 }
 
-// NewService creates a Service.
-func NewService(db run.TxRunner, w audit.Writer) *Service {
-	return &Service{db: db, audit: w}
+// Service is the period application service.
+type Service struct {
+	db     run.TxRunner
+	audit  audit.Writer
+	hasher InputHasher
 }
+
+// NewService creates a Service. hasher checks on approve/close that the input did not change after the run (D-54).
+func NewService(db run.TxRunner, w audit.Writer, hasher InputHasher) *Service {
+	return &Service{db: db, audit: w, hasher: hasher}
+}
+
+// blockingCodes are per-NIK run warnings whose employee has no result (not paid): approve is refused (D-54).
+// NO_WORKDAYS stays a warning: an employee without workdays may legitimately get nothing (D-27).
+var blockingCodes = map[string]bool{run.CodeCalcError: true, run.CodeLoanDouble: true, run.CodeIncomplete: true}
+
+const maxBlockedNIKs = 20
 
 // Command identifies one period. Reason is required by Reopen only.
 type Command struct {
@@ -57,10 +70,13 @@ type state struct {
 	runKind    sql.NullString
 	hasLegacy  bool
 	snapshotID sql.NullInt64
+	ruleSetID  sql.NullInt64
+	inputHash  sql.NullString
+	warnings   sql.NullString
 }
 
-// Approve moves DRAFT → APPROVED. The period needs an ACTIVE run; the snapshot of that run is locked
-// so a later sync of the period is refused (05§6).
+// Approve moves DRAFT → APPROVED. The period needs an ACTIVE run without blocking warnings whose input is
+// unchanged since the commit (D-54); the snapshot of that run is locked so a later sync is refused (05§6).
 func (s *Service) Approve(ctx context.Context, cmd Command) error {
 	return s.transition(ctx, cmd, ActionApprove, func(tx *sql.Tx, st state, actor string) (string, error) {
 		if st.status != run.PeriodDraft {
@@ -68,6 +84,12 @@ func (s *Service) Approve(ctx context.Context, cmd Command) error {
 		}
 		if !st.runID.Valid || st.runStatus.String != "ACTIVE" {
 			return "", apperr.New(apperr.CodeBusinessRule, "periode belum punya run ACTIVE", details(cmd))
+		}
+		if err := blockingWarnings(cmd, st); err != nil {
+			return "", err
+		}
+		if err := s.checkInput(ctx, tx, cmd, st); err != nil {
+			return "", err
 		}
 		if st.snapshotID.Valid {
 			if _, err := tx.ExecContext(ctx, `UPDATE payroll.pyr_att_snapshot SET pas_locked = true WHERE pas_snapshot_id = $1`,
@@ -79,12 +101,15 @@ func (s *Service) Approve(ctx context.Context, cmd Command) error {
 	})
 }
 
-// Close moves APPROVED → CLOSED. From then on fn_guard_closed rejects every change of the period's
-// result and addition rows (04§9).
+// Close moves APPROVED → CLOSED after the same input check as approve (D-54). From then on fn_guard_closed
+// rejects every change of the period's result and input rows (04§9, 000038).
 func (s *Service) Close(ctx context.Context, cmd Command) error {
 	return s.transition(ctx, cmd, ActionClose, func(tx *sql.Tx, st state, actor string) (string, error) {
 		if st.status != run.PeriodApproved {
 			return "", wrongStatus(cmd, st.status, "close", run.PeriodApproved)
+		}
+		if err := s.checkInput(ctx, tx, cmd, st); err != nil {
+			return "", err
 		}
 		return run.PeriodClosed, update(ctx, tx, cmd, sqlClose, actor)
 	})
@@ -174,11 +199,13 @@ func (s *Service) transition(ctx context.Context, cmd Command, action string, fn
 func lockPeriod(ctx context.Context, tx *sql.Tx, cmd Command) (state, error) {
 	var st state
 	err := tx.QueryRowContext(ctx, `SELECT p.pp_status::text, p.pp_active_run_id, r.pr_status::text, r.pr_snapshot_id, r.pr_kind,
+  r.pr_rule_set_id, r.pr_input_hash, r.pr_warnings::text,
   EXISTS (SELECT 1 FROM payroll.pyr_run l WHERE l.pr_company_id = p.pp_company_id AND l.pr_yymm = p.pp_yymm
     AND l.pr_division = p.pp_division AND l.pr_kind = 'LEGACY')
 FROM payroll.pyr_period p LEFT JOIN payroll.pyr_run r ON r.pr_id = p.pp_active_run_id
 WHERE p.pp_company_id = $1 AND p.pp_yymm = $2 AND p.pp_division = $3 FOR UPDATE OF p`,
-		cmd.CompanyID, cmd.YYMM, cmd.Division).Scan(&st.status, &st.runID, &st.runStatus, &st.snapshotID, &st.runKind, &st.hasLegacy)
+		cmd.CompanyID, cmd.YYMM, cmd.Division).Scan(&st.status, &st.runID, &st.runStatus, &st.snapshotID, &st.runKind,
+		&st.ruleSetID, &st.inputHash, &st.warnings, &st.hasLegacy)
 	if errors.Is(err, sql.ErrNoRows) {
 		return st, apperr.New(apperr.CodeNotFound, "periode tidak ditemukan", details(cmd))
 	}
@@ -199,6 +226,59 @@ WHERE pp_company_id = $1 AND pp_yymm = $2 AND pp_division = $3 AND pp_status = '
   closed_by = NULL, closed_at = NULL, pp_reopen_reason = $4
 WHERE pp_company_id = $1 AND pp_yymm = $2 AND pp_division = $3 AND pp_status IN ('APPROVED', 'CLOSED')`
 )
+
+// blockingWarnings refuses approve when the ACTIVE run left employees without a result (D-54).
+func blockingWarnings(cmd Command, st state) error {
+	if !st.warnings.Valid {
+		return nil
+	}
+	var ws []run.Issue
+	if err := json.Unmarshal([]byte(st.warnings.String), &ws); err != nil {
+		return fmt.Errorf("parse run warnings: %w", err)
+	}
+	var niks []string
+	seen := map[string]bool{}
+	for _, w := range ws {
+		if blockingCodes[w.Code] && !seen[w.NIK] {
+			seen[w.NIK] = true
+			niks = append(niks, w.NIK)
+		}
+	}
+	if len(niks) == 0 {
+		return nil
+	}
+	d := details(cmd)
+	d["count"] = strconv.Itoa(len(niks))
+	if len(niks) > maxBlockedNIKs {
+		niks = niks[:maxBlockedNIKs]
+	}
+	d["niks"] = strings.Join(niks, ",")
+	return apperr.New(apperr.CodeBusinessRule,
+		fmt.Sprintf("%d karyawan tanpa hasil (CALC_ERROR/LOAN_DOUBLE/INCOMPLETE_RESULT); perbaiki lalu jalankan ulang run", len(seen)), d)
+}
+
+// checkInput refuses approve/close when the period input changed after the ACTIVE ENGINE run was committed: the
+// result would be stale (D-54). A LEGACY run has no engine input and is not checked.
+func (s *Service) checkInput(ctx context.Context, tx *sql.Tx, cmd Command, st state) error {
+	if st.runKind.String != "ENGINE" || !st.runID.Valid {
+		return nil
+	}
+	if s.hasher == nil {
+		return errors.New("period: input hasher not configured")
+	}
+	if !st.inputHash.Valid || !st.ruleSetID.Valid {
+		return fmt.Errorf("period %d %s: ACTIVE ENGINE run %d has no input hash or rule set", cmd.YYMM, cmd.Division, st.runID.Int64)
+	}
+	h, err := s.hasher.InputHash(ctx, tx, run.Query{CompanyID: cmd.CompanyID, Division: cmd.Division, YYMM: cmd.YYMM},
+		int(st.ruleSetID.Int64))
+	if err != nil {
+		return err
+	}
+	if h != st.inputHash.String {
+		return apperr.New(apperr.CodeConflict, "input periode berubah sesudah run; jalankan ulang run", details(cmd))
+	}
+	return nil
+}
 
 // update runs one of the period statements with arg as $4.
 func update(ctx context.Context, tx *sql.Tx, cmd Command, stmt, arg string) error {

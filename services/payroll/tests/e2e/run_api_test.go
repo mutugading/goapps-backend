@@ -47,7 +47,8 @@ func runHandler(t *testing.T) *grpcdelivery.RunHandler {
 			return run.Rules{Set: stubRules{}}, nil
 		}
 		w := auditinfra.NewWriter()
-		runH = grpcdelivery.NewRunHandler(run.NewServiceWith(appDB, rules, w, run.Runner{Calc: stub}), period.NewService(appDB, w), postgres.NewRunQuery(appDB))
+		runSvc := run.NewServiceWith(appDB, rules, w, run.Runner{Calc: stub})
+		runH = grpcdelivery.NewRunHandler(runSvc, period.NewService(appDB, w, runSvc), postgres.NewRunQuery(appDB))
 		// Other e2e files leave employees with test-only component codes (T9xx) in the same divisions; the loader
 		// accepts only T/P + number, so take them out of payroll. This file sorts last, nothing after it needs them.
 		if _, err := ownDB.Exec(`UPDATE payroll.pyr_employee SET pe_sts_payroll = 1 WHERE pe_nik NOT LIKE 'ZRUN%'`); err != nil {

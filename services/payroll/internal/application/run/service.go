@@ -5,12 +5,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
 
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/apperr"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/audit"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/scope"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/engine"
 )
 
 // T017: commit a run (03§3 steps 1, 2, 5, 6). Run 1 NIK (pr_parent_run_id) and pyr_loan_txn are
@@ -232,4 +234,22 @@ func checkDry(ctx context.Context, tx *sql.Tx, q Query, res *DryRunResult) error
 		return apperr.New(apperr.CodeBusinessRule, "tidak ada karyawan yang terhitung; run tidak disimpan", nil)
 	}
 	return addLockStaleWarning(ctx, tx, q, res)
+}
+
+// InputHash reloads the input of a full-division run with ruleSetID inside tx and returns the input_hash a Commit
+// would store now (same loader, same NIK order, same hash as DryRun). Period approve/close compare it with the
+// ACTIVE run's pr_input_hash to refuse a stale result (D-54). Loader and rule errors map as in Commit.
+func (s *Service) InputHash(ctx context.Context, tx *sql.Tx, q Query, ruleSetID int) (string, error) {
+	q.NIKs, q.SnapshotID = nil, 0
+	rules, err := s.rules(ctx, tx, q, ruleSetID)
+	if err != nil {
+		return "", ruleErr(err)
+	}
+	loaded, err := s.loader.Load(ctx, tx, q, rules)
+	if err != nil {
+		return "", loadErr(err)
+	}
+	inputs := append([]engine.Input(nil), loaded.Inputs...)
+	sort.SliceStable(inputs, func(i, j int) bool { return inputs[i].Emp.NIK < inputs[j].Emp.NIK })
+	return hashInputs(inputs), nil
 }

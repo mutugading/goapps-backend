@@ -33,7 +33,7 @@ func TestPeriodTransitions(t *testing.T) {
 			Header: &engine.Header{TotTunjangan: a}}, nil
 	}
 	runs := run.NewServiceWith(app, ruleFunc, audit.NewWriter(), run.Runner{Calc: stub})
-	svc := period.NewService(app, audit.NewWriter())
+	svc := period.NewService(app, audit.NewWriter(), runs)
 	if _, err := ownDB.Exec(`INSERT INTO payroll.pyr_attd_days (pad_company_id, pad_yymm, pad_division, pad_days) VALUES (1,203207,'SOLO',26);
 		INSERT INTO payroll.pyr_att_snapshot (pas_company_id, pas_yymm, pas_division, pas_source_batch_ids, pas_checksum, pas_locked)
 		VALUES (1,203207,'SOLO','{1}','period',false);
@@ -110,6 +110,19 @@ func TestPeriodTransitions(t *testing.T) {
 				t.Fatalf("%s: got %v, want P0001", q, err)
 			}
 		}
+		// D-54 (000038): input tables read by the loader are guarded too, even for the schema owner.
+		for _, q := range []string{
+			`INSERT INTO payroll.pyr_tax_adj (pta_company_id, pta_yymm, pta_division, pta_nik, pta_type, pta_amount) VALUES (1,203207,'SOLO','C00001','T',1)`,
+			`UPDATE payroll.pyr_attd_days SET pad_days = 25 WHERE pad_company_id=1 AND pad_yymm=203207 AND pad_division='SOLO'`,
+			`UPDATE payroll.pyr_att_snapshot SET pas_checksum = 'x' WHERE pas_checksum='period'`,
+			`UPDATE payroll.pyr_att_snapshot_row SET pasr_data = '{}' WHERE pasr_snapshot_id = (SELECT pas_snapshot_id FROM payroll.pyr_att_snapshot WHERE pas_checksum='period')`,
+		} {
+			_, err := ownDB.Exec(q)
+			var pgErr *pgconn.PgError
+			if !errors.As(err, &pgErr) || pgErr.Code != "P0001" {
+				t.Fatalf("%s: got %v, want P0001", q, err)
+			}
+		}
 	})
 	t.Run("reopen needs a reason of 10+ characters", func(t *testing.T) {
 		wantCode(t, svc.Reopen(ctx, period.Command{CompanyID: 1, Division: "SOLO", YYMM: 203207, Reason: "  singkat  "}), apperr.CodeValidation)
@@ -164,6 +177,58 @@ func TestPeriodTransitions(t *testing.T) {
 		if got := scalar(t, `SELECT pp_status||'/'||(pp_reopen_reason IS NULL)`+where); got != "APPROVED/true" {
 			t.Fatalf("alasan reopen tidak dikosongkan: %s", got)
 		}
+		if err := svc.Reopen(ctx, re); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("D-54: stale input refuses approve and close", func(t *testing.T) {
+		days := func(n int) {
+			t.Helper()
+			if _, err := ownDB.Exec(`UPDATE payroll.pyr_attd_days SET pad_days=$1 WHERE pad_company_id=1 AND pad_yymm=203207 AND pad_division='SOLO'`, n); err != nil {
+				t.Fatal(err)
+			}
+		}
+		days(25)
+		wantCode(t, svc.Approve(ctx, cmd), apperr.CodeConflict)
+		if got := scalar(t, `SELECT pp_status::text`+where); got != "DRAFT" {
+			t.Fatalf("status = %s", got)
+		}
+		days(26)
+		if err := svc.Approve(ctx, cmd); err != nil {
+			t.Fatalf("input dikembalikan, approve harus lolos: %v", err)
+		}
+		days(25) // APPROVED has no DB layer (D-40): period.Guard is the service layer, close re-checks the input
+		wantCode(t, svc.Close(ctx, cmd), apperr.CodeConflict)
+		days(26)
+		re := cmd
+		re.Reason = "kembali ke draft untuk tes"
+		if err := svc.Reopen(ctx, re); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("D-54: blocking warnings refuse approve, NO_WORKDAYS does not", func(t *testing.T) {
+		setWarn := func(js string) {
+			t.Helper()
+			if _, err := ownDB.Exec(`UPDATE payroll.pyr_run SET pr_warnings=$1::jsonb WHERE pr_id=(SELECT pp_active_run_id`+where+`)`, js); err != nil {
+				t.Fatal(err)
+			}
+		}
+		defer setWarn("[]")
+		for _, code := range []string{run.CodeCalcError, run.CodeLoanDouble, run.CodeIncomplete} {
+			setWarn(`[{"nik":"C00009","code":"` + code + `"},{"nik":"C00009","code":"ENGINE_WARNING"}]`)
+			err := svc.Approve(ctx, cmd)
+			wantCode(t, err, apperr.CodeBusinessRule)
+			var ae *apperr.Error
+			if errors.As(err, &ae) && (ae.Details["niks"] != "C00009" || ae.Details["count"] != "1") {
+				t.Fatalf("%s: detail = %v", code, ae.Details)
+			}
+		}
+		setWarn(`[{"nik":"C00009","code":"NO_WORKDAYS"},{"code":"SUBSIDY_LOCK_STALE"}]`)
+		if err := svc.Approve(ctx, cmd); err != nil {
+			t.Fatalf("NO_WORKDAYS tidak memblokir: %v", err)
+		}
+		re := cmd
+		re.Reason = "kembali ke draft untuk tes"
 		if err := svc.Reopen(ctx, re); err != nil {
 			t.Fatal(err)
 		}

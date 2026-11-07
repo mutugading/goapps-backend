@@ -143,17 +143,27 @@ ON CONFLICT (prc_rule_set_id, prc_company_id, prc_key, COALESCE(prc_division,'*'
 	return rep, err
 }
 
-// LoadAttdDays fills pyr_attd_days (MPAD_*).
+// LoadAttdDays fills pyr_attd_days (MPAD_*). Rows of an APPROVED/CLOSED period are compared, not written (D-54).
 func LoadAttdDays(ctx context.Context, tx *sql.Tx, src *Table, company int16) (TableReport, error) {
+	lp := newLockedPeriods(ctx, tx, company)
 	return loadTable(src, []string{"MPAD_YYMM", "MPAD_DIVISION", "MPAD_DAYS"}, func(r []string, ix map[string]int, _ int) (string, error) {
 		days, err := atoi(r[ix["MPAD_DAYS"]])
 		if err != nil {
 			return "", fmt.Errorf("MPAD_DAYS %q", r[ix["MPAD_DAYS"]])
 		}
+		yymm, div := r[ix["MPAD_YYMM"]], r[ix["MPAD_DIVISION"]]
+		st, err := lp.status(yymm, div)
+		if err != nil {
+			return "", err
+		}
+		if st != "" {
+			return frozenRow(ctx, tx, st, yymm, div, fmt.Sprintf("days %d", days), `
+SELECT pad_days = $4 FROM payroll.pyr_attd_days WHERE pad_company_id=$1 AND pad_yymm=$2 AND pad_division=$3`, company, yymm, div, days)
+		}
 		_, err = tx.ExecContext(ctx, `
 INSERT INTO payroll.pyr_attd_days (pad_company_id, pad_yymm, pad_division, pad_days) VALUES ($1,$2,$3,$4)
 ON CONFLICT (pad_company_id, pad_yymm, pad_division) DO UPDATE SET pad_days=EXCLUDED.pad_days`,
-			company, r[ix["MPAD_YYMM"]], r[ix["MPAD_DIVISION"]], days)
+			company, yymm, div, days)
 		return "", err
 	})
 }
@@ -318,16 +328,27 @@ WHERE psr_company_id=$1 AND created_by='etl' AND psr_status='ACTIVE' AND NOT (ps
 	return rep, nil
 }
 
-// LoadTaxAdj fills pyr_tax_adj (MPTA_*).
+// LoadTaxAdj fills pyr_tax_adj (MPTA_*). Rows of an APPROVED/CLOSED period are compared, not written (D-54).
 func LoadTaxAdj(ctx context.Context, tx *sql.Tx, src *Table, company int16) (TableReport, error) {
+	lp := newLockedPeriods(ctx, tx, company)
 	return loadTable(src, []string{"MPTA_YYMM", "MPTA_DIVISION", "MPTA_NIK", "MPTA_NAMA", "MPTA_TYPE", "MPTA_REASON", "MPTA_AMOUNT"}, func(r []string, ix map[string]int, _ int) (string, error) {
-		_, err := tx.ExecContext(ctx, `
+		yymm, div := r[ix["MPTA_YYMM"]], r[ix["MPTA_DIVISION"]]
+		args := []any{company, yymm, div, r[ix["MPTA_NIK"]], r[ix["MPTA_TYPE"]], nullable(r[ix["MPTA_NAMA"]]),
+			nullable(r[ix["MPTA_REASON"]]), nullable(r[ix["MPTA_AMOUNT"]])}
+		st, err := lp.status(yymm, div)
+		if err != nil {
+			return "", err
+		}
+		if st != "" {
+			return frozenRow(ctx, tx, st, yymm, div, fmt.Sprintf("nik %s type %s", r[ix["MPTA_NIK"]], r[ix["MPTA_TYPE"]]), `
+SELECT pta_nama IS NOT DISTINCT FROM $6 AND pta_reason IS NOT DISTINCT FROM $7 AND pta_amount IS NOT DISTINCT FROM round($8::numeric, 2)
+FROM payroll.pyr_tax_adj WHERE pta_company_id=$1 AND pta_yymm=$2 AND pta_division=$3 AND pta_nik=$4 AND pta_type=$5`, args...)
+		}
+		_, err = tx.ExecContext(ctx, `
 INSERT INTO payroll.pyr_tax_adj (pta_company_id, pta_yymm, pta_division, pta_nik, pta_type, pta_nama, pta_reason, pta_amount)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8::numeric)
 ON CONFLICT (pta_company_id, pta_yymm, pta_division, pta_nik, pta_type) DO UPDATE SET pta_nama=EXCLUDED.pta_nama,
-  pta_reason=EXCLUDED.pta_reason, pta_amount=EXCLUDED.pta_amount`,
-			company, r[ix["MPTA_YYMM"]], r[ix["MPTA_DIVISION"]], r[ix["MPTA_NIK"]], r[ix["MPTA_TYPE"]], nullable(r[ix["MPTA_NAMA"]]),
-			nullable(r[ix["MPTA_REASON"]]), nullable(r[ix["MPTA_AMOUNT"]]))
+  pta_reason=EXCLUDED.pta_reason, pta_amount=EXCLUDED.pta_amount`, args...)
 		return "", err
 	})
 }
@@ -359,34 +380,61 @@ SELECT $1,$2,$3,$4 WHERE NOT EXISTS (SELECT 1 FROM payroll.pyr_holiday WHERE phd
 	return rep, err
 }
 
-// closedPeriods caches whether a (yymm, division) period of the company is CLOSED (payroll_etl may read pp_status, 000029).
-type closedPeriods struct {
+// lockedPeriods caches the status of a (yymm, division) period of the company when it is APPROVED or CLOSED
+// (payroll_etl may read pp_status, 000029). "" = no period, OPEN or DRAFT: the input may still change.
+type lockedPeriods struct {
 	ctx     context.Context
 	tx      *sql.Tx
 	company int16
-	seen    map[string]bool
+	seen    map[string]string
 }
 
-func (c *closedPeriods) closed(yymm, div string) (bool, error) {
+func newLockedPeriods(ctx context.Context, tx *sql.Tx, company int16) *lockedPeriods {
+	return &lockedPeriods{ctx: ctx, tx: tx, company: company, seen: map[string]string{}}
+}
+
+func (c *lockedPeriods) status(yymm, div string) (string, error) {
 	k := yymm + "/" + div
 	if v, ok := c.seen[k]; ok {
 		return v, nil
 	}
-	var n int
-	err := c.tx.QueryRowContext(c.ctx, `SELECT count(*) FROM payroll.pyr_period
-WHERE pp_company_id=$1 AND pp_yymm=$2 AND pp_division=$3 AND pp_status='CLOSED'`, c.company, yymm, div).Scan(&n)
-	if err != nil {
-		return false, err
+	// Same run advisory lock as run.Lock / approve (D-39): an approve that hashes the input waits for this load to
+	// commit, and a load that starts after the approve sees APPROVED (D-54).
+	if _, err := c.tx.ExecContext(c.ctx, `SELECT pg_advisory_xact_lock(hashtext('payroll.run'), hashtext($1))`,
+		fmt.Sprintf("%d:%s:%s", c.company, yymm, div)); err != nil {
+		return "", fmt.Errorf("run lock %s/%s: %w", yymm, div, err)
 	}
-	c.seen[k] = n > 0
-	return n > 0, nil
+	var st string
+	err := c.tx.QueryRowContext(c.ctx, `SELECT COALESCE(max(pp_status::text), '') FROM payroll.pyr_period
+WHERE pp_company_id=$1 AND pp_yymm=$2 AND pp_division=$3 AND pp_status IN ('APPROVED','CLOSED')`, c.company, yymm, div).Scan(&st)
+	if err != nil {
+		return "", err
+	}
+	c.seen[k] = st
+	return st, nil
 }
 
-// LoadAddition fills pyr_addition with source LEGACY (MPA_*). fn_guard_closed (04§9, T009e8) rejects any write into a
-// CLOSED period, so for such a period a row is never written: an identical existing row counts as loaded (idempotent
-// re-run after salary-legacy closed the period); a differing or missing row is reported as an exception.
+// frozenRow handles a source row of an APPROVED/CLOSED period, which is never written (D-54; fn_guard_closed rejects
+// CLOSED, an APPROVED period would be approved on stale input): sameSQL must return one boolean, true when the stored
+// row equals the source. Identical = loaded (idempotent re-run), missing or different = exception.
+func frozenRow(ctx context.Context, tx *sql.Tx, status, yymm, div, what, sameSQL string, args ...any) (string, error) {
+	var same bool
+	err := tx.QueryRowContext(ctx, sameSQL, args...).Scan(&same)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return fmt.Sprintf("periode %s/%s %s, baris belum ada (tidak boleh ditambah): %s", yymm, div, status, what), nil
+	case err != nil:
+		return "", err
+	case !same:
+		return fmt.Sprintf("periode %s/%s %s, baris beda dari yang dimuat (tidak diubah): %s", yymm, div, status, what), nil
+	}
+	return "", nil
+}
+
+// LoadAddition fills pyr_addition with source LEGACY (MPA_*). A row of an APPROVED/CLOSED period is never written
+// (T009e8, D-54, frozenRow): identical counts as loaded (re-run after salary-legacy closed the period), else exception.
 func LoadAddition(ctx context.Context, tx *sql.Tx, src *Table, company int16) (TableReport, error) {
-	cp := &closedPeriods{ctx: ctx, tx: tx, company: company, seen: map[string]bool{}}
+	lp := newLockedPeriods(ctx, tx, company)
 	return loadTable(src, []string{"MPA_YYMM", "MPA_NIK", "MPA_NAMA", "MPA_COMPNT_TYPE", "MPA_COMPNT_ID", "MPA_COMPNT_NAME",
 		"MPA_COMPNT_STS", "MPA_COMPNT_TAX", "MPA_AMOUNT", "MPA_REMARKS", "MPA_DIVISION"}, func(r []string, ix map[string]int, _ int) (string, error) {
 		id, err := atoi(r[ix["MPA_COMPNT_ID"]])
@@ -403,31 +451,20 @@ func LoadAddition(ctx context.Context, tx *sql.Tx, src *Table, company int16) (T
 		if amount == "" {
 			amount = "0" // pa_amount NOT NULL; legacy kolom nullable
 		}
-		isClosed, err := cp.closed(r[ix["MPA_YYMM"]], r[ix["MPA_DIVISION"]])
+		yymm, div := r[ix["MPA_YYMM"]], r[ix["MPA_DIVISION"]]
+		st, err := lp.status(yymm, div)
 		if err != nil {
 			return "", err
 		}
-		if isClosed {
-			var same bool
-			err = tx.QueryRowContext(ctx, `
+		if st != "" {
+			return frozenRow(ctx, tx, st, yymm, div, fmt.Sprintf("nik %s id %d", r[ix["MPA_NIK"]], id), `
 SELECT pa_source = $13 AND pa_nama IS NOT DISTINCT FROM $7 AND pa_compnt_name IS NOT DISTINCT FROM $8 AND pa_compnt_sts IS NOT DISTINCT FROM $9
   AND pa_compnt_tax IS NOT DISTINCT FROM $10::smallint AND pa_amount = round($11::numeric, 2) AND pa_remarks IS NOT DISTINCT FROM $12
 FROM payroll.pyr_addition
 WHERE pa_company_id=$1 AND pa_yymm=$2 AND pa_nik=$3 AND pa_division=$4 AND pa_type=$5::payroll.comp_type AND pa_id=$6`,
-				company, r[ix["MPA_YYMM"]], r[ix["MPA_NIK"]], r[ix["MPA_DIVISION"]], compType(r[ix["MPA_COMPNT_TYPE"]]), id,
+				company, yymm, r[ix["MPA_NIK"]], div, compType(r[ix["MPA_COMPNT_TYPE"]]), id,
 				nullable(r[ix["MPA_NAMA"]]), nullable(r[ix["MPA_COMPNT_NAME"]]), nullable(r[ix["MPA_COMPNT_STS"]]), tax, amount,
-				nullable(r[ix["MPA_REMARKS"]]), LegacyAdditionLabel).Scan(&same)
-			switch {
-			case errors.Is(err, sql.ErrNoRows):
-				return fmt.Sprintf("periode %s/%s CLOSED, baris belum ada (tidak boleh ditambah): nik %s id %d",
-					r[ix["MPA_YYMM"]], r[ix["MPA_DIVISION"]], r[ix["MPA_NIK"]], id), nil
-			case err != nil:
-				return "", err
-			case !same:
-				return fmt.Sprintf("periode %s/%s CLOSED, baris beda dari yang dimuat (tidak diubah): nik %s id %d",
-					r[ix["MPA_YYMM"]], r[ix["MPA_DIVISION"]], r[ix["MPA_NIK"]], id), nil
-			}
-			return "", nil
+				nullable(r[ix["MPA_REMARKS"]]), LegacyAdditionLabel)
 		}
 		_, err = tx.ExecContext(ctx, `
 INSERT INTO payroll.pyr_addition (pa_company_id, pa_yymm, pa_nik, pa_division, pa_type, pa_id, pa_nama, pa_compnt_name, pa_compnt_sts,

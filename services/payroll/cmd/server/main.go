@@ -124,7 +124,7 @@ func startServers(ctx context.Context, cfg *config.Config) error {
 	masterSvc := masterapp.NewService(db, postgres.NewMasterRepository(), auditinfra.NewWriter(), cfg.PII.EncKey, cfg.PII.HMACKey).WithComponents(postgres.NewComponentRepository()).WithAttachments(postgres.NewAttachmentRepository())
 	auditWriter := auditinfra.NewWriter()
 	runSvc := runapp.NewService(db, rulesFunc, auditWriter)
-	periodSvc := periodapp.NewService(db, auditWriter)
+	periodSvc := periodapp.NewService(db, auditWriter, runSvc)
 	payrollv1.RegisterPayrollServiceServer(grpcServer.GRPCServer(), grpcdelivery.NewPayrollHandler(
 		grpcdelivery.NewMasterHandler(masterSvc),
 		grpcdelivery.NewRunHandler(runSvc, periodSvc, postgres.NewRunQuery(db))))

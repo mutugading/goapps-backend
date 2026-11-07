@@ -29,10 +29,12 @@ func TestCompanyKeys_SameDivisionTwoCompanies(t *testing.T) {
 		   SELECT pc_company_id,'S1','SOLO',pc_sysid,1 FROM payroll.pyr_component WHERE pc_code='T901'`,
 		`INSERT INTO payroll.pyr_attd_days (pad_company_id, pad_yymm, pad_division, pad_days) VALUES (1,202609,'SOLO',25), (2,202609,'SOLO',25)`,
 		`INSERT INTO payroll.pyr_period (pp_company_id, pp_yymm, pp_division, pp_date_from, pp_date_to, pp_status) VALUES
-		   (2,202609,'SOLO','2026-09-01','2026-09-30','CLOSED')`,
+		   (2,202609,'SOLO','2026-09-01','2026-09-30','OPEN')`,
 		`INSERT INTO payroll.pyr_att_snapshot (pas_company_id, pas_yymm, pas_division, pas_source_batch_ids, pas_checksum) VALUES (2,202609,'SOLO','{1}','c')`,
 		`INSERT INTO payroll.pyr_run (pr_company_id, pr_yymm, pr_division, pr_pay_date, pr_rule_set_id, pr_snapshot_id, pr_status)
 		   SELECT 2,202609,'SOLO','2026-09-30',1,max(pas_snapshot_id),'ACTIVE' FROM payroll.pyr_att_snapshot`,
+		// Closed after its snapshot and run exist: fn_guard_closed also guards the snapshot since 000038 (D-54).
+		`UPDATE payroll.pyr_period SET pp_status='CLOSED' WHERE pp_company_id=2 AND pp_yymm=202609 AND pp_division='SOLO'`,
 		// Company 1 SOLO stays OPEN although company 2 SOLO is CLOSED.
 		`INSERT INTO payroll.pyr_addition (pa_company_id, pa_yymm, pa_nik, pa_type, pa_id, pa_division, pa_amount) VALUES (1,202609,'S1','Tunjangan',1,'SOLO',1)`,
 	}

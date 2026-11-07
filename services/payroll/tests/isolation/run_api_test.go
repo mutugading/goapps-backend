@@ -29,7 +29,8 @@ func newRunHandler() *grpcdelivery.RunHandler {
 	rules := func(context.Context, *sql.Tx, run.Query, int) (run.Rules, error) {
 		return run.Rules{Set: i25Rules{}}, nil
 	}
-	return grpcdelivery.NewRunHandler(run.NewServiceWith(appDB, rules, w, run.Runner{Calc: i25Calc}), period.NewService(appDB, w), postgres.NewRunQuery(appDB))
+	runSvc := run.NewServiceWith(appDB, rules, w, run.Runner{Calc: i25Calc})
+	return grpcdelivery.NewRunHandler(runSvc, period.NewService(appDB, w, runSvc), postgres.NewRunQuery(appDB))
 }
 
 func ctxPerms(t *testing.T, userID string, perms ...string) context.Context {
