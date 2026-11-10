@@ -16,3 +16,12 @@
 /services/finance/internal/infrastructure/oracle/sql_safety_test.go            @ilramdhan
 /services/finance/internal/infrastructure/oracle/erp_writer_factory.go         @ilramdhan
 /services/finance/internal/domain/erpintegration/oracle_writer_port.go         @ilramdhan
+
+# Database guardrails (ADR 0001): migrations and v2 DB tooling need owner review
+/services/*/migrations/          @ilramdhan
+/deploy/local-v2/                @ilramdhan
+/docker-compose.v2.yaml          @ilramdhan
+/scripts/migration-lint.sh       @ilramdhan
+/scripts/migration-lint.allow    @ilramdhan
+/.github/workflows/migration-lint.yml @ilramdhan
+/docs/adr/                       @ilramdhan
