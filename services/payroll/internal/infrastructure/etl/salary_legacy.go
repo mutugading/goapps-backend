@@ -31,6 +31,10 @@ const (
 
 	typeTunjangan = "tunjangan"
 	typePotongan  = "potongan"
+
+	// nameTunjangan/namePotongan are the payroll.comp_type enum labels.
+	nameTunjangan = "Tunjangan"
+	namePotongan  = "Potongan"
 )
 
 // SalaryLegacyOptions controls the historical salary load. Expect* = 0 means unchecked (08§2: 91916 / 2274418).
@@ -410,9 +414,9 @@ func loadSalaryGroup(ctx context.Context, tx pgx.Tx, o SalaryLegacyOptions, mn, 
 		typ := strings.ToLower(c("PD_TYPE"))
 		id, _ := strconv.Atoi(c("PD_NO")) //nolint:errcheck // validated above
 		sys := sysids[sysKey{typ, id}]
-		typName := "Tunjangan"
+		typName := nameTunjangan
 		if typ == typePotongan {
-			typName = "Potongan"
+			typName = namePotongan
 		}
 		copyRow(&lines, "@RUN@", c("PD_NIK"), typName, strconv.Itoa(id), c("PD_DESCRIPTION"), c("PD_AMOUNT"), c("PD_STATUS"), c("PD_TAX"),
 			c("PD_TAX_PAID_COMPANY"), c("PD_BASIS_AMOUNT"), "LEGACY", c("PD_REMARKS"), strconv.FormatInt(sys, 10))

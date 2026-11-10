@@ -1,4 +1,4 @@
-// Package main is the payroll sync/ETL entry point (D-01, D-22). Subcommands: migrate, employees, inputs, att-legacy, salary-legacy, att-legacy-fail.
+// Package main is the payroll sync/ETL entry point (D-01, D-22). Subcommands: migrate, employees, inputs, att-legacy, salary-legacy, thr-legacy, att-legacy-fail.
 package main
 
 import (
@@ -22,6 +22,7 @@ var commands = map[string]func([]string) error{
 	"inputs":          inputs,
 	"att-legacy":      attLegacy,
 	"salary-legacy":   salaryLegacy,
+	"thr-legacy":      thrLegacy,
 	"att-legacy-fail": attLegacyFail,
 	"prune-excluded":  pruneExcluded,
 }
@@ -31,6 +32,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "usage: sync migrate -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-valid-from 202001] [-expect-master 133 -expect-template 762]")
 		fmt.Fprintln(os.Stderr, "       sync employees -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-emp 2860 -expect-compe 117827]  (kunci: PAYROLL_PII_KEY, PAYROLL_PII_HMAC_KEY)")
 		fmt.Fprintln(os.Stderr, "       sync att-legacy -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-rekap 68925 -expect-add 870 -expect-sch 3996]")
+		fmt.Fprintln(os.Stderr, "       sync thr-legacy -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-main 14918 -expect-detail 62246] [-allow-exceptions]  (setelah employees; D-56)")
 		fmt.Fprintln(os.Stderr, "       sync att-legacy-fail -dir <psv dir> -dsn <payroll_etl dsn>  (setelah salary-legacy; isi premi_fail/beras_fail dari DETAIL T40/T74, D-33)")
 		fmt.Fprintln(os.Stderr, "       sync inputs -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-addition 28464 -expect-abnormal 28550]")
 		fmt.Fprintln(os.Stderr, "       sync salary-legacy -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-main 91916 -expect-detail 2274418] [-allow-exceptions]")
@@ -225,6 +227,46 @@ func salaryLegacy(args []string) error {
 	}
 	if err == nil && nExc > 0 && !*allowExc {
 		return fmt.Errorf("%d exception (periode ditahan/baris ditolak); tinjau lalu jalankan ulang, atau -allow-exceptions", nExc)
+	}
+	return err
+}
+
+func thrLegacy(args []string) error {
+	fs := flag.NewFlagSet("thr-legacy", flag.ExitOnError)
+	dir := fs.String("dir", "", "folder .psv hasil spool sqlplus (08§1): MGT_THR_MAIN + MGT_THR_DETAIL")
+	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl (wajib login payroll_etl: pengecualian guard CLOSED memakai session_user)")
+	company := fs.Int("company", 1, "pyr_company.pco_company_id")
+	expM := fs.Int("expect-main", 0, "jumlah baris MGT_THR_MAIN yang diharapkan (14918)")
+	expD := fs.Int("expect-detail", 0, "jumlah baris MGT_THR_DETAIL yang diharapkan (62246)")
+	allowExc := fs.Bool("allow-exceptions", false, "exit 0 walau ada exception (default: exit non-nol bila ada exception)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *dir == "" || *dsn == "" {
+		return fmt.Errorf("-dir dan -dsn (atau PAYROLL_ETL_DSN) wajib")
+	}
+	db, err := sql.Open("pgx", *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := db.Close(); cerr != nil {
+			fmt.Fprintln(os.Stderr, "close:", cerr)
+		}
+	}()
+	reps, err := etl.RunThrLegacy(context.Background(), db, etl.PSVDir{Dir: *dir}, etl.ThrLegacyOptions{
+		CompanyID: int16(*company), ExpectMain: *expM, ExpectDetail: *expD, //nolint:gosec // flag range checked by FK
+	})
+	nExc := 0
+	for _, r := range reps {
+		fmt.Printf("%-20s src=%-8d dst=%-8d exc=%-4d sha256=%s\n", r.Table, r.SrcRows, r.DstRows, len(r.Exceptions), r.Checksum)
+		for _, e := range r.Exceptions {
+			fmt.Println("  EXCEPTION", e)
+		}
+		nExc += len(r.Exceptions)
+	}
+	if err == nil && nExc > 0 && !*allowExc {
+		return fmt.Errorf("%d exception (event ditahan/baris ditolak); tinjau lalu jalankan ulang, atau -allow-exceptions", nExc)
 	}
 	return err
 }
