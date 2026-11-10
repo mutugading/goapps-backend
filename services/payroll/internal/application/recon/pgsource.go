@@ -25,7 +25,7 @@ type PGSource struct {
 func (s PGSource) Candidates(ctx context.Context, q SourceQuery) ([]Candidate, error) {
 	rq := run.Query{CompanyID: q.CompanyID, Division: q.Division, YYMM: q.YYMM}
 	var out []Candidate
-	err := s.DB.ScopedTx(ctx, func(tx *sql.Tx) error {
+	err := s.DB.ScopedTxOpts(ctx, run.SnapshotTx, func(tx *sql.Tx) error {
 		runID, err := legacyRun(ctx, tx, rq)
 		if err != nil {
 			return err

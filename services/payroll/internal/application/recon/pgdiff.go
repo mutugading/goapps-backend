@@ -69,7 +69,7 @@ func (s DiffSource) Load(ctx context.Context, q DiffQuery) (DiffInput, error) {
 	rq := run.Query{CompanyID: q.CompanyID, Division: q.Division, YYMM: q.YYMM}
 	out := DiffInput{Meta: DiffMeta{CompanyID: q.CompanyID, Division: q.Division, YYMM: q.YYMM, Target: q.Target,
 		RuleSetID: q.RuleSetID}}
-	err = s.DB.ScopedTx(ctx, func(tx *sql.Tx) error {
+	err = s.DB.ScopedTxOpts(ctx, run.SnapshotTx, func(tx *sql.Tx) error {
 		legacySnap, err := s.loadLegacy(ctx, tx, rq, &out)
 		if err != nil {
 			return err
