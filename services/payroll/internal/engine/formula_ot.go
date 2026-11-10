@@ -83,7 +83,7 @@ func otSpecFor(id int) (formulaSpec, bool) {
 func otRate(ctx *EvalCtx, excBranch bool) (decimal.Decimal, bool) {
 	b := ctx.Basis
 	switch {
-	case isJakarta(ctx.In.Division), excBranch && isExecutive(ctx.In.Emp.Level):
+	case IsJakarta(ctx.In.Division), excBranch && isExecutive(ctx.In.Emp.Level):
 		return b.RateOT, b.hasRateOT
 	case isExecutive(ctx.In.Emp.Level):
 		return decimal.Zero, false
@@ -125,7 +125,7 @@ func (otHours) Eval(ctx *EvalCtx, c EmpComponent, p Params) (*decimal.Decimal, s
 		return nil, "", nil
 	}
 	key := paramMult
-	if excBranch && isExecutive(ctx.In.Emp.Level) && !isJakarta(ctx.In.Division) {
+	if excBranch && isExecutive(ctx.In.Emp.Level) && !IsJakarta(ctx.In.Division) {
 		key = paramMultExc
 	}
 	mult, err := decParam(p, key)

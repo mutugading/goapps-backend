@@ -128,11 +128,11 @@ func daysBetween(start, end time.Time) int {
 
 func isExecutive(level string) bool { return strings.EqualFold(strings.TrimSpace(level), "executive") }
 
-// divJakarta is the legacy division name with its own overtime rate.
+// divJakarta is the legacy division name with its own overtime rate; IsJakarta is the single division test (loader and engine).
 const divJakarta = "JAKARTA"
 
-// isJakarta accepts the spec name and the IAM division code (JKT).
-func isJakarta(div string) bool {
+// IsJakarta accepts the spec name and the IAM division code (JKT).
+func IsJakarta(div string) bool {
 	d := strings.ToUpper(strings.TrimSpace(div))
 	return d == divJakarta || d == "JKT"
 }
@@ -180,7 +180,7 @@ func computeBasis(in Input) (Basis, error) {
 	// RATE_OT: JAKARTA T1/HM; Executive Σ T{1,2,3,4}/HM; others Σ T{1,7,55}/HM.
 	otIDs := otDefaultIDs()
 	switch {
-	case isJakarta(in.Division):
+	case IsJakarta(in.Division):
 		otIDs = []int{idGapok}
 	case isExecutive(in.Emp.Level):
 		otIDs = otExecutiveIDs()

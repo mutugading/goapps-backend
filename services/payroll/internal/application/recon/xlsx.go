@@ -88,6 +88,9 @@ func cellValue(v any) any {
 	}
 }
 
+// decimalCell is the one accepted exception to "money is never float" (T023d): the recon workbook is a report
+// for Excel numeric cells, never read back by the engine. Exactness is kept by the 15-digit rule below.
+//
 // decimalCell returns a float64 only when its shortest representation equals the decimal string
 // (≤ 15 significant digits); otherwise the exact text.
 func decimalCell(d decimal.Decimal) any {

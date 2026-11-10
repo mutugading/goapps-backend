@@ -52,7 +52,7 @@ func loadWorkdays(ctx context.Context, tx *sql.Tx, q Query, legacyCompat bool) (
 	err := tx.QueryRowContext(ctx, `SELECT pad_days FROM payroll.pyr_attd_days
  WHERE pad_company_id = $1 AND pad_division = $2 AND pad_yymm = $3`, q.CompanyID, q.Division, q.YYMM).Scan(&d)
 	if errors.Is(err, sql.ErrNoRows) {
-		if legacyCompat && !strings.EqualFold(q.Division, divJakarta) {
+		if legacyCompat && !engine.IsJakarta(q.Division) {
 			return nil, nil //nolint:nilnil // NULL workdays is a valid v1 input outside JAKARTA (D-45)
 		}
 		return nil, fmt.Errorf("%w: %s %d", ErrMissingAttdDays, q.Division, q.YYMM)

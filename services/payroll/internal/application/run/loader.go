@@ -30,8 +30,6 @@ var (
 const (
 	CodeMissingAttendance = "MISSING_ATTENDANCE"
 
-	divJakarta = "JAKARTA"
-	stsFull    = "F"
 	// Legacy COMPNT_EMP subqueries of PPh ignore FRZ_FLAG for P4/P8 and P14/P18/P22/P23 (D-28d),
 	// so a frozen row still reduces the gross / annual deduction (loadComponents).
 	idAbsen           = 4
@@ -116,7 +114,7 @@ func (l Loader) Load(ctx context.Context, tx *sql.Tx, q Query, rules Rules) (Res
 	}
 
 	var t1 map[string]bool
-	if strings.EqualFold(q.Division, divJakarta) {
+	if engine.IsJakarta(q.Division) {
 		if t1, err = loadGapokHolders(ctx, tx, q); err != nil {
 			return Result{}, err
 		}
@@ -193,7 +191,7 @@ func gapokSts(cs []engine.EmpComponent) string {
 // condition). The engine counts whole days, so a fraction is truncated.
 func dailyFails(division string, r snapRow, hasT1 bool) engine.DailyFails {
 	d := engine.DailyFails{PremiFail: r.premiFail, BerasFail: r.berasFail}
-	if strings.EqualFold(division, divJakarta) {
+	if engine.IsJakarta(division) {
 		d.BerasFail = 0
 		if hasT1 {
 			d.BerasFail = int(r.att.Get("alpa").Add(r.att.Get("ijin")).IntPart())

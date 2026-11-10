@@ -149,6 +149,9 @@ func (s *Service) Commit(ctx context.Context, cmd CommitCommand) (out CommitResu
 
 // Lock takes the transaction advisory lock of (company, yymm, division) without waiting (03§3 step 1):
 // a second run of the same period fails fast with RUN_IN_PROGRESS instead of queueing.
+// The key is a pair of 32-bit hashtext values, so two different (company, yymm, division) keys can collide
+// (about 2^-32 per pair of live runs): the loser then gets a false RUN_IN_PROGRESS and simply retries.
+// Accepted and documented (T023d); no data is shared or corrupted by a collision.
 func Lock(ctx context.Context, tx *sql.Tx, q Query) error {
 	var ok bool
 	key := fmt.Sprintf("%d:%d:%s", q.CompanyID, q.YYMM, q.Division)

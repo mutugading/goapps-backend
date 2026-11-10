@@ -171,6 +171,7 @@ func hashInputs(inputs []engine.Input) string {
 		in := inputs[0]
 		w.printf("%s|rules=%d/%v|", hashSharedLabel, in.Rules.ID(), in.Rules.LegacyCompat())
 		canon(w, reflect.ValueOf(in.Tax))
+		hashConstants(w, in.Rules)
 	}
 	for _, in := range inputs {
 		in.Tax, in.Rules = engine.TaxTables{}, nil
@@ -178,6 +179,29 @@ func hashInputs(inputs []engine.Input) string {
 		canon(w, reflect.ValueOf(in))
 	}
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+// constantsProvider is implemented by rule sets that can list their resolved constants (postgres.RuleSet).
+type constantsProvider interface {
+	Constants() map[string]decimal.Decimal
+}
+
+// hashConstants adds the resolved rule constants in key order: editing a constant of the same rule set
+// after a commit changes the hash, so approve/close see the result as stale (T023d).
+func hashConstants(w canonWriter, r engine.RuleSet) {
+	cp, ok := r.(constantsProvider)
+	if !ok {
+		return
+	}
+	cs := cp.Constants()
+	keys := make([]string, 0, len(cs))
+	for k := range cs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		w.printf("const.%s=%s|", k, cs[k].String())
+	}
 }
 
 // canonWriter feeds a hash.Hash, whose Write never fails (hash.Hash contract), so errors are dropped here once.

@@ -76,7 +76,7 @@ func (absen) Eval(ctx *EvalCtx, c EmpComponent, _ Params) (*decimal.Decimal, str
 			return nil, "", nil
 		}
 		div = b.DaysMonth // legacy literal 30, read from DAYS_MONTH (D-25)
-	case isJakarta(ctx.In.Division):
+	case IsJakarta(ctx.In.Division):
 		if ctx.In.Workdays == nil || *ctx.In.Workdays == 0 {
 			return nil, "", ErrNoWorkdays
 		}
