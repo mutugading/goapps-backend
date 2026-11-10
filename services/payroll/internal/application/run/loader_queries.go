@@ -64,9 +64,10 @@ func loadWorkdays(ctx context.Context, tx *sql.Tx, q Query, legacyCompat bool) (
 }
 
 // loadEmployees reads the active (sts_payroll = 2) employees of the division (1 query).
-func loadEmployees(ctx context.Context, tx *sql.Tx, q Query) ([]engine.Employee, error) {
+// resign is kept beside the engine input (not part of it) for the D-55 period filter.
+func loadEmployees(ctx context.Context, tx *sql.Tx, q Query) ([]empRow, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT pe_nik, pe_nama, COALESCE(pe_level,''), COALESCE(pe_tax_id,''),
-  COALESCE(pe_dept_id,''), pe_npwp_enc IS NOT NULL, pe_birth_date, pe_date_join
+  COALESCE(pe_dept_id,''), pe_npwp_enc IS NOT NULL, pe_birth_date, pe_date_join, pe_resign_date
 FROM payroll.pyr_employee
 WHERE pe_company_id = $1 AND pe_division = $2 AND pe_sts_payroll = 2 AND ($3::text[] = '{}' OR pe_nik = ANY($3::text[]))
 ORDER BY pe_nik`, q.CompanyID, q.Division, nikArray(q.NIKs))
@@ -74,17 +75,28 @@ ORDER BY pe_nik`, q.CompanyID, q.Division, nikArray(q.NIKs))
 		return nil, fmt.Errorf("load employees: %w", err)
 	}
 	defer closeRows(rows)
-	var out []engine.Employee
+	var out []empRow
 	for rows.Next() {
 		var e engine.Employee
-		var birth, join sql.NullTime
-		if err := rows.Scan(&e.NIK, &e.Name, &e.Level, &e.TaxStatus, &e.Dept, &e.HasNPWP, &birth, &join); err != nil {
+		var birth, join, resign sql.NullTime
+		if err := rows.Scan(&e.NIK, &e.Name, &e.Level, &e.TaxStatus, &e.Dept, &e.HasNPWP, &birth, &join, &resign); err != nil {
 			return nil, fmt.Errorf("scan employee: %w", err)
 		}
 		e.BirthDate, e.JoinDate = timePtr(birth), timePtr(join)
-		out = append(out, e)
+		out = append(out, empRow{Employee: e, resign: timePtr(resign)})
 	}
 	return out, rows.Err()
+}
+
+// empRow is an employee plus the resign date used only by the loader.
+type empRow struct {
+	engine.Employee
+	resign *time.Time
+}
+
+// outOfPeriod reports a join after the period end or a resign before the period start (D-55).
+func (r empRow) outOfPeriod(p engine.Period) bool {
+	return (r.JoinDate != nil && r.JoinDate.After(p.End)) || (r.resign != nil && r.resign.Before(p.Start))
 }
 
 func timePtr(t sql.NullTime) *time.Time {

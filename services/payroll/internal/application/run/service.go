@@ -35,6 +35,8 @@ var ErrRuleIncomplete = errors.New("run: rule set incomplete")
 // TxRunner runs fn in a scoped transaction (postgres.DB.ScopedTx).
 type TxRunner interface {
 	ScopedTx(ctx context.Context, fn func(tx *sql.Tx) error) error
+	// ScopedTxOpts is ScopedTx with tx options (REPEATABLE READ for Load, T023f).
+	ScopedTxOpts(ctx context.Context, opts *sql.TxOptions, fn func(tx *sql.Tx) error) error
 }
 
 // RulesFunc loads the rules of a run inside the scoped transaction (postgres.RuleSetLoader, T016a).
@@ -100,7 +102,7 @@ func (s *Service) Commit(ctx context.Context, cmd CommitCommand) (out CommitResu
 	}
 	q := Query{CompanyID: cmd.CompanyID, Division: cmd.Division, YYMM: cmd.YYMM}
 
-	err = s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
+	err = s.db.ScopedTxOpts(ctx, SnapshotTx, func(tx *sql.Tx) error {
 		if e := Lock(ctx, tx, q); e != nil {
 			return e
 		}
@@ -146,6 +148,10 @@ func (s *Service) Commit(ctx context.Context, cmd CommitCommand) (out CommitResu
 	out.Duration = time.Since(start)
 	return out, nil
 }
+
+// SnapshotTx makes Load read one consistent snapshot (REPEATABLE READ): changes committed after the
+// first statement are not seen (T023f).
+var SnapshotTx = &sql.TxOptions{Isolation: sql.LevelRepeatableRead}
 
 // Lock takes the transaction advisory lock of (company, yymm, division) without waiting (03§3 step 1):
 // a second run of the same period fails fast with RUN_IN_PROGRESS instead of queueing.

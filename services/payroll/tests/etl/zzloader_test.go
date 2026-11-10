@@ -205,3 +205,121 @@ func TestRunLoader_ThreeNIKFixture(t *testing.T) {
 		}
 	})
 }
+
+// T023f / D-55: v1 keeps legacy parity (out-of-period employees stay), v2 skips them with OUT_OF_PERIOD.
+// Also: Load inside a REPEATABLE READ tx does not see changes committed after its first statement.
+func TestRunLoader_OutOfPeriodAndSnapshot(t *testing.T) {
+	ctx := context.Background()
+	for _, q := range []string{
+		`INSERT INTO payroll.pyr_employee (pe_company_id, pe_nik, pe_division, pe_nama, pe_level, pe_tax_id, pe_sts_payroll, pe_orion_sub_acnt, pe_date_join, pe_resign_date) VALUES
+		  (1,'L-SOLO-LATE','SOLO','Join sesudah periode','Driver','TK',2,'L-SOLO-LATE','2030-04-01',NULL),
+		  (1,'L-SOLO-GONE','SOLO','Resign sebelum periode','Driver','TK',2,'L-SOLO-GONE','2019-01-01','2030-01-31'),
+		  (1,'L-B-JOIN25','SOLO','Join tepat akhir periode','Driver','TK',2,'L-B-JOIN25','2030-03-25',NULL),
+		  (1,'L-B-JOIN26','SOLO','Join sehari sesudah akhir','Driver','TK',2,'L-B-JOIN26','2030-03-26',NULL),
+		  (1,'L-B-RES26','SOLO','Resign tepat awal periode','Driver','TK',2,'L-B-RES26','2019-01-01','2030-02-26'),
+		  (1,'L-B-RES25','SOLO','Resign sehari sebelum awal','Driver','TK',2,'L-B-RES25','2019-01-01','2030-02-25')
+		 ON CONFLICT DO NOTHING`,
+	} {
+		if _, err := ownDB.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Cleanup(func() {
+		_, _ = ownDB.Exec(`DELETE FROM payroll.pyr_employee WHERE pe_company_id = 1 AND pe_nik IN ('L-SOLO-LATE','L-SOLO-GONE','L-B-JOIN25','L-B-JOIN26','L-B-RES25','L-B-RES26')`)
+	})
+	raw, err := sql.Open("pgx", appDSN)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = raw.Close() }()
+	app := postgres.NewDBFromSQL(raw)
+	load := func(q run.Query, legacy bool) (res run.Result, err error) {
+		err = app.ScopedTx(asScopes(t, "SOLO", "JAKARTA"), func(tx *sql.Tx) error {
+			res, err = run.NewLoader().Load(ctx, tx, q, run.Rules{Set: stubRules{legacy}})
+			return err
+		})
+		return res, err
+	}
+	q := run.Query{CompanyID: 1, Division: "SOLO", YYMM: loaderYYMM, NIKs: []string{"L-SOLO-F", "L-SOLO-LATE", "L-SOLO-GONE"}}
+
+	t.Run("boundaries: join <= end and resign >= start stay (period 2030-02-26..2030-03-25)", func(t *testing.T) {
+		bq := run.Query{CompanyID: 1, Division: "SOLO", YYMM: loaderYYMM, NIKs: []string{"L-B-JOIN25", "L-B-JOIN26", "L-B-RES25", "L-B-RES26"}}
+		// v2 without attendance rows would error for kept NIKs; use v1 only for the kept set check via warnings of v2:
+		_, err := load(bq, false)
+		if !errors.Is(err, run.ErrMissingAttendance) {
+			t.Fatalf("kept NIKs have no recap, want ErrMissingAttendance, got %v", err)
+		}
+		if _, err := ownDB.Exec(`UPDATE payroll.pyr_employee SET pe_sts_payroll = 1 WHERE pe_nik IN ('L-B-JOIN25','L-B-RES26')`); err != nil {
+			t.Fatal(err)
+		}
+		// now only the two outside ones stay active: both skipped, no error
+		r, err := load(bq, false)
+		if err != nil || len(r.Inputs) != 0 {
+			t.Fatalf("outside boundary: %v %d", err, len(r.Inputs))
+		}
+		got := map[string]bool{}
+		for _, w := range r.Warnings {
+			if w.Code == run.CodeOutOfPeriod {
+				got[w.NIK] = true
+			}
+		}
+		if len(got) != 2 || !got["L-B-JOIN26"] || !got["L-B-RES25"] {
+			t.Fatalf("out of period: %+v", r.Warnings)
+		}
+	})
+
+	t.Run("v1 keeps them (paritas)", func(t *testing.T) {
+		r, err := load(q, true)
+		if err != nil || len(r.Inputs) != 3 {
+			t.Fatalf("v1: %v %d inputs", err, len(r.Inputs))
+		}
+		for _, w := range r.Warnings {
+			if w.Code == run.CodeOutOfPeriod {
+				t.Fatalf("v1 must not warn OUT_OF_PERIOD: %+v", w)
+			}
+		}
+	})
+	t.Run("v2 skips them with warning", func(t *testing.T) {
+		r, err := load(q, false)
+		if err != nil {
+			t.Fatalf("v2: %v", err) // no ErrMissingAttendance for the skipped ones
+		}
+		if len(r.Inputs) != 1 || r.Inputs[0].Emp.NIK != "L-SOLO-F" {
+			t.Fatalf("v2 inputs: %+v", r.Inputs)
+		}
+		got := map[string]string{}
+		for _, w := range r.Warnings {
+			got[w.NIK] = w.Code
+		}
+		if len(got) != 2 || got["L-SOLO-LATE"] != run.CodeOutOfPeriod || got["L-SOLO-GONE"] != run.CodeOutOfPeriod {
+			t.Fatalf("warnings: %+v", r.Warnings)
+		}
+	})
+	t.Run("REPEATABLE READ: change after snapshot not read", func(t *testing.T) {
+		q := run.Query{CompanyID: 1, Division: "SOLO", YYMM: loaderYYMM, NIKs: []string{"L-SOLO-F", "L-SOLO-N"}}
+		var first, second int
+		err := app.ScopedTxOpts(asScopes(t, "SOLO"), run.SnapshotTx, func(tx *sql.Tx) error {
+			r, err := run.NewLoader().Load(ctx, tx, q, run.Rules{Set: stubRules{true}})
+			if err != nil {
+				return err
+			}
+			first = len(r.Inputs)
+			if _, err := ownDB.Exec(`UPDATE payroll.pyr_employee SET pe_sts_payroll = 1 WHERE pe_company_id = 1 AND pe_nik = 'L-SOLO-N'`); err != nil {
+				return err
+			}
+			r, err = run.NewLoader().Load(ctx, tx, q, run.Rules{Set: stubRules{true}})
+			second = len(r.Inputs)
+			return err
+		})
+		defer func() {
+			_, _ = ownDB.Exec(`UPDATE payroll.pyr_employee SET pe_sts_payroll = 2 WHERE pe_company_id = 1 AND pe_nik = 'L-SOLO-N'`)
+		}()
+		if err != nil || first != 2 || second != 2 {
+			t.Fatalf("snapshot: %v first=%d second=%d (want 2,2)", err, first, second)
+		}
+		// a fresh tx sees the change (read committed default)
+		if r, err := load(q, true); err != nil || len(r.Inputs) != 1 {
+			t.Fatalf("after commit: %v %d", err, len(r.Inputs))
+		}
+	})
+}

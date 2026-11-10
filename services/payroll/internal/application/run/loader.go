@@ -29,6 +29,7 @@ var (
 // Issue codes reported as warnings.
 const (
 	CodeMissingAttendance = "MISSING_ATTENDANCE"
+	CodeOutOfPeriod       = "OUT_OF_PERIOD" // D-55: v2 skips employees who joined after / resigned before the period
 
 	// Legacy COMPNT_EMP subqueries of PPh ignore FRZ_FLAG for P4/P8 and P14/P18/P22/P23 (D-28d),
 	// so a frozen row still reduces the gross / annual deduction (loadComponents).
@@ -121,7 +122,11 @@ func (l Loader) Load(ctx context.Context, tx *sql.Tx, q Query, rules Rules) (Res
 	}
 
 	res := Result{Warnings: taxIssues, SnapshotID: snapID}
-	for _, e := range emps {
+	for _, er := range emps {
+		e := er.Employee
+		if skipOutOfPeriod(er, period, rules.Set.LegacyCompat(), &res) {
+			continue
+		}
 		in := engine.Input{
 			Period: period, Division: q.Division, Emp: e, Components: comps[e.NIK],
 			Workdays: workdays, Additions: adds[e.NIK], Tax: rules.Tax, Rules: rules.Set,
@@ -131,20 +136,41 @@ func (l Loader) Load(ctx context.Context, tx *sql.Tx, q Query, rules Rules) (Res
 			in.Subsidy = rules.Subsidy(e.NIK)
 		}
 		tax[e.NIK].apply(&in)
-		row, ok := snap[e.NIK]
-		if !ok {
-			if !rules.Set.LegacyCompat() {
-				return Result{}, fmt.Errorf("%w: %s", ErrMissingAttendance, e.NIK)
-			}
-			res.Warnings = append(res.Warnings, Issue{NIK: e.NIK, Code: CodeMissingAttendance,
-				Message: "karyawan aktif tanpa rekap absensi; header dilewati (D2)"})
-		} else {
-			in.Att, in.AttAdd, in.Sch = row.att, row.add, row.sch
-			in.Daily = dailyFails(q.Division, row, t1[e.NIK])
+		if err := attachAttendance(&in, snap, t1, q.Division, rules.Set.LegacyCompat(), &res); err != nil {
+			return Result{}, err
 		}
 		res.Inputs = append(res.Inputs, in)
 	}
 	return res, nil
+}
+
+// skipOutOfPeriod implements D-55 option A: rule v2 skips an employee who joined after the period end or
+// resigned before its start (warning OUT_OF_PERIOD, no result); rule v1 keeps legacy parity.
+func skipOutOfPeriod(er empRow, period engine.Period, legacy bool, res *Result) bool {
+	if legacy || !er.outOfPeriod(period) {
+		return false
+	}
+	res.Warnings = append(res.Warnings, Issue{NIK: er.NIK, Code: CodeOutOfPeriod,
+		Message: "karyawan join sesudah akhir periode / resign sebelum awal periode; dilewati (D-55)"})
+	return true
+}
+
+// attachAttendance sets the recap of in, or (rule v1) warns MISSING_ATTENDANCE and leaves it empty (D2);
+// rule v2 refuses the run.
+func attachAttendance(in *engine.Input, snap map[string]snapRow, t1 map[string]bool, division string, legacy bool, res *Result) error {
+	nik := in.Emp.NIK
+	row, ok := snap[nik]
+	if ok {
+		in.Att, in.AttAdd, in.Sch = row.att, row.add, row.sch
+		in.Daily = dailyFails(division, row, t1[nik])
+		return nil
+	}
+	if !legacy {
+		return fmt.Errorf("%w: %s", ErrMissingAttendance, nik)
+	}
+	res.Warnings = append(res.Warnings, Issue{NIK: nik, Code: CodeMissingAttendance,
+		Message: "karyawan aktif tanpa rekap absensi; header dilewati (D2)"})
+	return nil
 }
 
 // subsidyBasisPeriod is the rule v1 P0 basis period (psr_basis_period_yymm, 202601 for the migrated

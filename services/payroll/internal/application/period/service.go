@@ -173,7 +173,11 @@ func (s *Service) transition(ctx context.Context, cmd Command, action string, fn
 		return err
 	}
 	actor, _ := scope.FromContext(ctx) //nolint:errcheck // checked by InScope
-	return s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
+	var opts *sql.TxOptions
+	if action == ActionApprove || action == ActionClose {
+		opts = run.SnapshotTx // InputHash reads one snapshot (T023f)
+	}
+	return s.db.ScopedTxOpts(ctx, opts, func(tx *sql.Tx) error {
 		if err := run.Lock(ctx, tx, run.Query{CompanyID: cmd.CompanyID, Division: cmd.Division, YYMM: cmd.YYMM}); err != nil {
 			return err
 		}

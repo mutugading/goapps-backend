@@ -45,7 +45,7 @@ func (s *Service) Dry(ctx context.Context, cmd DryCommand) (out DryResult, err e
 		return out, err
 	}
 	q := Query{CompanyID: cmd.CompanyID, Division: cmd.Division, YYMM: cmd.YYMM, NIKs: cmd.NIKs}
-	err = s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
+	err = s.db.ScopedTxOpts(ctx, SnapshotTx, func(tx *sql.Tx) error {
 		rules, e := s.rules(ctx, tx, q, cmd.RuleSetID)
 		if e != nil {
 			return ruleErr(e)

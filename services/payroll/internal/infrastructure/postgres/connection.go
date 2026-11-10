@@ -10,9 +10,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib" // PostgreSQL driver with SCRAM-SHA-256 support
 	"github.com/rs/zerolog/log"
 
+	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/apperr"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/scope"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/config"
 )
@@ -65,7 +67,11 @@ func (db *DB) Close() error {
 
 // Transaction executes fn within a database transaction.
 func (db *DB) Transaction(ctx context.Context, fn func(tx *sql.Tx) error) error {
-	tx, err := db.BeginTx(ctx, nil)
+	return db.transactionOpts(ctx, nil, fn)
+}
+
+func (db *DB) transactionOpts(ctx context.Context, opts *sql.TxOptions, fn func(tx *sql.Tx) error) error {
+	tx, err := db.BeginTx(ctx, opts)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
@@ -90,16 +96,28 @@ func (db *DB) Transaction(ctx context.Context, fn func(tx *sql.Tx) error) error 
 // (transaction-local, like SET LOCAL) from the identity in ctx. Without an
 // identity it refuses to run; with no scopes RLS returns no rows.
 func (db *DB) ScopedTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
+	return db.ScopedTxOpts(ctx, nil, fn)
+}
+
+// ScopedTxOpts is ScopedTx with transaction options (nil = default isolation).
+func (db *DB) ScopedTxOpts(ctx context.Context, opts *sql.TxOptions, fn func(tx *sql.Tx) error) error {
 	id, ok := scope.FromContext(ctx)
 	if !ok {
 		return scope.ErrNoIdentity
 	}
-	return db.Transaction(ctx, func(tx *sql.Tx) error {
+	err := db.transactionOpts(ctx, opts, func(tx *sql.Tx) error {
 		if err := setSession(ctx, tx, id.UserID, scope.Join(id.Scopes)); err != nil {
 			return err
 		}
 		return fn(tx)
 	})
+	// REPEATABLE READ: a concurrent commit of the same period after our snapshot (SQLSTATE 40001) is the
+	// same situation as a held run lock; the caller retries (T023f).
+	var pe *pgconn.PgError
+	if opts != nil && errors.As(err, &pe) && pe.Code == "40001" {
+		return apperr.New(apperr.CodeRunInProgress, "periode ini baru saja diubah proses lain; ulangi", nil)
+	}
+	return err
 }
 
 // setSession sets the RLS settings for the current transaction only.
