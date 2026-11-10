@@ -16,7 +16,7 @@ import (
 )
 
 // goldenCase is a golden case plus what the engine needs besides the input: the rule constants and tax tables.
-// Synthetic fixtures (G1–G14) share testdata/tax.json and carry the rule constants inline; extracted real cases get them from GOLDEN_RULES.
+// Synthetic fixtures (G1–G15) share testdata/tax.json and carry the rule constants inline; extracted real cases get them from GOLDEN_RULES.
 type goldenCase struct {
 	recon.Case
 	Rules   ruleDoc          `json:"rules"`
@@ -197,7 +197,7 @@ func runCases(t *testing.T, fixtures []goldenCase) {
 	}
 }
 
-// TestGolden runs the committed synthetic cases G1–G12 (09§3).
+// TestGolden runs the committed synthetic cases G1–G15 (09§3; G13–G15 added by tasks).
 func TestGolden(t *testing.T) {
 	runCases(t, loadCases(t, filepath.Join("testdata", "golden"), nil))
 }

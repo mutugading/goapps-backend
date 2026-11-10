@@ -169,6 +169,37 @@ func TestPPh21DecemberLegacyAboveLastLayer(t *testing.T) {
 	}
 }
 
+// [V] 06§6.2 TARIF35 (T025): the last TARIF Max (9 M) as a boundary. Gross = PKP + BJ 6.000.000 + PTKP K1 63.000.000.
+// v1 (D-29, D20): PKP = 9 M is not < Max and not > Max → the 35 % layer gives 0; 9 M + 1 → flat 9 M × 35 %.
+// v2 (06§6.2): no upper bound, the part above 5 M stays 35 %; TRUNC −3 drops the + 1.
+func TestPPh21DecemberLastLayerBoundary(t *testing.T) {
+	const below = "1665500000" // 3 + 37,5 + 125 + 1.500 jt (v1 lapis 1–4 atas Max penuh)
+	cases := []struct {
+		name   string
+		legacy bool
+		pkp    string
+		want   string
+	}{
+		{"v1 PKP tepat 9 M", true, "9000000000", below},
+		{"v1 PKP 9 M + 1", true, "9000000001", "4815500000"},             // + 9.000.000.000 × 35 %
+		{"v1 PKP 9 M − 1", true, "8999999999", "3065500000"},             // + 3.999.999.999 × 35 % = 1.399.999.999,65 → ROUND
+		{"v2 PKP tepat 9 M", false, "9000000000", "2844000000"},          // 3 + 28,5 + 62,5 + 1.350 + 1.400 jt
+		{"v2 PKP 9 M + 1 (TRUNC −3)", false, "9000000001", "2844000000"}, // PKP 9.000.000.000
+		{"v2 PKP 9 M + 1.000", false, "9000001000", "2844000350"},        // + 1.000 × 35 %
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			l, res := p1(t, decInput(c.legacy, "K1", "69000000", c.pkp, "0", "0"))
+			if res.Incomplete {
+				t.Fatalf("incomplete: %v", res.Warnings)
+			}
+			if l.Amount == nil || l.Amount.String() != c.want {
+				t.Errorf("P1 = %v, want %s (remark %q)", l.Amount, c.want, l.Remark)
+			}
+		})
+	}
+}
+
 // v2: negative PKP is truncated toward zero then floored at 0; the remark shows PKP 0.
 func TestPPh21DecemberV2NegativePKP(t *testing.T) {
 	l, _ := p1(t, decInput(false, "TK", "2500000", "27500000", "0", "100000"))
