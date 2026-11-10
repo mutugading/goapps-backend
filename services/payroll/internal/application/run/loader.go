@@ -97,6 +97,13 @@ func (l Loader) Load(ctx context.Context, tx *sql.Tx, q Query, rules Rules) (Res
 	if err != nil {
 		return Result{}, err
 	}
+	// D-55 (T023h): rule v2 drops out-of-period employees before the per-NIK queries, so loadComponents/
+	// loadTax never read them (no YTD_* issue for a skipped NIK). v1 keeps every row (parity).
+	oop := Result{SnapshotID: snapID}
+	emps, q = splitOutOfPeriod(emps, q, period, rules.Set.LegacyCompat(), &oop)
+	if len(emps) == 0 {
+		return oop, nil
+	}
 	comps, err := loadComponents(ctx, tx, q)
 	if err != nil {
 		return Result{}, err
@@ -121,12 +128,9 @@ func (l Loader) Load(ctx context.Context, tx *sql.Tx, q Query, rules Rules) (Res
 		}
 	}
 
-	res := Result{Warnings: taxIssues, SnapshotID: snapID}
+	res := Result{Warnings: append(taxIssues, oop.Warnings...), SnapshotID: snapID}
 	for _, er := range emps {
 		e := er.Employee
-		if skipOutOfPeriod(er, period, rules.Set.LegacyCompat(), &res) {
-			continue
-		}
 		in := engine.Input{
 			Period: period, Division: q.Division, Emp: e, Components: comps[e.NIK],
 			Workdays: workdays, Additions: adds[e.NIK], Tax: rules.Tax, Rules: rules.Set,
@@ -144,15 +148,30 @@ func (l Loader) Load(ctx context.Context, tx *sql.Tx, q Query, rules Rules) (Res
 	return res, nil
 }
 
-// skipOutOfPeriod implements D-55 option A: rule v2 skips an employee who joined after the period end or
-// resigned before its start (warning OUT_OF_PERIOD, no result); rule v1 keeps legacy parity.
-func skipOutOfPeriod(er empRow, period engine.Period, legacy bool, res *Result) bool {
-	if legacy || !er.outOfPeriod(period) {
-		return false
+// splitOutOfPeriod implements D-55 option A: rule v2 drops an employee who joined after the period end or
+// resigned before its start (warning OUT_OF_PERIOD, no result); rule v1 keeps legacy parity. When something
+// is dropped, q.NIKs narrows to the kept employees so the later set-based queries skip the dropped ones.
+func splitOutOfPeriod(emps []empRow, q Query, period engine.Period, legacy bool, res *Result) ([]empRow, Query) {
+	if legacy {
+		return emps, q
 	}
-	res.Warnings = append(res.Warnings, Issue{NIK: er.NIK, Code: CodeOutOfPeriod,
-		Message: "karyawan join sesudah akhir periode / resign sebelum awal periode; dilewati (D-55)"})
-	return true
+	kept := make([]empRow, 0, len(emps))
+	for _, er := range emps {
+		if !er.outOfPeriod(period) {
+			kept = append(kept, er)
+			continue
+		}
+		res.Warnings = append(res.Warnings, Issue{NIK: er.NIK, Code: CodeOutOfPeriod,
+			Message: "karyawan join sesudah akhir periode / resign sebelum awal periode; dilewati (D-55)"})
+	}
+	if len(kept) == len(emps) || len(kept) == 0 {
+		return kept, q
+	}
+	q.NIKs = make([]string, len(kept))
+	for i, er := range kept {
+		q.NIKs[i] = er.NIK
+	}
+	return kept, q
 }
 
 // attachAttendance sets the recap of in, or (rule v1) warns MISSING_ATTENDANCE and leaves it empty (D2);
