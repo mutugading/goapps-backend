@@ -21,6 +21,23 @@ type Config struct {
 	CORS     CORSConfig     `mapstructure:"cors"`
 	Tracing  TracingConfig  `mapstructure:"tracing"`
 	Logger   LoggerConfig   `mapstructure:"logger"`
+	// OracleSync is the read-only HRIS Oracle account for `cmd/sync att` (D-58 (3)).
+	// Empty ⇒ not Configured(); the server is unaffected, only the sync command fails.
+	OracleSync OracleSyncConfig `mapstructure:"oracle_sync"`
+}
+
+// OracleSyncConfig holds the Oracle connection used to pull attendance (05§2, D-42, D-58).
+type OracleSyncConfig struct {
+	Host     string `mapstructure:"host"`
+	Port     int    `mapstructure:"port"`
+	Service  string `mapstructure:"service"`
+	User     string `mapstructure:"user"`
+	Password string `mapstructure:"password"`
+}
+
+// Configured reports whether enough settings are present to attempt a connection.
+func (c OracleSyncConfig) Configured() bool {
+	return c.Host != "" && c.Port > 0 && c.Service != "" && c.User != "" && c.Password != ""
 }
 
 // AppConfig holds application-level configuration.
@@ -196,6 +213,13 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("tracing.endpoint", "localhost:4317")
 	v.SetDefault("tracing.insecure", true)
 
+	// Oracle sync defaults (D-58 (3)): no host/credentials by default.
+	v.SetDefault("oracle_sync.host", "")
+	v.SetDefault("oracle_sync.port", 1521)
+	v.SetDefault("oracle_sync.service", "")
+	v.SetDefault("oracle_sync.user", "")
+	v.SetDefault("oracle_sync.password", "")
+
 	// Logger defaults.
 	v.SetDefault("logger.level", "info")
 	v.SetDefault("logger.format", "json")
@@ -219,6 +243,12 @@ func bindEnvVars(v *viper.Viper) {
 		// PII (D-17).
 		{"pii.enc_key", "PAYROLL_PII_KEY"},
 		{"pii.hmac_key", "PAYROLL_PII_HMAC_KEY"},
+		// Oracle sync (D-58 (3)).
+		{"oracle_sync.host", "PAYROLL_SYNC_ORACLE_HOST"},
+		{"oracle_sync.port", "PAYROLL_SYNC_ORACLE_PORT"},
+		{"oracle_sync.service", "PAYROLL_SYNC_ORACLE_SERVICE"},
+		{"oracle_sync.user", "PAYROLL_SYNC_ORACLE_USER"},
+		{"oracle_sync.password", "PAYROLL_SYNC_ORACLE_PASSWORD"},
 		// CORS.
 		{"cors.allowed_origins", "CORS_ALLOWED_ORIGINS"},
 		// Tracing.

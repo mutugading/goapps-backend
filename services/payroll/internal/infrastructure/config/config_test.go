@@ -49,3 +49,31 @@ func TestValidate_PIIKeys(t *testing.T) {
 		})
 	}
 }
+
+func TestOracleSyncConfigured(t *testing.T) {
+	if (OracleSyncConfig{}).Configured() {
+		t.Fatal("empty config must not be Configured")
+	}
+	full := OracleSyncConfig{Host: "h", Port: 1521, Service: "s", User: "u", Password: "p"}
+	if !full.Configured() {
+		t.Fatal("full config must be Configured")
+	}
+	full.Password = ""
+	if full.Configured() {
+		t.Fatal("missing password must not be Configured")
+	}
+}
+
+func TestLoad_OracleSyncEnv(t *testing.T) {
+	t.Setenv("PAYROLL_SYNC_ORACLE_HOST", "10.0.0.1")
+	t.Setenv("PAYROLL_SYNC_ORACLE_SERVICE", "HRIS")
+	t.Setenv("PAYROLL_SYNC_ORACLE_USER", "PAYROLL_SYNC_RO")
+	t.Setenv("PAYROLL_SYNC_ORACLE_PASSWORD", "x")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.OracleSync.Configured() || cfg.OracleSync.Port != 1521 || cfg.OracleSync.User != "PAYROLL_SYNC_RO" {
+		t.Fatalf("unexpected %+v", cfg.OracleSync)
+	}
+}

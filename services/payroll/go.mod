@@ -12,6 +12,7 @@ require (
 	github.com/rs/cors v1.11.1
 	github.com/rs/zerolog v1.32.0
 	github.com/shopspring/decimal v1.4.0
+	github.com/sijms/go-ora/v2 v2.9.0
 	github.com/spf13/viper v1.18.2
 	github.com/testcontainers/testcontainers-go v0.40.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.40.0
