@@ -1,4 +1,4 @@
-// Package main is the payroll sync/ETL entry point (D-01, D-22). Subcommands: migrate, employees, inputs, att, att-legacy, salary-legacy, thr-legacy, att-legacy-fail.
+// Package main is the payroll sync/ETL entry point (D-01, D-22). Subcommands: migrate, employees, inputs, att, snapshot, att-legacy, salary-legacy, thr-legacy, att-legacy-fail.
 package main
 
 import (
@@ -25,6 +25,7 @@ var commands = map[string]func([]string) error{
 	"employees":       employees,
 	"inputs":          inputs,
 	"att":             att,
+	"snapshot":        snapshot,
 	"att-legacy":      attLegacy,
 	"salary-legacy":   salaryLegacy,
 	"thr-legacy":      thrLegacy,
@@ -37,6 +38,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "usage: sync migrate -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-valid-from 202001] [-expect-master 133 -expect-template 762]")
 		fmt.Fprintln(os.Stderr, "       sync employees -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-emp 2860 -expect-compe 117827]  (kunci: PAYROLL_PII_KEY, PAYROLL_PII_HMAC_KEY)")
 		fmt.Fprintln(os.Stderr, "       sync att -dsn <payroll_etl dsn> -yymm 202610 [-company 1] [-division SOLO|JAKARTA] [-source rekap|daily|add|sch|all] [-insert-only] [-dry]  (Oracle: PAYROLL_SYNC_ORACLE_HOST/PORT/SERVICE/USER/PASSWORD; D-58)")
+		fmt.Fprintln(os.Stderr, "       sync snapshot -dsn <payroll_etl dsn> -yymm 202610 [-company 1] [-division SOLO|JAKARTA]  (bekukan staging → pyr_att_snapshot + PREMI/BERAS_FAIL, 05§6–7; sesudah att)")
 		fmt.Fprintln(os.Stderr, "       sync att-legacy -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-rekap 68925 -expect-add 870 -expect-sch 3996]")
 		fmt.Fprintln(os.Stderr, "       sync thr-legacy -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-main 14918 -expect-detail 62246] [-allow-exceptions]  (setelah employees; D-56)")
 		fmt.Fprintln(os.Stderr, "       sync att-legacy-fail -dir <psv dir> -dsn <payroll_etl dsn>  (setelah salary-legacy; isi premi_fail/beras_fail dari DETAIL T40/T74, D-33)")
@@ -413,6 +415,45 @@ func att(args []string) error {
 		if len(r.RejectedNIKs) > 0 {
 			fmt.Println("  DITOLAK (V6) NIK:", strings.Join(r.RejectedNIKs, ","))
 		}
+	}
+	return err
+}
+
+// snapshot freezes the current staging into a new attendance snapshot per division (05§6–7, D-58 (4)(5)).
+func snapshot(args []string) error {
+	fs := flag.NewFlagSet("snapshot", flag.ExitOnError)
+	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl")
+	company := fs.Int("company", 1, "pyr_company.pco_company_id")
+	yymm := fs.Int("yymm", 0, "periode YYYYMM (wajib)")
+	division := fs.String("division", "", "SOLO atau JAKARTA (kosong = keduanya)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *dsn == "" || *yymm == 0 {
+		return fmt.Errorf("-dsn (atau PAYROLL_ETL_DSN) dan -yymm wajib")
+	}
+	if *company < 1 || *company > math.MaxInt16 {
+		return fmt.Errorf("-company %d di luar 1..%d", *company, math.MaxInt16)
+	}
+	db, err := sql.Open("pgx", *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := db.Close(); cerr != nil {
+			fmt.Fprintln(os.Stderr, "close:", cerr)
+		}
+	}()
+	reps, err := etl.RunAttSnapshot(context.Background(), db, etl.AttSnapshotQuery{
+		Company: int16(*company), YYMM: *yymm, Division: *division, //nolint:gosec // -company checked to 1..MaxInt16 above
+	})
+	for _, r := range reps { // counts only (I25)
+		if r.Unchanged {
+			fmt.Printf("%-8s %d unchanged: staging & batch = snapshot %d (tidak dibuat baru) checksum=%s\n", r.Division, r.YYMM, r.SnapshotID, r.Checksum)
+			continue
+		}
+		fmt.Printf("%-8s %d snapshot=%-6d batches=%v rekap=%-5d add=%-4d sch=%-5d premi_fail_nik=%-4d beras_fail_nik=%-4d hari=%d checksum=%s\n",
+			r.Division, r.YYMM, r.SnapshotID, r.BatchIDs, r.Rekap, r.Add, r.Sch, r.PremiFailNIKs, r.BerasFailNIKs, r.PeriodDayCount, r.Checksum)
 	}
 	return err
 }
