@@ -1,4 +1,4 @@
-// Package main is the payroll sync/ETL entry point (D-01, D-22). Subcommands: migrate, employees, inputs, att-legacy, salary-legacy, thr-legacy, att-legacy-fail.
+// Package main is the payroll sync/ETL entry point (D-01, D-22). Subcommands: migrate, employees, inputs, att, att-legacy, salary-legacy, thr-legacy, att-legacy-fail.
 package main
 
 import (
@@ -6,13 +6,17 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // driver
 
+	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/config"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/etl"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/oracle"
 )
 
 // commands maps each subcommand to its handler.
@@ -20,6 +24,7 @@ var commands = map[string]func([]string) error{
 	"migrate":         migrate,
 	"employees":       employees,
 	"inputs":          inputs,
+	"att":             att,
 	"att-legacy":      attLegacy,
 	"salary-legacy":   salaryLegacy,
 	"thr-legacy":      thrLegacy,
@@ -31,6 +36,7 @@ func main() {
 	if len(os.Args) < 2 || commands[os.Args[1]] == nil {
 		fmt.Fprintln(os.Stderr, "usage: sync migrate -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-valid-from 202001] [-expect-master 133 -expect-template 762]")
 		fmt.Fprintln(os.Stderr, "       sync employees -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-emp 2860 -expect-compe 117827]  (kunci: PAYROLL_PII_KEY, PAYROLL_PII_HMAC_KEY)")
+		fmt.Fprintln(os.Stderr, "       sync att -dsn <payroll_etl dsn> -yymm 202610 [-company 1] [-division SOLO|JAKARTA] [-source rekap|daily|add|sch|all] [-insert-only] [-dry]  (Oracle: PAYROLL_SYNC_ORACLE_HOST/PORT/SERVICE/USER/PASSWORD; D-58)")
 		fmt.Fprintln(os.Stderr, "       sync att-legacy -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-rekap 68925 -expect-add 870 -expect-sch 3996]")
 		fmt.Fprintln(os.Stderr, "       sync thr-legacy -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-main 14918 -expect-detail 62246] [-allow-exceptions]  (setelah employees; D-56)")
 		fmt.Fprintln(os.Stderr, "       sync att-legacy-fail -dir <psv dir> -dsn <payroll_etl dsn>  (setelah salary-legacy; isi premi_fail/beras_fail dari DETAIL T40/T74, D-33)")
@@ -346,6 +352,67 @@ func pruneExcluded(args []string) error {
 	}
 	if err == nil {
 		fmt.Printf("%d run LEGACY di luar cakupan: %s\n", len(runs), mode)
+	}
+	return err
+}
+
+// oracleSyncFromEnv reads the HRIS Oracle account (D-58 (3)); the sync binary needs no JWT/PII config.
+func oracleSyncFromEnv() config.OracleSyncConfig {
+	port, err := strconv.Atoi(os.Getenv("PAYROLL_SYNC_ORACLE_PORT"))
+	if err != nil {
+		port = 1521
+	}
+	return config.OracleSyncConfig{Host: os.Getenv("PAYROLL_SYNC_ORACLE_HOST"), Port: port,
+		Service: os.Getenv("PAYROLL_SYNC_ORACLE_SERVICE"), User: os.Getenv("PAYROLL_SYNC_ORACLE_USER"),
+		Password: os.Getenv("PAYROLL_SYNC_ORACLE_PASSWORD")}
+}
+
+// att pulls attendance from HRIS Oracle into payroll_stg (05§4, D-58). Exit non-zero on any failure.
+func att(args []string) error {
+	fs := flag.NewFlagSet("att", flag.ExitOnError)
+	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl")
+	company := fs.Int("company", 1, "pyr_company.pco_company_id")
+	yymm := fs.Int("yymm", 0, "periode YYYYMM (wajib)")
+	division := fs.String("division", "", "SOLO atau JAKARTA (kosong = keduanya)")
+	source := fs.String("source", "all", "rekap|daily|add|sch|all")
+	insertOnly := fs.Bool("insert-only", false, "05§4.1: jangan update/hapus baris staging yang sudah ada (hanya parallel-run)")
+	dry := fs.Bool("dry", false, "tarik dan hitung perubahan, tanpa menulis")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *dsn == "" || *yymm == 0 {
+		return fmt.Errorf("-dsn (atau PAYROLL_ETL_DSN) dan -yymm wajib")
+	}
+	if *company < 1 || *company > math.MaxInt16 {
+		return fmt.Errorf("-company %d di luar 1..%d", *company, math.MaxInt16)
+	}
+	client, err := oracle.NewClient(oracleSyncFromEnv())
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := client.Close(); cerr != nil {
+			fmt.Fprintln(os.Stderr, "close oracle:", cerr)
+		}
+	}()
+	db, err := sql.Open("pgx", *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := db.Close(); cerr != nil {
+			fmt.Fprintln(os.Stderr, "close:", cerr)
+		}
+	}()
+	reps, err := etl.RunAttSync(context.Background(), db, oracle.NewAttSource(client), etl.AttSyncQuery{
+		Company: int16(*company), YYMM: *yymm, Division: *division, Source: *source, InsertOnly: *insertOnly, Dry: *dry, //nolint:gosec // -company checked to 1..MaxInt16 above
+	})
+	for _, r := range reps { // counts and NIK only (I25)
+		fmt.Printf("%-6s %-8s %d batch=%-5d in=%-6d upserted=%-6d deleted=%-5d rejected=%-4d %s checksum=%s\n",
+			r.Source, r.Division, r.YYMM, r.BatchID, r.RowsIn, r.Upserted, r.Deleted, r.Rejected, r.Status, r.Checksum)
+		if len(r.RejectedNIKs) > 0 {
+			fmt.Println("  DITOLAK (V6) NIK:", strings.Join(r.RejectedNIKs, ","))
+		}
 	}
 	return err
 }

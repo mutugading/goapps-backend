@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/rs/zerolog"
 	zlog "github.com/rs/zerolog/log"
@@ -29,6 +30,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/apperr"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/engine"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/audit"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/etl"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/postgres"
 )
 
@@ -92,6 +94,25 @@ func (s *syncBuf) String() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.b.String()
+}
+
+// i25AttReader serves rows that carry employee names (or an error) to the attendance sync.
+type i25AttReader struct {
+	rows []etl.RekapRow
+	err  error
+}
+
+func (r i25AttReader) Rekap(context.Context, int, string) ([]etl.RekapRow, error) {
+	return r.rows, r.err
+}
+func (r i25AttReader) RekapAdd(context.Context, int, string) ([]etl.RekapRow, error) {
+	return r.rows, r.err
+}
+func (r i25AttReader) SchRekap(context.Context, int, string) ([]etl.SchRekapRow, error) {
+	return nil, r.err
+}
+func (r i25AttReader) Daily(context.Context, time.Time, time.Time, string) ([]etl.DailyRow, error) {
+	return nil, r.err
 }
 
 type i25Rules struct{}
@@ -219,6 +240,39 @@ func TestI25_LogsHoldNoNameOrSalary(t *testing.T) {
 	if !strings.Contains(syncOut.String(), "sha256=") {
 		t.Fatalf("sync produced no report line; output: %.300s", syncOut.String())
 	}
+
+	// 1b. `sync att` without Oracle settings must fail clearly (no secret in the message); the use case itself runs
+	// against a reader holding the secret names, with the logger at DEBUG.
+	attCmd := exec.Command(bin, "att", "-dsn", dsn, "-yymm", "202611")
+	attCmd.Env = []string{"PATH=" + os.Getenv("PATH")} // no PAYROLL_SYNC_ORACLE_*
+	attOut, attErr := attCmd.CombinedOutput()
+	if attErr == nil || !strings.Contains(string(attOut), "oracle sync not configured") {
+		t.Fatalf("sync att without oracle config: err=%v out=%s", attErr, attOut)
+	}
+	syncOut.Write(attOut)
+	rk := etl.RekapRow{Yymm: 202611, NIK: "I25-ATT", Nama: i25Name, Division: "SOLO",
+		Nums: map[string]decimal.NullDecimal{"day_work": {Decimal: decimal.RequireFromString("21"), Valid: true}}}
+	bad := etl.RekapRow{Yymm: 202611, NIK: "I25-BAD", Nama: i25RPCName, Division: "BANDUNG"}
+	etlDB, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer etlDB.Close() //nolint:errcheck // test
+	reps, err := etl.RunAttSync(context.Background(), etlDB, i25AttReader{rows: []etl.RekapRow{rk, bad}},
+		etl.AttSyncQuery{Company: 1, YYMM: 202611, Division: "SOLO", Source: etl.AttSrcRekap})
+	if err != nil || len(reps) != 1 || reps[0].Rejected != 1 {
+		t.Fatalf("att sync: %v %+v", err, reps)
+	}
+	_, _ = etl.RunAttSync(context.Background(), etlDB, i25AttReader{err: fmt.Errorf("oracle down")}, //nolint:errcheck // expected failure
+		etl.AttSyncQuery{Company: 1, YYMM: 202611, Division: "SOLO", Source: etl.AttSrcRekap, Attempts: 1})
+	t.Cleanup(func() {
+		for _, q := range []string{`DELETE FROM payroll_stg.pyr_stg_att_rekap_hm WHERE psar_nik='I25-ATT'`,
+			`DELETE FROM payroll_stg.pyr_stg_sync_batch WHERE psb_yymm=202611 AND psb_source LIKE 'MGTHRIS.VIEW_ATT_REKAP_HM'`} {
+			if _, err := ownDB.Exec(q); err != nil {
+				t.Errorf("cleanup: %v", err)
+			}
+		}
+	})
 
 	// 2. Commit run in the service (scoped tx, audit row, loader, persist).
 	i25Seed(t)
