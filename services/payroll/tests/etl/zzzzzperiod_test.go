@@ -233,6 +233,106 @@ func TestPeriodTransitions(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+	t.Run("D-54: blocking warning without NIK still blocks", func(t *testing.T) {
+		if _, err := ownDB.Exec(`UPDATE payroll.pyr_run SET pr_warnings='[{"code":"CALC_ERROR"}]'::jsonb WHERE pr_id=(SELECT pp_active_run_id` + where + `)`); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if _, err := ownDB.Exec(`UPDATE payroll.pyr_run SET pr_warnings='[]'::jsonb WHERE pr_id=(SELECT pp_active_run_id` + where + `)`); err != nil {
+				t.Fatal(err)
+			}
+		}()
+		err := svc.Approve(ctx, cmd)
+		wantCode(t, err, apperr.CodeBusinessRule)
+		var ae *apperr.Error
+		if errors.As(err, &ae) && ae.Details["count"] != "1" {
+			t.Fatalf("detail = %v", ae.Details)
+		}
+	})
+	t.Run("D-54: changed snapshot row after the run refuses approve", func(t *testing.T) {
+		const snapRow = `UPDATE payroll.pyr_att_snapshot_row SET pasr_data = '{"MPAR_DAY_WORK":%d}'::jsonb
+WHERE pasr_snapshot_id = (SELECT pas_snapshot_id FROM payroll.pyr_att_snapshot WHERE pas_checksum='period') AND pasr_nik='C00001'`
+		if _, err := ownDB.Exec(fmt.Sprintf(snapRow, 20)); err != nil {
+			t.Fatal(err)
+		}
+		wantCode(t, svc.Approve(ctx, cmd), apperr.CodeConflict)
+		if _, err := ownDB.Exec(fmt.Sprintf(snapRow, 26)); err != nil {
+			t.Fatal(err)
+		}
+		if got := scalar(t, `SELECT pp_status::text`+where); got != "DRAFT" {
+			t.Fatalf("status = %s", got)
+		}
+	})
+	t.Run("D-54: new tax_adj after a December run refuses approve", func(t *testing.T) {
+		// pyr_tax_adj is read by the loader only for December periods, so this case uses its own period 203312.
+		if _, err := ownDB.Exec(`INSERT INTO payroll.pyr_attd_days (pad_company_id, pad_yymm, pad_division, pad_days) VALUES (1,203312,'SOLO',26);
+			INSERT INTO payroll.pyr_att_snapshot (pas_company_id, pas_yymm, pas_division, pas_source_batch_ids, pas_checksum, pas_locked)
+			VALUES (1,203312,'SOLO','{1}','period-dec2',false);
+			INSERT INTO payroll.pyr_att_snapshot_row (pasr_snapshot_id, pasr_kind, pasr_nik, pasr_data)
+			SELECT s.pas_snapshot_id, 'REKAP', 'C00001', '{"MPAR_DAY_WORK":26}'::jsonb FROM payroll.pyr_att_snapshot s WHERE s.pas_checksum = 'period-dec2'`); err != nil {
+			t.Fatal(err)
+		}
+		// zzztax leaves SOLO employees whose NPWP chain conflicts (Y-C, Y-E); any December SOLO run would fail on
+		// them (13§3.3). Cut their chain for this subtest and restore it afterwards.
+		const chain = `SELECT pe_nik, pe_prev_employee_id FROM payroll.pyr_employee WHERE pe_company_id=1 AND pe_nik IN ('Y-C','Y-E') AND pe_prev_employee_id IS NOT NULL`
+		saved := map[string]int64{}
+		rows, err := ownDB.Query(chain)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for rows.Next() {
+			var nik string
+			var prev int64
+			if err := rows.Scan(&nik, &prev); err != nil {
+				t.Fatal(err)
+			}
+			saved[nik] = prev
+		}
+		if err := rows.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := ownDB.Exec(`UPDATE payroll.pyr_employee SET pe_prev_employee_id=NULL WHERE pe_company_id=1 AND pe_nik IN ('Y-C','Y-E')`); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			for nik, prev := range saved {
+				if _, err := ownDB.Exec(`UPDATE payroll.pyr_employee SET pe_prev_employee_id=$1 WHERE pe_company_id=1 AND pe_nik=$2`, prev, nik); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}()
+		dec := period.Command{CompanyID: 1, Division: "SOLO", YYMM: 203312}
+		if _, err := runs.Commit(ctx, run.CommitCommand{CompanyID: 1, Division: "SOLO", YYMM: 203312, RuleSetID: 1}); err != nil {
+			t.Fatalf("commit periode Desember: %v", err)
+		}
+		if _, err := ownDB.Exec(`INSERT INTO payroll.pyr_tax_adj (pta_company_id, pta_yymm, pta_division, pta_nik, pta_type, pta_amount) VALUES (1,203312,'SOLO','C00001','Tunjangan',5)`); err != nil {
+			t.Fatal(err)
+		}
+		wantCode(t, svc.Approve(ctx, dec), apperr.CodeConflict)
+		if got := scalar(t, `SELECT pp_status::text FROM payroll.pyr_period WHERE pp_yymm=203312 AND pp_division='SOLO'`); got != "DRAFT" {
+			t.Fatalf("status = %s", got)
+		}
+	})
+	t.Run("D-54: ENGINE run without input hash is an internal error", func(t *testing.T) {
+		const act = `(SELECT pp_active_run_id` + where + `)`
+		orig := scalar(t, `SELECT pr_input_hash FROM payroll.pyr_run WHERE pr_id=`+act)
+		if _, err := ownDB.Exec(`UPDATE payroll.pyr_run SET pr_input_hash=NULL WHERE pr_id=` + act); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if _, err := ownDB.Exec(`UPDATE payroll.pyr_run SET pr_input_hash=$1 WHERE pr_id=`+act, orig); err != nil {
+				t.Fatal(err)
+			}
+		}()
+		err := svc.Approve(ctx, cmd)
+		var ae *apperr.Error
+		if err == nil || errors.As(err, &ae) {
+			t.Fatalf("want plain internal error, got %v", err)
+		}
+		if got := scalar(t, `SELECT pp_status::text`+where); got != "DRAFT" {
+			t.Fatalf("status = %s", got)
+		}
+	})
 	t.Run("LEGACY run: reopen refused", func(t *testing.T) {
 		for _, q := range []string{
 			`INSERT INTO payroll.pyr_period (pp_company_id, pp_yymm, pp_division, pp_date_from, pp_date_to, pp_status)
