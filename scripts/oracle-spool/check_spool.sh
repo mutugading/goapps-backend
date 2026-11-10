@@ -8,8 +8,8 @@ chk() { f="$d/$1.psv"; [ -f "$f" ] || { echo "KURANG  $1"; return; }
   st=OK; [ "$n" != "$2" ] && st="BEDA(harap $2)"; [ "$bad" != 0 ] && st="$st KOLOM-RUSAK=$bad"
   echo "$st  $1 baris=$n"; }
 if [ "${2:-}" = thr ]; then  # [T024b] spool THR: check_spool.sh <dir> thr
-  chk MGT_THR_MAIN 14918
-  chk MGT_THR_DETAIL 62246
+  chk MGT_THR_MAIN 14917     # dump 2026-11 diterima user (T024c); spec ±14.918/±62.246 beda, diterima
+  chk MGT_THR_DETAIL 62275
   exit 0
 fi
 chk MGT_PAYROLL_ATT_REKAP 70093

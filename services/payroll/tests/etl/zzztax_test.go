@@ -103,6 +103,77 @@ func seedTax(t *testing.T) {
 			t.Fatalf("%v\n%s", err, q)
 		}
 	}
+	seedTaxThr(t)
+}
+
+// seedTaxThr adds THR/Bonus events of 2031 SOLO (T024c, D-56): THR March and December, Bonus May (of
+// Y-A-OLD, same NPWP as Y-A) CLOSED, Bonus September still DRAFT. Most lines have no component sysid,
+// like the legacy history. Rows go in while the event is DRAFT; the guard then forbids changes.
+func seedTaxThr(t *testing.T) {
+	t.Helper()
+	t.Cleanup(func() { dropTaxThr(t) }) // before the inserts: a failed seed is cleaned up too
+	for _, q := range []string{
+		`INSERT INTO payroll.pyr_thr_event (pte_company_id, pte_division, pte_kind, pte_yymm, pte_event_date, pte_description, created_by)
+		 VALUES (1,'SOLO','THR',203103,'2031-03-10','THR','t'), (1,'SOLO','BONUS',203105,'2031-05-10','Bonus','t'),
+		        (1,'SOLO','THR',203112,'2031-12-10','THR Des','t'), (1,'SOLO','BONUS',203109,'2031-09-10','Bonus draft','t')`,
+		`INSERT INTO payroll.pyr_thr_run (ptr_event_id, ptr_kind, ptr_status)
+		 SELECT pte_id, CASE WHEN pte_yymm = 203109 THEN 'NORMAL' ELSE 'LEGACY' END, 'ACTIVE' FROM payroll.pyr_thr_event
+		 WHERE pte_company_id = 1 AND pte_division = 'SOLO' AND pte_yymm BETWEEN 203101 AND 203112`,
+		`INSERT INTO payroll.pyr_thr_detail (ptd_run_id, ptd_employee_id, ptd_nik, ptd_component_sysid, ptd_type, ptd_id, ptd_amount, ptd_meta)
+		 SELECT r.ptr_id, e.pe_id, v.nik, CASE WHEN v.mapped THEN c.pc_sysid END, v.typ::payroll.comp_type, v.id, v.amt,
+		        CASE WHEN NOT v.mapped THEN '{"legacy_unmapped":true}'::jsonb END
+		 FROM (VALUES
+		   (203103,'Y-A','Tunjangan',1,1000000,true), (203103,'Y-A','Tunjangan',800,50000,false),
+		   (203103,'Y-A','Tunjangan',36,0,false),
+		   (203103,'Y-A','Potongan',1,40000,false), (203103,'Y-A','Potongan',32,10000,false),
+		   (203105,'Y-A-OLD','Tunjangan',1,2000000,false), (203105,'Y-A-OLD','Potongan',1,100000,false),
+		   (203105,'Y-A-OLD','Potongan',3,20000,false), (203105,'Y-A-OLD','Potongan',2,5000,false),
+		   (203112,'Y-A','Tunjangan',1,500000,false), (203112,'Y-A','Potongan',1,25000,false),
+		   (203109,'Y-A','Tunjangan',1,777000,false), (203109,'Y-A','Potongan',1,7000,false)
+		 ) v(yymm,nik,typ,id,amt,mapped)
+		 JOIN payroll.pyr_thr_event ev ON ev.pte_company_id = 1 AND ev.pte_division = 'SOLO' AND ev.pte_yymm = v.yymm
+		 JOIN payroll.pyr_thr_run r ON r.ptr_event_id = ev.pte_id
+		 JOIN payroll.pyr_employee e ON e.pe_company_id = 1 AND e.pe_division = 'SOLO' AND e.pe_nik = v.nik
+		 JOIN payroll.pyr_component c ON c.pc_company_id = 1 AND c.pc_code = 'T075'`,
+		`UPDATE payroll.pyr_thr_event ev SET pte_active_run_id = r.ptr_id,
+		   pte_status = CASE WHEN ev.pte_yymm = 203109 THEN 'DRAFT' ELSE 'CLOSED' END
+		 FROM payroll.pyr_thr_run r WHERE r.ptr_event_id = ev.pte_id AND ev.pte_company_id = 1 AND ev.pte_division = 'SOLO'
+		   AND ev.pte_yymm BETWEEN 203101 AND 203112`,
+	} {
+		if _, err := ownDB.Exec(q); err != nil {
+			t.Fatalf("%v\n%s", err, q)
+		}
+	}
+}
+
+// dropTaxThr removes the 2031 SOLO events of company 1 again (later tests count every THR row of the shared DB). The CLOSED
+// guard is switched off inside one owner transaction only, so other sessions never see it disabled.
+func dropTaxThr(t *testing.T) {
+	t.Helper()
+	tx, err := ownDB.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	for _, q := range []string{
+		`ALTER TABLE payroll.pyr_thr_event DISABLE TRIGGER trg_guard_thr_event`,
+		`ALTER TABLE payroll.pyr_thr_run DISABLE TRIGGER trg_guard_thr_run`,
+		`ALTER TABLE payroll.pyr_thr_detail DISABLE TRIGGER trg_guard_thr_detail`,
+		`UPDATE payroll.pyr_thr_event SET pte_active_run_id = NULL WHERE pte_company_id = 1 AND pte_division = 'SOLO' AND pte_yymm BETWEEN 203101 AND 203112`,
+		`DELETE FROM payroll.pyr_thr_run r USING payroll.pyr_thr_event e
+		 WHERE e.pte_id = r.ptr_event_id AND e.pte_company_id = 1 AND e.pte_division = 'SOLO' AND e.pte_yymm BETWEEN 203101 AND 203112`,
+		`DELETE FROM payroll.pyr_thr_event WHERE pte_company_id = 1 AND pte_division = 'SOLO' AND pte_yymm BETWEEN 203101 AND 203112`,
+		`ALTER TABLE payroll.pyr_thr_event ENABLE TRIGGER trg_guard_thr_event`,
+		`ALTER TABLE payroll.pyr_thr_run ENABLE TRIGGER trg_guard_thr_run`,
+		`ALTER TABLE payroll.pyr_thr_detail ENABLE TRIGGER trg_guard_thr_detail`,
+	} {
+		if _, err := tx.Exec(q); err != nil {
+			t.Fatalf("%v\n%s", err, q)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestRunLoader_TaxInputs(t *testing.T) {
@@ -158,13 +229,17 @@ func TestRunLoader_TaxInputs(t *testing.T) {
 		}
 		a := ins["Y-A"]
 		// Y-A + Y-A-OLD (same NPWP): T1 1.000.000 + 2.000.000 + 2.000.000 − P4 50.000 − P8 10.000;
-		// T73 (company-paid), T75 and the SUPERSEDED run are left out.
-		eq(t, "YTD.Gross", a.YTD.Gross, "4940000")
-		eq(t, "YTD.Deduct", a.YTD.Deduct, "65000")   // P14 + P22 + P18
-		eq(t, "YTD.TaxPaid", a.YTD.TaxPaid, "65000") // P1 20.000 + 30.000 + 30.000 + addition P7 −15.000 (Dec P7 not)
+		// T73 (company-paid), T75 and the SUPERSEDED run are left out. THR/Bonus of CLOSED events before
+		// December (D-56): THR March T1 1.000.000 + T800 50.000, Bonus May (Y-A-OLD) 2.000.000.
+		eq(t, "YTD.Gross", a.YTD.Gross, "7990000")
+		eq(t, "YTD.Deduct", a.YTD.Deduct, "65000") // P14 + P22 + P18
+		// P1 20.000 + 30.000 + 30.000 + addition P7 −15.000 (Dec P7 not) + PPh THR no 1 40.000 + Bonus no 1, 3
+		// 100.000 + 20.000 (THR no 32, Bonus no 2, December and the DRAFT event not).
+		eq(t, "YTD.TaxPaid", a.YTD.TaxPaid, "225000")
 		eq(t, "YTDCompany.Gross", a.YTDCompany.Gross, "5400000")
 		eq(t, "YTDCompany.CompanyPaid", a.YTDCompany.CompanyPaid, "100000")
 		eq(t, "YTDCompany.Deduct", a.YTDCompany.Deduct, "110000") // P4 + P14 + P18
+		eq(t, "YTDCompany.ThrBonus", a.YTDCompany.ThrBonus, "3550000") // 1.050.000 + 2.000.000 + THR Dec 500.000
 		eq(t, "YTDCompany.P5Paid", a.YTDCompany.P5Paid, "7000")
 		eq(t, "TaxAdj.Earn", a.TaxAdj.Earn, "500000")
 		eq(t, "TaxAdj.Deduct", a.TaxAdj.Deduct, "25000")
@@ -172,10 +247,11 @@ func TestRunLoader_TaxInputs(t *testing.T) {
 			t.Errorf("Thr must stay empty until B-THR: %+v", a.Thr)
 		}
 		b := ins["Y-B"] // no NPWP: chain to Y-B-OLD + warning; tax adj of November is not December's
-		eq(t, "Y-B YTD.Gross", b.YTD.Gross, "800000")
+		eq(t, "Y-B YTD.Gross", b.YTD.Gross, "800000") // no THR/Bonus
+		eq(t, "Y-B ThrBonus", b.YTDCompany.ThrBonus, "0")
 		eq(t, "Y-B TaxAdj.Earn", b.TaxAdj.Earn, "0")
 		eq(t, "Y-D YTD.Gross", ins["Y-D"].YTD.Gross, "600000") // NPWP target, predecessor without NPWP joins
-		// every NIK has a recap: only the chain warning and the December THR notice
+		// every NIK has a recap: only the chain warning and the notice of the December THR event
 		if len(warns) != 2 || warns[0].NIK != "Y-B" || warns[0].Code != run.CodeYTDNoNPWP || warns[1].Code != run.CodeThrNotLoaded {
 			t.Errorf("warnings: %+v", warns)
 		}
@@ -190,7 +266,7 @@ func TestRunLoader_TaxInputs(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if a := ins["Y-A"]; !a.YTD.Gross.IsZero() || !a.YTDCompany.Gross.IsZero() {
+		if a := ins["Y-A"]; !a.YTD.Gross.IsZero() || !a.YTD.TaxPaid.IsZero() || !a.YTDCompany.Gross.IsZero() || !a.YTDCompany.ThrBonus.IsZero() || !a.Thr.Gross.IsZero() {
 			t.Errorf("YTD outside December: %+v %+v", a.YTD, a.YTDCompany)
 		}
 	})
