@@ -2,11 +2,9 @@ package mbhead
 
 import (
 	"context"
-	"errors"
 	"strings"
 
-	"github.com/rs/zerolog/log"
-
+	appshade "github.com/mutugading/goapps-backend/services/finance/internal/application/shade"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbhead"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/shade"
 )
@@ -20,42 +18,12 @@ func headShadeCode(entity *mbhead.Entity) string {
 	return entity.ShadeCode()
 }
 
-// ensureShadeMaster auto-creates a MANUAL shade master row (cost_erp_shade) for the
-// recipe's shade code when none exists yet. It runs AFTER the head is persisted and
-// is strictly best-effort: every failure is logged as a warning and swallowed, so a
-// shade-master problem never fails the recipe save. An existing shade (any source)
-// is left untouched. A nil repo disables the hook.
+// ensureShadeMaster is the MB recipe wrapper around the shared best-effort
+// shade.EnsureShadeMaster: it derives the shade code (headShadeCode) and name from
+// the recipe. A nil entity disables the hook.
 func ensureShadeMaster(ctx context.Context, repo shade.Repository, entity *mbhead.Entity, actor string) {
-	if repo == nil || entity == nil {
+	if entity == nil {
 		return
 	}
-	code := shade.NormalizeCode(headShadeCode(entity))
-	if code == "" {
-		return
-	}
-	logger := log.With().Str("mbh_id", entity.ID().String()).Str("shade_code", code).Logger()
-
-	existing, err := repo.GetByCode(ctx, code)
-	if err != nil && !errors.Is(err, shade.ErrNotFound) {
-		logger.Warn().Err(err).Msg("MB recipe save: shade master lookup failed; shade not auto-created")
-		return
-	}
-	if existing != nil {
-		return
-	}
-
-	name := strings.TrimSpace(entity.ShadeName())
-	if name == "" {
-		name = code
-	}
-	s, err := shade.New(shade.NewParams{Code: code, Name: name, CreatedBy: actor})
-	if err != nil {
-		logger.Warn().Err(err).Msg("MB recipe save: shade master auto-create rejected by domain")
-		return
-	}
-	if err := repo.Create(ctx, s); err != nil {
-		logger.Warn().Err(err).Msg("MB recipe save: shade master auto-create failed")
-		return
-	}
-	logger.Info().Msg("MB recipe save: shade master auto-created (MANUAL)")
+	appshade.EnsureShadeMaster(ctx, repo, headShadeCode(entity), entity.ShadeName(), actor)
 }
