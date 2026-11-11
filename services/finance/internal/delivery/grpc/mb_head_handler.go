@@ -532,6 +532,9 @@ func (h *MBHeadHandler) ApproveMBHead(ctx context.Context, req *financev1.Approv
 	entity, err := h.validateHandler.Handle(ctx, appmbhead.ValidateCommand{MbhID: id, ActorUserID: getUserFromContext(ctx)})
 	if err != nil {
 		RecordMBHeadOperation("approve", false)
+		if resp := validateSupersedeErrToBase(err, id); resp != nil {
+			return &financev1.ApproveMBHeadResponse{Base: resp}, nil
+		}
 		if resp := fgErrToBase(err); resp != nil {
 			return &financev1.ApproveMBHeadResponse{Base: resp}, nil
 		}
@@ -559,9 +562,14 @@ func (h *MBHeadHandler) ValidateMBHead(ctx context.Context, req *financev1.Valid
 		return &financev1.ValidateMBHeadResponse{Base: invalidIDResponse("mbh_id")}, nil //nolint:nilerr // BaseResponse pattern: error returned in response body
 	}
 
-	entity, err := h.validateHandler.Handle(ctx, appmbhead.ValidateCommand{MbhID: id, ActorUserID: getUserFromContext(ctx)})
+	entity, err := h.validateHandler.Handle(ctx, appmbhead.ValidateCommand{
+		MbhID: id, ActorUserID: getUserFromContext(ctx), ConfirmSupersede: req.GetConfirmSupersede(),
+	})
 	if err != nil {
 		RecordMBHeadOperation("validate", false)
+		if resp := validateSupersedeErrToBase(err, id); resp != nil {
+			return &financev1.ValidateMBHeadResponse{Base: resp}, nil
+		}
 		if resp := fgErrToBase(err); resp != nil {
 			return &financev1.ValidateMBHeadResponse{Base: resp}, nil
 		}

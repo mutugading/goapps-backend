@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 
@@ -61,6 +62,21 @@ func supersedeErrToBase(err error) *commonv1.BaseResponse {
 	default:
 		return domainErrorToBaseResponse(err)
 	}
+}
+
+// validateSupersedeErrToBase maps mbspin.ErrSupersedeConfirmationRequired raised by
+// Validate / Approve (first Validate of a head whose shade + FG collides with live spins of
+// other recipes) to a 409 telling the client how to proceed; nil for any other error.
+// ApproveMBHead has no confirm field, so the retry always goes through ValidateMBHead
+// (SUBMITTED is a legal Validate origin).
+func validateSupersedeErrToBase(err error, mbhID uuid.UUID) *commonv1.BaseResponse {
+	if !errors.Is(err, mbspin.ErrSupersedeConfirmationRequired) {
+		return nil
+	}
+	return ConflictResponse(fmt.Sprintf(
+		"SUPERSEDE_CONFIRMATION_REQUIRED: a live spin of another recipe has the same shade and FG product. "+
+			"Review GET /api/v1/finance/mb-heads/%s/supersede-preview, then retry "+
+			"POST /api/v1/finance/mb-heads/%s/validate with confirm_supersede=true", mbhID, mbhID))
 }
 
 // supersedePreviewToProto maps the domain preview; counts are clamped to int32.

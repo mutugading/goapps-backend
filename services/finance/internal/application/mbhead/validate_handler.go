@@ -30,6 +30,11 @@ const (
 type ValidateCommand struct {
 	MbhID       uuid.UUID
 	ActorUserID string
+	// ConfirmSupersede (proto ValidateMBHeadRequest.confirm_supersede) lets the first
+	// Validate supersede live spins of other recipes with the same shade + FG. Without it
+	// such a collision fails with mbspin.ErrSupersedeConfirmationRequired (409) and
+	// nothing is written. Bulk Validate and Approve never set it.
+	ConfirmSupersede bool
 }
 
 // ValidateHandler handles the ValidateMBHead command.
@@ -118,9 +123,18 @@ var boughtoutValidateOrigins = map[string]struct{}{
 // underlying state-name transition — this handler adds the origin gate the domain state
 // map alone can't express per recipe kind (design.md §2.1).
 func (h *ValidateHandler) Handle(ctx context.Context, cmd ValidateCommand) (*mbhead.Entity, error) {
+	entity, _, err := h.HandleWithOutcome(ctx, cmd)
+	return entity, err
+}
+
+// HandleWithOutcome is Handle plus the supersede outcome (nil when nothing was superseded).
+// Without cmd.ConfirmSupersede the repository is called exactly as before
+// (TransitionWithAutoGen, which itself refuses a real shade+FG collision with
+// mbspin.ErrSupersedeConfirmationRequired); with it, through TransitionWithAutoGenOpts.
+func (h *ValidateHandler) HandleWithOutcome(ctx context.Context, cmd ValidateCommand) (*mbhead.Entity, *mbhead.SupersedeOutcome, error) {
 	entity, err := h.repo.GetByID(ctx, cmd.MbhID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	origins := ownProductionValidateOrigins
@@ -128,7 +142,7 @@ func (h *ValidateHandler) Handle(ctx context.Context, cmd ValidateCommand) (*mbh
 		origins = boughtoutValidateOrigins
 	}
 	if _, ok := origins[entity.EntryStatus()]; !ok {
-		return nil, mbhead.ErrInvalidTransition
+		return nil, nil, mbhead.ErrInvalidTransition
 	}
 
 	// [G.5] Composition-sum gate: checked BEFORE params are frozen and before the
@@ -136,13 +150,13 @@ func (h *ValidateHandler) Handle(ctx context.Context, cmd ValidateCommand) (*mbh
 	// mst_mb_composition_version nor fed to cost auto-gen.
 	if h.compositionRepo != nil {
 		if err := appmbcomposition.EnforceHeadSum(ctx, h.compositionRepo, cmd.MbhID.String()); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
 	params, err := h.resolveParamSnapshot(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	applyHeadParamOverrides(params, entity)
 
@@ -152,14 +166,24 @@ func (h *ValidateHandler) Handle(ctx context.Context, cmd ValidateCommand) (*mbh
 		params.Packing, params.MBProdPerDay, params.ThroughputPerHour, params.NoOfProcess,
 	)
 	if err := entity.Validate(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	if err := h.repo.TransitionWithAutoGen(ctx, entity.ID(), fromState, entity.EntryStatus(), entity.CurrentVersion(), "", cmd.ActorUserID, params, entity); err != nil {
-		return nil, err
+	outcome, err := h.transition(ctx, cmd, entity, fromState, params)
+	if err != nil {
+		return nil, nil, err
 	}
+	return entity, outcome, nil
+}
 
-	return entity, nil
+// transition persists the validate. The unconfirmed path keeps calling
+// TransitionWithAutoGen so existing callers/mocks see the exact same call.
+func (h *ValidateHandler) transition(ctx context.Context, cmd ValidateCommand, entity *mbhead.Entity, fromState string, params *mbhead.ParamSnapshot) (*mbhead.SupersedeOutcome, error) {
+	if !cmd.ConfirmSupersede {
+		return nil, h.repo.TransitionWithAutoGen(ctx, entity.ID(), fromState, entity.EntryStatus(), entity.CurrentVersion(), "", cmd.ActorUserID, params, entity)
+	}
+	return h.repo.TransitionWithAutoGenOpts(ctx, entity.ID(), fromState, entity.EntryStatus(), entity.CurrentVersion(), "", cmd.ActorUserID, params, entity,
+		mbhead.AutoGenOptions{ConfirmSupersede: true})
 }
 
 // applyHeadParamOverrides lets the head's own per-product values win over the
