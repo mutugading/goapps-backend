@@ -123,6 +123,12 @@ func (h *CostProductMasterHandler) WithShadeMaster(r shadedomain.Repository) {
 	h.updateHandler.WithShadeMaster(r)
 }
 
+// WithErpLinkOnCreate enables the inline POY ERP link on create (D3): duplicate pre-check via
+// linkRepo, atomic product+link insert via creator, ERP_LINK audit via audit (may be nil).
+func (h *CostProductMasterHandler) WithErpLinkOnCreate(linkRepo domain.ErpLinkRepository, creator domain.ErpLinkedCreator, audit app.AuditSink) {
+	h.createHandler.WithErpLink(linkRepo, creator, audit)
+}
+
 // WithMBSourceAutoFill wires the best-effort shade-driven MB source auto-fill into the create
 // and update paths (decision Q3, 2026-10-10).
 func (h *CostProductMasterHandler) WithMBSourceAutoFill(f app.MBSourceAutoFiller) {
@@ -494,8 +500,13 @@ func productMasterErrToBase(err error) *commonv1.BaseResponse {
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
 		return NotFoundResponse(err.Error())
-	case errors.Is(err, domain.ErrAlreadyExists):
+	case errors.Is(err, domain.ErrAlreadyExists), errors.Is(err, domain.ErrLinkDuplicate):
 		return ConflictResponse(err.Error())
+	case errors.Is(err, domain.ErrErpItemRequiresPoy),
+		errors.Is(err, domain.ErrLinkInvalidItemCode), errors.Is(err, domain.ErrLinkInvalidShadeCode),
+		errors.Is(err, domain.ErrLinkNotAxGrade), errors.Is(err, domain.ErrLinkCmbRequiresMB),
+		errors.Is(err, domain.ErrLinkShadeMismatch), errors.Is(err, domain.ErrLinkProductHasNoShade):
+		return ErrorResponse("400", err.Error())
 	case errors.Is(err, domain.ErrInvalidProductName),
 		errors.Is(err, domain.ErrInvalidGradeCode),
 		errors.Is(err, domain.ErrInactive),

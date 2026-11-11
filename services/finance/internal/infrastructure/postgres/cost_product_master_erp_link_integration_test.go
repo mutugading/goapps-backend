@@ -108,6 +108,30 @@ func TestCostProductMasterErpLinkIntegration(t *testing.T) {
 		require.ErrorIs(t, err, cpm.ErrLinkDuplicate)
 	})
 
+	t.Run("CreateWithErpLink is atomic and rejects duplicates", func(t *testing.T) {
+		poy := e.typeID("POY")
+		newP := func(shade string) *cpm.CostProductMaster {
+			p, nerr := cpm.New(cpm.NewInput{ProductTypeID: poy, ProductName: "POY inline", ShadeCode: shade, GradeCode: "AX", ActorUserID: "alice"})
+			require.NoError(t, nerr)
+			return p
+		}
+		dup := newP("X419T")
+		dup.LinkErpItem("POY0000275", "alice", now)
+		require.ErrorIs(t, repo.CreateWithErpLink(ctx, dup), cpm.ErrLinkDuplicate)
+		var n int
+		require.NoError(t, raw.QueryRowContext(ctx, `SELECT COUNT(*) FROM cost_product_master WHERE cpm_product_name='POY inline'`).Scan(&n))
+		assert.Zero(t, n, "failed link must not leave a product behind")
+
+		ok := newP("NEWSHADE")
+		ok.LinkErpItem("POY0009001", "alice", now)
+		require.NoError(t, repo.CreateWithErpLink(ctx, ok))
+		got, gerr := repo.GetBySysID(ctx, ok.ProductSysID())
+		require.NoError(t, gerr)
+		assert.Equal(t, "POY0009001", got.ErpItemCode())
+		assert.Equal(t, "alice", got.ErpLinkedBy())
+		assert.NotNil(t, got.ErpLinkedAt())
+	})
+
 	t.Run("stale and not found", func(t *testing.T) {
 		err := repo.SaveErpLink(ctx, cpm.ErpLinkWrite{ProductSysID: target, PrevItemCode: "OTHER", ShadeKey: "X419T", NewItemCode: "POY1", UpdatedAt: now, UpdatedBy: "x"})
 		require.ErrorIs(t, err, cpm.ErrLinkStale)

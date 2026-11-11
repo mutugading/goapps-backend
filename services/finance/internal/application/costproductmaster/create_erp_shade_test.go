@@ -32,6 +32,17 @@ type updateTrackingRepo struct {
 	createTrackingRepo
 	updated []*domain.CostProductMaster
 	stored  *domain.CostProductMaster
+
+	linkedCreates int
+	linkedErr     error
+}
+
+func (r *updateTrackingRepo) CreateWithErpLink(_ context.Context, _ *domain.CostProductMaster) error {
+	if r.linkedErr != nil {
+		return r.linkedErr
+	}
+	r.linkedCreates++
+	return nil
 }
 
 func (r *updateTrackingRepo) Update(_ context.Context, p *domain.CostProductMaster) error {
@@ -52,10 +63,11 @@ func TestCreateHandler_ErpItemCodeAndShade(t *testing.T) {
 		sh := &spyShadeRepo{}
 		cmd := base
 		cmd.ErpItemCode = " ITM-1 "
-		p, err := app.NewCreateHandler(repo, types).WithShadeMaster(sh).Handle(context.Background(), cmd)
+		p, err := app.NewCreateHandler(repo, types).WithErpLink(&fakeErpLinkRepo{}, repo, nil).WithShadeMaster(sh).Handle(context.Background(), cmd)
 		require.NoError(t, err)
 		assert.Equal(t, "ITM-1", p.ErpItemCode())
-		assert.Len(t, repo.updated, 1)
+		assert.Equal(t, 1, repo.linkedCreates)
+		assert.False(t, repo.createCalled)
 		assert.Equal(t, []string{"MC-1"}, sh.created)
 	})
 
@@ -82,6 +94,37 @@ func TestCreateHandler_ErpItemCodeAndShade(t *testing.T) {
 		cmd.ErpItemCode = "bad\x01code"
 		_, err := app.NewCreateHandler(repo, types).Handle(context.Background(), cmd)
 		require.Error(t, err)
+		assert.False(t, repo.createCalled)
+	})
+
+	t.Run("non-POY product with erp item code is rejected", func(t *testing.T) {
+		repo := &updateTrackingRepo{}
+		cmd := base
+		cmd.ProductTypeID = 3
+		cmd.ErpItemCode = "ITM-1"
+		tt := &fakeTypeRepo{byID: map[int32]string{2: "POY", 3: "YARN"}}
+		_, err := app.NewCreateHandler(repo, tt).WithErpLink(&fakeErpLinkRepo{}, repo, nil).Handle(context.Background(), cmd)
+		require.ErrorIs(t, err, domain.ErrErpItemRequiresPoy)
+		assert.False(t, repo.createCalled)
+		assert.Zero(t, repo.linkedCreates)
+	})
+
+	t.Run("duplicate key is rejected before anything is created", func(t *testing.T) {
+		repo := &updateTrackingRepo{}
+		cmd := base
+		cmd.ErpItemCode = "ITM-1"
+		_, err := app.NewCreateHandler(repo, types).WithErpLink(&fakeErpLinkRepo{dups: []int64{9}}, repo, nil).Handle(context.Background(), cmd)
+		require.ErrorIs(t, err, domain.ErrLinkDuplicate)
+		assert.False(t, repo.createCalled)
+		assert.Zero(t, repo.linkedCreates)
+	})
+
+	t.Run("link failure leaves no plain create behind", func(t *testing.T) {
+		repo := &updateTrackingRepo{linkedErr: domain.ErrLinkDuplicate}
+		cmd := base
+		cmd.ErpItemCode = "ITM-1"
+		_, err := app.NewCreateHandler(repo, types).WithErpLink(&fakeErpLinkRepo{}, repo, nil).Handle(context.Background(), cmd)
+		require.ErrorIs(t, err, domain.ErrLinkDuplicate)
 		assert.False(t, repo.createCalled)
 	})
 }
