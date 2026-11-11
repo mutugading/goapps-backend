@@ -470,6 +470,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	costProductMasterHandler.WithAuditSupport(costAuditLogRepo)
 	costProductMasterHandler.WithRMDenierOverrides(costProductMasterRepo)
 	costProductMasterHandler.WithMBSourceAutoFill(mbSourceAutoFill)
+	costProductMasterHandler.WithShadeMaster(shadeRepo)
 
 	// Build CostDataImportHandler (CAPP/CPP async import + export/template for CAPP/CPP/CPM).
 	cappExportH := cappapp.NewExportHandler(costProductParameterRepo)

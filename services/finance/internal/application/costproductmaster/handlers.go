@@ -6,8 +6,10 @@ import (
 	"errors"
 	"time"
 
+	appshade "github.com/mutugading/goapps-backend/services/finance/internal/application/shade"
 	domain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductmaster"
 	cptdomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproducttype"
+	shadedomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/shade"
 )
 
 // mbLockWindow is the escape-hatch auto-relock window (PRD Phase B §7.4.1).
@@ -28,7 +30,10 @@ type CreateCommand struct {
 	Flex01        string // legacy_erp_compound_key
 	Flex02        string // legacy_oracle_sys_id
 	Flex03        string // legacy_type_label
-	ActorUserID   string
+	// ErpItemCode optionally links the new product to an Orion item code right after
+	// create (D3: minimal POY inline). Empty keeps the legacy behavior.
+	ErpItemCode string
+	ActorUserID string
 }
 
 // CreateHandler creates a new product master.
@@ -36,6 +41,7 @@ type CreateHandler struct {
 	repo     domain.Repository
 	typeRepo cptdomain.Repository
 	autoFill MBSourceAutoFiller
+	shades   shadedomain.Repository
 }
 
 // NewCreateHandler constructs a CreateHandler. typeRepo resolves the requested product
@@ -54,6 +60,13 @@ type MBSourceAutoFiller interface {
 // WithMBSourceAutoFill enables the shade-driven MB source auto-fill after a successful create.
 func (h *CreateHandler) WithMBSourceAutoFill(f MBSourceAutoFiller) *CreateHandler {
 	h.autoFill = f
+	return h
+}
+
+// WithShadeMaster enables best-effort creation of a MANUAL shade master row for the
+// product's shade after a successful create (design §2.7).
+func (h *CreateHandler) WithShadeMaster(r shadedomain.Repository) *CreateHandler {
+	h.shades = r
 	return h
 }
 
@@ -82,6 +95,10 @@ func (h *CreateHandler) Handle(ctx context.Context, cmd CreateCommand) (*domain.
 	if err := h.rejectMBType(ctx, cmd.ProductTypeID); err != nil {
 		return nil, err
 	}
+	erpItem, err := domain.NormalizeErpItemCode(cmd.ErpItemCode)
+	if err != nil {
+		return nil, err
+	}
 	p, err := domain.New(domain.NewInput{
 		ProductTypeID: cmd.ProductTypeID,
 		ProductName:   cmd.ProductName,
@@ -98,6 +115,15 @@ func (h *CreateHandler) Handle(ctx context.Context, cmd CreateCommand) (*domain.
 	}
 	if err := h.repo.Create(ctx, p); err != nil {
 		return nil, err
+	}
+	if erpItem != "" {
+		p.LinkErp(erpItem, "", "", cmd.ActorUserID)
+		if err := h.repo.Update(ctx, p); err != nil {
+			return nil, err
+		}
+	}
+	if cmd.ShadeCode != "" {
+		appshade.EnsureShadeMaster(ctx, h.shades, cmd.ShadeCode, "", cmd.ActorUserID)
 	}
 	if h.autoFill != nil {
 		h.autoFill.BestEffort(ctx, []int64{p.ProductSysID()}, cmd.ActorUserID)
@@ -142,6 +168,14 @@ type UpdateCommand struct {
 type UpdateHandler struct {
 	repo     domain.Repository
 	autoFill MBSourceAutoFiller
+	shades   shadedomain.Repository
+}
+
+// WithShadeMaster enables best-effort creation of a MANUAL shade master row when the
+// product's shade changes (design §2.7).
+func (h *UpdateHandler) WithShadeMaster(r shadedomain.Repository) *UpdateHandler {
+	h.shades = r
+	return h
 }
 
 // NewUpdateHandler constructs an UpdateHandler.
@@ -161,11 +195,15 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*domain.
 	if err != nil {
 		return nil, err
 	}
+	oldShade := domain.NormalizeShadeKey(p.ShadeCode())
 	if err := p.Update(cmd.ProductName, cmd.ShadeCode, cmd.GradeCode, cmd.Description, cmd.Flex01, cmd.Flex02, cmd.Flex03, cmd.ActorUserID); err != nil {
 		return nil, err
 	}
 	if err := h.repo.Update(ctx, p); err != nil {
 		return nil, err
+	}
+	if p.ShadeCode() != "" && domain.NormalizeShadeKey(p.ShadeCode()) != oldShade {
+		appshade.EnsureShadeMaster(ctx, h.shades, p.ShadeCode(), "", cmd.ActorUserID)
 	}
 	if h.autoFill != nil {
 		h.autoFill.BestEffort(ctx, []int64{p.ProductSysID()}, cmd.ActorUserID)

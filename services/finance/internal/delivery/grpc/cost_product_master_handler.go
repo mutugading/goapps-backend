@@ -15,6 +15,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costimportjob"
 	domain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductmaster"
 	cptdomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproducttype"
+	shadedomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/shade"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/rabbitmq"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/storage"
 )
@@ -116,6 +117,12 @@ func NewCostProductMasterHandler(repo domain.Repository, typeRepo cptdomain.Repo
 	}, nil
 }
 
+// WithShadeMaster enables best-effort shade master creation on product create/update.
+func (h *CostProductMasterHandler) WithShadeMaster(r shadedomain.Repository) {
+	h.createHandler.WithShadeMaster(r)
+	h.updateHandler.WithShadeMaster(r)
+}
+
 // WithMBSourceAutoFill wires the best-effort shade-driven MB source auto-fill into the create
 // and update paths (decision Q3, 2026-10-10).
 func (h *CostProductMasterHandler) WithMBSourceAutoFill(f app.MBSourceAutoFiller) {
@@ -169,6 +176,7 @@ func (h *CostProductMasterHandler) CreateCostProductMaster(ctx context.Context, 
 		Flex01:        req.GetFlex_01(),
 		Flex02:        req.GetFlex_02(),
 		Flex03:        req.GetFlex_03(),
+		ErpItemCode:   req.GetErpItemCode(),
 		ActorUserID:   actor,
 	})
 	if err != nil {
