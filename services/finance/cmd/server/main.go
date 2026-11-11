@@ -462,6 +462,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	mbSourceAutoFill := mbsourceautofill.New(
 		postgres.NewMBSourceAutoFillStore(db),
 		mbsource.NewResolver(
+			mbsource.NewMBSpinFgProvider(postgres.NewFgCandidateReader(db), mbSpinRepo, parameterRepo),
 			mbsource.NewMBSpinProvider(mbSpinRepo, parameterRepo),
 			mbsource.NewSuperbaProvider(superbaCostSpRepo),
 		),
