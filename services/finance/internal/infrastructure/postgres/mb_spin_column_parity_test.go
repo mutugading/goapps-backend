@@ -88,6 +88,49 @@ func TestMBSpinInsertColumnParity_CreateSpinOnVsInsertClone(t *testing.T) {
 	}
 }
 
+// mbSpinCloneOnlyColumns documents the columns insertClone writes that createSpinOn
+// deliberately does not (lineage/duplicate bookkeeping and the legacy lesture copy).
+var mbSpinCloneOnlyColumns = map[string]string{
+	"mbs_lesture":        "legacy lesture copied from source spin; plain create has no such input",
+	"mbs_parent_spin_id": "lineage: set to the source spin on duplicate",
+	"mbs_duplicated_at":  "lineage: duplicate timestamp",
+	"mbs_duplicated_by":  "lineage: duplicate actor",
+}
+
+// TestMBSpinInsertColumnParity_FgColumnsOnBothPaths asserts the FG link columns are written by
+// both insert paths and that the reverse direction (clone-only columns) is an allow-list.
+func TestMBSpinInsertColumnParity_FgColumnsOnBothPaths(t *testing.T) {
+	baseline := extractInsertColumns(t, "mb_spin_repository.go", "createSpinOn")
+	clone := extractInsertColumns(t, "mb_spin_duplicate.go", "insertClone")
+	baseSet := make(map[string]bool, len(baseline))
+	for _, c := range baseline {
+		baseSet[c] = true
+	}
+	cloneSet := make(map[string]bool, len(clone))
+	for _, c := range clone {
+		cloneSet[c] = true
+	}
+
+	for _, c := range []string{"mbs_fg_product_id", "mbs_fg_item_code", "mbs_fg_link_source"} {
+		if !baseSet[c] || !cloneSet[c] {
+			t.Errorf("column %s must be written by both createSpinOn (%v) and insertClone (%v)", c, baseSet[c], cloneSet[c])
+		}
+	}
+	for _, c := range []string{"mbs_superseded_by_spin_id", "mbs_superseded_at", "mbs_superseded_by"} {
+		if baseSet[c] || cloneSet[c] {
+			t.Errorf("superseded column %s must not be written by either insert", c)
+		}
+	}
+	for _, c := range clone {
+		if baseSet[c] {
+			continue
+		}
+		if _, ok := mbSpinCloneOnlyColumns[c]; !ok {
+			t.Errorf("insertClone writes %q which createSpinOn does not, and it is not in mbSpinCloneOnlyColumns", c)
+		}
+	}
+}
+
 // insertColumnsRe captures the column list between `INSERT INTO mst_mb_spin (`
 // and the matching `) VALUES` in either source file. Both files contain
 // exactly one such statement, so a single non-greedy match per file is safe.

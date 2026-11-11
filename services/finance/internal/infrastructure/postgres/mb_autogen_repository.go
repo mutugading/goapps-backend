@@ -398,6 +398,14 @@ func mbBuildAutoGenSpin(headID uuid.UUID, entity *mbhead.Entity, orionItemCode *
 	spin.HydrateLustureCode(mbEmptyStringToPtr(entity.LustureCode()))
 	spin.HydrateLineage(mbspin.Lineage{CostProductID: &productSysID})
 
+	// FG (POY) link: the root spin inherits the head's FG with link source RECIPE. A head
+	// without FG leaves the spin FG columns NULL (identical to pre-FG behavior).
+	if entity.FgProductID() != nil {
+		if err := spin.WithFg(entity.FgProductID(), entity.FgItemCode(), mbspin.FgLinkSourceRecipe); err != nil {
+			return nil, fmt.Errorf("mb_autogen: link auto-generated mb spin to FG: %w", err)
+		}
+	}
+
 	return spin, nil
 }
 

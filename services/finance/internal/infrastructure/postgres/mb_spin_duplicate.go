@@ -16,6 +16,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -71,11 +72,8 @@ func (r *MBSpinRepository) DuplicateSpin(ctx context.Context, in mbspin.Duplicat
 	// to store that self-loop, and it must surface as ErrParentCycle so the
 	// caller sees a lineage-integrity failure, not a routine re-duplication
 	// rejection.
-	if src.ParentSpinID.Valid {
-		if parentID := nullableUUIDPtr(src.ParentSpinID); parentID != nil && *parentID == in.SourceSpinID {
-			return mbspin.DuplicateOutput{}, mbspin.ErrParentCycle
-		}
-		return mbspin.DuplicateOutput{}, mbspin.ErrAlreadyDuplicated
+	if err := rejectClonedSource(src, in.SourceSpinID); err != nil {
+		return mbspin.DuplicateOutput{}, err
 	}
 
 	depth, err := mbspin.AssertNoParentCycle(in.SourceSpinID, r.txParentLookup(ctx, tx))
@@ -88,7 +86,12 @@ func (r *MBSpinRepository) DuplicateSpin(ctx context.Context, in mbspin.Duplicat
 		return mbspin.DuplicateOutput{}, err
 	}
 
-	newID, err := r.insertClone(ctx, tx, src, in, name)
+	fg, err := r.prepareCloneFg(ctx, tx, src, in)
+	if err != nil {
+		return mbspin.DuplicateOutput{}, err
+	}
+
+	newID, err := r.insertClone(ctx, tx, src, in, name, fg)
 	if err != nil {
 		return mbspin.DuplicateOutput{}, err
 	}
@@ -105,6 +108,62 @@ func (r *MBSpinRepository) DuplicateSpin(ctx context.Context, in mbspin.Duplicat
 		MgtName:      name,
 		LineageDepth: depth,
 	}, nil
+}
+
+// rejectClonedSource rejects a source that already has a parent (see DuplicateSpin comment):
+// self-loop => ErrParentCycle, otherwise ErrAlreadyDuplicated.
+func rejectClonedSource(src *mbSpinCloneSource, sourceID uuid.UUID) error {
+	if !src.ParentSpinID.Valid {
+		return nil
+	}
+	if parentID := nullableUUIDPtr(src.ParentSpinID); parentID != nil && *parentID == sourceID {
+		return mbspin.ErrParentCycle
+	}
+	return mbspin.ErrAlreadyDuplicated
+}
+
+// cloneFg is the validated FG link written by insertClone. A zero cloneFg (productID == 0) writes NULL for
+// mbs_fg_product_id / mbs_fg_item_code / mbs_fg_link_source.
+type cloneFg struct {
+	productID int64
+	itemCode  *string
+}
+
+// prepareCloneFg enforces design §2.1 for a duplicate with in.FgProductID set, inside the
+// duplicate tx: the product must be an active POY (ErrFgNotPoy), its shade must equal the
+// SOURCE spin's shade (ErrFgShadeMismatch; an empty POY shade is filled with it). Returns nil
+// when no FG was requested.
+func (r *MBSpinRepository) prepareCloneFg(
+	ctx context.Context, tx *sql.Tx, src *mbSpinCloneSource, in mbspin.DuplicateInput,
+) (cloneFg, error) {
+	if in.FgProductID == nil || *in.FgProductID == 0 {
+		return cloneFg{}, nil
+	}
+	poy, err := getFgProductOn(ctx, tx, *in.FgProductID)
+	if err != nil {
+		return cloneFg{}, err
+	}
+	if poy.TypeCode != "POY" || !poy.IsActive {
+		return cloneFg{}, mbspin.ErrFgNotPoy
+	}
+	poyShade := ""
+	if poy.ShadeCode != nil {
+		poyShade = *poy.ShadeCode
+	}
+	fill, err := mbspin.CheckFgShade(src.ShadeCode.String, poyShade)
+	if err != nil {
+		return cloneFg{}, err
+	}
+	if fill && strings.TrimSpace(src.ShadeCode.String) != "" {
+		if _, err := fillEmptyFgShadeOn(ctx, tx, poy.ID, strings.TrimSpace(src.ShadeCode.String), in.ActorUserID); err != nil {
+			return cloneFg{}, err
+		}
+	}
+	item := poy.ErpItemCode
+	if item != nil && strings.TrimSpace(*item) == "" {
+		item = nil
+	}
+	return cloneFg{productID: poy.ID, itemCode: item}, nil
 }
 
 // ListChildren returns the direct recalc CANDIDATES of a parent spin (A6).
@@ -285,13 +344,18 @@ func (r *MBSpinRepository) txParentLookup(ctx context.Context, tx *sql.Tx) mbspi
 //	                                                              to CALCULATED on the clone (D32=A)
 //	mbs_ldr_is_actual                                         => ALWAYS FALSE, regardless of
 //	                                                              source (D32=A)
+//	mbs_fg_product_id / mbs_fg_item_code / mbs_fg_link_source => the chosen FG + item-code
+//	                                                              snapshot + 'DUPLICATE' when
+//	                                                              DuplicateInput.FgProductID is
+//	                                                              set, else NULL x3 (source FG
+//	                                                              is never copied)
 //
 // ⚠ The two FALSE literals for mbs_ldr_is_fixed / mbs_dozing_is_fixed are
 // MANDATORY and must never become NULL: NULL is interpreted as "fixed"
 // (mbspin.IsFixedLDR / IsFixedDozing), so a NULL clone would be silently and
 // permanently excluded from every future recalc.
 func (r *MBSpinRepository) insertClone(
-	ctx context.Context, tx *sql.Tx, src *mbSpinCloneSource, in mbspin.DuplicateInput, name string,
+	ctx context.Context, tx *sql.Tx, src *mbSpinCloneSource, in mbspin.DuplicateInput, name string, fg cloneFg,
 ) (uuid.UUID, error) {
 	denier := src.Denier
 	if in.Denier != nil {
@@ -310,6 +374,18 @@ func (r *MBSpinRepository) insertClone(
 		ldrType = mbspin.LDRTypeCalculated
 	}
 
+	// FG link: only when the caller chose one (validated by prepareCloneFg). The source's own
+	// FG is NEVER copied — it would immediately violate uix_mbs_shade_fg_live (same shade+FG).
+	var fgID sql.NullInt64
+	var fgItem, fgSource sql.NullString
+	if fg.productID != 0 {
+		fgID = sql.NullInt64{Int64: fg.productID, Valid: true}
+		if fg.itemCode != nil {
+			fgItem = sql.NullString{String: *fg.itemCode, Valid: true}
+		}
+		fgSource = sql.NullString{String: mbspin.FgLinkSourceDuplicate, Valid: true}
+	}
+
 	newID := uuid.New()
 	now := time.Now()
 	_, err := tx.ExecContext(ctx, `
@@ -325,6 +401,7 @@ func (r *MBSpinRepository) insertClone(
 			mbs_ldr_calculated_pct, mbs_ldr_adjustment_pct, mbs_ldr_type, mbs_ldr_is_actual,
 			mbs_parent_spin_id, mbs_duplicated_at, mbs_duplicated_by,
 			mbs_cost_product_id,
+			mbs_fg_product_id, mbs_fg_item_code, mbs_fg_link_source,
 			mbs_is_active, created_at, created_by
 		) VALUES (
 			$1, $2, $3,
@@ -338,7 +415,8 @@ func (r *MBSpinRepository) insertClone(
 			$20, $21, $22, FALSE,
 			$23, $24, $25,
 			$26,
-			TRUE, $27, $25
+			$27, $28, $29,
+			TRUE, $30, $25
 		)`,
 		newID, src.HeadID, name,
 		src.MBCosting,
@@ -350,11 +428,12 @@ func (r *MBSpinRepository) insertClone(
 		src.LDRCalculatedPct, src.LDRAdjustmentPct, ldrType,
 		in.SourceSpinID, now, in.ActorUserID,
 		src.CostProductID,
+		fgID, fgItem, fgSource,
 		now,
 	)
 	if err != nil {
-		if isMBSpinUniqueViolation(err) {
-			return uuid.Nil, mbspin.ErrAlreadyExists
+		if mapped := mapMBSpinUniqueErr(err); mapped != nil {
+			return uuid.Nil, mapped
 		}
 		return uuid.Nil, fmt.Errorf("insert cloned mb spin: %w", err)
 	}

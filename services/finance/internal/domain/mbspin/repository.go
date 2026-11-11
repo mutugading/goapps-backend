@@ -158,7 +158,11 @@ type DuplicateInput struct {
 	// ActorUserID lands in created_by and mbs_duplicated_by.
 	ActorUserID string
 	// FgProductID optionally links the clone to an FG (POY) product. nil => no
-	// FG link (legacy behavior). Validation (POY, shade) is the caller's job.
+	// FG link (legacy behavior). The source spin's own FG is NEVER copied onto the
+	// clone: same shade + same FG would immediately violate uix_mbs_shade_fg_live,
+	// so an unset FgProductID yields NULL/NULL/NULL. When set, DuplicateSpin validates
+	// POY-ness and shade (vs the SOURCE spin) in the same tx (ErrFgNotPoy,
+	// ErrFgShadeMismatch) and maps a unique violation to ErrSpinShadeFgExists.
 	FgProductID *int64
 }
 

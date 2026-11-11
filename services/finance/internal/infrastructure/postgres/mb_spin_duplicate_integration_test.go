@@ -365,3 +365,80 @@ func (s *MBSpinDuplicateSuite) TestExistsByOrionItemCode() {
 	require.NoError(s.T(), err)
 	require.Nil(s.T(), clone.OrionItemCode())
 }
+
+// newPoy inserts an active POY cost product (cleaned up by cleanupFgPoys).
+func (s *MBSpinDuplicateSuite) newPoy(code string, shade, erp *string) int64 {
+	var id int64
+	require.NoError(s.T(), s.db.QueryRowContext(s.ctx, `
+		INSERT INTO cost_product_master (cpm_product_code, cpm_product_type_id, cpm_product_name, cpm_shade_code, cpm_erp_item_code, cpm_is_active, cpm_created_by, cpm_updated_by)
+		VALUES ($1, (SELECT cpt_type_id FROM cost_product_type WHERE cpt_type_code = 'POY'), $2, $3, $4, TRUE, 'itest', 'itest')
+		RETURNING cpm_product_sys_id`,
+		mbSpinDupPrefix+code, "POY "+code, shade, erp).Scan(&id))
+	s.T().Cleanup(func() {
+		s.cleanup()
+		_, _ = s.db.ExecContext(s.ctx, `DELETE FROM cost_product_master WHERE cpm_product_code LIKE 'ITEST-MBSPINDUP-%'`)
+	})
+	return id
+}
+
+func (s *MBSpinDuplicateSuite) setShade(id uuid.UUID, shade string) {
+	_, err := s.db.ExecContext(s.ctx, `UPDATE mst_mb_spin SET mbs_shade_code = $1 WHERE mbs_id = $2`, shade, id)
+	require.NoError(s.T(), err)
+}
+
+func (s *MBSpinDuplicateSuite) fgColumns(id uuid.UUID) (fg sql.NullInt64, item, src sql.NullString) {
+	require.NoError(s.T(), s.db.QueryRowContext(s.ctx,
+		`SELECT mbs_fg_product_id, mbs_fg_item_code, mbs_fg_link_source FROM mst_mb_spin WHERE mbs_id = $1`, id).Scan(&fg, &item, &src))
+	return fg, item, src
+}
+
+func (s *MBSpinDuplicateSuite) TestDuplicateSpin_WithFg_WritesDuplicateLink() {
+	src := s.insertSource("Spinning")
+	s.setShade(src, "ITEST-SH1")
+	erp := "ERP-FG-1"
+	poy := s.newPoy("P1", nil, &erp) // empty POY shade is filled from the source shade
+
+	out, err := s.repo.DuplicateSpin(s.ctx, mbspin.DuplicateInput{SourceSpinID: src, ActorUserID: "itest-actor", FgProductID: &poy})
+	require.NoError(s.T(), err)
+
+	fg, item, link := s.fgColumns(out.NewSpinID)
+	require.Equal(s.T(), poy, fg.Int64)
+	require.Equal(s.T(), "ERP-FG-1", item.String)
+	require.Equal(s.T(), mbspin.FgLinkSourceDuplicate, link.String)
+
+	var shade sql.NullString
+	require.NoError(s.T(), s.db.QueryRowContext(s.ctx, `SELECT cpm_shade_code FROM cost_product_master WHERE cpm_product_sys_id = $1`, poy).Scan(&shade))
+	require.Equal(s.T(), "ITEST-SH1", shade.String)
+}
+
+func (s *MBSpinDuplicateSuite) TestDuplicateSpin_WithoutFg_LeavesFgNull() {
+	src := s.insertSource("Spinning")
+	out, err := s.repo.DuplicateSpin(s.ctx, mbspin.DuplicateInput{SourceSpinID: src, ActorUserID: "itest-actor"})
+	require.NoError(s.T(), err)
+	fg, item, link := s.fgColumns(out.NewSpinID)
+	require.False(s.T(), fg.Valid)
+	require.False(s.T(), item.Valid)
+	require.False(s.T(), link.Valid)
+}
+
+func (s *MBSpinDuplicateSuite) TestDuplicateSpin_FgRules() {
+	src := s.insertSource("Spinning")
+	s.setShade(src, "ITEST-SH1")
+
+	other := "ITEST-OTHER"
+	mismatch := s.newPoy("X", &other, nil)
+	_, err := s.repo.DuplicateSpin(s.ctx, mbspin.DuplicateInput{SourceSpinID: src, ActorUserID: "a", FgProductID: &mismatch})
+	require.ErrorIs(s.T(), err, mbspin.ErrFgShadeMismatch)
+
+	missing := int64(-1)
+	_, err = s.repo.DuplicateSpin(s.ctx, mbspin.DuplicateInput{SourceSpinID: src, ActorUserID: "a", FgProductID: &missing})
+	require.ErrorIs(s.T(), err, mbspin.ErrFgNotPoy)
+
+	// Second live spin with same shade + FG => ErrSpinShadeFgExists.
+	same := "itest-sh1"
+	poy := s.newPoy("OK", &same, nil)
+	_, err = s.repo.DuplicateSpin(s.ctx, mbspin.DuplicateInput{SourceSpinID: src, ActorUserID: "a", FgProductID: &poy})
+	require.NoError(s.T(), err)
+	_, err = s.repo.DuplicateSpin(s.ctx, mbspin.DuplicateInput{SourceSpinID: src, ActorUserID: "a", FgProductID: &poy})
+	require.ErrorIs(s.T(), err, mbspin.ErrSpinShadeFgExists)
+}

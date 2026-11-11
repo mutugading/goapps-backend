@@ -49,8 +49,9 @@ func createSpinOn(ctx context.Context, q rowQuerier, entity *mbspin.Entity) erro
 			mbs_shade_code, mbs_shade_name, mbs_cross_section,
 			mbs_ldr_type, mbs_ldr_calculated_pct, mbs_ldr_adjustment_pct, mbs_ldr_is_actual,
 			mbs_vs_number, mbs_lusture_code, mbs_cost_product_id,
+			mbs_fg_product_id, mbs_fg_item_code, mbs_fg_link_source,
 			mbs_is_active, created_at, created_by
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33)
 	`,
 		entity.ID(),
 		entity.OracleSysID(),
@@ -79,13 +80,16 @@ func createSpinOn(ctx context.Context, q rowQuerier, entity *mbspin.Entity) erro
 		entity.VSNumber(),
 		entity.LustureCode(),
 		entity.CostProductID(),
+		entity.FgProductID(),
+		entity.FgItemCode(),
+		entity.FgLinkSource(),
 		entity.IsActive(),
 		entity.CreatedAt(),
 		entity.CreatedBy(),
 	)
 	if err != nil {
-		if isMBSpinUniqueViolation(err) {
-			return mbspin.ErrAlreadyExists
+		if mapped := mapMBSpinUniqueErr(err); mapped != nil {
+			return mapped
 		}
 		return fmt.Errorf("create mb spin: %w", err)
 	}
