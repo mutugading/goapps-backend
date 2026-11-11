@@ -37,6 +37,10 @@ const (
 	FillGroupSPCode = "MB_SP_CODE"
 	// FilledBy marks values written by the auto-fill, so a future "re-resolve" can find them.
 	FilledBy = "auto_mb_source"
+	// FilledBySupersede marks MB_SP_CODE group values force-written by a confirmed spin
+	// supersede (mb-spin-fg-poy-link P3). The previous cpp_filled_by is kept in
+	// mst_mb_spin_supersede_item.mssi_old_filled_by so un-supersede can restore it.
+	FilledBySupersede = "supersede"
 )
 
 // ChildValue is the value of one fill-group child parameter (exactly one field is set).

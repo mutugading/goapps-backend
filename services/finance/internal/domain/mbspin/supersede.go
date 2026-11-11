@@ -20,6 +20,9 @@ const (
 	// SupersedeRepointTextOnly is a row with a NULL pointer whose text equals the old spin's
 	// ORION code (Revisi 2) — repointed only while that code is unique to the old spin.
 	SupersedeRepointTextOnly = "TEXT_ONLY"
+	// SupersedeRepointChild is a fill-group child row (MB_SP_DYE, ...) of a repointed
+	// MB_SP_CODE row, overwritten from the new spin (audit only, not a preview kind).
+	SupersedeRepointChild = "CHILD"
 )
 
 // SupersedeFilledByCount is the number of repointable MB_SP_CODE rows per cpp_filled_by.
