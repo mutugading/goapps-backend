@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 
 	appmbcomposition "github.com/mutugading/goapps-backend/services/finance/internal/application/mbcomposition"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbcomposition"
@@ -44,6 +45,37 @@ type ValidateHandler struct {
 	// compositionRepo backs the [G.5] composition-sum gate. OPTIONAL: nil skips the
 	// gate, keeping existing construction sites working unchanged.
 	compositionRepo mbcomposition.Repository
+	// lookupSync is the after-commit lookup-sync port; nil disables it.
+	lookupSync LookupSyncTrigger
+}
+
+// WithLookupSyncTrigger attaches the after-commit lookup-sync port used to refresh
+// yarn products repointed by a supersede (best-effort). nil disables it.
+func (h *ValidateHandler) WithLookupSyncTrigger(t LookupSyncTrigger) *ValidateHandler {
+	h.lookupSync = t
+	return h
+}
+
+// triggerSupersedeSync queues, AFTER commit and detached from the request, a lookup sync
+// for the NEW spin. The supersede repoint already moved every affected product's
+// MB_SP_CODE pointer (and text) onto S_new, and the sync scope for a spin key is "products
+// referencing that spin", so S_new alone reaches every repointed product; old spins no
+// longer have referrers. Best-effort: failures are only logged.
+func (h *ValidateHandler) triggerSupersedeSync(ctx context.Context, outcome *mbhead.SupersedeOutcome, actor string) {
+	if h.lookupSync == nil || outcome == nil || outcome.NewSpinID == uuid.Nil || len(outcome.AffectedProductIDs) == 0 {
+		return
+	}
+	trigger := h.lookupSync
+	newSpin := outcome.NewSpinID
+	logger := log.With().Str("mbs_id", newSpin.String()).Str("batch_id", outcome.BatchID.String()).Logger()
+	bg := context.WithoutCancel(ctx)
+	go func() {
+		bgCtx, cancel := context.WithTimeout(bg, lookupSyncTriggerTimeout)
+		defer cancel()
+		if err := trigger.TriggerSpinSync(bgCtx, newSpin, actor); err != nil {
+			logger.Warn().Err(err).Msg("MB supersede: lookup sync for new spin not queued")
+		}
+	}()
 }
 
 // NewValidateHandler creates a ValidateHandler without the [G.5] composition-sum
@@ -173,6 +205,7 @@ func (h *ValidateHandler) HandleWithOutcome(ctx context.Context, cmd ValidateCom
 	if err != nil {
 		return nil, nil, err
 	}
+	h.triggerSupersedeSync(ctx, outcome, cmd.ActorUserID)
 	return entity, outcome, nil
 }
 

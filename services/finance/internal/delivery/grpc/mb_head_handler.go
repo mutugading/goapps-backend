@@ -160,6 +160,7 @@ func (h *MBHeadHandler) WithFgReader(r mbspin.FgProductReader) *MBHeadHandler {
 // handler for chaining.
 func (h *MBHeadHandler) WithLookupSyncTrigger(t appmbhead.LookupSyncTrigger) *MBHeadHandler {
 	h.updateHandler.WithLookupSyncTrigger(t)
+	h.validateHandler.WithLookupSyncTrigger(t)
 	return h
 }
 

@@ -2,7 +2,9 @@ package mbhead_test
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -81,4 +83,48 @@ func TestValidateHandler_Handle_ConfirmErrorRollsUp(t *testing.T) {
 
 	require.ErrorIs(t, err, mbspin.ErrSpinShadeFgExists)
 	assert.Nil(t, got)
+}
+
+func runValidateWithTrigger(t *testing.T, outcome *mbheaddomain.SupersedeOutcome, trigger *fakeLookupSyncTrigger) error {
+	t.Helper()
+	mockRepo := new(MockRepository)
+	mockParams := new(MockParamRepository)
+	ctx := context.Background()
+	entity := approvedHeadWithParams("", "", nil)
+
+	mockRepo.On("GetByID", ctx, entity.ID()).Return(entity, nil)
+	mockParams.On("ListActive", ctx).Return(activeParamMasters(t), nil)
+	mockRepo.On("TransitionWithAutoGenOpts", ctx, entity.ID(), mbheaddomain.StatusApproved, mbheaddomain.StatusValidated,
+		mock.Anything, "", "tester", mock.Anything, mock.Anything, mock.Anything).Return(outcome, nil)
+	mockRepo.On("TransitionWithAutoGen", ctx, entity.ID(), mbheaddomain.StatusApproved, mbheaddomain.StatusValidated,
+		mock.Anything, "", "tester", mock.Anything, mock.Anything).Return(nil)
+
+	_, _, err := mbhead.NewValidateHandler(mockRepo, mockParams).WithLookupSyncTrigger(trigger).HandleWithOutcome(ctx,
+		mbhead.ValidateCommand{MbhID: entity.ID(), ActorUserID: "tester", ConfirmSupersede: outcome != nil})
+	return err
+}
+
+func TestValidateHandler_Supersede_TriggersNewSpinSync(t *testing.T) {
+	trigger := &fakeLookupSyncTrigger{}
+	out := &mbheaddomain.SupersedeOutcome{BatchID: uuid.New(), NewSpinID: uuid.New(), AffectedProductIDs: []int64{7}}
+
+	require.NoError(t, runValidateWithTrigger(t, out, trigger))
+	require.Eventually(t, func() bool { return len(trigger.calls()) == 1 }, 2*time.Second, 10*time.Millisecond)
+	assert.Equal(t, out.NewSpinID, trigger.calls()[0])
+}
+
+func TestValidateHandler_NoSupersede_DoesNotTrigger(t *testing.T) {
+	trigger := &fakeLookupSyncTrigger{}
+
+	require.NoError(t, runValidateWithTrigger(t, nil, trigger))
+	time.Sleep(50 * time.Millisecond)
+	assert.Empty(t, trigger.calls())
+}
+
+func TestValidateHandler_Supersede_TriggerErrorDoesNotFail(t *testing.T) {
+	trigger := &fakeLookupSyncTrigger{spinErr: errors.New("publisher down")}
+	out := &mbheaddomain.SupersedeOutcome{NewSpinID: uuid.New(), AffectedProductIDs: []int64{7}}
+
+	require.NoError(t, runValidateWithTrigger(t, out, trigger))
+	require.Eventually(t, func() bool { return len(trigger.calls()) == 1 }, 2*time.Second, 10*time.Millisecond)
 }
