@@ -179,7 +179,8 @@ func (s *MBAutoGenSpinSuite) TestAutoGenSpin_FullyPopulatedHead_PersistsDerivedF
 
 	productSysID := s.seedCostProductMaster()
 	err = s.db.Transaction(s.ctx, func(tx *sql.Tx) error {
-		return mbAutoGenSpin(s.ctx, tx, s.mbhID, entity, productSysID, "itest")
+		_, err := mbAutoGenSpinOpts(s.ctx, tx, s.mbhID, entity, productSysID, "itest", mbhead.AutoGenOptions{})
+		return err
 	})
 	require.NoError(s.T(), err)
 
@@ -232,7 +233,8 @@ func (s *MBAutoGenSpinSuite) TestAutoGenSpin_InheritsHeadOrionItemCode() {
 
 	productSysID := s.seedCostProductMaster()
 	require.NoError(s.T(), s.db.Transaction(s.ctx, func(tx *sql.Tx) error {
-		return mbAutoGenSpin(s.ctx, tx, s.mbhID, entity, productSysID, "itest")
+		_, err := mbAutoGenSpinOpts(s.ctx, tx, s.mbhID, entity, productSysID, "itest", mbhead.AutoGenOptions{})
+		return err
 	}))
 
 	var orion sql.NullString
@@ -264,7 +266,8 @@ func (s *MBAutoGenSpinSuite) TestAutoGenSpin_TakenOrionItemCode_LeftNil() {
 	require.NoError(s.T(), err)
 	productSysID := s.seedCostProductMaster()
 	require.NoError(s.T(), s.db.Transaction(s.ctx, func(tx *sql.Tx) error {
-		return mbAutoGenSpin(s.ctx, tx, s.mbhID, entity, productSysID, "itest")
+		_, err := mbAutoGenSpinOpts(s.ctx, tx, s.mbhID, entity, productSysID, "itest", mbhead.AutoGenOptions{})
+		return err
 	}))
 
 	var orion sql.NullString
@@ -286,7 +289,8 @@ func (s *MBAutoGenSpinSuite) seedPoy(erp string) int64 {
 func (s *MBAutoGenSpinSuite) autoGen(entity *mbhead.Entity) error {
 	productSysID := s.seedCostProductMaster()
 	return s.db.Transaction(s.ctx, func(tx *sql.Tx) error {
-		return mbAutoGenSpin(s.ctx, tx, s.mbhID, entity, productSysID, "itest")
+		_, err := mbAutoGenSpinOpts(s.ctx, tx, s.mbhID, entity, productSysID, "itest", mbhead.AutoGenOptions{})
+		return err
 	})
 }
 

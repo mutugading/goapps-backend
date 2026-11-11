@@ -49,6 +49,7 @@ type approveFakeRepo struct {
 	lastTo       string
 	lastVersion  int32
 	lastParams   *mbhead.ParamSnapshot
+	lastOpts     mbhead.AutoGenOptions
 
 	// plainTransitionCalls counts calls to Transition (the NON-auto-gen path that
 	// ApproveHandler used to take). Under Opsi A it must stay at zero: an approval that
@@ -105,6 +106,14 @@ func (f *approveFakeRepo) TransitionWithAutoGen(
 	f.autoGenCalls++
 	f.lastFrom, f.lastTo, f.lastVersion, f.lastParams = fromState, toState, currentVersion, params
 	return f.autoGenErr
+}
+
+func (f *approveFakeRepo) TransitionWithAutoGenOpts(
+	ctx context.Context, id uuid.UUID, fromState, toState string, currentVersion int32,
+	stateReason, actor string, params *mbhead.ParamSnapshot, e *mbhead.Entity, opts mbhead.AutoGenOptions,
+) (*mbhead.SupersedeOutcome, error) {
+	f.lastOpts = opts
+	return nil, f.TransitionWithAutoGen(ctx, id, fromState, toState, currentVersion, stateReason, actor, params, e)
 }
 
 func (f *approveFakeRepo) ListShades(_ context.Context, _ uuid.UUID) ([]mbhead.Shade, error) {

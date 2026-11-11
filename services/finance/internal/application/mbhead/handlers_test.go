@@ -91,6 +91,15 @@ func (m *MockRepository) TransitionWithAutoGen(ctx context.Context, id uuid.UUID
 	return args.Error(0)
 }
 
+func (m *MockRepository) TransitionWithAutoGenOpts(ctx context.Context, id uuid.UUID, fromState, toState string, currentVersion int32, stateReason, actorUserID string, params *mbheaddomain.ParamSnapshot, entity *mbheaddomain.Entity, opts mbheaddomain.AutoGenOptions) (*mbheaddomain.SupersedeOutcome, error) {
+	args := m.Called(ctx, id, fromState, toState, currentVersion, stateReason, actorUserID, params, entity, opts)
+	var out *mbheaddomain.SupersedeOutcome
+	if v := args.Get(0); v != nil {
+		out = v.(*mbheaddomain.SupersedeOutcome)
+	}
+	return out, args.Error(1)
+}
+
 func (m *MockRepository) ListShades(ctx context.Context, mbhID uuid.UUID) ([]mbheaddomain.Shade, error) {
 	args := m.Called(ctx, mbhID)
 	if args.Get(0) == nil {

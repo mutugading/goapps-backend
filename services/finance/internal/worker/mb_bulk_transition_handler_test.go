@@ -106,6 +106,11 @@ func (f *fakeWorkerMBHeadRepo) TransitionWithAutoGen(_ context.Context, _ uuid.U
 	return f.transitionWithAutoGenErr
 }
 
+func (f *fakeWorkerMBHeadRepo) TransitionWithAutoGenOpts(_ context.Context, _ uuid.UUID, _, _ string, _ int32, _, _ string, _ *mbheaddomain.ParamSnapshot, _ *mbheaddomain.Entity, _ mbheaddomain.AutoGenOptions) (*mbheaddomain.SupersedeOutcome, error) {
+	f.transitionWithAutoGenCalls++
+	return nil, f.transitionWithAutoGenErr
+}
+
 func (f *fakeWorkerMBHeadRepo) ListShades(_ context.Context, _ uuid.UUID) ([]mbheaddomain.Shade, error) {
 	panic("not used by MBBulkTransitionHandler tests")
 }
