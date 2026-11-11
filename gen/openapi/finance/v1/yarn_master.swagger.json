@@ -3830,6 +3830,28 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "fgProductId",
+            "description": "Filter by FG product id. 0 = no filter.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "fgSearch",
+            "description": "Search by FG product code / name / orion item code (max 200 chars).",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "includeSuperseded",
+            "description": "Include superseded spins. NOTE: default behaviour is unchanged (superseded spins are\nstill listed as before); this flag is reserved for explicit callers.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "tags": [
@@ -4147,6 +4169,53 @@
         ]
       }
     },
+    "/api/v1/finance/mb-heads/{mbhId}/spins/{mbsId}/unsupersede": {
+      "post": {
+        "summary": "UnsupersedeMBSpin reverts a supersede, restoring the old spin and repointing params back.",
+        "operationId": "MBSpinService_UnsupersedeMBSpin",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UnsupersedeMBSpinResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mbhId",
+            "description": "Parent MB Head UUID (path parameter; optional, ignored when empty).",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "mbsId",
+            "description": "Superseded MB Spin UUID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/MBSpinServiceUnsupersedeMBSpinBody"
+            }
+          }
+        ],
+        "tags": [
+          "MBSpinService"
+        ]
+      }
+    },
     "/api/v1/finance/mb-heads/{mbhId}/submit": {
       "post": {
         "summary": "SubmitMBHead submits an MB Head for approval.",
@@ -4180,6 +4249,38 @@
             "schema": {
               "$ref": "#/definitions/MBHeadServiceSubmitMBHeadBody"
             }
+          }
+        ],
+        "tags": [
+          "MBHeadService"
+        ]
+      }
+    },
+    "/api/v1/finance/mb-heads/{mbhId}/supersede-preview": {
+      "get": {
+        "summary": "PreviewMBHeadSupersede previews which older spins/heads/products a Validate would supersede.",
+        "operationId": "MBHeadService_PreviewMBHeadSupersede",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1PreviewMBHeadSupersedeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mbhId",
+            "description": "MB Head UUID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
           }
         ],
         "tags": [
@@ -5077,12 +5178,23 @@
         "mbhOrionItemCode": {
           "type": "string",
           "description": "Oracle Orion item code (max 200). Absent = unchanged, \"\" = clear."
+        },
+        "fgProductId": {
+          "type": "string",
+          "format": "int64",
+          "description": "FG product link (cost_product_master id). Absent = unchanged; 0 = clear the link."
         }
       },
       "description": "UpdateMBHeadRequest is the request for updating an MB Head record."
     },
     "MBHeadServiceValidateMBHeadBody": {
       "type": "object",
+      "properties": {
+        "confirmSupersede": {
+          "type": "boolean",
+          "description": "Set true to confirm superseding older spins reported by PreviewMBHeadSupersede."
+        }
+      },
       "description": "ValidateMBHeadRequest is the request for validating an MB Head (freezes cost/param snapshot)."
     },
     "MBSpinServiceCreateMBSpinBody": {
@@ -5173,6 +5285,11 @@
           "type": "integer",
           "format": "int32",
           "description": "Optional override for the clone's filament count, strictly greater than\nzero. Absent means the source value is copied as-is. Same stricter-than-\nCreate/Update reasoning as mbs_denier above."
+        },
+        "fgProductId": {
+          "type": "string",
+          "format": "int64",
+          "description": "FG product link for the clone (cost_product_master id). 0 = not set / inherit."
         }
       },
       "description": "DuplicateMBSpinRequest is the request for duplicating an MB Spin record.\n\nShape follows design §3.7. mbs_oracle_sys_id, mbs_orion_item_code and\nmbs_mb_costing are DELIBERATELY ABSENT: decision D19 requires all three to be\nNULL on the clone, so there is no field to carry them. The user fills them in\nafterwards via UpdateMBSpin."
@@ -5195,6 +5312,10 @@
         }
       },
       "description": "ImportMBSpinsRequest is the request for importing MB Spin records from Excel."
+    },
+    "MBSpinServiceUnsupersedeMBSpinBody": {
+      "type": "object",
+      "description": "UnsupersedeMBSpinRequest reverts a supersede of a spin."
     },
     "MBSpinServiceUpdateMBSpinBody": {
       "type": "object",
@@ -6379,6 +6500,11 @@
         "mbhOrionItemCode": {
           "type": "string",
           "description": "Oracle Orion item code (optional, max 200; empty = none)."
+        },
+        "fgProductId": {
+          "type": "string",
+          "format": "int64",
+          "description": "FG product link (cost_product_master id). 0 = not set."
         }
       },
       "description": "CreateMBHeadRequest is the request for creating an MB Head record."
@@ -8856,6 +8982,31 @@
         "mbhOrionItemCode": {
           "type": "string",
           "description": "Oracle Orion item code (VARCHAR(200), optional; empty = none)."
+        },
+        "fgProductId": {
+          "type": "string",
+          "format": "int64",
+          "description": "FG (finished-goods) product link, cost_product_master id (0 = not linked). mb-spin-fg-poy-link."
+        },
+        "fgItemCode": {
+          "type": "string",
+          "description": "FG product ERP item code (read-only, denormalized)."
+        },
+        "fgProductCode": {
+          "type": "string",
+          "description": "FG product code (read-only, denormalized)."
+        },
+        "fgProductName": {
+          "type": "string",
+          "description": "FG product name (read-only, denormalized)."
+        },
+        "supersededByHeadId": {
+          "type": "string",
+          "description": "UUID of the newer head that superseded this one (empty = not superseded)."
+        },
+        "supersededAt": {
+          "type": "string",
+          "description": "Timestamp when superseded (empty = not superseded)."
         }
       },
       "description": "MBHead represents a Melange Batch head master record (MEL yarn type only)."
@@ -8901,6 +9052,24 @@
         }
       },
       "description": "MBHeadShadeInput is an additional-shade row supplied on create/update."
+    },
+    "v1MBHeadSupersedePreview": {
+      "type": "object",
+      "properties": {
+        "requiresConfirmation": {
+          "type": "boolean",
+          "description": "True when the caller must pass confirm_supersede=true on Validate."
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MBSupersedeCandidate"
+          },
+          "description": "Candidates that would be superseded."
+        }
+      },
+      "description": "MBHeadSupersedePreview is the preview payload."
     },
     "v1MBSpin": {
       "type": "object",
@@ -9020,6 +9189,39 @@
         "mbsOrionItemCode": {
           "type": "string",
           "description": "Oracle Orion item code (output-only, read-only; inherited from head when empty)."
+        },
+        "fgProductId": {
+          "type": "string",
+          "format": "int64",
+          "description": "FG product link, cost_product_master id (0 = not linked). mb-spin-fg-poy-link."
+        },
+        "fgItemCode": {
+          "type": "string",
+          "description": "FG product ERP item code (read-only, denormalized)."
+        },
+        "fgProductCode": {
+          "type": "string",
+          "description": "FG product code (read-only, denormalized)."
+        },
+        "fgProductName": {
+          "type": "string",
+          "description": "FG product name (read-only, denormalized)."
+        },
+        "fgLinkSource": {
+          "type": "string",
+          "description": "How the FG link was derived (e.g. FG_MATCH | SHADE_ONLY | MANUAL; empty = none)."
+        },
+        "supersededBySpinId": {
+          "type": "string",
+          "description": "UUID of the spin that superseded this one (empty = not superseded)."
+        },
+        "supersededAt": {
+          "type": "string",
+          "description": "Timestamp when superseded (empty = not superseded)."
+        },
+        "supersededBySpinCode": {
+          "type": "string",
+          "description": "Code of the superseding spin (convenience for the \"Superseded -\u003e \u003ccode\u003e\" badge)."
         }
       },
       "description": "MBSpin represents a Melange Batch spin detail record (child of MBHead)."
@@ -9045,6 +9247,153 @@
         }
       },
       "description": "MBSpinRecalcSkipped is one child spin that the duplicate/recalc pass did NOT\ntouch (rule A7).\n\nChildren are recalculated only when mbs_status = 'R and D'. A child in\n'Spinning' or 'Boughtout', or one whose status is absent, carries an actual\nproduction value that must never be overwritten by a derived one — it is\nskipped and reported here so the UI can say WHICH children were left alone\nand why, instead of silently doing less than the user expected."
+    },
+    "v1MBSupersedeAffectedProduct": {
+      "type": "object",
+      "properties": {
+        "productSysId": {
+          "type": "string",
+          "format": "int64",
+          "description": "cost_product_master id."
+        },
+        "productCode": {
+          "type": "string",
+          "description": "Product code."
+        },
+        "productName": {
+          "type": "string",
+          "description": "Product name."
+        },
+        "filledBy": {
+          "type": "string",
+          "description": "Param filled_by source for this product."
+        }
+      },
+      "description": "MBSupersedeAffectedProduct is a product whose MB_SP_CODE param would be repointed."
+    },
+    "v1MBSupersedeCandidate": {
+      "type": "object",
+      "properties": {
+        "oldSpinId": {
+          "type": "string",
+          "description": "Old spin UUID."
+        },
+        "oldSpinCode": {
+          "type": "string",
+          "description": "Old spin code."
+        },
+        "shadeCode": {
+          "type": "string",
+          "description": "Shade code."
+        },
+        "fgProductId": {
+          "type": "string",
+          "format": "int64",
+          "description": "FG product id (0 = none)."
+        },
+        "fgProductCode": {
+          "type": "string",
+          "description": "FG product code."
+        },
+        "oldHeadId": {
+          "type": "string",
+          "description": "Old head UUID."
+        },
+        "oldHeadCode": {
+          "type": "string",
+          "description": "Old head code."
+        },
+        "oldHeadWillDeactivate": {
+          "type": "boolean",
+          "description": "True if the old head would be deactivated."
+        },
+        "oldMbProductSysId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Product sys id of the old MB product."
+        },
+        "oldMbProductWillDeactivate": {
+          "type": "boolean",
+          "description": "True if the old MB product would be deactivated."
+        },
+        "paramRowsPointer": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Param rows that would be repointed (pointer rows)."
+        },
+        "paramRowsTextOnly": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Param rows that are text-only (not repointed)."
+        },
+        "filledByCounts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MBSupersedeFilledByCount"
+          },
+          "description": "Breakdown of affected rows by filled_by."
+        },
+        "affectedProducts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MBSupersedeAffectedProduct"
+          },
+          "description": "Products affected."
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Warnings (e.g. duplicated orion code text rows not repointed)."
+        }
+      },
+      "description": "MBSupersedeCandidate describes one old spin that would be superseded."
+    },
+    "v1MBSupersedeFilledByCount": {
+      "type": "object",
+      "properties": {
+        "filledBy": {
+          "type": "string",
+          "description": "Param filled_by source (e.g. AUTOFILL, MANUAL, IMPORT)."
+        },
+        "count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of rows."
+        }
+      },
+      "description": "MBSupersedeFilledByCount counts affected param rows per filled_by source."
+    },
+    "v1MBUnsupersedeSkippedParam": {
+      "type": "object",
+      "properties": {
+        "cppValueId": {
+          "type": "string",
+          "format": "int64",
+          "description": "cost_product_param_value id."
+        },
+        "productSysId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Product sys id."
+        },
+        "productCode": {
+          "type": "string",
+          "description": "Product code."
+        },
+        "paramCode": {
+          "type": "string",
+          "description": "Param code."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Reason skipped."
+        }
+      },
+      "description": "MBUnsupersedeSkippedParam is a param row that could not be reverted."
     },
     "v1Machine": {
       "type": "object",
@@ -9703,6 +10052,20 @@
       },
       "description": "PreviewDozingImpactResponse is the response for the dozing impact preview."
     },
+    "v1PreviewMBHeadSupersedeResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1MBHeadSupersedePreview",
+          "description": "Preview data."
+        }
+      },
+      "description": "PreviewMBHeadSupersedeResponse is the response for PreviewMBHeadSupersede."
+    },
     "v1PreviewPushToHeadResponse": {
       "type": "object",
       "properties": {
@@ -10058,6 +10421,33 @@
         }
       },
       "description": "UnrevokeMBHeadResponse is the response for unrevoking an MB Head."
+    },
+    "v1UnsupersedeMBSpinResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse",
+          "description": "Standard response metadata."
+        },
+        "data": {
+          "$ref": "#/definitions/v1MBSpin",
+          "description": "Restored spin."
+        },
+        "paramsReverted": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of param rows reverted."
+        },
+        "skipped": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MBUnsupersedeSkippedParam"
+          },
+          "description": "Param rows skipped."
+        }
+      },
+      "description": "UnsupersedeMBSpinResponse is the response for UnsupersedeMBSpin."
     },
     "v1UpdateBoxBobbinCostResponse": {
       "type": "object",

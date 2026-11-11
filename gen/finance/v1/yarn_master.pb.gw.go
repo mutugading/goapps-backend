@@ -2199,6 +2199,45 @@ func local_request_MBHeadService_ListBulkMBHeadJobFailures_0(ctx context.Context
 	return msg, metadata, err
 }
 
+func request_MBHeadService_PreviewMBHeadSupersede_0(ctx context.Context, marshaler runtime.Marshaler, client MBHeadServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq PreviewMBHeadSupersedeRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	if req.Body != nil {
+		_, _ = io.Copy(io.Discard, req.Body)
+	}
+	val, ok := pathParams["mbh_id"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "mbh_id")
+	}
+	protoReq.MbhId, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "mbh_id", err)
+	}
+	msg, err := client.PreviewMBHeadSupersede(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_MBHeadService_PreviewMBHeadSupersede_0(ctx context.Context, marshaler runtime.Marshaler, server MBHeadServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq PreviewMBHeadSupersedeRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	val, ok := pathParams["mbh_id"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "mbh_id")
+	}
+	protoReq.MbhId, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "mbh_id", err)
+	}
+	msg, err := server.PreviewMBHeadSupersede(ctx, &protoReq)
+	return msg, metadata, err
+}
+
 func request_MBSpinService_CreateMBSpin_0(ctx context.Context, marshaler runtime.Marshaler, client MBSpinServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var (
 		protoReq CreateMBSpinRequest
@@ -2649,6 +2688,67 @@ func local_request_MBSpinService_DuplicateMBSpin_0(ctx context.Context, marshale
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "mbs_id", err)
 	}
 	msg, err := server.DuplicateMBSpin(ctx, &protoReq)
+	return msg, metadata, err
+}
+
+func request_MBSpinService_UnsupersedeMBSpin_0(ctx context.Context, marshaler runtime.Marshaler, client MBSpinServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq UnsupersedeMBSpinRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	if req.Body != nil {
+		_, _ = io.Copy(io.Discard, req.Body)
+	}
+	val, ok := pathParams["mbh_id"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "mbh_id")
+	}
+	protoReq.MbhId, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "mbh_id", err)
+	}
+	val, ok = pathParams["mbs_id"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "mbs_id")
+	}
+	protoReq.MbsId, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "mbs_id", err)
+	}
+	msg, err := client.UnsupersedeMBSpin(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_MBSpinService_UnsupersedeMBSpin_0(ctx context.Context, marshaler runtime.Marshaler, server MBSpinServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq UnsupersedeMBSpinRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	val, ok := pathParams["mbh_id"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "mbh_id")
+	}
+	protoReq.MbhId, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "mbh_id", err)
+	}
+	val, ok = pathParams["mbs_id"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "mbs_id")
+	}
+	protoReq.MbsId, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "mbs_id", err)
+	}
+	msg, err := server.UnsupersedeMBSpin(ctx, &protoReq)
 	return msg, metadata, err
 }
 
@@ -5674,6 +5774,26 @@ func RegisterMBHeadServiceHandlerServer(ctx context.Context, mux *runtime.ServeM
 		}
 		forward_MBHeadService_ListBulkMBHeadJobFailures_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
+	mux.Handle(http.MethodGet, pattern_MBHeadService_PreviewMBHeadSupersede_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/finance.v1.MBHeadService/PreviewMBHeadSupersede", runtime.WithHTTPPathPattern("/api/v1/finance/mb-heads/{mbh_id}/supersede-preview"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_MBHeadService_PreviewMBHeadSupersede_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_MBHeadService_PreviewMBHeadSupersede_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
 
 	return nil
 }
@@ -5863,6 +5983,26 @@ func RegisterMBSpinServiceHandlerServer(ctx context.Context, mux *runtime.ServeM
 			return
 		}
 		forward_MBSpinService_DuplicateMBSpin_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodPost, pattern_MBSpinService_UnsupersedeMBSpin_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/finance.v1.MBSpinService/UnsupersedeMBSpin", runtime.WithHTTPPathPattern("/api/v1/finance/mb-heads/{mbh_id}/spins/{mbs_id}/unsupersede"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_MBSpinService_UnsupersedeMBSpin_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_MBSpinService_UnsupersedeMBSpin_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
 
 	return nil
@@ -8322,6 +8462,23 @@ func RegisterMBHeadServiceHandlerClient(ctx context.Context, mux *runtime.ServeM
 		}
 		forward_MBHeadService_ListBulkMBHeadJobFailures_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
+	mux.Handle(http.MethodGet, pattern_MBHeadService_PreviewMBHeadSupersede_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/finance.v1.MBHeadService/PreviewMBHeadSupersede", runtime.WithHTTPPathPattern("/api/v1/finance/mb-heads/{mbh_id}/supersede-preview"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_MBHeadService_PreviewMBHeadSupersede_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_MBHeadService_PreviewMBHeadSupersede_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
 	return nil
 }
 
@@ -8352,6 +8509,7 @@ var (
 	pattern_MBHeadService_BulkValidateMBHead_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"api", "v1", "finance", "mb-heads", "bulk-validate"}, ""))
 	pattern_MBHeadService_GetBulkMBHeadJobStatus_0    = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5, 2, 6}, []string{"api", "v1", "finance", "mb-heads", "bulk-jobs", "job_id", "status"}, ""))
 	pattern_MBHeadService_ListBulkMBHeadJobFailures_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5, 2, 6}, []string{"api", "v1", "finance", "mb-heads", "bulk-jobs", "job_id", "failures"}, ""))
+	pattern_MBHeadService_PreviewMBHeadSupersede_0    = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5}, []string{"api", "v1", "finance", "mb-heads", "mbh_id", "supersede-preview"}, ""))
 )
 
 var (
@@ -8381,6 +8539,7 @@ var (
 	forward_MBHeadService_BulkValidateMBHead_0        = runtime.ForwardResponseMessage
 	forward_MBHeadService_GetBulkMBHeadJobStatus_0    = runtime.ForwardResponseMessage
 	forward_MBHeadService_ListBulkMBHeadJobFailures_0 = runtime.ForwardResponseMessage
+	forward_MBHeadService_PreviewMBHeadSupersede_0    = runtime.ForwardResponseMessage
 )
 
 // RegisterMBSpinServiceHandlerFromEndpoint is same as RegisterMBSpinServiceHandler but
@@ -8572,6 +8731,23 @@ func RegisterMBSpinServiceHandlerClient(ctx context.Context, mux *runtime.ServeM
 		}
 		forward_MBSpinService_DuplicateMBSpin_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
+	mux.Handle(http.MethodPost, pattern_MBSpinService_UnsupersedeMBSpin_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/finance.v1.MBSpinService/UnsupersedeMBSpin", runtime.WithHTTPPathPattern("/api/v1/finance/mb-heads/{mbh_id}/spins/{mbs_id}/unsupersede"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_MBSpinService_UnsupersedeMBSpin_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_MBSpinService_UnsupersedeMBSpin_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
 	return nil
 }
 
@@ -8585,6 +8761,7 @@ var (
 	pattern_MBSpinService_ImportMBSpins_0          = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5, 2, 6}, []string{"api", "v1", "finance", "mb-heads", "mbh_id", "spins", "import"}, ""))
 	pattern_MBSpinService_DownloadMBSpinTemplate_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5, 2, 6}, []string{"api", "v1", "finance", "mb-heads", "mbh_id", "spins", "template"}, ""))
 	pattern_MBSpinService_DuplicateMBSpin_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5, 1, 0, 4, 1, 5, 6, 2, 7}, []string{"api", "v1", "finance", "mb-heads", "mbh_id", "spins", "mbs_id", "duplicate"}, ""))
+	pattern_MBSpinService_UnsupersedeMBSpin_0      = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5, 1, 0, 4, 1, 5, 6, 2, 7}, []string{"api", "v1", "finance", "mb-heads", "mbh_id", "spins", "mbs_id", "unsupersede"}, ""))
 )
 
 var (
@@ -8597,6 +8774,7 @@ var (
 	forward_MBSpinService_ImportMBSpins_0          = runtime.ForwardResponseMessage
 	forward_MBSpinService_DownloadMBSpinTemplate_0 = runtime.ForwardResponseMessage
 	forward_MBSpinService_DuplicateMBSpin_0        = runtime.ForwardResponseMessage
+	forward_MBSpinService_UnsupersedeMBSpin_0      = runtime.ForwardResponseMessage
 )
 
 // RegisterLookupMasterServiceHandlerFromEndpoint is same as RegisterLookupMasterServiceHandler but

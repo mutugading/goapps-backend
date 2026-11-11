@@ -1677,6 +1677,7 @@ const (
 	MBHeadService_BulkValidateMBHead_FullMethodName        = "/finance.v1.MBHeadService/BulkValidateMBHead"
 	MBHeadService_GetBulkMBHeadJobStatus_FullMethodName    = "/finance.v1.MBHeadService/GetBulkMBHeadJobStatus"
 	MBHeadService_ListBulkMBHeadJobFailures_FullMethodName = "/finance.v1.MBHeadService/ListBulkMBHeadJobFailures"
+	MBHeadService_PreviewMBHeadSupersede_FullMethodName    = "/finance.v1.MBHeadService/PreviewMBHeadSupersede"
 )
 
 // MBHeadServiceClient is the client API for MBHeadService service.
@@ -1759,6 +1760,8 @@ type MBHeadServiceClient interface {
 	// (or in-progress) bulk MB Head lifecycle job, so the caller can see which MB
 	// Heads failed and why.
 	ListBulkMBHeadJobFailures(ctx context.Context, in *ListBulkMBHeadJobFailuresRequest, opts ...grpc.CallOption) (*ListBulkMBHeadJobFailuresResponse, error)
+	// PreviewMBHeadSupersede previews which older spins/heads/products a Validate would supersede.
+	PreviewMBHeadSupersede(ctx context.Context, in *PreviewMBHeadSupersedeRequest, opts ...grpc.CallOption) (*PreviewMBHeadSupersedeResponse, error)
 }
 
 type mBHeadServiceClient struct {
@@ -2029,6 +2032,16 @@ func (c *mBHeadServiceClient) ListBulkMBHeadJobFailures(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *mBHeadServiceClient) PreviewMBHeadSupersede(ctx context.Context, in *PreviewMBHeadSupersedeRequest, opts ...grpc.CallOption) (*PreviewMBHeadSupersedeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PreviewMBHeadSupersedeResponse)
+	err := c.cc.Invoke(ctx, MBHeadService_PreviewMBHeadSupersede_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MBHeadServiceServer is the server API for MBHeadService service.
 // All implementations must embed UnimplementedMBHeadServiceServer
 // for forward compatibility.
@@ -2109,6 +2122,8 @@ type MBHeadServiceServer interface {
 	// (or in-progress) bulk MB Head lifecycle job, so the caller can see which MB
 	// Heads failed and why.
 	ListBulkMBHeadJobFailures(context.Context, *ListBulkMBHeadJobFailuresRequest) (*ListBulkMBHeadJobFailuresResponse, error)
+	// PreviewMBHeadSupersede previews which older spins/heads/products a Validate would supersede.
+	PreviewMBHeadSupersede(context.Context, *PreviewMBHeadSupersedeRequest) (*PreviewMBHeadSupersedeResponse, error)
 	mustEmbedUnimplementedMBHeadServiceServer()
 }
 
@@ -2196,6 +2211,9 @@ func (UnimplementedMBHeadServiceServer) GetBulkMBHeadJobStatus(context.Context, 
 }
 func (UnimplementedMBHeadServiceServer) ListBulkMBHeadJobFailures(context.Context, *ListBulkMBHeadJobFailuresRequest) (*ListBulkMBHeadJobFailuresResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListBulkMBHeadJobFailures not implemented")
+}
+func (UnimplementedMBHeadServiceServer) PreviewMBHeadSupersede(context.Context, *PreviewMBHeadSupersedeRequest) (*PreviewMBHeadSupersedeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PreviewMBHeadSupersede not implemented")
 }
 func (UnimplementedMBHeadServiceServer) mustEmbedUnimplementedMBHeadServiceServer() {}
 func (UnimplementedMBHeadServiceServer) testEmbeddedByValue()                       {}
@@ -2686,6 +2704,24 @@ func _MBHeadService_ListBulkMBHeadJobFailures_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MBHeadService_PreviewMBHeadSupersede_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PreviewMBHeadSupersedeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MBHeadServiceServer).PreviewMBHeadSupersede(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MBHeadService_PreviewMBHeadSupersede_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MBHeadServiceServer).PreviewMBHeadSupersede(ctx, req.(*PreviewMBHeadSupersedeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MBHeadService_ServiceDesc is the grpc.ServiceDesc for MBHeadService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2797,6 +2833,10 @@ var MBHeadService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "ListBulkMBHeadJobFailures",
 			Handler:    _MBHeadService_ListBulkMBHeadJobFailures_Handler,
 		},
+		{
+			MethodName: "PreviewMBHeadSupersede",
+			Handler:    _MBHeadService_PreviewMBHeadSupersede_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "finance/v1/yarn_master.proto",
@@ -2812,6 +2852,7 @@ const (
 	MBSpinService_ImportMBSpins_FullMethodName          = "/finance.v1.MBSpinService/ImportMBSpins"
 	MBSpinService_DownloadMBSpinTemplate_FullMethodName = "/finance.v1.MBSpinService/DownloadMBSpinTemplate"
 	MBSpinService_DuplicateMBSpin_FullMethodName        = "/finance.v1.MBSpinService/DuplicateMBSpin"
+	MBSpinService_UnsupersedeMBSpin_FullMethodName      = "/finance.v1.MBSpinService/UnsupersedeMBSpin"
 )
 
 // MBSpinServiceClient is the client API for MBSpinService service.
@@ -2842,6 +2883,8 @@ type MBSpinServiceClient interface {
 	// child spins one level deep and reports the skipped ones; it does NOT
 	// recalculate yarn products (D24) — the response carries a preview only.
 	DuplicateMBSpin(ctx context.Context, in *DuplicateMBSpinRequest, opts ...grpc.CallOption) (*DuplicateMBSpinResponse, error)
+	// UnsupersedeMBSpin reverts a supersede, restoring the old spin and repointing params back.
+	UnsupersedeMBSpin(ctx context.Context, in *UnsupersedeMBSpinRequest, opts ...grpc.CallOption) (*UnsupersedeMBSpinResponse, error)
 }
 
 type mBSpinServiceClient struct {
@@ -2942,6 +2985,16 @@ func (c *mBSpinServiceClient) DuplicateMBSpin(ctx context.Context, in *Duplicate
 	return out, nil
 }
 
+func (c *mBSpinServiceClient) UnsupersedeMBSpin(ctx context.Context, in *UnsupersedeMBSpinRequest, opts ...grpc.CallOption) (*UnsupersedeMBSpinResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UnsupersedeMBSpinResponse)
+	err := c.cc.Invoke(ctx, MBSpinService_UnsupersedeMBSpin_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MBSpinServiceServer is the server API for MBSpinService service.
 // All implementations must embed UnimplementedMBSpinServiceServer
 // for forward compatibility.
@@ -2970,6 +3023,8 @@ type MBSpinServiceServer interface {
 	// child spins one level deep and reports the skipped ones; it does NOT
 	// recalculate yarn products (D24) — the response carries a preview only.
 	DuplicateMBSpin(context.Context, *DuplicateMBSpinRequest) (*DuplicateMBSpinResponse, error)
+	// UnsupersedeMBSpin reverts a supersede, restoring the old spin and repointing params back.
+	UnsupersedeMBSpin(context.Context, *UnsupersedeMBSpinRequest) (*UnsupersedeMBSpinResponse, error)
 	mustEmbedUnimplementedMBSpinServiceServer()
 }
 
@@ -3006,6 +3061,9 @@ func (UnimplementedMBSpinServiceServer) DownloadMBSpinTemplate(context.Context, 
 }
 func (UnimplementedMBSpinServiceServer) DuplicateMBSpin(context.Context, *DuplicateMBSpinRequest) (*DuplicateMBSpinResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DuplicateMBSpin not implemented")
+}
+func (UnimplementedMBSpinServiceServer) UnsupersedeMBSpin(context.Context, *UnsupersedeMBSpinRequest) (*UnsupersedeMBSpinResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UnsupersedeMBSpin not implemented")
 }
 func (UnimplementedMBSpinServiceServer) mustEmbedUnimplementedMBSpinServiceServer() {}
 func (UnimplementedMBSpinServiceServer) testEmbeddedByValue()                       {}
@@ -3190,6 +3248,24 @@ func _MBSpinService_DuplicateMBSpin_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MBSpinService_UnsupersedeMBSpin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnsupersedeMBSpinRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MBSpinServiceServer).UnsupersedeMBSpin(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MBSpinService_UnsupersedeMBSpin_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MBSpinServiceServer).UnsupersedeMBSpin(ctx, req.(*UnsupersedeMBSpinRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MBSpinService_ServiceDesc is the grpc.ServiceDesc for MBSpinService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -3232,6 +3308,10 @@ var MBSpinService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DuplicateMBSpin",
 			Handler:    _MBSpinService_DuplicateMBSpin_Handler,
+		},
+		{
+			MethodName: "UnsupersedeMBSpin",
+			Handler:    _MBSpinService_UnsupersedeMBSpin_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
