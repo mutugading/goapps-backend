@@ -224,17 +224,27 @@ func (s *FgLookupSuite) TestFgCandidates_Rules() {
 	ha := s.head(both, "DRAFT", 4)
 	s.rmProduct(s.seq(ha, both, 1, 1), both, poyB)
 
+	// Soft-deleted live head is skipped: the older LOCKED head is used.
+	softDel := s.product("SDEL", "DTY")
+	hLive := s.head(softDel, "DRAFT", 2)
+	s.rmProduct(s.seq(hLive, softDel, 1, 1), softDel, poyA)
+	hLk := s.head(softDel, "LOCKED", 1)
+	s.rmProduct(s.seq(hLk, softDel, 1, 1), softDel, poyB)
+	_, err = s.db.ExecContext(s.ctx, `UPDATE cost_route_head SET crh_deleted_at = NOW() WHERE crh_head_id = $1`, hLive)
+	s.Require().NoError(err)
+
 	noRoute := s.product("NORT", "DTY")
 
-	got, err := s.reader.FgCandidates(s.ctx, []int64{poySelf, dty, mel, locked, both, noRoute})
+	got, err := s.reader.FgCandidates(s.ctx, []int64{poySelf, dty, mel, locked, both, softDel, noRoute})
 	s.Require().NoError(err)
 	s.Require().Equal([]int64{poySelf}, got[poySelf])
 	s.Require().Equal([]int64{poyA}, got[dty])
 	s.Require().Equal([]int64{poyA, poyB}, got[mel])
 	s.Require().Equal([]int64{poyA}, got[locked])
 	s.Require().Equal([]int64{poyB}, got[both])
+	s.Require().Equal([]int64{poyB}, got[softDel])
 	s.Require().NotContains(got, noRoute)
-	s.Require().Len(got, 5)
+	s.Require().Len(got, 6)
 
 	empty, err := s.reader.FgCandidates(s.ctx, nil)
 	s.Require().NoError(err)

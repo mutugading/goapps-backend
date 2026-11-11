@@ -248,7 +248,7 @@ func (s *MBSourceAutoFillStore) ApplyForce(ctx context.Context, ps mbsourceautof
 		err := tx.QueryRowContext(ctx, `SELECT cpm_is_locked FROM cost_product_master
 			WHERE cpm_product_sys_id = $1 FOR UPDATE`, plan.ProductSysID).Scan(&locked)
 		if errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("product %d not found", plan.ProductSysID)
+			return fmt.Errorf("product %d: %w", plan.ProductSysID, mbsourceautofill.ErrLinkProductNotFound)
 		}
 		if err != nil {
 			return fmt.Errorf("lock product: %w", err)

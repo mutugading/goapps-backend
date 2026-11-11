@@ -86,50 +86,63 @@ func NewLinkService(reader LinkReader, resolver TargetResolver, fg FgExplainer, 
 
 // Explain resolves the product read-only. MB type / no shade yield NONE with a reason.
 func (l *LinkService) Explain(ctx context.Context, productSysID int64) (Link, error) {
-	link, _, err := l.explain(ctx, productSysID)
+	link, _, _, err := l.explain(ctx, productSysID)
 	return link, err
 }
 
-func (l *LinkService) explain(ctx context.Context, pid int64) (Link, LinkProduct, error) {
+// explain returns the link, the product and the resolution it is based on (nil when NONE).
+func (l *LinkService) explain(ctx context.Context, pid int64) (Link, LinkProduct, *mbsource.Resolution, error) {
 	if l.reader == nil || l.resolver == nil {
-		return Link{}, LinkProduct{}, ErrLinkNotConfigured
+		return Link{}, LinkProduct{}, nil, ErrLinkNotConfigured
 	}
 	p, err := l.reader.GetLinkProduct(ctx, pid)
 	if err != nil {
-		return Link{}, LinkProduct{}, err
+		return Link{}, LinkProduct{}, nil, err
 	}
 	link := Link{LinkSource: LinkNone, CurrentParamValue: p.CurrentSPCode}
 	if strings.EqualFold(strings.TrimSpace(p.TypeCode), mbTypeCode) {
 		link.Reason = "produk tipe MB"
-		return link, p, nil
+		return link, p, nil, nil
 	}
 	shade := mbsource.NormalizeShade(p.Shade)
 	if shade == "" {
 		link.Reason = "produk tanpa shade"
-		return link, p, nil
+		return link, p, nil, nil
 	}
-	t := mbsource.Target{ProductSysID: pid, Shade: shade}
+	res, found, err := l.lookup(ctx, &link, mbsource.Target{ProductSysID: pid, Shade: shade})
+	if err != nil {
+		return Link{}, p, nil, err
+	}
+	if !found {
+		link.Reason = "tidak ada spin atau superba untuk shade " + shade
+		return link, p, nil, nil
+	}
+	if err := l.fill(ctx, &link, res, shade); err != nil {
+		return Link{}, p, nil, err
+	}
+	link.ParamMatches = mbsource.NormalizeShade(p.CurrentSPCode) == mbsource.NormalizeShade(res.SPCode)
+	return link, p, &res, nil
+}
+
+// lookup resolves one target once: an FG hit is used directly (it is the first provider
+// anyway); otherwise the resolver chain runs. Candidates are recorded on link.
+func (l *LinkService) lookup(ctx context.Context, link *Link, t mbsource.Target) (mbsource.Resolution, bool, error) {
 	if l.fg != nil {
 		ex, err := l.fg.Explain(ctx, t)
 		if err != nil {
-			return Link{}, p, fmt.Errorf("explain fg link: %w", err)
+			return mbsource.Resolution{}, false, fmt.Errorf("explain fg link: %w", err)
 		}
 		link.CandidatePoyIDs = ex.Candidates
+		if ex.Hit != nil {
+			return *ex.Hit, true, nil
+		}
 	}
 	got, err := l.resolver.ResolveTargets(ctx, []mbsource.Target{t})
 	if err != nil {
-		return Link{}, p, fmt.Errorf("resolve mb link: %w", err)
+		return mbsource.Resolution{}, false, fmt.Errorf("resolve mb link: %w", err)
 	}
-	res, found := got[pid]
-	if !found {
-		link.Reason = "tidak ada spin atau superba untuk shade " + shade
-		return link, p, nil
-	}
-	if err := l.fill(ctx, &link, res, shade); err != nil {
-		return Link{}, p, err
-	}
-	link.ParamMatches = mbsource.NormalizeShade(p.CurrentSPCode) == mbsource.NormalizeShade(res.SPCode)
-	return link, p, nil
+	res, found := got[t.ProductSysID]
+	return res, found, nil
 }
 
 func (l *LinkService) fill(ctx context.Context, link *Link, res mbsource.Resolution, shade string) error {
@@ -163,42 +176,27 @@ func (l *LinkService) fill(ctx context.Context, link *Link, res mbsource.Resolut
 // Relink force-writes the resolved MB source of one product, then returns the new link.
 // MB type is rejected; NONE writes nothing; a locked product surfaces the applier error.
 func (l *LinkService) Relink(ctx context.Context, productSysID int64, actor string) (Link, error) {
-	link, p, err := l.explain(ctx, productSysID)
+	link, p, res, err := l.explain(ctx, productSysID)
 	if err != nil {
 		return Link{}, err
 	}
 	if strings.EqualFold(strings.TrimSpace(p.TypeCode), mbTypeCode) {
 		return Link{}, ErrLinkMBType
 	}
-	if link.LinkSource == LinkNone {
+	if link.LinkSource == LinkNone || res == nil {
 		return link, nil
 	}
 	if l.applier == nil || l.svc == nil {
 		return Link{}, ErrLinkNotConfigured
 	}
-	res, err := l.resolveOne(ctx, p)
-	if err != nil {
-		return Link{}, err
-	}
 	ps, err := l.svc.paramSet(ctx)
 	if err != nil {
 		return Link{}, err
 	}
-	if err := l.applier.ApplyForce(ctx, ps, Plan{ProductSysID: productSysID, Resolution: res}, actor); err != nil {
+	if err := l.applier.ApplyForce(ctx, ps, Plan{ProductSysID: productSysID, Resolution: *res}, actor); err != nil {
 		return Link{}, err
 	}
-	out, _, err := l.explain(ctx, productSysID)
-	return out, err
-}
-
-func (l *LinkService) resolveOne(ctx context.Context, p LinkProduct) (mbsource.Resolution, error) {
-	got, err := l.resolver.ResolveTargets(ctx, []mbsource.Target{{ProductSysID: p.ProductSysID, Shade: p.Shade}})
-	if err != nil {
-		return mbsource.Resolution{}, fmt.Errorf("resolve mb link: %w", err)
-	}
-	res, ok := got[p.ProductSysID]
-	if !ok {
-		return mbsource.Resolution{}, fmt.Errorf("resolve mb link: product %d no longer resolves", p.ProductSysID)
-	}
-	return res, nil
+	link.CurrentParamValue = res.SPCode
+	link.ParamMatches = true
+	return link, nil
 }

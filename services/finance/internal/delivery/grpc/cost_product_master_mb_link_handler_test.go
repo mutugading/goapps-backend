@@ -48,11 +48,15 @@ func TestMBLinkHandler_MapsLinkAndErrors(t *testing.T) {
 		"409": fmt.Errorf("x: %w", cpp.ErrProductLocked),
 		"400": mbsourceautofill.ErrLinkMBType,
 		"500": fmt.Errorf("boom"),
+		"501": mbsourceautofill.ErrLinkNotConfigured,
 	}
 	for code, e := range cases {
 		h.WithMBLink(fakeMBLink{err: e})
 		rr, _ := h.RelinkCostProductMb(context.Background(), &financev1.RelinkCostProductMbRequest{ProductSysId: 1})
 		assert.False(t, rr.GetBase().GetIsSuccess())
 		assert.Equal(t, code, rr.GetBase().GetStatusCode())
+		gr, _ := h.GetCostProductMbLink(context.Background(), &financev1.GetCostProductMbLinkRequest{ProductSysId: 1})
+		assert.False(t, gr.GetBase().GetIsSuccess())
+		assert.Equal(t, code, gr.GetBase().GetStatusCode())
 	}
 }
