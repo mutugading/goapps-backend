@@ -184,3 +184,52 @@ func (s *MBSpinFgSuite) TestFgProductReader() {
 	require.NoError(s.T(), err)
 	require.False(s.T(), ok, "already filled must not be overwritten")
 }
+
+// TestCreate_UniqueShadeFg409 covers createSpinOn: a second live spin for the same
+// shade + FG must map to ErrSpinShadeFgExists, not ErrAlreadyExists.
+func (s *MBSpinFgSuite) TestCreate_UniqueShadeFg409() {
+	pid := s.newPoy("CR", nil, nil)
+	shade := mbSpinFgPrefix + "CRSH"
+	mk := func(name string) *mbspin.Entity {
+		e, err := mbspin.New(s.headID, mbSpinFgPrefix+name, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, "itest")
+		require.NoError(s.T(), err)
+		e.HydrateShadeAndLDR(mbspin.ShadeAndLDR{ShadeCode: &shade, LDRType: e.LDRType()})
+		item := "ERP-CR"
+		require.NoError(s.T(), e.WithFg(&pid, &item, mbspin.FgLinkSourceRecipe))
+		return e
+	}
+	require.NoError(s.T(), s.repo.Create(s.ctx, mk("CR1")))
+	require.ErrorIs(s.T(), s.repo.Create(s.ctx, mk("CR2")), mbspin.ErrSpinShadeFgExists)
+}
+
+// TestDuplicate_WithFg covers insertClone: FG is written as DUPLICATE, an empty POY
+// shade is filled from the source shade, a second clone onto the same FG is 409, and
+// a non-POY / mismatching shade is rejected.
+func (s *MBSpinFgSuite) TestDuplicate_WithFg() {
+	shade := mbSpinFgPrefix + "DPSH"
+	src := uuid.New()
+	s.insertSpin(src, shade, nil, nil, nil, baseTime())
+
+	erp := "ERP-DP"
+	pid := s.newPoy("DP", nil, &erp)
+	out, err := s.repo.DuplicateSpin(s.ctx, mbspin.DuplicateInput{SourceSpinID: src, FgProductID: &pid, ActorUserID: "itest"})
+	require.NoError(s.T(), err)
+	clone, err := s.repo.GetByID(s.ctx, out.NewSpinID)
+	require.NoError(s.T(), err)
+	require.NotNil(s.T(), clone.FgProductID())
+	require.Equal(s.T(), pid, *clone.FgProductID())
+	require.Equal(s.T(), erp, *clone.FgItemCode())
+	require.Equal(s.T(), mbspin.FgLinkSourceDuplicate, *clone.FgLinkSource())
+
+	p, err := s.reader.GetFgProduct(s.ctx, pid)
+	require.NoError(s.T(), err)
+	require.NotNil(s.T(), p.ShadeCode, "empty POY shade must be filled from the source shade")
+
+	_, err = s.repo.DuplicateSpin(s.ctx, mbspin.DuplicateInput{SourceSpinID: src, FgProductID: &pid, ActorUserID: "itest"})
+	require.ErrorIs(s.T(), err, mbspin.ErrSpinShadeFgExists)
+
+	other := "OTHER-SHADE"
+	bad := s.newPoy("DPBAD", &other, nil)
+	_, err = s.repo.DuplicateSpin(s.ctx, mbspin.DuplicateInput{SourceSpinID: src, FgProductID: &bad, ActorUserID: "itest"})
+	require.ErrorIs(s.T(), err, mbspin.ErrFgShadeMismatch)
+}
