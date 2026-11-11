@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
+	"sort"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -25,28 +25,39 @@ func NewCostProductEtlRepository(db *DB) *CostProductEtlRepository {
 
 var _ costproductmaster.EtlRepository = (*CostProductEtlRepository)(nil)
 
-// escapeLike escapes LIKE wildcards (and the escape char) of s for use with ESCAPE '\'.
-func escapeLike(s string) string {
-	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
-	return r.Replace(s)
-}
-
-// Match (a): erp item + shade, or legacy flex_01 "item-shade-type". All products (active + inactive).
+// Match (a1): erp item + shade. Pure equality join, so Postgres can hash-join the key list.
+// All products (active + inactive).
 const etlMatchItemShadeSQL = `
 SELECT k.item, k.shade, m.cpm_product_sys_id
-  FROM unnest(CAST($1 AS text[]), CAST($2 AS text[]), CAST($3 AS text[])) AS k(item, shade, pat)
+  FROM unnest(CAST($1 AS text[]), CAST($2 AS text[])) AS k(item, shade)
   JOIN cost_product_master m
-    ON (UPPER(TRIM(COALESCE(m.cpm_erp_item_code, ''))) = k.item
-        AND UPPER(TRIM(COALESCE(m.cpm_shade_code, ''))) = k.shade)
-    OR UPPER(COALESCE(m.cpm_flex_01, '')) LIKE k.pat ESCAPE '\'
+    ON UPPER(TRIM(COALESCE(m.cpm_erp_item_code, ''))) = k.item
+   AND UPPER(TRIM(COALESCE(m.cpm_shade_code, ''))) = k.shade
  ORDER BY m.cpm_product_sys_id`
 
-// Match (b): siblings = any product of the item, whatever the shade.
+// Match (a2): legacy flex_01 "ITEM-SHADE-TYPE". The type suffix has no '-', so stripping the last
+// segment leaves exactly ITEM-SHADE (equality join, no LIKE).
+const etlMatchFlexSQL = `
+SELECT k.item, k.shade, m.cpm_product_sys_id
+  FROM unnest(CAST($1 AS text[]), CAST($2 AS text[])) AS k(item, shade)
+  JOIN cost_product_master m
+    ON regexp_replace(UPPER(m.cpm_flex_01), '-[^-]*$', '') = k.item || '-' || k.shade
+ WHERE m.cpm_flex_01 IS NOT NULL
+ ORDER BY m.cpm_product_sys_id`
+
+// Match (b): siblings = any product of the item (erp item code, or the ITEM part of a legacy
+// flex_01 "ITEM-SHADE-TYPE"), whatever the shade.
 const etlMatchItemSQL = `
-SELECT UPPER(TRIM(cpm_erp_item_code)), cpm_product_sys_id
-  FROM cost_product_master
- WHERE UPPER(TRIM(COALESCE(cpm_erp_item_code, ''))) = ANY($1)
- ORDER BY cpm_product_sys_id`
+SELECT item, id FROM (
+  SELECT UPPER(TRIM(cpm_erp_item_code)) AS item, cpm_product_sys_id AS id
+    FROM cost_product_master
+   WHERE UPPER(TRIM(COALESCE(cpm_erp_item_code, ''))) = ANY($1)
+  UNION ALL
+  SELECT regexp_replace(UPPER(cpm_flex_01), '-[^-]*-[^-]*$', '') AS item, cpm_product_sys_id AS id
+    FROM cost_product_master
+   WHERE cpm_flex_01 IS NOT NULL
+     AND regexp_replace(UPPER(cpm_flex_01), '-[^-]*-[^-]*$', '') = ANY($1)
+) u ORDER BY id`
 
 // Match (c): same name + shade under a different (or empty) ERP item.
 const etlMatchNameSQL = `
@@ -69,16 +80,22 @@ func (r *CostProductEtlRepository) MatchProducts(ctx context.Context, keys []cos
 	items := make([]string, len(keys))
 	shades := make([]string, len(keys))
 	names := make([]string, len(keys))
-	pats := make([]string, len(keys))
 	for i, k := range keys {
 		items[i], shades[i], names[i] = k.Item, k.Shade, k.NameUpper
-		pats[i] = escapeLike(k.Item) + "-" + escapeLike(k.Shade) + "-%"
 	}
-	if err := r.collect(ctx, etlMatchItemShadeSQL, func(a, b string, id int64) {
+	addItemShade := func(a, b string, id int64) {
 		key := costproductmaster.EtlRowKey(a, b)
 		ms.ByItemShade[key] = appendUnique(ms.ByItemShade[key], id)
-	}, true, pq.Array(items), pq.Array(shades), pq.Array(pats)); err != nil {
+	}
+	if err := r.collect(ctx, etlMatchItemShadeSQL, addItemShade, true, pq.Array(items), pq.Array(shades)); err != nil {
 		return ms, fmt.Errorf("match item+shade: %w", err)
+	}
+	if err := r.collect(ctx, etlMatchFlexSQL, addItemShade, true, pq.Array(items), pq.Array(shades)); err != nil {
+		return ms, fmt.Errorf("match flex_01: %w", err)
+	}
+	for k, ids := range ms.ByItemShade { // keep ids ascending after merging the two queries
+		sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+		ms.ByItemShade[k] = ids
 	}
 	if err := r.collect(ctx, etlMatchItemSQL, func(a, _ string, id int64) {
 		ms.ByItem[a] = appendUnique(ms.ByItem[a], id)

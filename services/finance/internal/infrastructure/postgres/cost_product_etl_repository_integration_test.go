@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -189,4 +190,102 @@ func TestCostProductEtlRepositoryIntegration(t *testing.T) {
 
 	_, err = repo.GetRun(ctx, uuid.New())
 	assert.ErrorIs(t, err, cpm.ErrEtlRunNotFound)
+}
+
+// TestCostProductEtlAntiDuplicate covers the re-check (c), flex_01-only siblings, locking against
+// the ERP-link path, concurrent applies and rollback when a type becomes inactive.
+func TestCostProductEtlAntiDuplicate(t *testing.T) {
+	if os.Getenv("INTEGRATION_TEST") != "true" {
+		t.Skip("Skipping integration test. Set INTEGRATION_TEST=true to run.")
+	}
+	ctx := context.Background()
+	srv := pgcontainer.Start(ctx, t)
+	raw := srv.CreateDatabase(t, "cpm_etl_it2", "")
+	mig, err := pgcontainer.NewMigrator(ctx, raw, "../../../migrations/postgres")
+	require.NoError(t, err)
+	require.NoError(t, mig.Up(ctx))
+	e := etlIT{ctx: ctx, t: t, raw: raw}
+	repo := postgres.NewCostProductEtlRepository(postgres.NewDBFromSQL(raw))
+	poy := e.typeID("ZPOY")
+	e.param("DENIER")
+	previewID, err := repo.SaveRun(ctx, cpm.EtlRun{Type: cpm.EtlRunPreview, FromDate: time.Now().UTC(),
+		Status: cpm.EtlRunCompleted, CreatedBy: "it"})
+	require.NoError(t, err)
+	mk := func(item, name, shade string) cpm.EtlInsert {
+		return cpm.EtlInsert{RowKey: cpm.EtlRowKey(item, shade), ItemCode: item, ItemName: name, ShadeCode: shade, TypeID: poy, TypeCode: "ZPOY"}
+	}
+	apply := func(items ...cpm.EtlInsert) (cpm.EtlInsertOutput, error) {
+		return repo.InsertEtlProducts(ctx, cpm.EtlInsertInput{PreviewRunID: previewID, FromDate: time.Now().UTC(), Actor: "it", Items: items})
+	}
+
+	t.Run("recheck name+shade under other item is skipped", func(t *testing.T) {
+		e.product(poy, "ZZ NAMEDUP", "OTHERX", "S1", "", true)
+		out, err := apply(mk("ZZNEWX", "ZZ NAMEDUP", "S1"))
+		require.NoError(t, err)
+		assert.Equal(t, cpm.EtlResultSkipped, out.Results[0].Result)
+	})
+
+	t.Run("flex_01-only product counts as sibling", func(t *testing.T) {
+		id := e.product(poy, "ZZ FLEXSIB", "", "", "ZZFSIB-S9-ZPOY", true)
+		ms, err := repo.MatchProducts(ctx, []cpm.EtlKey{{Item: "ZZFSIB", Shade: "S1", NameUpper: "NOPE"}})
+		require.NoError(t, err)
+		assert.Equal(t, []int64{id}, ms.ByItem["ZZFSIB"])
+	})
+
+	t.Run("concurrent applies of same key insert once", func(t *testing.T) {
+		var wg sync.WaitGroup
+		results := make([]string, 2)
+		for i := range results {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				out, err := apply(mk("ZZCONC", "ZZ CONC", "S1"))
+				if assert.NoError(t, err) {
+					results[i] = out.Results[0].Result
+				}
+			}()
+		}
+		wg.Wait()
+		assert.ElementsMatch(t, []string{cpm.EtlResultInserted, cpm.EtlResultSkipped}, results)
+		assert.Equal(t, 1, e.count(`SELECT COUNT(*) FROM cost_product_master WHERE cpm_erp_item_code = 'ZZCONC'`))
+	})
+
+	t.Run("blocks while ERP-link lock is held", func(t *testing.T) {
+		tx, err := raw.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, "cpm_erp_link:ZZLOCK|S1")
+		require.NoError(t, err)
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			_, _ = apply(mk("ZZLOCK", "ZZ LOCK", "S1"))
+		}()
+		select {
+		case <-done:
+			t.Fatal("InsertEtlProducts did not block on the ERP-link lock")
+		case <-time.After(700 * time.Millisecond):
+		}
+		require.NoError(t, tx.Rollback())
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			t.Fatal("InsertEtlProducts did not finish after lock release")
+		}
+	})
+
+	t.Run("inactive type rolls back whole run", func(t *testing.T) {
+		before := e.count(`SELECT COUNT(*) FROM cost_product_master WHERE cpm_source = 'ORACLE_ETL'`)
+		runs := e.count(`SELECT COUNT(*) FROM cost_product_etl_run`)
+		inactive := e.typeID("ZOFF")
+		_, err := raw.ExecContext(ctx, `UPDATE cost_product_type SET cpt_is_active = FALSE WHERE cpt_type_id = $1`, inactive)
+		require.NoError(t, err)
+		bad := mk("ZZROLL2", "ZZ ROLL2", "S1")
+		bad.TypeID, bad.TypeCode = inactive, "ZOFF"
+		_, err = apply(mk("ZZROLL1", "ZZ ROLL1", "S1"), bad)
+		require.Error(t, err)
+		assert.Equal(t, before, e.count(`SELECT COUNT(*) FROM cost_product_master WHERE cpm_source = 'ORACLE_ETL'`))
+		assert.Equal(t, runs, e.count(`SELECT COUNT(*) FROM cost_product_etl_run`))
+		_, err = repo.GetRun(ctx, previewID)
+		assert.NoError(t, err)
+	})
 }

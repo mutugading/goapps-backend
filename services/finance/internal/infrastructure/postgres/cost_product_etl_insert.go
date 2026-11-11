@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,15 +16,21 @@ import (
 
 const etlSource = "ORACLE_ETL"
 
-const etlLockSQL = `SELECT pg_advisory_xact_lock(hashtext($1))`
+// etlLockSQL uses the same lock function as SaveErpLink/CreateWithErpLink so ETL and manual ERP
+// linking serialize on the same (item, shade) key.
+const etlLockSQL = `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`
+
+// etlNameLockNS namespaces the name+shade lock that guards the POSSIBLE_DUPLICATE re-check.
+const etlNameLockNS = "cpm_etl_name:"
 
 // Re-check inside the tx: match (a) item+shade / flex_01, or (c) same name+shade under another item.
 const etlRecheckSQL = `
 SELECT COUNT(*) FROM cost_product_master m
  WHERE (UPPER(TRIM(COALESCE(m.cpm_erp_item_code, ''))) = $1
         AND UPPER(TRIM(COALESCE(m.cpm_shade_code, ''))) = $2)
-    OR UPPER(COALESCE(m.cpm_flex_01, '')) LIKE $3 ESCAPE '\'
-    OR (UPPER(TRIM(m.cpm_product_name)) = $4
+    OR (m.cpm_flex_01 IS NOT NULL
+        AND regexp_replace(UPPER(m.cpm_flex_01), '-[^-]*$', '') = $1 || '-' || $2)
+    OR (UPPER(TRIM(m.cpm_product_name)) = $3
         AND UPPER(TRIM(COALESCE(m.cpm_shade_code, ''))) = $2
         AND UPPER(TRIM(COALESCE(m.cpm_erp_item_code, ''))) <> $1)`
 
@@ -62,6 +69,9 @@ func (r *CostProductEtlRepository) InsertEtlProducts(ctx context.Context, in cos
 	}()
 	paramIDs, err := etlParamIDs(ctx, tx)
 	if err != nil {
+		return out, err
+	}
+	if err = etlLockAll(ctx, tx, in.Items); err != nil {
 		return out, err
 	}
 	now := time.Now().UTC()
@@ -115,12 +125,8 @@ func etlParamIDs(ctx context.Context, tx *sql.Tx) (map[string]uuid.UUID, error) 
 func insertOne(ctx context.Context, tx *sql.Tx, it costproductmaster.EtlInsert, actor string, now time.Time, paramIDs map[string]uuid.UUID) (costproductmaster.EtlInsertResult, error) {
 	res := costproductmaster.EtlInsertResult{RowKey: it.RowKey}
 	item, shade := costproductmaster.EtlNorm(it.ItemCode), costproductmaster.EtlNorm(it.ShadeCode)
-	if _, err := tx.ExecContext(ctx, etlLockSQL, "cpm_etl:"+item+"|"+shade); err != nil {
-		return res, fmt.Errorf("advisory lock: %w", err)
-	}
 	var n int
-	pat := escapeLike(item) + "-" + escapeLike(shade) + "-%"
-	if err := tx.QueryRowContext(ctx, etlRecheckSQL, item, shade, pat, costproductmaster.EtlNorm(it.ItemName)).Scan(&n); err != nil {
+	if err := tx.QueryRowContext(ctx, etlRecheckSQL, item, shade, costproductmaster.EtlNorm(it.ItemName)).Scan(&n); err != nil {
 		return res, fmt.Errorf("recheck: %w", err)
 	}
 	if n > 0 {
@@ -147,4 +153,30 @@ func insertOne(ctx context.Context, tx *sql.Tx, it costproductmaster.EtlInsert, 
 	}
 	res.Result = costproductmaster.EtlResultInserted
 	return res, nil
+}
+
+// etlLockAll takes every advisory lock of the run up front, in one global sorted order, so two
+// concurrent applies can never deadlock. Per item it locks the ERP-link key (shared with
+// SaveErpLink/CreateWithErpLink) and the name+shade key (guards the POSSIBLE_DUPLICATE check).
+func etlLockAll(ctx context.Context, tx *sql.Tx, items []costproductmaster.EtlInsert) error {
+	seen := map[string]struct{}{}
+	keys := make([]string, 0, len(items)*2)
+	add := func(k string) {
+		if _, ok := seen[k]; !ok {
+			seen[k] = struct{}{}
+			keys = append(keys, k)
+		}
+	}
+	for _, it := range items {
+		shade := costproductmaster.EtlNorm(it.ShadeCode)
+		add(cpmErpLinkLockNS + costproductmaster.EtlNorm(it.ItemCode) + "|" + shade)
+		add(etlNameLockNS + costproductmaster.EtlNorm(it.ItemName) + "|" + shade)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		if _, err := tx.ExecContext(ctx, etlLockSQL, k); err != nil {
+			return fmt.Errorf("advisory lock: %w", err)
+		}
+	}
+	return nil
 }
