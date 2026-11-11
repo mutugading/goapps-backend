@@ -3,6 +3,7 @@ package mbhead
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/rs/zerolog/log"
@@ -26,7 +27,11 @@ type fgLink struct {
 
 // resolveFg loads the POY and enforces design section 2.1 against the recipe shade:
 // active POY (ErrFgNotPoy), shade equal or empty (ErrFgShadeMismatch otherwise).
-func resolveFg(ctx context.Context, reader mbspin.FgProductReader, fgID int64, recipeShade string) (fgLink, error) {
+func resolveFg(ctx context.Context, reader mbspin.FgProductReader, fgID int64, entity *mbhead.Entity) (fgLink, error) {
+	recipeShade := spinShadeCode(entity)
+	if err := checkHeadShadeConsistent(entity); err != nil {
+		return fgLink{}, err
+	}
 	if reader == nil {
 		return fgLink{}, ErrFgReaderUnavailable
 	}
@@ -48,6 +53,28 @@ func resolveFg(ctx context.Context, reader mbspin.FgProductReader, fgID int64, r
 	return fgLink{poy: poy, fillShade: fill}, nil
 }
 
+// spinShadeCode is the exact shade the root spin stores in mbs_shade_code (the
+// head's mbh_shade_code, see mbCascadeSpinQuery / buildAutoGenSpin). It is the
+// single source of truth for the FG shade comparison.
+func spinShadeCode(entity *mbhead.Entity) string {
+	return strings.TrimSpace(entity.ShadeCode())
+}
+
+// checkHeadShadeConsistent rejects an FG link when the head's user-visible code
+// (mbh_code) and its shade code differ, since the spin would then carry another
+// shade than the one the user sees.
+func checkHeadShadeConsistent(entity *mbhead.Entity) error {
+	c := entity.MBHCode()
+	if c == nil {
+		return nil
+	}
+	code, sc := strings.ToUpper(strings.TrimSpace(*c)), strings.ToUpper(spinShadeCode(entity))
+	if code != "" && sc != "" && code != sc {
+		return fmt.Errorf("%w: head code %q differs from shade code %q", mbspin.ErrFgShadeMismatch, strings.TrimSpace(*c), spinShadeCode(entity))
+	}
+	return nil
+}
+
 // apply snapshots the FG onto the head entity.
 func (l fgLink) apply(entity *mbhead.Entity) error {
 	id := l.poy.ID
@@ -66,7 +93,7 @@ func (l fgLink) afterSave(ctx context.Context, reader mbspin.FgProductReader, sh
 	if l.poy == nil || !l.fillShade {
 		return
 	}
-	code := strings.TrimSpace(headShadeCode(entity))
+	code := spinShadeCode(entity)
 	if code == "" {
 		return
 	}

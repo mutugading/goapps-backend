@@ -30,9 +30,12 @@ func IsValidFgLinkSource(s string) bool {
 
 // CheckFgShade applies the design §2.1 shade rule with UPPER(TRIM) comparison.
 // Empty POY shade => fillPoyShade=true (caller fills it with the recipe shade);
-// equal => (false, nil); different => ErrFgShadeMismatch. An empty recipe shade
-// is treated like any other value, so a non-empty POY shade then mismatches.
+// equal => (false, nil); different => ErrFgShadeMismatch. A blank recipe shade
+// is always rejected (ErrFgShadeMismatch): an FG cannot be linked to a shade-less recipe.
 func CheckFgShade(recipeShade, poyShade string) (fillPoyShade bool, err error) {
+	if strings.TrimSpace(recipeShade) == "" {
+		return false, ErrFgShadeMismatch
+	}
 	poy := strings.ToUpper(strings.TrimSpace(poyShade))
 	if poy == "" {
 		return true, nil

@@ -145,6 +145,7 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*mbhead.
 	}
 
 	oldCosting := entity.MBCosting()
+	oldSpinShade := spinShadeCode(entity)
 	oldMachineID := copyUUIDPtr(entity.MachineID())
 	costingChanged := mbCostingChanged(oldCosting, cmd.MBCosting)
 	mbCosting := cmd.MBCosting
@@ -189,7 +190,7 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*mbhead.
 		}
 	}
 
-	fg, err := h.applyFg(ctx, entity, cmd.FgProductID)
+	fg, err := h.applyFg(ctx, entity, cmd.FgProductID, oldSpinShade)
 	if err != nil {
 		return nil, err
 	}
@@ -217,8 +218,13 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*mbhead.
 
 // applyFg applies the tri-state FG command: nil unchanged, 0 clear, >0 validate + set.
 // The returned fgLink is the zero value (no-op afterSave) unless an FG was set.
-func (h *UpdateHandler) applyFg(ctx context.Context, entity *mbhead.Entity, fgID *int64) (fgLink, error) {
+func (h *UpdateHandler) applyFg(ctx context.Context, entity *mbhead.Entity, fgID *int64, oldSpinShade string) (fgLink, error) {
 	if fgID == nil {
+		// FG unchanged, but a shade change on a head that already has an FG must
+		// still satisfy the shade rule against the existing POY.
+		if cur := entity.FgProductID(); cur != nil && spinShadeCode(entity) != oldSpinShade {
+			return resolveFg(ctx, h.fgReader, *cur, entity)
+		}
 		return fgLink{}, nil
 	}
 	switch {
@@ -228,7 +234,7 @@ func (h *UpdateHandler) applyFg(ctx context.Context, entity *mbhead.Entity, fgID
 	case *fgID < 0:
 		return fgLink{}, mbspin.ErrFgNotPoy
 	}
-	link, err := resolveFg(ctx, h.fgReader, *fgID, headShadeCode(entity))
+	link, err := resolveFg(ctx, h.fgReader, *fgID, entity)
 	if err != nil {
 		return fgLink{}, err
 	}

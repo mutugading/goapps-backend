@@ -23,6 +23,7 @@ func TestCheckFgShade(t *testing.T) {
 		{"equal case trim", " red ", "Red  ", false, nil},
 		{"mismatch", "RED", "BLUE", false, mbspin.ErrFgShadeMismatch},
 		{"empty recipe nonempty poy", "", "BLUE", false, mbspin.ErrFgShadeMismatch},
+		{"blank recipe empty poy", "  ", "", false, mbspin.ErrFgShadeMismatch},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

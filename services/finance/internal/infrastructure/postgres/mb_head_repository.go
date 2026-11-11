@@ -372,6 +372,9 @@ func cascadeHeadToSpinsTx(ctx context.Context, tx *sql.Tx, entity *mbhead.Entity
 		writeShade,
 	)
 	if err != nil {
+		if isSpinShadeFgViolation(err) {
+			return nil, mbspin.ErrSpinShadeFgExists
+		}
 		return nil, fmt.Errorf("cascade mb head to spins: %w", err)
 	}
 	defer closeRows(rows)

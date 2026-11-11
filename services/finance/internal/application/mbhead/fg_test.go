@@ -83,6 +83,23 @@ func TestCreateHandler_Fg(t *testing.T) {
 		assert.ErrorIs(t, err, mbspin.ErrFgShadeMismatch)
 	})
 
+	t.Run("mbh_code differing from shade code is rejected", func(t *testing.T) {
+		h, _ := setup(&fakeFgReader{poy: poy(nil)}, false)
+		cmd := newCmd()
+		code := "OTHER"
+		cmd.MBHCode = &code
+		_, err := h.Handle(ctx, cmd)
+		assert.ErrorIs(t, err, mbspin.ErrFgShadeMismatch)
+	})
+
+	t.Run("blank recipe shade is rejected", func(t *testing.T) {
+		h, _ := setup(&fakeFgReader{poy: poy(nil)}, false)
+		cmd := newCmd()
+		cmd.ShadeCode = ""
+		_, err := h.Handle(ctx, cmd)
+		assert.ErrorIs(t, err, mbspin.ErrFgShadeMismatch)
+	})
+
 	t.Run("no FG behaves as before without a reader", func(t *testing.T) {
 		repo := new(MockRepository)
 		repo.On("ExistsByMBCosting", ctx, "MB-FG").Return(false, nil)
@@ -132,7 +149,26 @@ func TestUpdateHandler_Fg(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, int64(7), *got.FgProductID())
 	})
-	t.Run("shade mismatch rejected", func(t *testing.T) {
+	t.Run("shade change with existing FG and nil FgProductID mismatches", func(t *testing.T) {
+		sh := "NEW"
+		repo := new(MockRepository)
+		repo.On("GetByID", ctx, id).Return(build(t, true), nil)
+		_, err := mbhead.NewUpdateHandler(repo, nil).WithFgReader(&fakeFgReader{poy: poy(strPtr("S1"))}).
+			Handle(ctx, mbhead.UpdateCommand{ID: id, UpdatedBy: "a", ShadeCode: &sh})
+		assert.ErrorIs(t, err, mbspin.ErrFgShadeMismatch)
+	})
+	t.Run("shade change with existing FG and empty POY shade fills", func(t *testing.T) {
+		sh := "NEW"
+		r := &fakeFgReader{poy: poy(nil)}
+		repo := new(MockRepository)
+		repo.On("GetByID", ctx, id).Return(build(t, true), nil)
+		repo.On("Update", ctx, mock.AnythingOfType("*mbhead.Entity")).Return(nil)
+		_, err := mbhead.NewUpdateHandler(repo, nil).WithFgReader(r).
+			Handle(ctx, mbhead.UpdateCommand{ID: id, UpdatedBy: "a", ShadeCode: &sh})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"NEW"}, r.filled)
+	})
+	t.Run("shade shape mismatch rejected", func(t *testing.T) {
 		v := int64(7)
 		_, err := run(t, build(t, false), &v, &fakeFgReader{poy: poy(strPtr("zzz"))})
 		assert.ErrorIs(t, err, mbspin.ErrFgShadeMismatch)

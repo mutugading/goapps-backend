@@ -204,7 +204,7 @@ func (h *CreateHandler) linkFg(ctx context.Context, entity *mbhead.Entity, fgID 
 	if fgID < 0 {
 		return fgLink{}, mbspin.ErrFgNotPoy
 	}
-	link, err := resolveFg(ctx, h.fgReader, fgID, headShadeCode(entity))
+	link, err := resolveFg(ctx, h.fgReader, fgID, entity)
 	if err != nil {
 		return fgLink{}, err
 	}

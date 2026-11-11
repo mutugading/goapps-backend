@@ -529,6 +529,9 @@ func (h *MBHeadHandler) ApproveMBHead(ctx context.Context, req *financev1.Approv
 	entity, err := h.validateHandler.Handle(ctx, appmbhead.ValidateCommand{MbhID: id, ActorUserID: getUserFromContext(ctx)})
 	if err != nil {
 		RecordMBHeadOperation("approve", false)
+		if resp := fgErrToBase(err); resp != nil {
+			return &financev1.ApproveMBHeadResponse{Base: resp}, nil
+		}
 		return &financev1.ApproveMBHeadResponse{Base: domainErrorToBaseResponse(err)}, nil
 	}
 
@@ -556,6 +559,9 @@ func (h *MBHeadHandler) ValidateMBHead(ctx context.Context, req *financev1.Valid
 	entity, err := h.validateHandler.Handle(ctx, appmbhead.ValidateCommand{MbhID: id, ActorUserID: getUserFromContext(ctx)})
 	if err != nil {
 		RecordMBHeadOperation("validate", false)
+		if resp := fgErrToBase(err); resp != nil {
+			return &financev1.ValidateMBHeadResponse{Base: resp}, nil
+		}
 		return &financev1.ValidateMBHeadResponse{Base: domainErrorToBaseResponse(err)}, nil
 	}
 
