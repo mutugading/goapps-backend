@@ -629,11 +629,11 @@ func buildMBSpinFgWhere(filter mbspin.ListFilter, idx int) (string, []interface{
 		idx++
 	}
 	if s := strings.TrimSpace(filter.FgSearch); s != "" {
-		fmt.Fprintf(&sb, ` AND (mbs_fg_item_code ILIKE $%d OR EXISTS (
+		fmt.Fprintf(&sb, ` AND (mbs_fg_item_code ILIKE $%d ESCAPE '\' OR EXISTS (
 			SELECT 1 FROM cost_product_master fgp
 			WHERE fgp.cpm_product_sys_id = mst_mb_spin.mbs_fg_product_id
-			  AND (fgp.cpm_product_code ILIKE $%d OR fgp.cpm_product_name ILIKE $%d)))`, idx, idx, idx)
-		args = append(args, "%"+s+"%")
+			  AND (fgp.cpm_product_code ILIKE $%d ESCAPE '\' OR fgp.cpm_product_name ILIKE $%d ESCAPE '\')))`, idx, idx, idx)
+		args = append(args, "%"+escapeLikePattern(s)+"%")
 	}
 	return sb.String(), args
 }

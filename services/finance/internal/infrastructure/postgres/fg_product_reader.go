@@ -21,22 +21,27 @@ var _ mbspin.FgProductReader = (*FgProductReader)(nil)
 
 // GetFgProduct loads one product with its type code; ErrFgNotPoy when it does not exist.
 func (r *FgProductReader) GetFgProduct(ctx context.Context, id int64) (*mbspin.FgProduct, error) {
-	return getFgProductOn(ctx, r.db, id)
+	return getFgProductOn(ctx, r.db, id, false)
 }
 
-// getFgProductOn is GetFgProduct over any rowQuerier (*DB or *sql.Tx).
-func getFgProductOn(ctx context.Context, q rowQuerier, id int64) (*mbspin.FgProduct, error) {
+// getFgProductOn is GetFgProduct over any rowQuerier (*DB or *sql.Tx). forUpdate locks the
+// product row (FOR UPDATE OF pm) and must only be used inside a transaction.
+func getFgProductOn(ctx context.Context, q rowQuerier, id int64, forUpdate bool) (*mbspin.FgProduct, error) {
 	var (
 		p          mbspin.FgProduct
 		erp, shade sql.NullString
 		typeCode   sql.NullString
 	)
+	lock := ""
+	if forUpdate {
+		lock = " FOR UPDATE OF pm"
+	}
 	err := q.QueryRowContext(ctx, `
 		SELECT pm.cpm_product_sys_id, pm.cpm_product_code, pm.cpm_product_name,
 		       pm.cpm_erp_item_code, pm.cpm_shade_code, pt.cpt_type_code, pm.cpm_is_active
 		FROM cost_product_master pm
 		LEFT JOIN cost_product_type pt ON pt.cpt_type_id = pm.cpm_product_type_id
-		WHERE pm.cpm_product_sys_id = $1`, id,
+		WHERE pm.cpm_product_sys_id = $1`+lock, id,
 	).Scan(&p.ID, &p.Code, &p.Name, &erp, &shade, &typeCode, &p.IsActive)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, mbspin.ErrFgNotPoy

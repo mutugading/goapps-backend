@@ -139,7 +139,7 @@ func (r *MBSpinRepository) prepareCloneFg(
 	if in.FgProductID == nil || *in.FgProductID == 0 {
 		return cloneFg{}, nil
 	}
-	poy, err := getFgProductOn(ctx, tx, *in.FgProductID)
+	poy, err := getFgProductOn(ctx, tx, *in.FgProductID, true)
 	if err != nil {
 		return cloneFg{}, err
 	}
