@@ -120,6 +120,10 @@ func (r *MBSpinRepository) List(ctx context.Context, filter mbspin.ListFilter) (
 		args = append(args, *filter.IsActive)
 		idx++
 	}
+	fgSQL, fgArgs := buildMBSpinFgWhere(filter, idx)
+	base += fgSQL
+	args = append(args, fgArgs...)
+	idx += len(fgArgs)
 
 	var total int64
 	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM mst_mb_spin "+base, args...).Scan(&total); err != nil {
@@ -214,6 +218,9 @@ func (r *MBSpinRepository) Update(ctx context.Context, entity *mbspin.Entity) er
 		entity.UpdatedBy(),
 	)
 	if err != nil {
+		if mapped := mapMBSpinUniqueErr(err); mapped != nil {
+			return mapped
+		}
 		return fmt.Errorf("update mb spin: %w", err)
 	}
 	rowsAffected, err := result.RowsAffected()
@@ -378,7 +385,12 @@ func (r *MBSpinRepository) selectCols() string {
 		       mbs_last_recalc_at, mbs_last_recalc_by, mbs_cost_product_id,
 		       mbs_shade_code, mbs_shade_name, mbs_cross_section,
 		       mbs_ldr_type, mbs_ldr_calculated_pct, mbs_ldr_adjustment_pct, mbs_ldr_is_actual,
-		       mbs_vs_number, mbs_lusture_code
+		       mbs_vs_number, mbs_lusture_code,
+		       mbs_fg_product_id, mbs_fg_item_code, mbs_fg_link_source,
+		       mbs_superseded_by_spin_id, mbs_superseded_at, mbs_superseded_by,
+		       (SELECT p.cpm_product_code FROM cost_product_master p WHERE p.cpm_product_sys_id = mst_mb_spin.mbs_fg_product_id),
+		       (SELECT p.cpm_product_name FROM cost_product_master p WHERE p.cpm_product_sys_id = mst_mb_spin.mbs_fg_product_id),
+		       (SELECT COALESCE(NULLIF(TRIM(x.mbs_orion_item_code), ''), x.mbs_mb_costing) FROM mst_mb_spin x WHERE x.mbs_id = mst_mb_spin.mbs_superseded_by_spin_id)
 		FROM mst_mb_spin
 	`
 }
@@ -444,6 +456,16 @@ type mbSpinDTO struct {
 	// LustureCode is the lusture code (migration 000498). Plumbing only — see
 	// mbspin.Entity.LustureCode.
 	LustureCode sql.NullString
+	// FG link + supersede columns (000607) and read-model subqueries.
+	FgProductID          sql.NullInt64
+	FgItemCode           sql.NullString
+	FgLinkSource         sql.NullString
+	SupersededBySpinID   sql.NullString
+	SupersededAt         sql.NullTime
+	SupersededBy         sql.NullString
+	FgProductCode        sql.NullString
+	FgProductName        sql.NullString
+	SupersededBySpinCode sql.NullString
 }
 
 func (d *mbSpinDTO) toEntity() *mbspin.Entity {
@@ -467,6 +489,16 @@ func (d *mbSpinDTO) toEntity() *mbspin.Entity {
 	})
 	e.HydrateVSNumber(nullableStringPtr(d.VSNumber))
 	e.HydrateLustureCode(nullableStringPtr(d.LustureCode))
+	e.HydrateFg(nullableInt64Ptr(d.FgProductID), nullableStringPtr(d.FgItemCode), nullableStringPtr(d.FgLinkSource), mbspin.FgSupersede{
+		SupersededBySpinID: nullableUUIDPtr(d.SupersededBySpinID),
+		SupersededAt:       nullableTimePtr(d.SupersededAt),
+		SupersededBy:       nullableStringPtr(d.SupersededBy),
+	})
+	e.HydrateFgReadModel(mbspin.FgReadModel{
+		FgProductCode:        nullableStringPtr(d.FgProductCode),
+		FgProductName:        nullableStringPtr(d.FgProductName),
+		SupersededBySpinCode: nullableStringPtr(d.SupersededBySpinCode),
+	})
 	return e
 }
 
@@ -513,6 +545,9 @@ func (r *MBSpinRepository) scanOne(row *sql.Row) (*mbspin.Entity, error) {
 		&d.ShadeCode, &d.ShadeName, &d.CrossSection,
 		&d.LDRType, &d.LDRCalculatedPct, &d.LDRAdjustmentPct, &d.LDRIsActual,
 		&d.VSNumber, &d.LustureCode,
+		&d.FgProductID, &d.FgItemCode, &d.FgLinkSource,
+		&d.SupersededBySpinID, &d.SupersededAt, &d.SupersededBy,
+		&d.FgProductCode, &d.FgProductName, &d.SupersededBySpinCode,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, mbspin.ErrNotFound
@@ -538,6 +573,9 @@ func (r *MBSpinRepository) scanRow(rows *sql.Rows) (*mbspin.Entity, error) {
 		&d.ShadeCode, &d.ShadeName, &d.CrossSection,
 		&d.LDRType, &d.LDRCalculatedPct, &d.LDRAdjustmentPct, &d.LDRIsActual,
 		&d.VSNumber, &d.LustureCode,
+		&d.FgProductID, &d.FgItemCode, &d.FgLinkSource,
+		&d.SupersededBySpinID, &d.SupersededAt, &d.SupersededBy,
+		&d.FgProductCode, &d.FgProductName, &d.SupersededBySpinCode,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("scan mb spin row: %w", err)
@@ -547,6 +585,53 @@ func (r *MBSpinRepository) scanRow(rows *sql.Rows) (*mbspin.Entity, error) {
 
 func isMBSpinUniqueViolation(err error) bool {
 	return isPGUniqueViolation(err)
+}
+
+// spinShadeFgIndex is the partial unique index (000607) allowing one live spin per
+// (shade, FG POY product).
+const spinShadeFgIndex = "uix_mbs_shade_fg_live"
+
+// isSpinShadeFgViolation reports a unique violation of uix_mbs_shade_fg_live specifically.
+func isSpinShadeFgViolation(err error) bool {
+	state, constraint, ok := pgErrorInfo(err)
+	return ok && state == sqlStateUniqueViolation && constraint == spinShadeFgIndex
+}
+
+// mapMBSpinUniqueErr maps a spin insert/update unique violation to its domain error:
+// uix_mbs_shade_fg_live -> ErrSpinShadeFgExists (409), any other -> ErrAlreadyExists.
+// Returns nil when err is not a unique violation.
+func mapMBSpinUniqueErr(err error) error {
+	switch {
+	case isSpinShadeFgViolation(err):
+		return mbspin.ErrSpinShadeFgExists
+	case isMBSpinUniqueViolation(err):
+		return mbspin.ErrAlreadyExists
+	default:
+		return nil
+	}
+}
+
+// buildMBSpinFgWhere renders the FG-related List predicates starting at placeholder idx.
+// Superseded spins are hidden unless IncludeSuperseded. FgSearch is fully parameterized.
+func buildMBSpinFgWhere(filter mbspin.ListFilter, idx int) (string, []interface{}) {
+	var sb strings.Builder
+	args := make([]interface{}, 0, 2)
+	if !filter.IncludeSuperseded {
+		sb.WriteString(" AND mbs_superseded_by_spin_id IS NULL")
+	}
+	if filter.FgProductID > 0 {
+		fmt.Fprintf(&sb, " AND mbs_fg_product_id = $%d", idx)
+		args = append(args, filter.FgProductID)
+		idx++
+	}
+	if s := strings.TrimSpace(filter.FgSearch); s != "" {
+		fmt.Fprintf(&sb, ` AND (mbs_fg_item_code ILIKE $%d OR EXISTS (
+			SELECT 1 FROM cost_product_master fgp
+			WHERE fgp.cpm_product_sys_id = mst_mb_spin.mbs_fg_product_id
+			  AND (fgp.cpm_product_code ILIKE $%d OR fgp.cpm_product_name ILIKE $%d)))`, idx, idx, idx)
+		args = append(args, "%"+s+"%")
+	}
+	return sb.String(), args
 }
 
 // FindByShades returns, per normalized shade (UPPER(TRIM)), the single live + active MB spin

@@ -220,3 +220,26 @@ func (f *ListFilter) Validate() {
 func (f *ListFilter) Offset() int {
 	return (f.Page - 1) * f.PageSize
 }
+
+// FgProduct is the minimal cost_product_master projection needed to validate an FG (POY)
+// link candidate.
+type FgProduct struct {
+	ID          int64
+	Code        string
+	Name        string
+	ErpItemCode *string // cpm_erp_item_code (Orion code snapshot source)
+	ShadeCode   *string // cpm_shade_code; nil/blank = empty
+	TypeCode    string  // cost_product_type.cpt_type_code, e.g. "POY"
+	IsActive    bool
+}
+
+// FgProductReader loads POY candidates and fills an empty POY shade.
+type FgProductReader interface {
+	// GetFgProduct returns the product, or ErrFgNotPoy when it does not exist.
+	// POY-ness / active state are checked by the caller from TypeCode / IsActive.
+	GetFgProduct(ctx context.Context, id int64) (*FgProduct, error)
+
+	// FillEmptyFgShade sets cpm_shade_code on the product only while it is still empty.
+	// Reports whether a row was updated.
+	FillEmptyFgShade(ctx context.Context, id int64, shadeCode, actor string) (bool, error)
+}

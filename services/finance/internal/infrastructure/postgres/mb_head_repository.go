@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbhead"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbspin"
 )
 
 // MBHeadRepository implements mbhead.Repository using PostgreSQL.
@@ -40,8 +41,9 @@ func (r *MBHeadRepository) Create(ctx context.Context, entity *mbhead.Entity) er
 			mbh_is_boughtout, mbh_dev_code, mbh_shade_code, mbh_shade_name,
 			mbh_cross_section, mbh_lusture_code, mbh_machine_id, mbh_run_ldr_pct,
 			mbh_vs_number, mbh_no_of_process,
-			mbh_check_status_calc, mbh_orion_item_code
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
+			mbh_check_status_calc, mbh_orion_item_code,
+			mbh_fg_product_id, mbh_fg_item_code
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
 	`,
 		entity.ID(),
 		entity.OracleSysID(),
@@ -75,6 +77,8 @@ func (r *MBHeadRepository) Create(ctx context.Context, entity *mbhead.Entity) er
 		// whatever the caller supplied — ⛔ this value is NEVER written there (K-1).
 		entity.MBHCheckStatusCalc(),
 		entity.OrionItemCode(),
+		entity.FgProductID(),
+		entity.FgItemCode(),
 	)
 	if err != nil {
 		if isMBHeadUniqueViolation(err) {
@@ -184,7 +188,8 @@ func (r *MBHeadRepository) Update(ctx context.Context, entity *mbhead.Entity) er
 //  2. Every live MB Spin of the head — root AND children — gets the head's identity/spec
 //     fields (mbCascadeSpinQuery). Shade code/name/cross-section follow the old
 //     syncRootSpinShadeFromHead rule: written together, or not at all when all are empty.
-//  3. The root spin's LDR via the existing guarded sync (mbs_ldr_is_actual = FALSE).
+//  3. The root spin's LDR via the existing guarded sync (mbs_ldr_is_actual = FALSE), then
+//     the root spin's FG link (syncRootSpinFgTx, design §2.2).
 //  4. The linked cost product's name and shade — only while cpm_source = MB_RECIPE.
 //  5. When params is non-nil: the frozen mbh_param_* columns and the CPP freeze
 //     (mbFreezeCostParams), the same writes RefreezeCostParams performs.
@@ -215,19 +220,8 @@ func (r *MBHeadRepository) UpdateWithCascade(ctx context.Context, entity *mbhead
 		if err != nil {
 			return err
 		}
-		if err := syncRootSpinLDRFromHead(ctx, tx, entity.ID(), entity, actor); err != nil {
+		if err := cascadeRootAndProductTx(ctx, tx, entity, productID, params, actor); err != nil {
 			return err
-		}
-		if err := cascadeHeadToCostProductTx(ctx, tx, entity, productID, actor); err != nil {
-			return err
-		}
-		if params != nil {
-			if err := updateFrozenParamsTx(ctx, tx, entity.ID(), params); err != nil {
-				return err
-			}
-			if err := mbFreezeCostParams(ctx, tx, productID, entity, actor); err != nil {
-				return fmt.Errorf("cascade: freeze CPP: %w", err)
-			}
 		}
 		spinIDs = ids
 		return nil
@@ -236,6 +230,29 @@ func (r *MBHeadRepository) UpdateWithCascade(ctx context.Context, entity *mbhead
 		return nil, err
 	}
 	return spinIDs, nil
+}
+
+// cascadeRootAndProductTx runs the root-spin / cost-product steps (3-5 of UpdateWithCascade).
+func cascadeRootAndProductTx(ctx context.Context, tx *sql.Tx, entity *mbhead.Entity, productID int64, params *mbhead.ParamSnapshot, actor string) error {
+	if err := syncRootSpinLDRFromHead(ctx, tx, entity.ID(), entity, actor); err != nil {
+		return err
+	}
+	if err := syncRootSpinFgTx(ctx, tx, entity, actor); err != nil {
+		return err
+	}
+	if err := cascadeHeadToCostProductTx(ctx, tx, entity, productID, actor); err != nil {
+		return err
+	}
+	if params == nil {
+		return nil
+	}
+	if err := updateFrozenParamsTx(ctx, tx, entity.ID(), params); err != nil {
+		return err
+	}
+	if err := mbFreezeCostParams(ctx, tx, productID, entity, actor); err != nil {
+		return fmt.Errorf("cascade: freeze CPP: %w", err)
+	}
+	return nil
 }
 
 // mbCostingRenameSpinQuery renames the head's spin rows still carrying the old costing.
@@ -427,7 +444,9 @@ func (r *MBHeadRepository) updateOn(ctx context.Context, q rowQuerier, entity *m
 			mbh_run_ldr_pct   = $21,
 			mbh_vs_number     = $22,
 			mbh_no_of_process = $23,
-			mbh_orion_item_code = $24
+			mbh_orion_item_code = $24,
+			mbh_fg_product_id   = $25,
+			mbh_fg_item_code    = $26
 		WHERE mbh_id = $1 AND deleted_at IS NULL
 	`,
 		entity.ID(),
@@ -460,6 +479,8 @@ func (r *MBHeadRepository) updateOn(ctx context.Context, q rowQuerier, entity *m
 		entity.VSNumber(),
 		entity.NoOfProcess(),
 		entity.OrionItemCode(),
+		entity.FgProductID(),
+		entity.FgItemCode(),
 	)
 	if err != nil {
 		if isMBHeadUniqueViolation(err) {
@@ -644,7 +665,11 @@ func (r *MBHeadRepository) selectCols() string {
 		           AND w.mbwl_to_state = 'UNLOCK_REQUESTED'
 		         ORDER BY w.mbwl_actor_at DESC
 		         LIMIT 1),
-		       mbh_check_status_calc, mbh_orion_item_code
+		       mbh_check_status_calc, mbh_orion_item_code,
+		       mbh_fg_product_id, mbh_fg_item_code,
+		       mbh_superseded_by_head_id, mbh_superseded_at,
+		       (SELECT p.cpm_product_code FROM cost_product_master p WHERE p.cpm_product_sys_id = mst_mb_head.mbh_fg_product_id),
+		       (SELECT p.cpm_product_name FROM cost_product_master p WHERE p.cpm_product_sys_id = mst_mb_head.mbh_fg_product_id)
 		FROM mst_mb_head
 	`
 }
@@ -727,6 +752,13 @@ type mbHeadDTO struct {
 	MBHCheckStatusCalc sql.NullString
 	// OrionItemCode is mbh_orion_item_code (000416). NULL = not set.
 	OrionItemCode sql.NullString
+	// FG link columns (000607) + read-model subqueries (POY code/name).
+	FgProductID        sql.NullInt64
+	FgItemCode         sql.NullString
+	SupersededByHeadID sql.NullString
+	SupersededAt       sql.NullTime
+	FgProductCode      sql.NullString
+	FgProductName      sql.NullString
 }
 
 func nullTimeToStringPtr(n sql.NullTime) *string {
@@ -779,6 +811,12 @@ func (d *mbHeadDTO) toEntity() *mbhead.Entity {
 		PreUnlockStatus:    d.PreUnlockStatus.String,
 		OrionItemCode:      nullableStringPtr(d.OrionItemCode),
 	})
+	e.HydrateFg(nullableInt64Ptr(d.FgProductID), nullableStringPtr(d.FgItemCode),
+		nullableUUIDPtr(d.SupersededByHeadID), nullableTimePtr(d.SupersededAt))
+	e.HydrateFgReadModel(mbhead.FgReadModel{
+		FgProductCode: nullableStringPtr(d.FgProductCode),
+		FgProductName: nullableStringPtr(d.FgProductName),
+	})
 	return e
 }
 
@@ -800,6 +838,8 @@ func (r *MBHeadRepository) scanOne(row *sql.Row) (*mbhead.Entity, error) {
 		&d.IsLocked, &d.UnlockRequestedAt, &d.UnlockRequestedBy,
 		&d.LockedAt, &d.LockedBy, &d.UnlockReason, &d.PreUnlockStatus,
 		&d.MBHCheckStatusCalc, &d.OrionItemCode,
+		&d.FgProductID, &d.FgItemCode, &d.SupersededByHeadID, &d.SupersededAt,
+		&d.FgProductCode, &d.FgProductName,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, mbhead.ErrNotFound
@@ -828,6 +868,8 @@ func (r *MBHeadRepository) scanRow(rows *sql.Rows) (*mbhead.Entity, error) {
 		&d.IsLocked, &d.UnlockRequestedAt, &d.UnlockRequestedBy,
 		&d.LockedAt, &d.LockedBy, &d.UnlockReason, &d.PreUnlockStatus,
 		&d.MBHCheckStatusCalc, &d.OrionItemCode,
+		&d.FgProductID, &d.FgItemCode, &d.SupersededByHeadID, &d.SupersededAt,
+		&d.FgProductCode, &d.FgProductName,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("scan mb head row: %w", err)
@@ -837,4 +879,34 @@ func (r *MBHeadRepository) scanRow(rows *sql.Rows) (*mbhead.Entity, error) {
 
 func isMBHeadUniqueViolation(err error) bool {
 	return isPGUniqueViolation(err)
+}
+
+// mbSyncRootSpinFgQuery points the head's root spin(s) at the head's FG (design §2.2).
+// Only rows whose FG really differs are written. When the head has NO FG ($1 NULL) only a
+// link this flow created (link_source RECIPE) is cleared; a MANUAL/DUPLICATE/BACKFILL link
+// is never wiped by a recipe edit.
+const mbSyncRootSpinFgQuery = `
+		UPDATE mst_mb_spin SET
+			mbs_fg_product_id = CAST($1 AS BIGINT),
+			mbs_fg_item_code  = CAST($2 AS VARCHAR),
+			mbs_fg_link_source = CASE WHEN CAST($1 AS BIGINT) IS NULL THEN NULL ELSE 'RECIPE' END,
+			updated_at = NOW(), updated_by = $4
+		WHERE mbs_mbh_id = $3 AND mbs_parent_spin_id IS NULL AND deleted_at IS NULL
+		  AND (mbs_fg_product_id IS DISTINCT FROM CAST($1 AS BIGINT)
+		       OR mbs_fg_item_code IS DISTINCT FROM CAST($2 AS VARCHAR))
+		  AND (CAST($1 AS BIGINT) IS NOT NULL OR mbs_fg_link_source = 'RECIPE')`
+
+// syncRootSpinFgTx runs mbSyncRootSpinFgQuery inside the cascade transaction. A violation
+// of uix_mbs_shade_fg_live (same shade + FG already live on another spin) maps to
+// mbspin.ErrSpinShadeFgExists and rolls the whole update back.
+func syncRootSpinFgTx(ctx context.Context, tx *sql.Tx, entity *mbhead.Entity, actor string) error {
+	if _, err := tx.ExecContext(ctx, mbSyncRootSpinFgQuery,
+		entity.FgProductID(), entity.FgItemCode(), entity.ID(), actor,
+	); err != nil {
+		if isSpinShadeFgViolation(err) {
+			return mbspin.ErrSpinShadeFgExists
+		}
+		return fmt.Errorf("cascade mb head fg to root spin: %w", err)
+	}
+	return nil
 }
