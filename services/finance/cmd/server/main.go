@@ -52,6 +52,7 @@ import (
 	grpcdelivery "github.com/mutugading/goapps-backend/services/finance/internal/delivery/grpc"
 	httpdelivery "github.com/mutugading/goapps-backend/services/finance/internal/delivery/httpdelivery"
 	notifDomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costnotification"
+	cpmdomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductmaster"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbsource"
 	domainshade "github.com/mutugading/goapps-backend/services/finance/internal/domain/shade"
 
@@ -855,6 +856,15 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		biMVRepo := oracleinfra.NewBIMVRepository(oracleClient)
 		biETLRouter.Register(bietl.SourceERPOracle, bietl.NewMVLoader(biMVRepo, biFactRepo))
 	}
+	// Oracle -> Product Master ETL (P5): source only when Oracle is up; otherwise RPCs answer 503.
+	var etlSrc cpmdomain.EtlSource
+	if oracleErr == nil {
+		etlSrc = oracleinfra.NewASPAKMergeItemRepository(oracleClient.ReadOnly())
+	} else {
+		log.Warn().Msg("Product ETL from Oracle disabled (Oracle unavailable); RPCs return 503")
+	}
+	costProductMasterHandler.WithProductEtl(cpmapp.NewProductEtlService(etlSrc,
+		postgres.NewCostProductEtlRepository(db), shadeRepo, mbSourceAutoFill, cfg.ProductETL.ProductApplyLimit))
 	// HRIS connection (HD-02): separate read-only account; opt-in via ORACLE_HRIS_* env.
 	if hrisClient := setupHRISClient(cfg.OracleHRIS); hrisClient != nil {
 		defer func() {

@@ -28,6 +28,7 @@ type CostProductMasterHandler struct {
 	updateHandler     *app.UpdateHandler
 	linkErpHandler    *app.LinkErpHandler
 	mbLink            MBLinkService
+	productEtl        ProductEtlService
 	deactivateHandler *app.DeactivateHandler
 	unlockHandler     *app.UnlockHandler
 	duplicateHandler  *app.DuplicateHandler
