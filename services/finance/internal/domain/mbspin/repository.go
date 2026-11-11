@@ -140,7 +140,10 @@ const MaxRecalcChildren = 20
 //	          mbs_ldr_type = source value, EXCEPT an ACTUAL source is demoted
 //	          to CALCULATED on the clone (D32=A),
 //	          mbs_ldr_is_actual = ALWAYS FALSE regardless of source (D32=A),
-//	          created_at/by
+//	          created_at/by,
+//	          mbs_fg_product_id/mbs_fg_item_code = DuplicateInput.FgProductID's
+//	          POY (item code snapshot), mbs_fg_link_source = DUPLICATE — only
+//	          when FgProductID is set; otherwise left NULL (legacy behavior)
 //	DEFAULT : mbs_last_recalc_at/by, updated_at/by, deleted_at/by — left at
 //	          their column defaults (not written by insertClone at all)
 type DuplicateInput struct {
@@ -154,6 +157,9 @@ type DuplicateInput struct {
 	Filament *int
 	// ActorUserID lands in created_by and mbs_duplicated_by.
 	ActorUserID string
+	// FgProductID optionally links the clone to an FG (POY) product. nil => no
+	// FG link (legacy behavior). Validation (POY, shade) is the caller's job.
+	FgProductID *int64
 }
 
 // DuplicateOutput is the result of a successful DuplicateSpin.
@@ -183,6 +189,12 @@ type ListFilter struct {
 	PageSize  int
 	SortBy    string // "mbs_mgt_name", "mbs_denier", "created_at"
 	SortOrder string // "asc", "desc"
+	// FgProductID filters by mbs_fg_product_id; 0 = no filter.
+	FgProductID int64
+	// FgSearch matches the FG POY code/name or the FG Orion item code; "" = no filter.
+	FgSearch string
+	// IncludeSuperseded false (default) hides spins with mbs_superseded_by_spin_id set.
+	IncludeSuperseded bool
 }
 
 // Validate normalizes filter values to safe defaults.

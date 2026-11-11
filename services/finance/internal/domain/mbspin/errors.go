@@ -72,4 +72,19 @@ var (
 	// NULL but only fires on a hard delete, so this guard is required because
 	// deletion here is a soft UPDATE.
 	ErrInUse = errors.New("mb spin cannot be deleted while it is used by a master product's cost parameter")
+
+	// --- FG (POY) link (mb-spin-fg-poy-link P2) ---
+	//
+	// Defined here (not in mbhead) because mbspin has no domain imports, so the
+	// mbhead application layer can reuse them without an import cycle.
+
+	// ErrFgNotPoy is returned when the chosen FG product is not an active, live POY product.
+	ErrFgNotPoy = errors.New("fg product must be an active POY product")
+	// ErrFgShadeMismatch is returned when the POY shade differs from the recipe/spin shade.
+	ErrFgShadeMismatch = errors.New("fg poy shade does not match the recipe shade")
+	// ErrSpinShadeFgExists is returned when a live spin already exists for the same shade + FG
+	// (index uix_mbs_shade_fg_live).
+	ErrSpinShadeFgExists = errors.New("a live spin for this shade and fg product already exists")
+	// ErrInvalidFgLinkSource is returned when fg_link_source is not RECIPE|DUPLICATE|MANUAL|BACKFILL.
+	ErrInvalidFgLinkSource = errors.New("invalid fg link source")
 )

@@ -56,12 +56,24 @@ type Entity struct {
 	lastRecalcBy *string
 	// Cost-product ownership — migration 000490. Traceability only (D18).
 	costProductID *int64
-	createdAt     time.Time
-	createdBy     string
-	updatedAt     *time.Time
-	updatedBy     *string
-	deletedAt     *time.Time
-	deletedBy     *string
+	// FG (POY) link + supersede trail — migration 000607. Populated via
+	// WithFg / HydrateFg (fg.go), NOT parameters of New/Reconstruct.
+	fgProductID        *int64
+	fgItemCode         *string
+	fgLinkSource       *string
+	supersededBySpinID *uuid.UUID
+	supersededAt       *time.Time
+	supersededBy       *string
+	// Read-model (joined) display values; never persisted from the entity.
+	fgProductCode        *string
+	fgProductName        *string
+	supersededBySpinCode *string
+	createdAt            time.Time
+	createdBy            string
+	updatedAt            *time.Time
+	updatedBy            *string
+	deletedAt            *time.Time
+	deletedBy            *string
 }
 
 // New creates a new MB Spin entity with validation.
