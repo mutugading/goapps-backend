@@ -10,6 +10,7 @@ import (
 
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/machine"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbhead"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbspin"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/shade"
 )
 
@@ -78,6 +79,9 @@ type CreateCommand struct {
 	// OrionItemCode is the optional ERP item code. nil or blank = not set (NULL); a
 	// non-empty value must not already be used by another live head.
 	OrionItemCode *string
+
+	// FgProductID links the head to an FG (POY) product. 0 = none.
+	FgProductID int64
 }
 
 // CreateHandler handles the CreateMBHead command.
@@ -85,6 +89,13 @@ type CreateHandler struct {
 	repo        mbhead.Repository
 	machineRepo machine.Repository
 	shadeRepo   shade.Repository
+	fgReader    mbspin.FgProductReader
+}
+
+// WithFgReader attaches the POY reader used to validate an FG link.
+func (h *CreateHandler) WithFgReader(r mbspin.FgProductReader) *CreateHandler {
+	h.fgReader = r
+	return h
 }
 
 // NewCreateHandler creates a new CreateHandler.
@@ -165,6 +176,13 @@ func (h *CreateHandler) Handle(ctx context.Context, cmd CreateCommand) (*mbhead.
 		}
 	}
 
+	var fg fgLink
+	if cmd.FgProductID != 0 {
+		if fg, err = h.linkFg(ctx, entity, cmd.FgProductID); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := h.repo.Create(ctx, entity); err != nil {
 		return nil, err
 	}
@@ -176,8 +194,24 @@ func (h *CreateHandler) Handle(ctx context.Context, cmd CreateCommand) (*mbhead.
 	}
 
 	ensureShadeMaster(ctx, h.shadeRepo, entity, cmd.CreatedBy)
+	fg.afterSave(ctx, h.fgReader, h.shadeRepo, entity, cmd.CreatedBy)
 
 	return entity, nil
+}
+
+// linkFg validates the requested FG against the recipe shade and snapshots it on the entity.
+func (h *CreateHandler) linkFg(ctx context.Context, entity *mbhead.Entity, fgID int64) (fgLink, error) {
+	if fgID < 0 {
+		return fgLink{}, mbspin.ErrFgNotPoy
+	}
+	link, err := resolveFg(ctx, h.fgReader, fgID, headShadeCode(entity))
+	if err != nil {
+		return fgLink{}, err
+	}
+	if err := link.apply(entity); err != nil {
+		return fgLink{}, err
+	}
+	return link, nil
 }
 
 // resolveDefaultMachineID looks up the "MB" machine (B5). A missing machine is an
