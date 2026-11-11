@@ -459,15 +459,16 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	if err != nil {
 		return err
 	}
-	mbSourceAutoFill := mbsourceautofill.New(
-		postgres.NewMBSourceAutoFillStore(db),
-		mbsource.NewResolver(
-			mbsource.NewMBSpinFgProvider(postgres.NewFgCandidateReader(db), mbSpinRepo, parameterRepo),
-			mbsource.NewMBSpinProvider(mbSpinRepo, parameterRepo),
-			mbsource.NewSuperbaProvider(superbaCostSpRepo),
-		),
-		parameterRepo,
+	mbFgProvider := mbsource.NewMBSpinFgProvider(postgres.NewFgCandidateReader(db), mbSpinRepo, parameterRepo)
+	mbResolver := mbsource.NewResolver(
+		mbFgProvider,
+		mbsource.NewMBSpinProvider(mbSpinRepo, parameterRepo),
+		mbsource.NewSuperbaProvider(superbaCostSpRepo),
 	)
+	mbSourceStore := postgres.NewMBSourceAutoFillStore(db)
+	mbSourceAutoFill := mbsourceautofill.New(mbSourceStore, mbResolver, parameterRepo)
+	mbLinkService := mbsourceautofill.NewLinkService(
+		postgres.NewMBSourceLinkReader(db), mbResolver, mbFgProvider, mbSourceStore, mbSourceAutoFill)
 	costProductMasterHandler, err := grpcdelivery.NewCostProductMasterHandler(costProductMasterRepo, costProductTypeRepo)
 	if err != nil {
 		return err
@@ -478,6 +479,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	costProductMasterHandler.WithAuditSupport(costAuditLogRepo)
 	costProductMasterHandler.WithRMDenierOverrides(costProductMasterRepo)
 	costProductMasterHandler.WithMBSourceAutoFill(mbSourceAutoFill)
+	costProductMasterHandler.WithMBLink(mbLinkService)
 	costProductMasterHandler.WithShadeMaster(shadeRepo)
 	costProductMasterHandler.WithErpLinkOnCreate(costProductMasterRepo, costProductMasterRepo, auditapp.NewEmitter(costAuditLogRepo))
 
