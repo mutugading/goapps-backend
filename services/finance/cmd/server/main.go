@@ -259,6 +259,8 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	// Recipe create/update auto-creates a MANUAL shade master row for an unknown shade
 	// code (best-effort, never fails the save).
 	mbHeadHandler = mbHeadHandler.WithShadeMaster(shadeRepo)
+	// FG (POY) link validation on head create/update (design 2.1).
+	mbHeadHandler = mbHeadHandler.WithFgReader(postgres.NewFgProductReader(db))
 
 	// Full wiring: duplicate spin + child-recalc cascade. mbSpinRepo supplies both
 	// the read side and the recalc write side; mbDozingImpactRepo is READ-ONLY and

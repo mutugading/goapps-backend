@@ -17,6 +17,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbcomposition"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbhead"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbparam"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbspin"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/shade"
 	"github.com/mutugading/goapps-backend/services/finance/pkg/safeconv"
 )
@@ -139,6 +140,14 @@ func (h *MBHeadHandler) WithShadeMaster(shadeRepo shade.Repository) *MBHeadHandl
 		h.createHandler.WithShadeRepo(shadeRepo)
 		h.updateHandler.WithShadeRepo(shadeRepo)
 	}
+	return h
+}
+
+// WithFgReader attaches the POY reader that validates an FG link on create/update.
+// Without it, a request carrying fg_product_id fails with a configuration error.
+func (h *MBHeadHandler) WithFgReader(r mbspin.FgProductReader) *MBHeadHandler {
+	h.createHandler.WithFgReader(r)
+	h.updateHandler.WithFgReader(r)
 	return h
 }
 
@@ -266,6 +275,7 @@ func (h *MBHeadHandler) CreateMBHead(ctx context.Context, req *financev1.CreateM
 		NoOfProcess:      req.MbhNoOfProcess,
 		AdditionalShades: shadeInputsToDomain(req.AdditionalShades),
 		OrionItemCode:    req.MbhOrionItemCode,
+		FgProductID:      req.GetFgProductId(),
 	})
 	if err != nil {
 		RecordMBHeadOperation("create", false)
@@ -369,6 +379,8 @@ func (h *MBHeadHandler) UpdateMBHead(ctx context.Context, req *financev1.UpdateM
 		ReplaceAdditionalShades: req.GetReplaceAdditionalShades(),
 		// nil = unchanged, "" = clear.
 		OrionItemCode: req.MbhOrionItemCode,
+		// nil = unchanged, 0 = clear, >0 = set.
+		FgProductID: req.FgProductId,
 	})
 	if err != nil {
 		RecordMBHeadOperation("update", false)
@@ -392,7 +404,46 @@ func mbHeadWriteErrToBase(err error) *commonv1.BaseResponse {
 	if errors.Is(err, mbhead.ErrDuplicateOrionItemCode) {
 		return ConflictResponse("Orion Item Code already exists")
 	}
+	if resp := fgErrToBase(err); resp != nil {
+		return resp
+	}
 	return domainErrorToBaseResponse(err)
+}
+
+// fgErrToBase maps FG link errors (design 2.1); nil when err is not an FG error.
+func fgErrToBase(err error) *commonv1.BaseResponse {
+	switch {
+	case errors.Is(err, mbspin.ErrFgNotPoy),
+		errors.Is(err, mbspin.ErrFgShadeMismatch),
+		errors.Is(err, mbhead.ErrInvalidFgProduct):
+		return BadRequestResponse(err.Error())
+	case errors.Is(err, mbspin.ErrSpinShadeFgExists):
+		return ConflictResponse(err.Error())
+	default:
+		return nil
+	}
+}
+
+// mbHeadFgToProto maps the FG link and supersede fields (proto 47-52).
+func mbHeadFgToProto(p *financev1.MBHead, e *mbhead.Entity) {
+	if v := e.FgProductID(); v != nil {
+		p.FgProductId = *v
+	}
+	if v := e.FgItemCode(); v != nil {
+		p.FgItemCode = *v
+	}
+	if v := e.FgProductCode(); v != nil {
+		p.FgProductCode = *v
+	}
+	if v := e.FgProductName(); v != nil {
+		p.FgProductName = *v
+	}
+	if v := e.SupersededByHeadID(); v != nil {
+		p.SupersededByHeadId = v.String()
+	}
+	if v := e.SupersededAt(); v != nil {
+		p.SupersededAt = v.Format(time.RFC3339)
+	}
 }
 
 // DeleteMBHead soft-deletes an MB head record.
@@ -990,6 +1041,7 @@ func mbHeadEntityToProto(e *mbhead.Entity) *financev1.MBHead {
 	p.ParamThroughputPerHour = e.ParamThroughputPerHour()
 	p.ParamNoOfProcess = e.ParamNoOfProcess()
 	mbHeadRecipeFieldsToProto(p, e)
+	mbHeadFgToProto(p, e)
 	if e.UpdatedAt() != nil {
 		p.Audit.UpdatedAt = e.UpdatedAt().Format(time.RFC3339)
 	}
