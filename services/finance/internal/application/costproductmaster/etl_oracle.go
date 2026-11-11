@@ -77,7 +77,7 @@ func (s *ProductEtlService) Preview(ctx context.Context, cmd PreviewEtlCommand) 
 		return EtlPreviewResult{}, domain.ErrEtlNotConfigured
 	}
 	from, err := time.Parse(time.DateOnly, strings.TrimSpace(cmd.FromDate))
-	if err != nil || from.After(s.now()) {
+	if err != nil || from.Format(time.DateOnly) > s.now().Format(time.DateOnly) {
 		return EtlPreviewResult{}, domain.ErrEtlInvalidFromDate
 	}
 	srcRows, err := s.src.ListMergeItems(ctx, from)

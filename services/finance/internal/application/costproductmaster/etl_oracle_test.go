@@ -231,3 +231,25 @@ func TestEtlApply_Errors(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, before+1, repo.saveCnt, "failed run recorded")
 }
+
+func TestEtlPreview_SameDayFromDateEarlyMorningWIB(t *testing.T) {
+	wib := time.FixedZone("WIB", 7*3600)
+	svc := NewProductEtlService(&fakeEtlSrc{}, newFakeRepo(), nil, nil, 0)
+	svc.now = func() time.Time { return time.Date(2026, 11, 12, 1, 0, 0, 0, wib) }
+	_, err := svc.Preview(context.Background(), PreviewEtlCommand{FromDate: "2026-11-12", Actor: "u"})
+	require.NoError(t, err)
+	_, err = svc.Preview(context.Background(), PreviewEtlCommand{FromDate: "2026-11-13", Actor: "u"})
+	assert.ErrorIs(t, err, domain.ErrEtlInvalidFromDate)
+}
+
+func TestEtlDedupe_ConflictingDenierDeterministic(t *testing.T) {
+	a := []domain.EtlSourceRow{row("I9", "POY X", "S1", "150", "36"), row("I9", "POY X", "S1", "75", "")}
+	b := []domain.EtlSourceRow{a[1], a[0]}
+	ra, _ := etlDedupe(a)
+	rb, _ := etlDedupe(b)
+	require.Len(t, ra, 1)
+	assert.Equal(t, "75", ra[0].src.Denier)
+	assert.Equal(t, ra[0].src.Denier, rb[0].src.Denier)
+	assert.Equal(t, "36", ra[0].src.Filament)
+	assert.Contains(t, ra[0].note, "denier oracle bentrok")
+}

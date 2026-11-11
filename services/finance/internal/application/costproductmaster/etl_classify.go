@@ -22,8 +22,9 @@ var etlParamCodes = []string{etlParamDenier, etlParamFilament, etlParamActDenier
 
 // etlMerged is one deduped (item, shade) source row.
 type etlMerged struct {
-	src domain.EtlSourceRow
-	key string
+	src  domain.EtlSourceRow
+	key  string
+	note string // conflicts found while merging duplicate Oracle rows
 }
 
 // etlDedupe merges duplicate Oracle rows by normalized (item, shade); the first non-empty
@@ -44,15 +45,41 @@ func etlDedupe(rows []domain.EtlSourceRow) (out []etlMerged, skippedMB int) {
 			continue
 		}
 		cur := &out[i].src
-		if cur.Denier == "" {
-			cur.Denier = r.Denier
-		}
-		if cur.Filament == "" {
-			cur.Filament = r.Filament
-		}
+		out[i].note = etlMergeField(&cur.Denier, r.Denier, "denier", out[i].note)
+		out[i].note = etlMergeField(&cur.Filament, r.Filament, "filament", out[i].note)
 	}
 	sort.Slice(out, func(a, b int) bool { return out[a].key < out[b].key })
 	return out, skippedMB
+}
+
+// etlMergeField fills an empty cur from v; on two different non-empty values it keeps the smaller
+// number (deterministic, independent of Oracle row order) and appends a conflict note.
+func etlMergeField(cur *string, v, label, note string) string {
+	switch {
+	case v == "":
+		return note
+	case *cur == "":
+		*cur = v
+		return note
+	case *cur == v:
+		return note
+	}
+	a, b := etlParseNum(*cur), etlParseNum(v)
+	lo, hi := *cur, v
+	if a != "" && b != "" {
+		da, db := decimal.RequireFromString(a), decimal.RequireFromString(b) // canonical, validated by etlParseNum
+		if db.LessThan(da) {
+			lo, hi = v, *cur
+		}
+	} else if v < *cur {
+		lo, hi = v, *cur
+	}
+	*cur = lo
+	msg := fmt.Sprintf("%s oracle bentrok: %s/%s (dipakai %s)", label, lo, hi, lo)
+	if note == "" {
+		return msg
+	}
+	return note + "; " + msg
 }
 
 func etlTrimRow(r domain.EtlSourceRow) domain.EtlSourceRow {
@@ -95,7 +122,7 @@ func etlClassify(m etlMerged, ms domain.EtlMatchSet, types map[string]int32) dom
 	s := m.src
 	row := domain.EtlRunRow{
 		RowKey: m.key, ItemCode: s.ItemCode, ItemName: s.ItemName,
-		ShadeCode: s.ShadeCode, ShadeName: s.ShadeName, TypeCode: etlTypeToken(s.ItemName),
+		ShadeCode: s.ShadeCode, ShadeName: s.ShadeName, TypeCode: etlTypeToken(s.ItemName), Note: m.note,
 	}
 	if s.ItemCode == "" || s.ShadeCode == "" {
 		row.Status, row.Note = domain.EtlInvalidType, "item/shade kosong"
@@ -173,6 +200,9 @@ func etlProposeParams(row *domain.EtlRunRow, src domain.EtlSourceRow, sib map[in
 	set(&row.Denier, etlParamDenier, src.Denier, "denier")
 	set(&row.Filament, etlParamFilament, src.Filament, "filament")
 	set(&row.ActDenier, etlParamActDenier, "", "act_denier")
+	if row.Note != "" {
+		notes = append([]string{row.Note}, notes...)
+	}
 	row.Note = strings.Join(notes, "; ")
 }
 
