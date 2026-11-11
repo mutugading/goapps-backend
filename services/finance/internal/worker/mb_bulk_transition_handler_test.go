@@ -10,6 +10,8 @@ package worker
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -23,6 +25,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/job"
 	mbheaddomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/mbhead"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbparam"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbspin"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/rabbitmq"
 )
 
@@ -427,6 +430,41 @@ func TestMBBulkTransitionHandler_Handle_DownstreamError_MarksChildFailed(t *test
 	require.Equal(t, 0, headRepo.forceUnvalidateTransitionCall, "the domain gate must reject before the repo is ever called")
 
 	jobRepo.AssertExpectations(t)
+}
+
+// TestMBBulkTransitionHandler_Validate_SupersedeConflict_FailsWithPrefix proves a bulk
+// Validate that hits a shade+FG collision never confirms a supersede (opts are zero) and
+// lands in the child error_message with the SUPERSEDE_CONFIRMATION_REQUIRED prefix.
+func TestMBBulkTransitionHandler_Validate_SupersedeConflict_FailsWithPrefix(t *testing.T) {
+	headRepo := newFakeWorkerMBHeadRepo()
+	head := headInState(mbheaddomain.StatusSubmitted)
+	headRepo.put(head)
+	headRepo.transitionWithAutoGenErr = fmt.Errorf("%w (old spin: SP-OLD-1)", mbspin.ErrSupersedeConfirmationRequired)
+	validateH := appmbhead.NewValidateHandler(headRepo, &fakeWorkerParamRepo{active: activeParams()})
+
+	jobRepo := &workerJobRepoMock{}
+	parentID := uuid.New()
+	child := newChildExecWorker(t, mbheadbulk.ActionValidate, parentID)
+	jobRepo.On("GetByID", mock.Anything, child.ID()).Return(child, nil).Once()
+	jobRepo.On("UpdateStatus", mock.Anything, mock.AnythingOfType("*job.Execution")).Return(nil)
+	jobRepo.On("IncrementChildProgress", mock.Anything, parentID, false).Return(false, nil).Once()
+
+	h := NewMBBulkTransitionHandler(jobRepo, nil, nil, validateH, zerolog.Nop())
+	require.NoError(t, h.Handle(context.Background(), rabbitmq.JobMessage{
+		JobID: child.ID().String(), Subtype: mbheadbulk.ActionValidate,
+		MbhID: head.ID().String(), CreatedBy: "admin",
+	}))
+
+	require.Equal(t, job.StatusFailed, child.Status())
+	require.Contains(t, child.ErrorMessage(), "SUPERSEDE_CONFIRMATION_REQUIRED: ")
+	require.Contains(t, child.ErrorMessage(), "SP-OLD-1")
+	jobRepo.AssertExpectations(t)
+}
+
+func TestBulkFailureMessage(t *testing.T) {
+	require.Equal(t, "boom", bulkFailureMessage(errors.New("boom")))
+	require.True(t, errors.Is(fmt.Errorf("w: %w", mbspin.ErrSupersedeConfirmationRequired), mbspin.ErrSupersedeConfirmationRequired))
+	require.Contains(t, bulkFailureMessage(mbspin.ErrSupersedeConfirmationRequired), "SUPERSEDE_CONFIRMATION_REQUIRED: ")
 }
 
 // --- child-completion / notify-once tests ----------------------------------------

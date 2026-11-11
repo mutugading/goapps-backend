@@ -357,7 +357,11 @@ func mbAutoGenSpinOpts(ctx context.Context, tx *sql.Tx, headID uuid.UUID, entity
 	}
 	if len(cands) > 0 {
 		if !opts.ConfirmSupersede {
-			return nil, mbspin.ErrSupersedeConfirmationRequired
+			codes := make([]string, 0, len(cands))
+			for _, c := range cands {
+				codes = append(codes, c.SpinCode)
+			}
+			return nil, fmt.Errorf("%w (old spin: %s)", mbspin.ErrSupersedeConfirmationRequired, strings.Join(codes, ", "))
 		}
 		return supersedeOnAutoGenTx(ctx, tx, headID, spin, cands, actorUserID)
 	}
