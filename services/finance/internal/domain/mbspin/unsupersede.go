@@ -12,6 +12,9 @@ const (
 	UnsupersedeSkipRowDeleted     = "row deleted"
 	UnsupersedeSkipProductLocked  = "product locked"
 	UnsupersedeSkipNoPreviousData = "value added by supersede (no previous value to restore)"
+	// UnsupersedeSkipTriggerKept: a CHILD row is kept because its product's MB_SP_CODE row
+	// was not reverted (avoids a mixed state neither spin produced).
+	UnsupersedeSkipTriggerKept = "MB_SP_CODE not reverted"
 )
 
 // UnsupersedeSkipped is one cost_product_parameter row left as it is by un-supersede.

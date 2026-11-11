@@ -420,3 +420,60 @@ func (s *MBSupersedeFlowSuite) TestScenarioC_LegacySpinWithoutFg_Unaffected() {
 	require.True(s.T(), s.head(legacy.id).active)
 	require.Zero(s.T(), s.count(`SELECT COUNT(*) FROM mst_mb_spin_supersede_item WHERE mssi_old_spin_id = $1`, legacySpin))
 }
+
+// P3-R1: a supersede that wrote no param rows must still be restorable.
+func (s *MBSupersedeFlowSuite) TestUnsupersede_NoParamRows_Succeeds() {
+	fg := s.newPoy("FGNP")
+	shade := mbSupFlowPrefix + "SH-NP"
+	oldHead := s.newHead("NPO", shade, &fg)
+	_, err := s.validate(oldHead, false)
+	require.NoError(s.T(), err)
+	oldSpin := s.rootSpin(oldHead.id)
+	newHead := s.newHead("NPN", shade, &fg)
+	out, err := s.validate(newHead, true)
+	require.NoError(s.T(), err)
+	require.NotNil(s.T(), out)
+	require.Zero(s.T(), s.count(`SELECT COUNT(*) FROM mst_mb_spin_supersede_item WHERE mssi_old_spin_id = $1`, oldSpin))
+
+	res, err := s.unsup.Unsupersede(s.ctx, oldHead.id, oldSpin, "itest-restorer")
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), uuid.Nil, res.BatchID)
+	require.Zero(s.T(), res.ParamsReverted)
+	require.True(s.T(), s.spin(oldSpin).active)
+	require.False(s.T(), s.spin(oldSpin).supersededBy.Valid)
+	require.False(s.T(), s.spin(out.NewSpinID).active)
+	require.True(s.T(), s.head(oldHead.id).active)
+}
+
+// P3-R3: only what the supersede deactivated is re-activated; a product that was already
+// inactive before the supersede stays inactive.
+func (s *MBSupersedeFlowSuite) TestUnsupersede_ReactivatesOnlyWhatSupersedeDeactivated() {
+	f := s.seedScenarioA()
+	s.exec(`UPDATE cost_product_master SET cpm_is_active = FALSE WHERE cpm_product_sys_id = $1`, f.oldMB)
+	out, err := s.validate(f.newHead, true)
+	require.NoError(s.T(), err)
+	require.NotNil(s.T(), out)
+	require.Empty(s.T(), out.DeactivatedProductIDs, "already inactive product is not deactivated by supersede")
+
+	_, err = s.unsup.Unsupersede(s.ctx, f.oldHead.id, f.oldSpin, "itest-restorer")
+	require.NoError(s.T(), err)
+	require.True(s.T(), s.head(f.oldHead.id).active)
+	require.False(s.T(), s.productActive(f.oldMB), "pre-existing inactive product stays inactive")
+}
+
+// P3-R4/R6: a third live spin with the same (shade, FG) blocks the restore, nothing changes.
+func (s *MBSupersedeFlowSuite) TestUnsupersede_ThirdLiveSpin_Conflict() {
+	f := s.seedScenarioA()
+	newSpin, _ := s.confirmScenarioA(f)
+	s.exec(`UPDATE mst_mb_spin SET mbs_is_active = FALSE WHERE mbs_id = $1`, newSpin)
+	third := s.newHead("THIRD", mbSupFlowPrefix+"SH-A", &f.fg)
+	s.exec(`INSERT INTO mst_mb_spin (mbs_id, mbs_mbh_id, mbs_mgt_name, mbs_mb_costing, mbs_shade_code, mbs_fg_product_id, mbs_is_active, created_at, created_by)
+		VALUES ($1, $2, 'ITEST-MBSUPF-T', 'ITEST-MBSUPF-T', $3, $4, TRUE, NOW(), 'itest')`,
+		uuid.New(), third.id, mbSupFlowPrefix+"SH-A", f.fg)
+
+	_, err := s.unsup.Unsupersede(s.ctx, f.oldHead.id, f.oldSpin, "itest-restorer")
+	require.ErrorIs(s.T(), err, mbspin.ErrUnsupersedeConflict)
+	require.False(s.T(), s.spin(f.oldSpin).active)
+	require.Equal(s.T(), newSpin.String(), s.spin(f.oldSpin).supersededBy.String)
+	require.False(s.T(), s.head(f.oldHead.id).active)
+}

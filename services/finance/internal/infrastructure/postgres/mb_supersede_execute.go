@@ -177,6 +177,10 @@ type supersedeLogMeta struct {
 	HeadDeactivated  bool        `json:"head_deactivated"`
 	AffectedProducts []int64     `json:"affected_product_ids"`
 	RepointedRows    int         `json:"repointed_rows"`
+	// DeactivatedProductIDs / DeactivatedHeadIDs (OLD rows only) record exactly what this
+	// supersede deactivated for that old head, so un-supersede restores only those.
+	DeactivatedProductIDs []int64     `json:"deactivated_product_ids,omitempty"`
+	DeactivatedHeadIDs    []uuid.UUID `json:"deactivated_head_ids,omitempty"`
 }
 
 // supersedeWriteWorkflowLogsTx is step 7: one mst_mb_workflow_log row for the new head and
@@ -198,11 +202,32 @@ func supersedeWriteWorkflowLogsTx(ctx context.Context, tx *sql.Tx, out *mbhead.S
 		m := meta
 		m.Role = "OLD"
 		m.HeadDeactivated = deactivated[headID]
+		m.DeactivatedHeadIDs, m.DeactivatedProductIDs = nil, nil
+		if m.HeadDeactivated {
+			m.DeactivatedHeadIDs = []uuid.UUID{headID}
+		}
+		m.DeactivatedProductIDs = deactivatedProductsOfHead(cands, headID, out.DeactivatedProductIDs)
 		if err := insertSupersedeLogTx(ctx, tx, headID, actor, "SUPERSEDE: spin superseded by a recipe with the same shade and FG", m); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// deactivatedProductsOfHead returns the deactivated MB products that belong to headID's candidates.
+func deactivatedProductsOfHead(cands []supersedeSpin, headID uuid.UUID, deactivated []int64) []int64 {
+	set := map[int64]bool{}
+	for _, id := range deactivated {
+		set[id] = true
+	}
+	var out []int64
+	for _, c := range cands {
+		if c.HeadID == headID && set[c.MBProductID] {
+			out = append(out, c.MBProductID)
+			set[c.MBProductID] = false
+		}
+	}
+	return out
 }
 
 // supersedeOldHeadIDs returns the distinct heads of the superseded spins (candidate order).
@@ -224,7 +249,7 @@ func insertSupersedeLogTx(ctx context.Context, tx *sql.Tx, headID uuid.UUID, act
 
 // insertSupersedeEventLogTx writes the audit row with an explicit to_state (SUPERSEDE or
 // UNSUPERSEDE); from_state is the head's current status and the version is unchanged.
-func insertSupersedeEventLogTx(ctx context.Context, tx *sql.Tx, headID uuid.UUID, actor, reason, toState string, meta supersedeLogMeta) error {
+func insertSupersedeEventLogTx(ctx context.Context, tx *sql.Tx, headID uuid.UUID, actor, reason, toState string, meta any) error {
 	var (
 		status  string
 		version int32

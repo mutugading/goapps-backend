@@ -3,11 +3,13 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbspin"
 )
@@ -57,21 +59,15 @@ func unsupersedeTx(ctx context.Context, tx *sql.Tx, headID, spinID uuid.UUID, ac
 		return nil, err
 	}
 	var newHeadCode string
+	var newHeadID uuid.UUID
 	if err := tx.QueryRowContext(ctx, `
-		SELECT COALESCE(h.mbh_mb_costing, '') FROM mst_mb_spin s JOIN mst_mb_head h ON h.mbh_id = s.mbs_mbh_id
-		WHERE s.mbs_id = $1 FOR UPDATE OF s`, old.NewSpinID).Scan(&newHeadCode); err != nil {
+		SELECT h.mbh_id, COALESCE(h.mbh_mb_costing, '') FROM mst_mb_spin s JOIN mst_mb_head h ON h.mbh_id = s.mbs_mbh_id
+		WHERE s.mbs_id = $1 FOR UPDATE OF s`, old.NewSpinID).Scan(&newHeadID, &newHeadCode); err != nil {
 		return nil, fmt.Errorf("unsupersede: lock superseding spin: %w", err)
 	}
-	var batchID uuid.UUID
-	err = tx.QueryRowContext(ctx, `
-		SELECT mssi_batch_id FROM mst_mb_spin_supersede_item
-		WHERE mssi_old_spin_id = $1 AND mssi_reverted_at IS NULL
-		ORDER BY created_at DESC, mssi_id DESC LIMIT 1`, spinID).Scan(&batchID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, mbspin.ErrUnsupersedeNoBatch
-	}
+	batchID, err := findUnsupersedeBatch(ctx, tx, spinID, old.NewSpinID)
 	if err != nil {
-		return nil, fmt.Errorf("unsupersede: find batch: %w", err)
+		return nil, err
 	}
 	if err := checkUnsupersedeConflict(ctx, tx, spinID, old); err != nil {
 		return nil, err
@@ -80,14 +76,16 @@ func unsupersedeTx(ctx context.Context, tx *sql.Tx, headID, spinID uuid.UUID, ac
 		return nil, err
 	}
 	res := &mbspin.UnsupersedeResult{BatchID: batchID, NewSpinID: old.NewSpinID}
-	if err := revertSupersedeParamsTx(ctx, tx, spinID, batchID, actor, res); err != nil {
-		return nil, err
+	if batchID != uuid.Nil {
+		if err := revertSupersedeParamsTx(ctx, tx, spinID, batchID, actor, res); err != nil {
+			return nil, err
+		}
 	}
-	reactivated, err := reactivateOldHeadTx(ctx, tx, headID, actor)
+	react, err := reactivateOldHeadTx(ctx, tx, headID, old.NewSpinID, actor)
 	if err != nil {
 		return nil, err
 	}
-	if err := logUnsupersedeTx(ctx, tx, headID, spinID, old.NewSpinID, batchID, reactivated, actor, res); err != nil {
+	if err := logUnsupersedeTx(ctx, tx, headID, newHeadID, spinID, old.NewSpinID, batchID, react, actor, res); err != nil {
 		return nil, err
 	}
 	res.Warnings = append(res.Warnings, fmt.Sprintf(
@@ -96,6 +94,23 @@ func unsupersedeTx(ctx context.Context, tx *sql.Tx, headID, spinID uuid.UUID, ac
 		return nil, err
 	}
 	return res, nil
+}
+
+// findUnsupersedeBatch returns the un-reverted batch that linked spinID to newSpinID, or
+// uuid.Nil when that supersede wrote no param rows (nothing referenced the old spin).
+func findUnsupersedeBatch(ctx context.Context, tx *sql.Tx, spinID, newSpinID uuid.UUID) (uuid.UUID, error) {
+	var batchID uuid.UUID
+	err := tx.QueryRowContext(ctx, `
+		SELECT mssi_batch_id FROM mst_mb_spin_supersede_item
+		WHERE mssi_old_spin_id = $1 AND mssi_new_spin_id = $2 AND mssi_reverted_at IS NULL
+		ORDER BY created_at DESC, mssi_id DESC LIMIT 1`, spinID, newSpinID).Scan(&batchID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return uuid.Nil, nil
+	}
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("unsupersede: find batch: %w", err)
+	}
+	return batchID, nil
 }
 
 // lockUnsupersedeSpin locks S_old and validates it belongs to headID and is superseded.
@@ -160,6 +175,9 @@ func swapSpinsTx(ctx context.Context, tx *sql.Tx, oldID, newID uuid.UUID, actor 
 		UPDATE mst_mb_spin SET mbs_is_active = TRUE, mbs_superseded_by_spin_id = NULL,
 		       mbs_superseded_at = NULL, mbs_superseded_by = NULL, updated_at = NOW(), updated_by = $2
 		WHERE mbs_id = $1`, oldID, actor); err != nil {
+		if isSpinShadeFgViolation(err) {
+			return mbspin.ErrUnsupersedeConflict
+		}
 		return fmt.Errorf("unsupersede: reactivate spin: %w", err)
 	}
 	return nil
@@ -246,15 +264,35 @@ const unsupersedeRevertSQL = `
 	FROM mst_mb_spin_supersede_item i
 	WHERE i.mssi_id = $1 AND c.cpp_value_id = i.mssi_cpp_value_id`
 
+// itemReasons computes the skip reason per item. A CHILD row is also skipped when its
+// product's trigger (POINTER / TEXT_ONLY) row is skipped, so no mixed state is produced.
+func itemReasons(items []unsupersedeItem) []string {
+	reasons := make([]string, len(items))
+	triggerKept := map[int64]bool{}
+	for i, it := range items {
+		reasons[i] = it.skipReason()
+		if reasons[i] != "" && it.Kind != mbspin.SupersedeRepointChild {
+			triggerKept[it.ProductSysID] = true
+		}
+	}
+	for i, it := range items {
+		if reasons[i] == "" && it.Kind == mbspin.SupersedeRepointChild && triggerKept[it.ProductSysID] {
+			reasons[i] = mbspin.UnsupersedeSkipTriggerKept
+		}
+	}
+	return reasons
+}
+
 // revertSupersedeParamsTx restores every revertable row of the batch and reports the rest.
 func revertSupersedeParamsTx(ctx context.Context, tx *sql.Tx, oldID, batchID uuid.UUID, actor string, res *mbspin.UnsupersedeResult) error {
 	items, err := listUnsupersedeItems(ctx, tx, batchID, oldID)
 	if err != nil {
 		return err
 	}
+	reasons := itemReasons(items)
 	seen := map[int64]bool{}
-	for _, it := range items {
-		if reason := it.skipReason(); reason != "" {
+	for i, it := range items {
+		if reason := reasons[i]; reason != "" {
 			res.Skipped = append(res.Skipped, mbspin.UnsupersedeSkipped{
 				CppValueID: it.CppValueID, ProductSysID: it.ProductSysID, ProductCode: it.ProductCode,
 				ParamCode: it.ParamCode, Reason: reason})
@@ -277,37 +315,82 @@ func revertSupersedeParamsTx(ctx context.Context, tx *sql.Tx, oldID, batchID uui
 	return nil
 }
 
-// reactivateOldHeadTx re-activates H_old and its MB product when the supersede had
-// deactivated the head (mbh_superseded_by_head_id set). Returns whether it did.
-func reactivateOldHeadTx(ctx context.Context, tx *sql.Tx, headID uuid.UUID, actor string) (bool, error) {
-	var product sql.NullInt64
-	err := tx.QueryRowContext(ctx, `
-		UPDATE mst_mb_head
-		SET mbh_is_active = TRUE, mbh_superseded_by_head_id = NULL, mbh_superseded_at = NULL,
-		    mbh_superseded_by = NULL, updated_at = NOW(), updated_by = $2
-		WHERE mbh_id = $1 AND deleted_at IS NULL AND mbh_superseded_by_head_id IS NOT NULL
-		RETURNING mbh_cost_product_id`, headID, actor).Scan(&product)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("unsupersede: reactivate head: %w", err)
-	}
-	if product.Valid && product.Int64 > 0 {
-		if _, err := tx.ExecContext(ctx, `
-			UPDATE cost_product_master SET cpm_is_active = TRUE, cpm_updated_at = NOW(), cpm_updated_by = $2
-			WHERE cpm_product_sys_id = $1 AND NOT cpm_is_active`, product.Int64, actor); err != nil {
-			return false, fmt.Errorf("unsupersede: reactivate mb product: %w", err)
-		}
-	}
-	return true, nil
+// unsupersedeReactivation records what un-supersede re-activated.
+type unsupersedeReactivation struct {
+	Head     bool
+	Products []int64
 }
 
-func logUnsupersedeTx(ctx context.Context, tx *sql.Tx, headID, oldID, newID, batchID uuid.UUID, headReactivated bool, actor string, res *mbspin.UnsupersedeResult) error {
-	meta := supersedeLogMeta{
-		Event: unsupersedeWorkflowLogToState, Role: "OLD", BatchID: batchID, NewHeadID: headID,
-		NewSpinID: newID, OldSpinIDs: []uuid.UUID{oldID}, HeadDeactivated: !headReactivated,
-		AffectedProducts: res.AffectedProductIDs, RepointedRows: res.ParamsReverted,
+// reactivateOldHeadTx re-activates exactly what the matching SUPERSEDE log row of the old
+// head recorded as deactivated (head and products independently). Without such a row
+// (legacy) it falls back to the head's superseded marker and its own MB product.
+func reactivateOldHeadTx(ctx context.Context, tx *sql.Tx, headID, newSpinID uuid.UUID, actor string) (unsupersedeReactivation, error) {
+	var out unsupersedeReactivation
+	var raw []byte
+	err := tx.QueryRowContext(ctx, `
+		SELECT mbwl_meta FROM mst_mb_workflow_log
+		WHERE mbwl_mbh_id = $1 AND mbwl_to_state = $2 AND mbwl_meta->>'role' = 'OLD'
+		  AND mbwl_meta->>'new_spin_id' = $3
+		ORDER BY mbwl_actor_at DESC LIMIT 1`, headID, supersedeWorkflowLogToState, newSpinID.String()).Scan(&raw)
+	logged := err == nil
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return out, fmt.Errorf("unsupersede: read supersede log: %w", err)
+	}
+	var meta supersedeLogMeta
+	if logged {
+		if err := json.Unmarshal(raw, &meta); err != nil {
+			return out, fmt.Errorf("unsupersede: parse supersede log: %w", err)
+		}
+	}
+	if !logged || meta.HeadDeactivated {
+		var product sql.NullInt64
+		err := tx.QueryRowContext(ctx, `
+			UPDATE mst_mb_head
+			SET mbh_is_active = TRUE, mbh_superseded_by_head_id = NULL, mbh_superseded_at = NULL,
+			    mbh_superseded_by = NULL, updated_at = NOW(), updated_by = $2
+			WHERE mbh_id = $1 AND deleted_at IS NULL AND mbh_superseded_by_head_id IS NOT NULL
+			RETURNING mbh_cost_product_id`, headID, actor).Scan(&product)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return out, fmt.Errorf("unsupersede: reactivate head: %w", err)
+		}
+		out.Head = err == nil
+		if !logged && product.Valid && product.Int64 > 0 {
+			meta.DeactivatedProductIDs = []int64{product.Int64}
+		}
+	}
+	if len(meta.DeactivatedProductIDs) > 0 {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE cost_product_master SET cpm_is_active = TRUE, cpm_updated_at = NOW(), cpm_updated_by = $2
+			WHERE cpm_product_sys_id = ANY($1) AND NOT cpm_is_active`, pq.Array(meta.DeactivatedProductIDs), actor); err != nil {
+			return out, fmt.Errorf("unsupersede: reactivate mb product: %w", err)
+		}
+		out.Products = meta.DeactivatedProductIDs
+	}
+	return out, nil
+}
+
+// unsupersedeLogMeta is the mbwl_meta document of the UNSUPERSEDE audit row.
+type unsupersedeLogMeta struct {
+	Event               string      `json:"event"`
+	Role                string      `json:"role"`
+	BatchID             uuid.UUID   `json:"batch_id"`
+	RestoredSpinID      uuid.UUID   `json:"restored_spin_id"`
+	SupersedingSpinID   uuid.UUID   `json:"superseding_spin_id"`
+	SupersedingHeadID   uuid.UUID   `json:"superseding_head_id"`
+	HeadReactivated     bool        `json:"head_reactivated"`
+	ProductsReactivated []int64     `json:"products_reactivated,omitempty"`
+	AffectedProducts    []int64     `json:"affected_product_ids"`
+	ParamsReverted      int         `json:"params_reverted"`
+	SkippedCount        int         `json:"skipped_count"`
+	OldSpinIDs          []uuid.UUID `json:"old_spin_ids"`
+}
+
+func logUnsupersedeTx(ctx context.Context, tx *sql.Tx, headID, newHeadID, oldID, newID, batchID uuid.UUID, react unsupersedeReactivation, actor string, res *mbspin.UnsupersedeResult) error {
+	meta := unsupersedeLogMeta{
+		Event: unsupersedeWorkflowLogToState, Role: "OLD", BatchID: batchID, RestoredSpinID: oldID,
+		SupersedingSpinID: newID, SupersedingHeadID: newHeadID, HeadReactivated: react.Head,
+		ProductsReactivated: react.Products, AffectedProducts: res.AffectedProductIDs,
+		ParamsReverted: res.ParamsReverted, SkippedCount: len(res.Skipped), OldSpinIDs: []uuid.UUID{oldID},
 	}
 	return insertSupersedeEventLogTx(ctx, tx, headID, actor, "UNSUPERSEDE: superseded spin restored",
 		unsupersedeWorkflowLogToState, meta)
