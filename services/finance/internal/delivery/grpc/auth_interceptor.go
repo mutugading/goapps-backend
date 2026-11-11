@@ -675,10 +675,17 @@ func getRequiredPermission(fullMethod string) string {
 		// F2 (B2): DuplicateProduct mints a new product master row -- reuses the same
 		// create-like permission as CreateCostProductMaster/UpdateCostProductMaster per the
 		// locked design decision (no new IAM codes/migrations for this plan).
-		"/finance.v1.CostProductMasterService/DuplicateProduct":       "finance.product.route.create",
-		"/finance.v1.CostProductMasterService/ListRMDenierOverrides":  "finance.product.route.view",
-		"/finance.v1.CostProductMasterService/UpsertRMDenierOverride": "finance.product.route.create",
-		"/finance.v1.CostProductMasterService/DeleteRMDenierOverride": "finance.product.route.create",
+		"/finance.v1.CostProductMasterService/DuplicateProduct": "finance.product.route.create",
+		// mb-spin-fg-poy-link: MB link / Oracle ETL / supersede RPCs.
+		"/finance.v1.CostProductMasterService/GetCostProductMbLink":        "finance.product.route.view",
+		"/finance.v1.CostProductMasterService/RelinkCostProductMb":         "finance.product.route.update",
+		"/finance.v1.CostProductMasterService/PreviewProductEtlFromOracle": "finance.product.master.sync",
+		"/finance.v1.CostProductMasterService/ApplyProductEtlFromOracle":   "finance.product.master.sync",
+		"/finance.v1.MBHeadService/PreviewMBHeadSupersede":                 "finance.mb.head.validate",
+		"/finance.v1.MBSpinService/UnsupersedeMBSpin":                      "finance.yarnmaster.mbspin.restore",
+		"/finance.v1.CostProductMasterService/ListRMDenierOverrides":       "finance.product.route.view",
+		"/finance.v1.CostProductMasterService/UpsertRMDenierOverride":      "finance.product.route.create",
+		"/finance.v1.CostProductMasterService/DeleteRMDenierOverride":      "finance.product.route.create",
 
 		// CostProductParamBulkService (F4, B4): Bulk Edit Product Params reuses the
 		// same finance.product.route.* codes as CostProductParameterService per the
