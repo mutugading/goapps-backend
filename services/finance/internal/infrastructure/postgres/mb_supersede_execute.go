@@ -219,6 +219,12 @@ func supersedeOldHeadIDs(cands []supersedeSpin) []uuid.UUID {
 }
 
 func insertSupersedeLogTx(ctx context.Context, tx *sql.Tx, headID uuid.UUID, actor, reason string, meta supersedeLogMeta) error {
+	return insertSupersedeEventLogTx(ctx, tx, headID, actor, reason, supersedeWorkflowLogToState, meta)
+}
+
+// insertSupersedeEventLogTx writes the audit row with an explicit to_state (SUPERSEDE or
+// UNSUPERSEDE); from_state is the head's current status and the version is unchanged.
+func insertSupersedeEventLogTx(ctx context.Context, tx *sql.Tx, headID uuid.UUID, actor, reason, toState string, meta supersedeLogMeta) error {
 	var (
 		status  string
 		version int32
@@ -233,7 +239,7 @@ func insertSupersedeLogTx(ctx context.Context, tx *sql.Tx, headID uuid.UUID, act
 		return fmt.Errorf("supersede: marshal workflow log meta: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, insertWorkflowLogQuery,
-		headID, status, supersedeWorkflowLogToState, actor, reason, version, string(doc)); err != nil {
+		headID, status, toState, actor, reason, version, string(doc)); err != nil {
 		return fmt.Errorf("supersede: insert workflow log for head %s: %w", headID, err)
 	}
 	return nil

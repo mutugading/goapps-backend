@@ -31,7 +31,9 @@ type MBSpinHandler struct {
 	// collaborators; DuplicateMBSpin then reports Unimplemented instead of
 	// pretending to work.
 	duplicateHandler *appmbspin.DuplicateHandler
-	validation       *ValidationHelper
+	// unsupersedeHandler is nil unless WithUnsuperseder was called.
+	unsupersedeHandler *appmbspin.UnsupersedeHandler
+	validation         *ValidationHelper
 }
 
 // NewMBSpinHandler constructs an MBSpinHandler without the duplicate/recalc
@@ -569,9 +571,14 @@ func mbSpinErrorToBaseResponse(err error) *commonv1.BaseResponse {
 	case errors.Is(err, mbspin.ErrDuplicateOrionItemCode):
 		return ConflictResponse(err.Error())
 	case errors.Is(err, mbspin.ErrAlreadyDuplicated),
-		errors.Is(err, mbspin.ErrSpinShadeFgExists):
+		errors.Is(err, mbspin.ErrSpinShadeFgExists),
+		errors.Is(err, mbspin.ErrUnsupersedeConflict),
+		errors.Is(err, mbspin.ErrUnsupersedeNoBatch):
 		return ConflictResponse(err.Error())
-	case errors.Is(err, mbspin.ErrFgNotPoy),
+	case errors.Is(err, mbspin.ErrNotFound):
+		return NotFoundResponse(err.Error())
+	case errors.Is(err, mbspin.ErrNotSuperseded),
+		errors.Is(err, mbspin.ErrFgNotPoy),
 		errors.Is(err, mbspin.ErrFgShadeMismatch):
 		return BadRequestResponse(err.Error())
 	case errors.Is(err, mbspin.ErrParentCycle),

@@ -272,6 +272,9 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	if err != nil {
 		return err
 	}
+	// Un-supersede (restore a superseded spin); the lookup-sync trigger is added below when RabbitMQ is wired.
+	mbUnsupersedeRepo := postgres.NewMBUnsupersedeRepository(db)
+	mbSpinHandler = mbSpinHandler.WithUnsuperseder(mbUnsupersedeRepo, nil)
 
 	mbCompositionHandler, err := grpcdelivery.NewMBCompositionHandler(mbCompositionRepo)
 	if err != nil {
@@ -613,6 +616,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	// would only ever log ErrPublisherUnavailable.
 	if lookupSyncPublisher != nil {
 		mbHeadHandler = mbHeadHandler.WithLookupSyncTrigger(lookupsyncjob.NewCascadeTrigger(lookupSyncPlanner, lookupSyncEnqueuer))
+		mbSpinHandler = mbSpinHandler.WithUnsuperseder(mbUnsupersedeRepo, lookupsyncjob.NewCascadeTrigger(lookupSyncPlanner, lookupSyncEnqueuer))
 	}
 
 	// Fill-assignment repositories + handlers.

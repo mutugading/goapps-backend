@@ -92,3 +92,14 @@ var (
 	// not confirm the supersede. The caller shows the supersede preview.
 	ErrSupersedeConfirmationRequired = errors.New("a live spin of another recipe has the same shade and fg product; supersede confirmation required (see supersede-preview)")
 )
+
+// Un-supersede errors (mb-spin-fg-poy-link P3, design Revisi 1 D8).
+var (
+	// ErrNotSuperseded is returned (400) when un-supersede targets a spin that is not superseded.
+	ErrNotSuperseded = errors.New("mb spin is not superseded")
+	// ErrUnsupersedeNoBatch is returned (409) when no un-reverted supersede batch exists for the spin.
+	ErrUnsupersedeNoBatch = errors.New("no un-reverted supersede batch found for this mb spin")
+	// ErrUnsupersedeConflict is returned (409) when restoring the spin would collide on
+	// shade + FG with another live spin (other than the one that superseded it).
+	ErrUnsupersedeConflict = errors.New("cannot restore: another live spin has the same shade and fg product")
+)
