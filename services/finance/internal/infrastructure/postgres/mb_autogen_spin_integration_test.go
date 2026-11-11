@@ -317,6 +317,28 @@ func (s *MBAutoGenSpinSuite) TestAutoGenSpin_HeadWithFg_LinksRecipe() {
 	require.ErrorIs(s.T(), err, mbspin.ErrSpinShadeFgExists)
 }
 
+// POY with a blank Orion code: item code snapshot must be NULL, FG + link still written.
+func (s *MBAutoGenSpinSuite) TestAutoGenSpin_HeadWithFg_BlankErpCode_ItemNull() {
+	poy := s.seedPoy("")
+	entity, err := mbhead.New(mbhead.NewParams{
+		MBCosting: mbSpinAutoGenFixturePrefix + "MBC-" + uuid.NewString()[:8],
+		CreatedBy: "itest",
+		ShadeCode: "ITEST-AGSH2",
+	})
+	require.NoError(s.T(), err)
+	require.NoError(s.T(), entity.SetFg(&poy, nil))
+	require.NoError(s.T(), s.autoGen(entity))
+
+	var fg sql.NullInt64
+	var item, src sql.NullString
+	require.NoError(s.T(), s.db.QueryRowContext(s.ctx,
+		`SELECT mbs_fg_product_id, mbs_fg_item_code, mbs_fg_link_source FROM mst_mb_spin WHERE mbs_mbh_id = $1`, s.mbhID).Scan(&fg, &item, &src))
+	require.True(s.T(), fg.Valid)
+	require.Equal(s.T(), poy, fg.Int64)
+	require.False(s.T(), item.Valid, "blank POY erp code => NULL snapshot")
+	require.Equal(s.T(), "RECIPE", src.String)
+}
+
 func (s *MBAutoGenSpinSuite) TestAutoGenSpin_HeadWithoutFg_LeavesNull() {
 	entity, err := mbhead.New(mbhead.NewParams{MBCosting: mbSpinAutoGenFixturePrefix + "MBC-" + uuid.NewString()[:8], CreatedBy: "itest"})
 	require.NoError(s.T(), err)

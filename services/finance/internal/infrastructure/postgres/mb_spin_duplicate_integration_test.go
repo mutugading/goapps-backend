@@ -411,6 +411,20 @@ func (s *MBSpinDuplicateSuite) TestDuplicateSpin_WithFg_WritesDuplicateLink() {
 	require.Equal(s.T(), "ITEST-SH1", shade.String)
 }
 
+func (s *MBSpinDuplicateSuite) TestDuplicateSpin_WithFg_BlankErpCode_ItemNull() {
+	src := s.insertSource("Spinning")
+	s.setShade(src, "ITEST-SH1")
+	blank := ""
+	poy := s.newPoy("P2", nil, &blank)
+	out, err := s.repo.DuplicateSpin(s.ctx, mbspin.DuplicateInput{SourceSpinID: src, ActorUserID: "itest-actor", FgProductID: &poy})
+	require.NoError(s.T(), err)
+	fg, item, link := s.fgColumns(out.NewSpinID)
+	require.True(s.T(), fg.Valid)
+	require.Equal(s.T(), poy, fg.Int64)
+	require.False(s.T(), item.Valid, "blank erp code => NULL item snapshot")
+	require.Equal(s.T(), mbspin.FgLinkSourceDuplicate, link.String)
+}
+
 func (s *MBSpinDuplicateSuite) TestDuplicateSpin_WithoutFg_LeavesFgNull() {
 	src := s.insertSource("Spinning")
 	out, err := s.repo.DuplicateSpin(s.ctx, mbspin.DuplicateInput{SourceSpinID: src, ActorUserID: "itest-actor"})
