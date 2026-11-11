@@ -74,6 +74,9 @@ type MBHeadHandler struct {
 	bulkTransitionHandler *mbheadbulk.RequestBulkTransitionHandler
 	bulkJobRepo           job.Repository
 	bulkMBHeadRepo        mbhead.Repository
+	// previewSupersedeH backs PreviewMBHeadSupersede (mb-spin-fg-poy-link P3). Nil until
+	// WithSupersedeReader is called; the RPC then answers a clean 500 "not configured".
+	previewSupersedeH *appmbhead.PreviewSupersedeHandler
 }
 
 // NewMBHeadHandler constructs an MBHeadHandler without the [G.5] composition-sum

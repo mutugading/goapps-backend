@@ -87,4 +87,8 @@ var (
 	ErrSpinShadeFgExists = errors.New("a live spin for this shade and fg product already exists")
 	// ErrInvalidFgLinkSource is returned when fg_link_source is not RECIPE|DUPLICATE|MANUAL|BACKFILL.
 	ErrInvalidFgLinkSource = errors.New("invalid fg link source")
+	// ErrSupersedeConfirmationRequired is returned (409) when Validate would create a root
+	// spin whose shade + FG collides with a live spin of another recipe and the request did
+	// not confirm the supersede. The caller shows the supersede preview.
+	ErrSupersedeConfirmationRequired = errors.New("a live spin of another recipe has the same shade and fg product; supersede confirmation required (see supersede-preview)")
 )

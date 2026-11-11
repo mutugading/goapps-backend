@@ -261,6 +261,8 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	mbHeadHandler = mbHeadHandler.WithShadeMaster(shadeRepo)
 	// FG (POY) link validation on head create/update (design 2.1).
 	mbHeadHandler = mbHeadHandler.WithFgReader(postgres.NewFgProductReader(db))
+	// Read-only supersede preview (mb-spin-fg-poy-link P3, design 2.3).
+	mbHeadHandler = mbHeadHandler.WithSupersedeReader(mbHeadRepo, postgres.NewMBSupersedeRepository(db))
 
 	// Full wiring: duplicate spin + child-recalc cascade. mbSpinRepo supplies both
 	// the read side and the recalc write side; mbDozingImpactRepo is READ-ONLY and
