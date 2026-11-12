@@ -202,3 +202,43 @@ func writeApplyResultCSV(w io.Writer, rows []applyResultRow) error {
 	}
 	return nil
 }
+
+// reportHeader is the fixed spin-move report CSV header (P6 context pack T2).
+var reportHeader = []string{
+	"product_sys_id", "product_code", "product_name", "type_code", "shade_code", "is_locked",
+	"current_sp_code", "current_spin_id", "new_sp_code", "new_spin_id", "fg_product_id", "change",
+}
+
+func uuidStr(id *uuid.UUID) string {
+	if id == nil {
+		return ""
+	}
+	return id.String()
+}
+
+func reportRecord(r reportRow) []string {
+	p := r.Product
+	return []string{
+		strconv.FormatInt(p.ProductSysID, 10), p.ProductCode, p.ProductName, p.TypeCode, p.ShadeCode, boolStr(p.IsLocked),
+		r.CurrentSPCode, uuidStr(r.CurrentSpinID), r.NewSPCode, uuidStr(r.NewSpinID),
+		strconv.FormatInt(r.FgProductID, 10), r.Change,
+	}
+}
+
+// writeReportCSV writes the spin-move report CSV (header only when no product moves).
+func writeReportCSV(w io.Writer, rows []reportRow) error {
+	cw := csv.NewWriter(w)
+	if err := cw.Write(reportHeader); err != nil {
+		return fmt.Errorf("write header: %w", err)
+	}
+	for _, r := range rows {
+		if err := cw.Write(reportRecord(r)); err != nil {
+			return fmt.Errorf("write report row: %w", err)
+		}
+	}
+	cw.Flush()
+	if err := cw.Error(); err != nil {
+		return fmt.Errorf("flush csv: %w", err)
+	}
+	return nil
+}

@@ -151,5 +151,14 @@ func TestParseFlags(t *testing.T) {
 
 	o, err = parseFlags([]string{"--report"})
 	require.NoError(t, err)
-	assert.ErrorIs(t, run(context.Background(), o), errNotImplemented)
+	assert.True(t, o.report)
+	assert.False(t, o.dryRun)
+
+	o, err = parseFlags([]string{"--report", "--input", "r.csv", "--out", "x.csv"})
+	require.NoError(t, err)
+	assert.True(t, o.report)
+	assert.Equal(t, "r.csv", o.input)
+
+	_, err = parseFlags([]string{"--report", "--dry-run"})
+	assert.Error(t, err)
 }

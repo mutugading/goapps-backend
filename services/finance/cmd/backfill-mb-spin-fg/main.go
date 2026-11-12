@@ -10,8 +10,10 @@
 //	    Processes ONLY rows whose action is APPLY (reviewers turn REVIEW into APPLY
 //	    by hand). One transaction per row; every condition is re-checked under row
 //	    locks; an FG already set is never overwritten; reruns are idempotent.
-//	--report
-//	    Reserved for P6-T2 (spin-move report); not implemented here.
+//	--report [--input reviewed.csv] [--out report.csv]
+//	    Read-only. Lists the products whose MB_SP_CODE would change if the FG-aware
+//	    autofill were forced (Relink) after the backfill. Without --input it uses
+//	    the current DB state; with --input it simulates the APPLY rows in memory.
 //
 // The command never recalculates costs, never runs autofill/Relink and never
 // touches cost_product_parameter.
@@ -41,8 +43,6 @@ const (
 	defaultActor = cmdName
 )
 
-var errNotImplemented = errors.New("--report is not implemented yet (P6-T2)")
-
 type options struct {
 	dryRun bool
 	apply  bool
@@ -67,8 +67,8 @@ func parseFlags(args []string) (options, error) {
 	fs := flag.NewFlagSet(cmdName, flag.ContinueOnError)
 	fs.BoolVar(&o.dryRun, "dry-run", false, "classify only, write CSV, no DB writes (default mode)")
 	fs.BoolVar(&o.apply, "apply", false, "apply APPLY rows of --input (one tx per row)")
-	fs.BoolVar(&o.report, "report", false, "spin-move report (P6-T2, not implemented yet)")
-	fs.StringVar(&o.input, "input", "", "reviewed CSV for --apply")
+	fs.BoolVar(&o.report, "report", false, "read-only spin-move report (optionally simulating --input APPLY rows)")
+	fs.StringVar(&o.input, "input", "", "reviewed CSV for --apply (required) or --report (optional simulation)")
 	fs.StringVar(&o.out, "out", "", "output CSV path (default: timestamped file in cwd)")
 	fs.StringVar(&o.actor, "actor", defaultActor, "updated_by value for --apply")
 	if err := fs.Parse(args); err != nil {
@@ -104,9 +104,6 @@ func defaultOut(kind string) string {
 }
 
 func run(ctx context.Context, o options) error {
-	if o.report {
-		return errNotImplemented
-	}
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -120,6 +117,16 @@ func run(ctx context.Context, o options) error {
 
 	if o.apply {
 		return runApply(ctx, repo, o)
+	}
+	if o.report {
+		spinRepo := postgres.NewMBSpinRepository(db)
+		return runReport(ctx, reportDeps{
+			src:    repo,
+			cands:  postgres.NewFgCandidateReader(db),
+			spins:  spinRepo,
+			getter: spinRepo,
+			params: postgres.NewParameterRepository(db),
+		}, o)
 	}
 	return runDryRun(ctx, repo, o)
 }
@@ -151,15 +158,49 @@ func runDryRun(ctx context.Context, repo candidateLister, o options) error {
 	return nil
 }
 
-func runApply(ctx context.Context, repo rowApplier, o options) error {
-	f, err := os.Open(o.input) //nolint:gosec // operator-supplied reviewed CSV path for a one-shot CLI
+func runReport(ctx context.Context, d reportDeps, o options) error {
+	var entries []applyEntry
+	simulate := o.input != ""
+	if simulate {
+		in, err := readApplyInput(o.input)
+		if err != nil {
+			return err
+		}
+		entries = in.Entries
+		logCounts("ignored --input rows (non-APPLY action)", in.Ignored)
+	}
+	rows, st, err := buildReport(ctx, d, entries, simulate)
 	if err != nil {
-		return fmt.Errorf("open input: %w", err)
+		return err
+	}
+	out := o.out
+	if out == "" {
+		out = defaultOut("report")
+	}
+	if err := writeFile(out, func(w io.Writer) error { return writeReportCSV(w, rows) }); err != nil {
+		return err
+	}
+	logReportStats(st, out, simulate)
+	return nil
+}
+
+func readApplyInput(path string) (applyInput, error) {
+	f, err := os.Open(path) //nolint:gosec // operator-supplied reviewed CSV path for a one-shot CLI
+	if err != nil {
+		return applyInput{}, fmt.Errorf("open input: %w", err)
 	}
 	in, err := parseApplyCSV(f)
 	logClose("input", f)
 	if err != nil {
-		return fmt.Errorf("parse input: %w", err)
+		return applyInput{}, fmt.Errorf("parse input: %w", err)
+	}
+	return in, nil
+}
+
+func runApply(ctx context.Context, repo rowApplier, o options) error {
+	in, err := readApplyInput(o.input)
+	if err != nil {
+		return err
 	}
 	results, err := applyEntries(ctx, repo, in.Entries, o.actor)
 	if err != nil {
