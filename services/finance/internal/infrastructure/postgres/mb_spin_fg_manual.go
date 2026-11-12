@@ -70,12 +70,14 @@ func applyManualFgInTx(ctx context.Context, tx *sql.Tx, spinID uuid.UUID, fgProd
 	if !active || superseded {
 		return mbspin.ErrFgSpinNotLive
 	}
-	if curSource.Valid && curSource.String == mbspin.FgLinkSourceRecipe {
-		return mbspin.ErrFgFollowsRecipe
+	// Same predicate as the FG-follows-recipe read flag. A root spin whose head carries an FG
+	// is re-synced from the head on every recipe save (syncRootSpinFgTx), so a manual edit
+	// would be silently reverted (P8-R backend BE-3).
+	var srcPtr *string
+	if curSource.Valid {
+		srcPtr = &curSource.String
 	}
-	// A root spin whose head carries an FG is re-synced from the head on every recipe save
-	// (syncRootSpinFgTx), so a manual edit would be silently reverted (P8-R backend BE-3).
-	if root && headHasFg {
+	if mbspin.FgFollowsRecipe(srcPtr, root, headHasFg) {
 		return mbspin.ErrFgFollowsRecipe
 	}
 

@@ -90,7 +90,7 @@ func (h *UpdateHandler) checkManualFg(entity *mbspin.Entity, cmd UpdateCommand) 
 	if entity.IsSuperseded() || !entity.IsActive() {
 		return false, mbspin.ErrFgSpinNotLive
 	}
-	if src := entity.FgLinkSource(); src != nil && *src == mbspin.FgLinkSourceRecipe {
+	if entity.FgFollowsRecipe() {
 		return false, mbspin.ErrFgFollowsRecipe
 	}
 	cur := entity.FgProductID()

@@ -59,6 +59,23 @@ type FgReadModel struct {
 	FgProductCode        *string
 	FgProductName        *string
 	SupersededBySpinCode *string
+	// HeadHasFg is true when the spin's head carries an FG product (mbh_fg_product_id IS NOT NULL).
+	HeadHasFg bool
+}
+
+// FgFollowsRecipe is the single rule for "a manual FG edit would be rejected with
+// ErrFgFollowsRecipe": the link source is RECIPE, or the spin is a root spin
+// (no parent) whose head carries an FG (re-synced from the head on every recipe save).
+func FgFollowsRecipe(linkSource *string, isRoot, headHasFg bool) bool {
+	if linkSource != nil && *linkSource == FgLinkSourceRecipe {
+		return true
+	}
+	return isRoot && headHasFg
+}
+
+// FgFollowsRecipe reports whether this spin's FG is driven by its recipe (read-only for manual edit).
+func (e *Entity) FgFollowsRecipe() bool {
+	return FgFollowsRecipe(e.fgLinkSource, e.parentSpinID == nil, e.headHasFg)
 }
 
 // FgProductID returns the linked FG (POY) cost product id, or nil.
@@ -125,6 +142,7 @@ func (e *Entity) HydrateFg(productID *int64, itemCode, linkSource *string, s FgS
 // HydrateFgReadModel applies joined display values.
 func (e *Entity) HydrateFgReadModel(r FgReadModel) {
 	e.fgProductCode, e.fgProductName, e.supersededBySpinCode = r.FgProductCode, r.FgProductName, r.SupersededBySpinCode
+	e.headHasFg = r.HeadHasFg
 }
 
 func normalizeOptional(s *string) *string {

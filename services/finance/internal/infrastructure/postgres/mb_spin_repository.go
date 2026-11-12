@@ -403,7 +403,8 @@ func (r *MBSpinRepository) selectCols() string {
 		       mbs_superseded_by_spin_id, mbs_superseded_at, mbs_superseded_by,
 		       (SELECT p.cpm_product_code FROM cost_product_master p WHERE p.cpm_product_sys_id = mst_mb_spin.mbs_fg_product_id),
 		       (SELECT p.cpm_product_name FROM cost_product_master p WHERE p.cpm_product_sys_id = mst_mb_spin.mbs_fg_product_id),
-		       (SELECT COALESCE(NULLIF(TRIM(x.mbs_orion_item_code), ''), x.mbs_mb_costing) FROM mst_mb_spin x WHERE x.mbs_id = mst_mb_spin.mbs_superseded_by_spin_id)
+		       (SELECT COALESCE(NULLIF(TRIM(x.mbs_orion_item_code), ''), x.mbs_mb_costing) FROM mst_mb_spin x WHERE x.mbs_id = mst_mb_spin.mbs_superseded_by_spin_id),
+		       EXISTS (SELECT 1 FROM mst_mb_head h WHERE h.mbh_id = mst_mb_spin.mbs_mbh_id AND h.mbh_fg_product_id IS NOT NULL)
 		FROM mst_mb_spin
 	`
 }
@@ -479,6 +480,7 @@ type mbSpinDTO struct {
 	FgProductCode        sql.NullString
 	FgProductName        sql.NullString
 	SupersededBySpinCode sql.NullString
+	HeadHasFg            bool
 }
 
 func (d *mbSpinDTO) toEntity() *mbspin.Entity {
@@ -511,6 +513,7 @@ func (d *mbSpinDTO) toEntity() *mbspin.Entity {
 		FgProductCode:        nullableStringPtr(d.FgProductCode),
 		FgProductName:        nullableStringPtr(d.FgProductName),
 		SupersededBySpinCode: nullableStringPtr(d.SupersededBySpinCode),
+		HeadHasFg:            d.HeadHasFg,
 	})
 	return e
 }
@@ -560,7 +563,7 @@ func (r *MBSpinRepository) scanOne(row *sql.Row) (*mbspin.Entity, error) {
 		&d.VSNumber, &d.LustureCode,
 		&d.FgProductID, &d.FgItemCode, &d.FgLinkSource,
 		&d.SupersededBySpinID, &d.SupersededAt, &d.SupersededBy,
-		&d.FgProductCode, &d.FgProductName, &d.SupersededBySpinCode,
+		&d.FgProductCode, &d.FgProductName, &d.SupersededBySpinCode, &d.HeadHasFg,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, mbspin.ErrNotFound
@@ -588,7 +591,7 @@ func (r *MBSpinRepository) scanRow(rows *sql.Rows) (*mbspin.Entity, error) {
 		&d.VSNumber, &d.LustureCode,
 		&d.FgProductID, &d.FgItemCode, &d.FgLinkSource,
 		&d.SupersededBySpinID, &d.SupersededAt, &d.SupersededBy,
-		&d.FgProductCode, &d.FgProductName, &d.SupersededBySpinCode,
+		&d.FgProductCode, &d.FgProductName, &d.SupersededBySpinCode, &d.HeadHasFg,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("scan mb spin row: %w", err)

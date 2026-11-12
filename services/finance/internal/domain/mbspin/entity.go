@@ -67,6 +67,7 @@ type Entity struct {
 	// Read-model (joined) display values; never persisted from the entity.
 	fgProductCode        *string
 	fgProductName        *string
+	headHasFg            bool
 	supersededBySpinCode *string
 	createdAt            time.Time
 	createdBy            string

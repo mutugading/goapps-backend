@@ -406,6 +406,7 @@ func mbSpinFgToProto(p *financev1.MBSpin, e *mbspin.Entity) {
 	if v := e.FgLinkSource(); v != nil {
 		p.FgLinkSource = *v
 	}
+	p.FgFollowsRecipe = e.FgFollowsRecipe()
 	if v := e.SupersededBySpinID(); v != nil {
 		p.SupersededBySpinId = v.String()
 	}
