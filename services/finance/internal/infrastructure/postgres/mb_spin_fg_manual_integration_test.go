@@ -238,9 +238,9 @@ func (s *MBSpinFgManualSuite) TestFgFollowsRecipeFlag() {
 	sh := "FGM-F"
 	hFg := s.newHead("HF")
 	hNone := s.newHead("HN")
-	poy := s.newProduct("PF", s.typeID, &sh, nil, true)
+	poy := s.newProduct("F1", s.typeID, &sh, nil, true)
 	s.exec(`UPDATE mst_mb_head SET mbh_fg_product_id = $2 WHERE mbh_id = $1`, hFg, poy)
-	poy2 := s.newProduct("PF2", s.typeID, &sh, nil, true)
+	poy2 := s.newProduct("F2", s.typeID, &sh, nil, true)
 	rec := s.newSpin(hNone, "FR", fgmSpin{shade: &sh, fg: &poy2, source: fgmStr("RECIPE")})
 	root := s.newSpin(hFg, "FB", fgmSpin{shade: &sh, fg: &poy, source: fgmStr("BACKFILL")})
 	child := s.newSpin(hFg, "FC", fgmSpin{shade: &sh, source: fgmStr("DUPLICATE")})
