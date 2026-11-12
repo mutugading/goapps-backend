@@ -10174,8 +10174,11 @@ type MBSpin struct {
 	SupersededAt string `protobuf:"bytes,34,opt,name=superseded_at,json=supersededAt,proto3" json:"superseded_at,omitempty"`
 	// Code of the superseding spin (convenience for the "Superseded -> <code>" badge).
 	SupersededBySpinCode string `protobuf:"bytes,35,opt,name=superseded_by_spin_code,json=supersededBySpinCode,proto3" json:"superseded_by_spin_code,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// True when the FG link follows the recipe and cannot be edited on the spin
+	// (link source RECIPE, or root spin of a recipe that has an FG). Read-only.
+	FgFollowsRecipe bool `protobuf:"varint,36,opt,name=fg_follows_recipe,json=fgFollowsRecipe,proto3" json:"fg_follows_recipe,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *MBSpin) Reset() {
@@ -10451,6 +10454,13 @@ func (x *MBSpin) GetSupersededBySpinCode() string {
 		return x.SupersededBySpinCode
 	}
 	return ""
+}
+
+func (x *MBSpin) GetFgFollowsRecipe() bool {
+	if x != nil {
+		return x.FgFollowsRecipe
+	}
+	return false
 }
 
 // CreateMBSpinRequest is the request for creating an MB Spin record.
@@ -22159,7 +22169,7 @@ const file_finance_v1_yarn_master_proto_rawDesc = "" +
 	"\x06mbh_id\x18\x01 \x01(\tR\x05mbhId\x12\x1d\n" +
 	"\n" +
 	"mb_costing\x18\x02 \x01(\tR\tmbCosting\x12#\n" +
-	"\rerror_message\x18\x03 \x01(\tR\ferrorMessage\"\xba\r\n" +
+	"\rerror_message\x18\x03 \x01(\tR\ferrorMessage\"\xe6\r\n" +
 	"\x06MBSpin\x12\x15\n" +
 	"\x06mbs_id\x18\x01 \x01(\tR\x05mbsId\x12)\n" +
 	"\x11mbs_oracle_sys_id\x18\x02 \x01(\tR\x0embsOracleSysId\x12\x1c\n" +
@@ -22205,7 +22215,8 @@ const file_finance_v1_yarn_master_proto_rawDesc = "" +
 	"\x0efg_link_source\x18  \x01(\tR\ffgLinkSource\x121\n" +
 	"\x15superseded_by_spin_id\x18! \x01(\tR\x12supersededBySpinId\x12#\n" +
 	"\rsuperseded_at\x18\" \x01(\tR\fsupersededAt\x125\n" +
-	"\x17superseded_by_spin_code\x18# \x01(\tR\x14supersededBySpinCodeB\r\n" +
+	"\x17superseded_by_spin_code\x18# \x01(\tR\x14supersededBySpinCode\x12*\n" +
+	"\x11fg_follows_recipe\x18$ \x01(\bR\x0ffgFollowsRecipeB\r\n" +
 	"\v_mbs_denierB\x0f\n" +
 	"\r_mbs_filamentB\r\n" +
 	"\v_mbs_dozingB\t\n" +

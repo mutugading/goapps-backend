@@ -9227,6 +9227,10 @@
         "supersededBySpinCode": {
           "type": "string",
           "description": "Code of the superseding spin (convenience for the \"Superseded -\u003e \u003ccode\u003e\" badge)."
+        },
+        "fgFollowsRecipe": {
+          "type": "boolean",
+          "description": "True when the FG link follows the recipe and cannot be edited on the spin\n(link source RECIPE, or root spin of a recipe that has an FG). Read-only."
         }
       },
       "description": "MBSpin represents a Melange Batch spin detail record (child of MBHead)."
