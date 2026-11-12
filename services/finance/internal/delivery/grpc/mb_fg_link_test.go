@@ -116,6 +116,11 @@ func TestMBSpinEntityToProto_Fg(t *testing.T) {
 	require.NoError(t, err)
 	q := mbSpinEntityToProto(plain)
 	assert.Zero(t, q.FgProductId)
+	assert.False(t, q.FgFollowsRecipe)
+	assert.False(t, p.FgFollowsRecipe)
+	rec := mbspin.FgLinkSourceRecipe
+	e.HydrateFg(&pid, &item, &rec, mbspin.FgSupersede{})
+	assert.True(t, mbSpinEntityToProto(e).FgFollowsRecipe)
 	assert.Empty(t, q.SupersededAt)
 }
 

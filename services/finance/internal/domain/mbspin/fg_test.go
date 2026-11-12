@@ -95,3 +95,18 @@ func TestHydrateFg(t *testing.T) {
 	assert.Equal(t, "S-2", *e.SupersededBySpinCode())
 	assert.Equal(t, "BACKFILL", *e.FgLinkSource())
 }
+
+func TestFgFollowsRecipe(t *testing.T) {
+	rec, man := "RECIPE", "MANUAL"
+	assert.True(t, mbspin.FgFollowsRecipe(&rec, false, false))
+	assert.True(t, mbspin.FgFollowsRecipe(&man, true, true))
+	assert.True(t, mbspin.FgFollowsRecipe(nil, true, true))
+	assert.False(t, mbspin.FgFollowsRecipe(&man, true, false))
+	assert.False(t, mbspin.FgFollowsRecipe(nil, false, true))
+	assert.False(t, mbspin.FgFollowsRecipe(nil, false, false))
+
+	e := newFgSpin(t)
+	assert.False(t, e.FgFollowsRecipe())
+	e.HydrateFgReadModel(mbspin.FgReadModel{HeadHasFg: true})
+	assert.True(t, e.FgFollowsRecipe()) // new spin has no parent => root
+}

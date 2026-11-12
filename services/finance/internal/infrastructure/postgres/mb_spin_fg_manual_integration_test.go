@@ -233,6 +233,38 @@ func (s *MBSpinFgManualSuite) TestRootSpinOfHeadWithFgRejectsManualEdit() {
 	require.Equal(s.T(), "BACKFILL", src.String)
 }
 
+// fg_follows_recipe is exposed on GetByID/List with the same predicate as the manual-edit guard.
+func (s *MBSpinFgManualSuite) TestFgFollowsRecipeFlag() {
+	sh := "FGM-F"
+	hFg := s.newHead("HF")
+	hNone := s.newHead("HN")
+	poy := s.newProduct("PF", s.typeID, &sh, nil, true)
+	s.exec(`UPDATE mst_mb_head SET mbh_fg_product_id = $2 WHERE mbh_id = $1`, hFg, poy)
+	poy2 := s.newProduct("PF2", s.typeID, &sh, nil, true)
+	rec := s.newSpin(hNone, "FR", fgmSpin{shade: &sh, fg: &poy2, source: fgmStr("RECIPE")})
+	root := s.newSpin(hFg, "FB", fgmSpin{shade: &sh, fg: &poy, source: fgmStr("BACKFILL")})
+	child := s.newSpin(hFg, "FC", fgmSpin{shade: &sh, source: fgmStr("DUPLICATE")})
+	s.exec(`UPDATE mst_mb_spin SET mbs_parent_spin_id = $2 WHERE mbs_id = $1`, child, root)
+	legacy := s.newSpin(hNone, "FL", fgmSpin{})
+
+	want := map[uuid.UUID]bool{rec: true, root: true, child: false, legacy: false}
+	for id, exp := range want {
+		got, err := s.repo.GetByID(s.ctx, id)
+		require.NoError(s.T(), err)
+		require.Equal(s.T(), exp, got.FgFollowsRecipe(), id.String())
+	}
+	list, _, err := s.repo.List(s.ctx, mbspin.ListFilter{Search: fgmPrefix + "F", Page: 1, PageSize: 50})
+	require.NoError(s.T(), err)
+	seen := 0
+	for _, e := range list {
+		if exp, ok := want[e.ID()]; ok {
+			require.Equal(s.T(), exp, e.FgFollowsRecipe(), e.ID().String())
+			seen++
+		}
+	}
+	require.Equal(s.T(), len(want), seen)
+}
+
 // P8-R BE-1: un-superseding the spin that a previous un-supersede deactivated has no supersede
 // batch / log row behind it and must be rejected, leaving both spins untouched.
 func (s *MBSpinFgManualSuite) TestUnsupersedeWithoutBatchRejected() {
