@@ -48,13 +48,16 @@ func applyManualFgInTx(ctx context.Context, tx *sql.Tx, spinID uuid.UUID, fgProd
 		curFg                       int64
 		curSource                   sql.NullString
 		normShade                   string
+		root, headHasFg             bool
 	)
 	err := tx.QueryRowContext(ctx, `
 		SELECT deleted_at IS NOT NULL, mbs_is_active, mbs_superseded_by_spin_id IS NOT NULL,
-		       COALESCE(mbs_fg_product_id, 0), mbs_fg_link_source, COALESCE(UPPER(TRIM(mbs_shade_code)), '')
+		       COALESCE(mbs_fg_product_id, 0), mbs_fg_link_source, COALESCE(UPPER(TRIM(mbs_shade_code)), ''),
+		       mbs_parent_spin_id IS NULL,
+		       EXISTS (SELECT 1 FROM mst_mb_head h WHERE h.mbh_id = mst_mb_spin.mbs_mbh_id AND h.mbh_fg_product_id IS NOT NULL)
 		  FROM mst_mb_spin
 		 WHERE mbs_id = $1
-		   FOR UPDATE`, spinID).Scan(&deleted, &active, &superseded, &curFg, &curSource, &normShade)
+		   FOR UPDATE`, spinID).Scan(&deleted, &active, &superseded, &curFg, &curSource, &normShade, &root, &headHasFg)
 	if errors.Is(err, sql.ErrNoRows) {
 		return mbspin.ErrNotFound
 	}
@@ -68,6 +71,11 @@ func applyManualFgInTx(ctx context.Context, tx *sql.Tx, spinID uuid.UUID, fgProd
 		return mbspin.ErrFgSpinNotLive
 	}
 	if curSource.Valid && curSource.String == mbspin.FgLinkSourceRecipe {
+		return mbspin.ErrFgFollowsRecipe
+	}
+	// A root spin whose head carries an FG is re-synced from the head on every recipe save
+	// (syncRootSpinFgTx), so a manual edit would be silently reverted (P8-R backend BE-3).
+	if root && headHasFg {
 		return mbspin.ErrFgFollowsRecipe
 	}
 
@@ -126,4 +134,15 @@ func validateManualPoy(ctx context.Context, tx *sql.Tx, spinID uuid.UUID, normSh
 		return poy, mbspin.ErrSpinShadeFgExists
 	}
 	return poy, nil
+}
+
+// UpdateWithManualFg saves the entity columns and applies the manual FG change in ONE
+// transaction, so a failure of either leaves nothing persisted (P8-R backend BE-5).
+func (r *MBSpinRepository) UpdateWithManualFg(ctx context.Context, entity *mbspin.Entity, fgProductID int64, actor string) error {
+	return r.db.Transaction(ctx, func(tx *sql.Tx) error {
+		if err := applyManualFgInTx(ctx, tx, entity.ID(), fgProductID, actor); err != nil {
+			return err
+		}
+		return r.updateOn(ctx, tx, entity)
+	})
 }

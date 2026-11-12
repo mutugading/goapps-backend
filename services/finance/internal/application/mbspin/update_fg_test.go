@@ -25,6 +25,12 @@ func (f *fakeManualFg) ApplyManualFg(_ context.Context, _ uuid.UUID, fg int64, _
 	return f.retErr
 }
 
+func (f *fakeManualFg) UpdateWithManualFg(_ context.Context, _ *mbspindomain.Entity, fg int64, _ string) error {
+	f.calls++
+	f.gotFg = fg
+	return f.retErr
+}
+
 func newFgSpin(t *testing.T, source string, fg int64) *mbspindomain.Entity {
 	t.Helper()
 	e, err := mbspindomain.New(uuid.New(), "Spin", nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, "u")
@@ -108,4 +114,32 @@ func TestUpdateHandler_ManualFg(t *testing.T) {
 		require.ErrorIs(t, err, mbspindomain.ErrFgShadeMismatch)
 		repo.AssertNotCalled(t, "Update")
 	})
+}
+
+func TestUpdateHandler_RejectsReactivatingSupersededSpin(t *testing.T) {
+	e := newFgSpin(t, "", 0)
+	by := uuid.New()
+	e.HydrateFg(nil, nil, nil, mbspindomain.FgSupersede{SupersededBySpinID: &by})
+	off := false
+	require.NoError(t, e.Update(mbspindomain.UpdateInput{IsActive: &off}, "u"))
+	repo := new(MockRepository)
+	repo.On("GetByID", mock.Anything, mock.Anything).Return(e, nil)
+	on := true
+	_, err := mbspin.NewUpdateHandler(repo).Handle(context.Background(),
+		mbspin.UpdateCommand{ID: e.ID(), IsActive: &on, UpdatedBy: "u"})
+	require.ErrorIs(t, err, mbspindomain.ErrSpinSuperseded)
+	repo.AssertNotCalled(t, "Update")
+}
+
+func TestUpdateHandler_ManualFgSaveIsAtomic(t *testing.T) {
+	// BE-5: the FG write and the column update go through one repo call.
+	fake := &fakeManualFg{}
+	e := newFgSpin(t, "", 0)
+	repo := new(MockRepository)
+	repo.On("GetByID", mock.Anything, mock.Anything).Return(e, nil)
+	_, err := mbspin.NewUpdateHandler(repo).WithManualFg(fake).Handle(context.Background(),
+		mbspin.UpdateCommand{ID: e.ID(), FgProductID: i64(7), UpdatedBy: "u"})
+	require.NoError(t, err)
+	assert.Equal(t, 1, fake.calls)
+	repo.AssertNotCalled(t, "Update")
 }

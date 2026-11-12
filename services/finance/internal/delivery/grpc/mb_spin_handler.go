@@ -582,6 +582,7 @@ func mbSpinErrorToBaseResponse(err error) *commonv1.BaseResponse {
 	case errors.Is(err, mbspin.ErrNotFound):
 		return NotFoundResponse(err.Error())
 	case errors.Is(err, mbspin.ErrNotSuperseded),
+		errors.Is(err, mbspin.ErrSpinSuperseded),
 		errors.Is(err, mbspin.ErrFgFollowsRecipe),
 		errors.Is(err, mbspin.ErrFgSpinNotLive),
 		errors.Is(err, mbspin.ErrFgNotPoy),

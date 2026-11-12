@@ -165,7 +165,16 @@ func (r *MBSpinRepository) List(ctx context.Context, filter mbspin.ListFilter) (
 
 // Update persists changes to an existing MB Spin.
 func (r *MBSpinRepository) Update(ctx context.Context, entity *mbspin.Entity) error {
-	result, err := r.db.ExecContext(ctx, `
+	return r.updateOn(ctx, r.db, entity)
+}
+
+// spinExecer is the ExecContext subset shared by *DB and *sql.Tx.
+type spinExecer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+func (r *MBSpinRepository) updateOn(ctx context.Context, ex spinExecer, entity *mbspin.Entity) error {
+	result, err := ex.ExecContext(ctx, `
 		UPDATE mst_mb_spin SET
 			mbs_mgt_name      = $2,
 			mbs_denier        = $3,

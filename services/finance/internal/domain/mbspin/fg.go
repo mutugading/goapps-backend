@@ -146,4 +146,7 @@ type ManualFgRepository interface {
 	// cost_product_parameter or recalc/lookup sync. Errors: ErrNotFound, ErrAlreadyDeleted,
 	// ErrFgSpinNotLive, ErrFgFollowsRecipe, ErrFgNotPoy, ErrFgShadeMismatch, ErrSpinShadeFgExists.
 	ApplyManualFg(ctx context.Context, spinID uuid.UUID, fgProductID int64, actor string) error
+	// UpdateWithManualFg saves the entity's columns and applies the FG change atomically
+	// (one transaction). Same errors as ApplyManualFg plus those of Repository.Update.
+	UpdateWithManualFg(ctx context.Context, entity *Entity, fgProductID int64, actor string) error
 }

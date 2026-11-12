@@ -67,6 +67,10 @@ func (h *UpdateHandler) WithManualFg(r mbspin.ManualFgRepository) *UpdateHandler
 
 // prepareManualFg is a no-op (false, nil) when the command carries no FG edit.
 func (h *UpdateHandler) prepareManualFg(entity *mbspin.Entity, cmd UpdateCommand) (bool, error) {
+	// A superseded spin is only restored through Un-supersede (P8-R backend BE-2).
+	if cmd.IsActive != nil && *cmd.IsActive && entity.IsSuperseded() {
+		return false, mbspin.ErrSpinSuperseded
+	}
 	if cmd.FgProductID == nil {
 		return false, nil
 	}
@@ -270,11 +274,10 @@ func copyFloat(v *float64) *float64 {
 // reloads it so the result carries the new FG columns and joined read model.
 func (h *UpdateHandler) saveWithManualFg(ctx context.Context, entity *mbspin.Entity, cmd UpdateCommand, fgWrite bool) (*mbspin.Entity, error) {
 	if fgWrite {
-		if err := h.fgRepo.ApplyManualFg(ctx, cmd.ID, *cmd.FgProductID, cmd.UpdatedBy); err != nil {
+		if err := h.fgRepo.UpdateWithManualFg(ctx, entity, *cmd.FgProductID, cmd.UpdatedBy); err != nil {
 			return nil, err
 		}
-	}
-	if err := h.repo.Update(ctx, entity); err != nil {
+	} else if err := h.repo.Update(ctx, entity); err != nil {
 		return nil, err
 	}
 	if fgWrite {

@@ -87,6 +87,8 @@ var (
 	ErrSpinShadeFgExists = errors.New("a live spin for this shade and fg product already exists")
 	// ErrFgFollowsRecipe is returned when a manual FG change targets a spin whose FG comes from its recipe.
 	ErrFgFollowsRecipe = errors.New("fg of a recipe-generated spin follows its recipe; change it on the recipe")
+	// ErrSpinSuperseded is returned (400) when a superseded spin is re-activated outside Un-supersede.
+	ErrSpinSuperseded = errors.New("mb spin is superseded; use Un-supersede to restore it")
 	// ErrFgSpinNotLive is returned when a manual FG change targets an inactive or superseded spin.
 	ErrFgSpinNotLive = errors.New("fg can only be changed on a live (active, not superseded) mb spin")
 	// ErrInvalidFgLinkSource is returned when fg_link_source is not RECIPE|DUPLICATE|MANUAL|BACKFILL.
