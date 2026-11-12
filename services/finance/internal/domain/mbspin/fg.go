@@ -1,6 +1,7 @@
 package mbspin
 
 import (
+	"context"
 	"strings"
 	"time"
 
@@ -135,4 +136,14 @@ func normalizeOptional(s *string) *string {
 		return nil
 	}
 	return &v
+}
+
+// ManualFgRepository applies a manual FG (POY) link change to a spin (mb-spin-fg-poy-link P8).
+// Kept separate from Repository so existing implementations/fakes are untouched.
+type ManualFgRepository interface {
+	// ApplyManualFg links the spin to the POY product fgProductID (>0, link source MANUAL)
+	// or clears the link (0), atomically under row locks. It never touches the head,
+	// cost_product_parameter or recalc/lookup sync. Errors: ErrNotFound, ErrAlreadyDeleted,
+	// ErrFgSpinNotLive, ErrFgFollowsRecipe, ErrFgNotPoy, ErrFgShadeMismatch, ErrSpinShadeFgExists.
+	ApplyManualFg(ctx context.Context, spinID uuid.UUID, fgProductID int64, actor string) error
 }

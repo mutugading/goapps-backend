@@ -86,6 +86,9 @@ func newMBSpinHandler(
 		h.updateHandler = appmbspin.NewUpdateHandlerWithRecalc(repo, svc)
 		h.duplicateHandler = appmbspin.NewDuplicateHandler(repo, svc)
 	}
+	if fgRepo, ok := repo.(mbspin.ManualFgRepository); ok {
+		h.updateHandler = h.updateHandler.WithManualFg(fgRepo)
+	}
 	return h, nil
 }
 
@@ -203,6 +206,7 @@ func (h *MBSpinHandler) UpdateMBSpin(ctx context.Context, req *financev1.UpdateM
 		LDRAdjustmentPct: req.MbsLdrAdjustmentPct,
 		LDRLockActual:    req.MbsLdrLockActual,
 		VSNumber:         req.MbsVsNumber,
+		FgProductID:      req.FgProductId,
 		UpdatedBy:        getUserFromContext(ctx),
 	})
 	if err != nil {
@@ -578,6 +582,8 @@ func mbSpinErrorToBaseResponse(err error) *commonv1.BaseResponse {
 	case errors.Is(err, mbspin.ErrNotFound):
 		return NotFoundResponse(err.Error())
 	case errors.Is(err, mbspin.ErrNotSuperseded),
+		errors.Is(err, mbspin.ErrFgFollowsRecipe),
+		errors.Is(err, mbspin.ErrFgSpinNotLive),
 		errors.Is(err, mbspin.ErrFgNotPoy),
 		errors.Is(err, mbspin.ErrFgShadeMismatch):
 		return BadRequestResponse(err.Error())
