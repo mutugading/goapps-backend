@@ -55,7 +55,7 @@ func TestWriteXLSX(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer f.Close() //nolint:errcheck // test
-	if got := f.GetSheetList(); len(got) != 3 || got[0] != SheetSummary || got[1] != SheetTop50 || got[2] != SheetPerNIK {
+	if got := f.GetSheetList(); len(got) != 4 || got[0] != SheetSummary || got[1] != SheetTop50 || got[2] != SheetPerNIK || got[3] != SheetDerived {
 		t.Fatalf("sheets %v", got)
 	}
 	top, _ := f.GetRows(SheetTop50)
@@ -86,6 +86,10 @@ func TestWriteXLSX(t *testing.T) {
 	}
 	if len(per) != 1+lines+extra {
 		t.Errorf("PerNIK rows %d want %d", len(per), 1+lines+extra)
+	}
+	der, _ := f.GetRows(SheetDerived)
+	if len(der) != 1+len(rep.AttDerived) || len(rep.AttDerived) != 1 || der[1][0] != "D-ATT" || der[1][1] != DerivedShift {
+		t.Errorf("AttDerived rows %v (%+v)", der, rep.AttDerived)
 	}
 	sum, _ := f.GetRows(SheetSummary)
 	found := false

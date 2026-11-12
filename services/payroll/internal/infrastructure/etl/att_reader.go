@@ -47,6 +47,8 @@ type DailyRow struct {
 	CheckIn      *time.Time
 	CheckOut     *time.Time
 	WorkHours    decimal.NullDecimal
+	SchType      string // HM_SCHEDULE.HMSCHD_TYPE ("Shift", ...); "" = NULL (05§5, T021e)
+	OtInwork     string // HM_SCHEDULE.HMSCHD_OT_INWORK ("Yes"/"No"); "" = NULL
 }
 
 // SchRekapRow is one S4 row: number of schedules of one type (NW/NWS) per NIK.

@@ -86,7 +86,7 @@ var (
 	tblAdd   = rekapTable("pyr_stg_att_rekap_add", "MGTDAT.MGT_PAYROLL_ATT_REKAP_ADD")
 	tblDaily = attTable{name: "pyr_stg_att_daily", source: "MGTHRIS.HM_ATT_DAILY",
 		cols: []string{"psad_company_id", "psad_work_date", "psad_nik", "psad_division", "psad_schedule_code",
-			"psad_check_in", "psad_check_out", "psad_work_hours", "psad_row_hash", "psad_batch_id"},
+			"psad_check_in", "psad_check_out", "psad_work_hours", "psad_sch_type", "psad_ot_inwork", "psad_row_hash", "psad_batch_id"},
 		pk:    []string{"psad_company_id", "psad_work_date", "psad_nik", "psad_division"},
 		match: []string{"psad_work_date", "psad_nik"}, changed: "t.psad_row_hash <> EXCLUDED.psad_row_hash",
 		sumExpr: "psad_row_hash", sumOrder: "psad_nik, psad_work_date", company: "psad_company_id", division: "psad_division", date: "psad_work_date"}
@@ -369,6 +369,14 @@ func mapSch(rows []SchRekapRow, yymm int, div string) attPull {
 	return p
 }
 
+// nullStr stores an empty text as NULL (Oracle has no empty string).
+func nullStr(s string) string {
+	if s == "" {
+		return sqlNull
+	}
+	return s
+}
+
 func tm(t *time.Time) string {
 	if t == nil {
 		return sqlNull
@@ -384,7 +392,8 @@ func mapDaily(rows []DailyRow, start, end time.Time, div string) attPull {
 			p.rejected = append(p.rejected, r.NIK)
 			continue
 		}
-		cells := []string{d.Format("2006-01-02"), r.NIK, r.Division, r.ScheduleCode, tm(r.CheckIn), tm(r.CheckOut), nd(r.WorkHours)}
+		cells := []string{d.Format("2006-01-02"), r.NIK, r.Division, r.ScheduleCode, tm(r.CheckIn), tm(r.CheckOut), nd(r.WorkHours),
+			nullStr(r.SchType), nullStr(r.OtInwork)}
 		p.rows = append(p.rows, append(cells, hashCells(cells)))
 	}
 	return p

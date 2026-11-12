@@ -86,12 +86,13 @@ func TestScanDailyDateAndNull(t *testing.T) {
 	d := time.Date(2026, 10, 3, 0, 0, 0, 0, time.UTC)
 	in := time.Date(2026, 10, 3, 7, 1, 0, 0, time.UTC)
 	f := fakeScanner{vals: []any{sql.NullTime{Time: d, Valid: true}, ns("99"), ns("1234"), ns("SOLO"), ns("P"),
-		sql.NullTime{Time: in, Valid: true}, sql.NullTime{}, ns("7.5")}}
+		sql.NullTime{Time: in, Valid: true}, sql.NullTime{}, ns("7.5"), ns("Shift"), sql.NullString{}}}
 	r, err := scanDaily(f)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !r.WorkDate.Equal(d) || r.CheckIn == nil || !r.CheckIn.Equal(in) || r.CheckOut != nil || r.WorkHours.Decimal.String() != "7.5" {
+	if !r.WorkDate.Equal(d) || r.CheckIn == nil || !r.CheckIn.Equal(in) || r.CheckOut != nil || r.WorkHours.Decimal.String() != "7.5" ||
+		r.SchType != "Shift" || r.OtInwork != "" {
 		t.Fatalf("bad daily %+v", r)
 	}
 }
@@ -112,6 +113,10 @@ func TestQueriesUseBindsAndColumnCounts(t *testing.T) {
 		if strings.Contains(strings.ToUpper(q), "FLOAT") {
 			t.Errorf("%s: float", name)
 		}
+	}
+	if !strings.Contains(sqlDaily, "LEFT   JOIN mgthris.hm_schedule s ON s.hmschd_schedule = a.hata_hmschd_schedule") ||
+		!strings.Contains(sqlDaily, "s.hmschd_ot_inwork") {
+		t.Error("daily schedule join (05§5)")
 	}
 	if !strings.Contains(sqlDaily, ":3") || !strings.Contains(sqlDaily, "hata_date BETWEEN :1 AND :2") {
 		t.Error("daily binds")

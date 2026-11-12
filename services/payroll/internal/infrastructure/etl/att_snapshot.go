@@ -141,6 +141,12 @@ VALUES ('etl','ETL_ATT_SNAPSHOT','pyr_att_snapshot',$1,$2,jsonb_build_object('yy
 
 const tmpSnap = "tmp_att_snapshot"
 
+// pasr_data keys of the values payroll derives itself (05§5 option A); recon reads them (ATT_DERIVED).
+const (
+	DerivedShiftKey = "derived_shift"
+	DerivedOtiwKey  = "derived_otiw_decr"
+)
+
 // checkStagingFilled refuses an empty recap, and for SOLO an empty daily window: a sync batch can be OK with zero rows
 // (HRIS view late), and an empty daily window would give every NIK premi_fail = days of the period (05§7 (4)).
 // JAKARTA is not checked: whether JAKARTA has daily attendance at all is still open (question in the T021c report).
@@ -281,9 +287,17 @@ func recapJSON(prefix string, cols []string) string {
 //     run loader recomputes it from the recap + T1 and ignores pasr_beras_fail for JAKARTA
 //     (internal/application/run/loader.go dailyFails, 05§7 "Beras JAKARTA").
 //   - An empty schedule code counts as NULL (Oracle treats the empty string as NULL).
+//   - ATT_DERIVED (05§5 option A, T021e): derived_shift / derived_otiw_decr are the VIEW_ATT_REKAP_HM formulas of
+//     MPAR_SHIFT / MPAR_OTIW_DECR with the eligibility read from pyr_employee_component (T34/T35, T6; Tunjangan,
+//     frz_flag = 2, inside the validity window) instead of MGT_PAYROLL_COMPNT_EMP. The day categories of otiw_decr
+//     come from the recap (day_work, dayoff, cuti, dirumahkan, alpa, ijin, NULL = 0). They are extra pasr_data keys
+//     without the MPAR_ prefix: the run loader ignores them (engine v1 keeps MPAR_*), recon compares them. A NIK
+//     without daily rows in the window gets no derived keys (not checked): the view derives MPAR from the same daily
+//     rows, so an empty staging (JAKARTA, late sync) would only give false ATT_DERIVED (D-60).
 var sqlSnapRekap = `
 WITH d AS (
   SELECT a.psad_nik AS nik, a.psad_work_hours AS work_hours, nullif(a.psad_schedule_code, '') AS schedule_code,
+         a.psad_sch_type AS sch_type, a.psad_ot_inwork AS ot_inwork,
          bp.pbp_code IS NOT NULL AS is_batal, coalesce(bp.pbp_abnormal, 'N') = 'Y' AS is_abn, bp.pbp_beras = 'BERAS' AS is_beras
   FROM   payroll_stg.pyr_stg_att_daily a
   LEFT   JOIN payroll.pyr_batal_premi bp ON bp.pbp_code = nullif(a.psad_schedule_code, '')
@@ -293,7 +307,9 @@ WITH d AS (
          count(*) FILTER (WHERE is_batal AND work_hours = 0) + count(*) FILTER (WHERE is_batal AND is_abn AND work_hours <> 0) AS p12,
          count(*) FILTER (WHERE schedule_code IS NOT NULL) AS scheduled,
          count(*) FILTER (WHERE is_batal AND is_beras AND work_hours = 0)
-       + count(*) FILTER (WHERE is_batal AND is_beras AND is_abn AND work_hours <> 0) AS beras
+       + count(*) FILTER (WHERE is_batal AND is_beras AND is_abn AND work_hours <> 0) AS beras,
+         count(*) FILTER (WHERE sch_type = 'Shift' AND work_hours IS NOT NULL) AS shift_days,
+         count(*) FILTER (WHERE ot_inwork = 'No') AS otiw_no_days
   FROM d GROUP BY nik
 ), ab AS (
   SELECT pap_nik AS nik, count(*) AS n FROM payroll.pyr_abnormal_premi
@@ -302,8 +318,22 @@ WITH d AS (
   SELECT DISTINCT e.pec_nik AS nik FROM payroll.pyr_employee_component e
   JOIN payroll.pyr_component c ON c.pc_sysid = e.pec_component_sysid
   WHERE e.pec_company_id = $1::smallint AND e.pec_division = $2::text AND c.pc_code = 'T001'
+), elig AS (
+  SELECT e.pec_nik AS nik, bool_or(c.pc_code IN ('T034','T035')) AS shift, bool_or(c.pc_code = 'T006') AS otiw
+  FROM payroll.pyr_employee_component e
+  JOIN payroll.pyr_component c ON c.pc_sysid = e.pec_component_sysid
+  WHERE e.pec_company_id = $1::smallint AND e.pec_division = $2::text AND c.pc_type = 'Tunjangan'
+    AND c.pc_code IN ('T006','T034','T035') AND e.pec_frz_flag = 2
+    AND (e.pec_valid_from IS NULL OR e.pec_valid_from <= $5::int) AND (e.pec_valid_to IS NULL OR e.pec_valid_to >= $5::int)
+  GROUP BY e.pec_nik
 )
-SELECT 'REKAP', r.psar_nik, ` + recapJSON("MPAR_", RekapNumCols) + `,
+SELECT 'REKAP', r.psar_nik, ` + recapJSON("MPAR_", RekapNumCols) + ` || CASE WHEN agg.nik IS NULL THEN '{}'::jsonb ELSE jsonb_build_object(
+         '` + DerivedShiftKey + `', CASE WHEN coalesce(elig.shift, false) THEN coalesce(agg.shift_days, 0) ELSE 0 END,
+         '` + DerivedOtiwKey + `', trim_scale(CASE WHEN coalesce(elig.otiw, false)
+              THEN coalesce(agg.otiw_no_days, 0) + ($4::date - $3::date + 1)
+                 - (coalesce(r.psar_day_work, 0) + coalesce(r.psar_dayoff, 0) + coalesce(r.psar_cuti, 0)
+                  + coalesce(r.psar_dirumahkan, 0) + coalesce(r.psar_alpa, 0) + coalesce(r.psar_ijin, 0))
+              ELSE 0 END)) END,
        (coalesce(agg.p12, 0) + coalesce(ab.n, 0) + greatest(($4::date - $3::date + 1) - coalesce(agg.scheduled, 0), 0))::int,
        CASE WHEN $2::text = 'JAKARTA'
             THEN CASE WHEN t1.nik IS NOT NULL THEN trunc(coalesce(r.psar_alpa, 0) + coalesce(r.psar_ijin, 0))::int ELSE 0 END
@@ -312,6 +342,7 @@ FROM   payroll_stg.pyr_stg_att_rekap_hm r
 LEFT   JOIN agg ON agg.nik = r.psar_nik
 LEFT   JOIN ab  ON ab.nik = r.psar_nik
 LEFT   JOIN t1  ON t1.nik = r.psar_nik
+LEFT   JOIN elig ON elig.nik = r.psar_nik
 WHERE  r.psar_company_id = $1::smallint AND r.psar_division = $2::text AND r.psar_yymm = $5::int`
 
 // sqlSnapAdd: ADD rows (MPARA_*, only the S3 columns day_work..shift), $1 company, $2 division, $3 yymm.

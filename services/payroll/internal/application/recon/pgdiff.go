@@ -94,7 +94,10 @@ func (s DiffSource) Load(ctx context.Context, q DiffQuery) (DiffInput, error) {
 			return err
 		}
 		out.Meta.TargetSnapshotID = targetSnap
-		out.AttChanged, err = attChanged(ctx, tx, legacySnap, targetSnap)
+		if out.AttChanged, err = LoadAttChanged(ctx, tx, legacySnap, targetSnap); err != nil {
+			return err
+		}
+		out.Meta.DerivedSnapshotID, out.Derived, err = LoadAttDerived(ctx, tx, q.CompanyID, q.Division, q.YYMM)
 		return err
 	})
 	return out, err
@@ -214,9 +217,11 @@ FROM payroll.pyr_salary_head WHERE psh_run_id = $1`, runID)
 	return rows.Err()
 }
 
-// attChanged lists NIKs whose recap rows (REKAP/ADD/SCH, fail counters) differ between the legacy snapshot and
-// the snapshot the target used. Same snapshot, or a LEGACY run without one (D-35.3), means no difference.
-func attChanged(ctx context.Context, tx *sql.Tx, legacy, target int64) (map[string]bool, error) {
+// LoadAttChanged lists NIKs whose recap rows (REKAP/ADD/SCH, fail counters) differ between the legacy snapshot and
+// the snapshot the target used. Same snapshot, or a LEGACY run without one (D-35.3), means no difference. The
+// derived_* keys of a synced snapshot (05§5, T021e) are ignored: the engine does not read them, and a LEGACY
+// snapshot never has them, so comparing them would turn every line of a run:<id> target into INPUT_ATT.
+func LoadAttChanged(ctx context.Context, tx *sql.Tx, legacy, target int64) (map[string]bool, error) {
 	out := map[string]bool{}
 	if legacy == 0 || target == 0 || legacy == target {
 		return out, nil
@@ -225,7 +230,7 @@ func attChanged(ctx context.Context, tx *sql.Tx, legacy, target int64) (map[stri
 FROM (SELECT * FROM payroll.pyr_att_snapshot_row WHERE pasr_snapshot_id = $1) a
 FULL JOIN (SELECT * FROM payroll.pyr_att_snapshot_row WHERE pasr_snapshot_id = $2) b
   ON a.pasr_kind = b.pasr_kind AND a.pasr_nik = b.pasr_nik
-WHERE a.pasr_data IS DISTINCT FROM b.pasr_data OR a.pasr_premi_fail IS DISTINCT FROM b.pasr_premi_fail
+WHERE (a.pasr_data - 'derived_shift' - 'derived_otiw_decr') IS DISTINCT FROM (b.pasr_data - 'derived_shift' - 'derived_otiw_decr') OR a.pasr_premi_fail IS DISTINCT FROM b.pasr_premi_fail
    OR a.pasr_beras_fail IS DISTINCT FROM b.pasr_beras_fail`, legacy, target)
 	if err != nil {
 		return nil, fmt.Errorf("compare snapshots: %w", err)

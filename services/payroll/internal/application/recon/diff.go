@@ -9,7 +9,8 @@ import (
 	"github.com/mutugading/goapps-backend/services/payroll/internal/engine"
 )
 
-// Diff categories of 09§4 step 3. ATT_DERIVED waits for the attendance sync (D-41). KNOWN_DEFECT is the v2
+// Diff categories of 09§4 step 3. ATT_DERIVED (05§5, T021e) counts (NIK, field) pairs whose payroll-derived
+// shift / otiw_decr differ from MPAR_* in the synced snapshot; it is not a line category (see AttDerivedDiff). KNOWN_DEFECT is the v2
 // category of 09§4; under v1 it only holds the lines of NIKs with a synthetic MAIN (defect D2, D-47).
 // MASTER_DRIFT (D-47) holds the lines of NIKs whose current master no longer matches the legacy period.
 const (
@@ -64,6 +65,8 @@ type DiffMeta struct {
 	LegacyRunID      int64  `json:"legacy_run_id"`
 	LegacySnapshotID int64  `json:"legacy_snapshot_id"`
 	TargetSnapshotID int64  `json:"target_snapshot_id"`
+	// DerivedSnapshotID is the synced snapshot ATT_DERIVED was read from; 0 = none (category not checked).
+	DerivedSnapshotID int64 `json:"derived_snapshot_id"`
 }
 
 // DiffInput is everything Diff compares; DiffSource builds it read-only (D-41).
@@ -76,7 +79,9 @@ type DiffInput struct {
 	// AttChanged marks NIKs whose recap in the target snapshot differs from the legacy snapshot.
 	AttChanged map[string]bool
 	// Drift holds the master attributes of the D-47 exclusions; zero value = no exclusion.
-	Drift    DriftInput
+	Drift DriftInput
+	// Derived holds MPAR_* and the payroll-derived value per NIK of the newest synced snapshot (05§5).
+	Derived  []AttDerivedRow
 	Warnings []run.Issue
 }
 
@@ -116,17 +121,19 @@ type DiffSummary struct {
 // DiffReport is the JSON report for CI. It holds real NIKs and amounts: never commit it.
 type DiffReport struct {
 	DiffMeta
-	Summary  DiffSummary `json:"summary"`
-	Lines    []LineDiff  `json:"lines"`
-	Heads    []HeadDiff  `json:"heads"`
-	Warnings []run.Issue `json:"warnings"`
+	Summary DiffSummary `json:"summary"`
+	Lines   []LineDiff  `json:"lines"`
+	Heads   []HeadDiff  `json:"heads"`
+	// AttDerived lists the ATT_DERIVED differences (05§5); not part of the v1 parity verdict.
+	AttDerived []AttDerivedDiff `json:"att_derived"`
+	Warnings   []run.Issue      `json:"warnings"`
 }
 
 // Diff joins legacy and target per (nik, type, id) and categorizes every line (09§4 step 3).
 // Precedence for a non-zero Δ: ONLY_* (row on one side) → INPUT_ATT → INPUT_MASTER → ROUNDING (|Δ| ≤ 1) → FORMULA.
 // A row missing on one side with Δ = 0 is MATCH: legacy DETAIL keeps only non-zero lines plus P0.
 func Diff(in DiffInput) DiffReport {
-	rep := DiffReport{DiffMeta: in.Meta, Lines: []LineDiff{}, Heads: []HeadDiff{}, Warnings: in.Warnings}
+	rep := DiffReport{DiffMeta: in.Meta, Lines: []LineDiff{}, Heads: []HeadDiff{}, AttDerived: []AttDerivedDiff{}, Warnings: in.Warnings}
 	if rep.Warnings == nil {
 		rep.Warnings = []run.Issue{}
 	}
@@ -141,14 +148,17 @@ func Diff(in DiffInput) DiffReport {
 		s.Excluded[e] = ExclusionStat{}
 	}
 
+	excluded := map[string]string{}
 	for _, nik := range unionNIKs(in.Legacy, in.Target) {
 		leg, tgt := in.Legacy[nik], in.Target[nik]
 		if ex := exclusionOf(in.Drift, nik, leg, in.Components[nik]); ex.reason != "" {
+			excluded[nik] = ex.reason
 			rep.addExcluded(nik, ex, leg, tgt)
 			continue
 		}
 		rep.addNIK(nik, leg, tgt, in.AttChanged[nik], masterChanged(leg.Lines, in.Components[nik]))
 	}
+	rep.addDerived(in.Derived, excluded)
 	s.TakeHomeDelta = s.TakeHomeTarget.Sub(s.TakeHomeLegacy)
 	// Header per NIK (09§4) is part of parity: a mismatch of an included NIK fails it. D-49: a non-zero-Δ row that
 	// exists on one side only (ONLY_*) of an included NIK fails it too; excluded NIKs (D-47) never reach here.

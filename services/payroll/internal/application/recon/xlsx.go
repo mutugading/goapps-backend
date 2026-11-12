@@ -16,6 +16,7 @@ const (
 	SheetSummary = "Ringkasan"
 	SheetTop50   = "Top50"
 	SheetPerNIK  = "PerNIK"
+	SheetDerived = "AttDerived"
 )
 
 // topN is the number of lines in the Top50 sheet.
@@ -24,7 +25,7 @@ const topN = 50
 // maxNumericDigits is the largest significant-digit count that survives an xlsx (IEEE double) cell.
 const maxNumericDigits = 15
 
-// WriteXLSX writes the diff report as a three-sheet workbook. Amounts come from decimal: a numeric cell
+// WriteXLSX writes the diff report as a four-sheet workbook. Amounts come from decimal: a numeric cell
 // when the value is exact in a double (≤ 15 significant digits), otherwise a text cell.
 // The workbook holds real NIKs and salaries: never commit it.
 func WriteXLSX(rep DiffReport, w io.Writer) error {
@@ -33,7 +34,7 @@ func WriteXLSX(rep DiffReport, w io.Writer) error {
 	if err := f.SetSheetName("Sheet1", SheetSummary); err != nil {
 		return fmt.Errorf("rename sheet: %w", err)
 	}
-	for _, name := range []string{SheetTop50, SheetPerNIK} {
+	for _, name := range []string{SheetTop50, SheetPerNIK, SheetDerived} {
 		if _, err := f.NewSheet(name); err != nil {
 			return fmt.Errorf("new sheet %s: %w", name, err)
 		}
@@ -42,6 +43,7 @@ func WriteXLSX(rep DiffReport, w io.Writer) error {
 	sw.summary(rep)
 	sw.top50(rep)
 	sw.perNIK(rep)
+	sw.derived(rep)
 	if sw.err != nil {
 		return sw.err
 	}
@@ -119,6 +121,7 @@ func (s *sheetWriter) summary(rep DiffReport) {
 	s.put("Σ take_home Δ", sm.TakeHomeDelta)
 	s.put("Header berbeda", sm.HeadMismatch)
 	s.put("ONLY_LEGACY / ONLY_TARGET (D-49, menggagalkan paritas)", sm.Categories[CatOnlyLegacy], sm.Categories[CatOnlyTarget])
+	s.put("ATT_DERIVED (05§5, info; snapshot sync, 0 = tidak dicek)", sm.Categories[CatAttDerived], rep.DerivedSnapshotID)
 	s.put()
 	s.put("Dikecualikan (D-47)", "NIK", "Baris Δ≠0", "Baris komponen lain", "Header berbeda", "Σ take_home legacy", "Σ take_home target", "Σ take_home Δ")
 	for _, e := range Exclusions {
@@ -227,4 +230,13 @@ func headCols(h HeadDiff) []any {
 	}
 	delta := orZero(headTake(h.Target)).Sub(orZero(headTake(h.Legacy)))
 	return []any{headTake(h.Legacy), headTake(h.Target), delta}
+}
+
+// derived lists the ATT_DERIVED differences (05§5): derived shift / otiw_decr vs MPAR_* of the synced snapshot.
+func (s *sheetWriter) derived(rep DiffReport) {
+	s.start(SheetDerived)
+	s.put("NIK", "Kolom", "MPAR (view HRIS)", "Derived payroll", "Δ", "Dikecualikan (D-47)")
+	for _, d := range rep.AttDerived {
+		s.put(d.NIK, d.Field, d.MPAR, d.Derived, d.Delta, d.Excluded)
+	}
 }

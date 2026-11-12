@@ -35,7 +35,9 @@ var (
 	// S4: MGT_PAYROLL_SCH_REKAP.
 	sqlSchRekap = "SELECT MPSR_YYMM, MPSR_NIK, MPSR_SCHEDULE, MPSR_DIVISION, " + num("MPSR_NO_SCH") +
 		" FROM mgtdat.mgt_payroll_sch_rekap WHERE MPSR_YYMM = :1 AND MPSR_DIVISION = :2 ORDER BY MPSR_NIK, MPSR_SCHEDULE"
-	// S2: 05§2 verbatim, except work_hours as text and an ORDER BY for stable batches.
+	// S2: 05§2, work_hours as text, an ORDER BY for stable batches, and the schedule type / OT-in-work flag of
+	// HM_SCHEDULE for ATT_DERIVED (05§5 option A, T021e). LEFT JOIN: a day whose schedule code is not in
+	// HM_SCHEDULE stays (premi/beras fail count it), with NULL type/flag, as in VIEW_ATT_REKAP_HM.
 	sqlDaily = `SELECT a.hata_date AS work_date,
        e.hmemd_sys_id AS hris_sys_id,
        e.hmemd_nik AS nik,
@@ -43,10 +45,13 @@ var (
        a.hata_hmschd_schedule AS schedule_code,
        a.hata_actual_in AS check_in,
        a.hata_actual_out AS check_out,
-       ` + num("a.hata_actual_no_of_hour") + ` AS work_hours
+       ` + num("a.hata_actual_no_of_hour") + ` AS work_hours,
+       s.hmschd_type AS sch_type,
+       s.hmschd_ot_inwork AS ot_inwork
 FROM   mgthris.hm_att_actual a
 JOIN   mgthris.hm_emp_data   e  ON e.hmemd_sys_id  = a.hata_hmemd_sys_id
 JOIN   mgthris.hm_division   dv ON dv.hmdiv_div_id = e.hmemd_hmdiv_div_id
+LEFT   JOIN mgthris.hm_schedule s ON s.hmschd_schedule = a.hata_hmschd_schedule
 WHERE  a.hata_date BETWEEN :1 AND :2
 AND    dv.hmdiv_div_name = :3
 ORDER  BY e.hmemd_nik, a.hata_date`
@@ -181,10 +186,10 @@ func scanSch(sc scanner) (etl.SchRekapRow, error) {
 
 func scanDaily(sc scanner) (etl.DailyRow, error) {
 	var (
-		date, in, out            sql.NullTime
-		sys, nik, dv, sch, hours sql.NullString
+		date, in, out                     sql.NullTime
+		sys, nik, dv, sch, hours, typ, ot sql.NullString
 	)
-	if err := sc.Scan(&date, &sys, &nik, &dv, &sch, &in, &out, &hours); err != nil {
+	if err := sc.Scan(&date, &sys, &nik, &dv, &sch, &in, &out, &hours, &typ, &ot); err != nil {
 		return etl.DailyRow{}, fmt.Errorf("scan daily: %w", err)
 	}
 	h, err := parseNum(hours)
@@ -192,7 +197,7 @@ func scanDaily(sc scanner) (etl.DailyRow, error) {
 		return etl.DailyRow{}, fmt.Errorf("daily nik %s: %w", nik.String, err)
 	}
 	return etl.DailyRow{WorkDate: date.Time, HRISSysID: sys.String, NIK: nik.String, Division: dv.String,
-		ScheduleCode: sch.String, CheckIn: nullTime(in), CheckOut: nullTime(out), WorkHours: h}, nil
+		ScheduleCode: sch.String, CheckIn: nullTime(in), CheckOut: nullTime(out), WorkHours: h, SchType: typ.String, OtInwork: ot.String}, nil
 }
 
 func nullTime(t sql.NullTime) *time.Time {

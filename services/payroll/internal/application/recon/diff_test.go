@@ -106,6 +106,7 @@ func diffFixture() DiffInput {
 			"E-MASTER": gapok("1100"), "F-ONLYL": gapok("1000"), "G-ONLYT": gapok("1000"), "H-NOREKAP": gapok("1000"),
 		},
 		AttChanged: map[string]bool{"D-ATT": true},
+		Derived:    []AttDerivedRow{{NIK: "D-ATT", Field: DerivedShift, MPAR: dp("3"), Derived: dp("0")}},
 		Warnings:   []run.Issue{{NIK: "H-NOREKAP", Code: run.CodeMissingAttendance}},
 	}
 }
@@ -113,7 +114,7 @@ func diffFixture() DiffInput {
 func TestDiff_EveryCategory(t *testing.T) {
 	rep := Diff(diffFixture())
 	want := map[string]int{CatMatch: 5, CatRounding: 1, CatFormula: 1, CatInputAtt: 1, CatInputMaster: 1,
-		CatOnlyLegacy: 1, CatOnlyTarget: 1, CatAttDerived: 0, CatKnownDefect: 0}
+		CatOnlyLegacy: 1, CatOnlyTarget: 1, CatAttDerived: 1, CatKnownDefect: 0}
 	for c, n := range want {
 		if got := rep.Summary.Categories[c]; got != n {
 			t.Errorf("%s = %d, want %d", c, got, n)
