@@ -31,7 +31,7 @@ var dryRunHeader = []string{
 }
 
 // applyResultHeader is the fixed apply-result CSV header.
-var applyResultHeader = []string{colSpinID, colPoySys, "result", "reason", "head_updated", "message"}
+var applyResultHeader = []string{colSpinID, colPoySys, "result", "reason", "head_updated", "mbh_id", "message"}
 
 func boolStr(b bool) string {
 	if b {
@@ -182,22 +182,31 @@ type applyResultRow struct {
 }
 
 func applyResultRecord(r applyResultRow) []string {
-	return []string{r.SpinID, r.PoySys, string(r.Outcome.Result), r.Outcome.Reason, boolStr(r.Outcome.HeadUpdated), r.Outcome.Message}
+	return []string{r.SpinID, r.PoySys, string(r.Outcome.Result), r.Outcome.Reason, boolStr(r.Outcome.HeadUpdated), r.Outcome.HeadID, r.Outcome.Message}
 }
 
-// writeApplyResultCSV writes the apply-result CSV.
-func writeApplyResultCSV(w io.Writer, rows []applyResultRow) error {
-	cw := csv.NewWriter(w)
-	if err := cw.Write(applyResultHeader); err != nil {
-		return fmt.Errorf("write header: %w", err)
+// applyResultWriter streams apply-result rows: the header is written on creation
+// and every row is flushed immediately, so a crash keeps the rows already committed.
+type applyResultWriter struct{ cw *csv.Writer }
+
+func newApplyResultWriter(w io.Writer) (*applyResultWriter, error) {
+	rw := &applyResultWriter{cw: csv.NewWriter(w)}
+	if err := rw.cw.Write(applyResultHeader); err != nil {
+		return nil, fmt.Errorf("write header: %w", err)
 	}
-	for _, r := range rows {
-		if err := cw.Write(applyResultRecord(r)); err != nil {
-			return fmt.Errorf("write result row: %w", err)
-		}
+	return rw, rw.flush()
+}
+
+func (rw *applyResultWriter) write(r applyResultRow) error {
+	if err := rw.cw.Write(applyResultRecord(r)); err != nil {
+		return fmt.Errorf("write result row: %w", err)
 	}
-	cw.Flush()
-	if err := cw.Error(); err != nil {
+	return rw.flush()
+}
+
+func (rw *applyResultWriter) flush() error {
+	rw.cw.Flush()
+	if err := rw.cw.Error(); err != nil {
 		return fmt.Errorf("flush csv: %w", err)
 	}
 	return nil

@@ -74,6 +74,7 @@ type BackfillApplyOutcome struct {
 	Result      BackfillResult
 	Reason      string
 	HeadUpdated bool
+	HeadID      string // owning head id (set on APPLIED rows, for the DBA head rollback)
 	Message     string
 }
 

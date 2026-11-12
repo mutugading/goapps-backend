@@ -27,8 +27,10 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/signal"
 	"sort"
 	"strconv"
+	"syscall"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -57,7 +59,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("%s: %v", cmdName, err)
 	}
-	if err := run(context.Background(), opts); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	err = run(ctx, opts)
+	stop()
+	if err != nil {
 		log.Fatalf("%s: %v", cmdName, err)
 	}
 }
@@ -90,8 +95,14 @@ func validateOptions(o *options) error {
 	if o.apply && o.input == "" {
 		return errors.New("--apply requires --input reviewed.csv")
 	}
+	if o.input != "" && !o.apply && !o.report {
+		return errors.New("--input is only valid with --apply or --report")
+	}
 	if !o.apply && !o.report {
 		o.dryRun = true
+	}
+	if !o.apply && o.actor != defaultActor {
+		return errors.New("--actor is only valid with --apply")
 	}
 	if o.apply && o.actor == "" {
 		return errors.New("--actor must not be empty")
@@ -202,33 +213,42 @@ func runApply(ctx context.Context, repo rowApplier, o options) error {
 	if err != nil {
 		return err
 	}
-	results, err := applyEntries(ctx, repo, in.Entries, o.actor)
-	if err != nil {
-		return err
-	}
 	out := o.out
 	if out == "" {
 		out = defaultOut("apply")
 	}
-	if err := writeFile(out, func(w io.Writer) error { return writeApplyResultCSV(w, results) }); err != nil {
+	// Create the result file (and header) BEFORE the first write so a bad path fails early.
+	f, err := os.Create(out) //nolint:gosec // operator-supplied output path for a one-shot CLI
+	if err != nil {
+		return fmt.Errorf("create %s: %w", out, err)
+	}
+	defer logClose("result file", f)
+	rw, err := newApplyResultWriter(f)
+	if err != nil {
 		return err
 	}
+	results, err := applyEntries(ctx, repo, in.Entries, o.actor, rw.write)
 	log.Printf("apply: %d APPLY rows processed -> %s", len(results), out)
 	logCounts("ignored (non-APPLY action)", in.Ignored)
 	logCounts("result/reason", countResults(results))
-	return nil
+	return err
 }
 
-// applyEntries applies each entry in its own transaction (inside the repository).
-// Malformed entries and per-row database errors become FAILED rows; only a
-// cancelled context aborts the run.
-func applyEntries(ctx context.Context, repo rowApplier, entries []applyEntry, actor string) ([]applyResultRow, error) {
+// applyEntries applies each entry in its own transaction (inside the repository)
+// and hands every result to sink right after its transaction finished. Malformed
+// entries and per-row database errors become FAILED rows; a cancelled context or
+// a sink error aborts the run (rows already committed stay recorded via sink).
+func applyEntries(ctx context.Context, repo rowApplier, entries []applyEntry, actor string, sink func(applyResultRow) error) ([]applyResultRow, error) {
 	results := make([]applyResultRow, 0, len(entries))
 	for _, e := range entries {
 		if err := ctx.Err(); err != nil {
 			return results, fmt.Errorf("apply aborted: %w", err)
 		}
-		results = append(results, applyOne(ctx, repo, e, actor))
+		row := applyOne(ctx, repo, e, actor)
+		results = append(results, row)
+		if err := sink(row); err != nil {
+			return results, fmt.Errorf("apply aborted: %w", err)
+		}
 	}
 	return results, nil
 }

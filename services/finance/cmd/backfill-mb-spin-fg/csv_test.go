@@ -100,7 +100,10 @@ func TestApplyEntries_MalformedFailedAndDBErrorContinues(t *testing.T) {
 	in, err := parseApplyCSV(strings.NewReader(src))
 	require.NoError(t, err)
 	f := &fakeApplier{fail: map[string]error{spinB: errors.New("boom")}}
-	res, err := applyEntries(context.Background(), f, in.Entries, "tester")
+	var buf bytes.Buffer
+	rw, err := newApplyResultWriter(&buf)
+	require.NoError(t, err)
+	res, err := applyEntries(context.Background(), f, in.Entries, "tester", rw.write)
 	require.NoError(t, err)
 	require.Len(t, res, 3)
 	require.Len(t, f.calls, 2, "malformed and non-APPLY rows never reach the repository")
@@ -112,19 +115,17 @@ func TestApplyEntries_MalformedFailedAndDBErrorContinues(t *testing.T) {
 	assert.Equal(t, mbspin.BackfillResultFailed, res[2].Outcome.Result)
 	assert.Equal(t, mbspin.BackfillReasonDBError, res[2].Outcome.Reason)
 
-	var buf bytes.Buffer
-	require.NoError(t, writeApplyResultCSV(&buf, res))
 	recs, err := csv.NewReader(&buf).ReadAll()
 	require.NoError(t, err)
 	assert.Equal(t, applyResultHeader, recs[0])
-	assert.Equal(t, []string{spinA, "10", "APPLIED", "", "true", ""}, recs[1])
+	assert.Equal(t, []string{spinA, "10", "APPLIED", "", "true", "", ""}, recs[1])
 	assert.Equal(t, map[string]int{"APPLIED/": 1, "FAILED/malformed_row": 1, "FAILED/db_error": 1}, countResults(res))
 }
 
 func TestApplyEntries_CancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := applyEntries(ctx, &fakeApplier{}, []applyEntry{{SpinID: spinA, PoySys: 1}}, "x")
+	_, err := applyEntries(ctx, &fakeApplier{}, []applyEntry{{SpinID: spinA, PoySys: 1}}, "x", func(applyResultRow) error { return nil })
 	assert.Error(t, err)
 }
 
@@ -144,6 +145,8 @@ func TestParseFlags(t *testing.T) {
 		{"--dry-run", "--apply", "--input", "r.csv"},
 		{"--report", "--apply", "--input", "r.csv"},
 		{"--apply", "--input", "r.csv", "--actor", ""},
+		{"--input", "r.csv"},
+		{"--actor", "someone"},
 	} {
 		_, err := parseFlags(args)
 		assert.Error(t, err, "%v", args)

@@ -232,6 +232,7 @@ func (s *MBSpinFgBackfillSuite) TestApplyRootWritesSpinAndHead() {
 	out := s.apply(spin, poy)
 	require.Equal(s.T(), mbspin.BackfillResultApplied, out.Result)
 	require.True(s.T(), out.HeadUpdated)
+	require.Equal(s.T(), h.String(), out.HeadID)
 
 	got := s.spinFg(spin)
 	require.Equal(s.T(), poy, got.fg.Int64)
@@ -344,4 +345,22 @@ func (s *MBSpinFgBackfillSuite) TestApplyConflictExistingLive() {
 	require.Equal(s.T(), mbspin.BackfillResultSkipped, out.Result)
 	require.Equal(s.T(), mbspin.BackfillReasonConflictExistingLive, out.Reason)
 	require.False(s.T(), s.spinFg(target).fg.Valid)
+}
+
+func (s *MBSpinFgBackfillSuite) TestApplyMultiRootHeadNotUpdated() {
+	sh := bfPrefix + "MR"
+	h := s.newHead("mr", nil)
+	poy := s.newPoy("MR", "POY MR", &sh, nil, true)
+	r1 := s.newSpin("MR1", bfSpin{head: h, shade: &sh})
+	r2 := s.newSpin("MR2", bfSpin{head: h, shade: &sh})
+
+	out := s.apply(r1, poy)
+	require.Equal(s.T(), mbspin.BackfillResultApplied, out.Result)
+	require.False(s.T(), out.HeadUpdated, "head with several live roots keeps FG NULL")
+	require.Equal(s.T(), h.String(), out.HeadID)
+	require.NotEmpty(s.T(), out.Message)
+	hfg, _ := s.headFg(h)
+	require.False(s.T(), hfg.Valid)
+	require.Equal(s.T(), poy, s.spinFg(r1).fg.Int64)
+	require.False(s.T(), s.spinFg(r2).fg.Valid)
 }

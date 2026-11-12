@@ -258,13 +258,18 @@ func writeBackfill(ctx context.Context, tx *sql.Tx, in mbspin.BackfillApplyReque
 		return skipped(mbspin.BackfillReasonFgAlreadySet, "spin FG set concurrently"), nil
 	}
 
-	headUpdated := false
+	headUpdated, msg := false, ""
 	if spin.isRoot {
 		const updHead = `
 			UPDATE mst_mb_head
 			   SET mbh_fg_product_id = $2, mbh_fg_item_code = $3, updated_at = NOW(), updated_by = $4
-			 WHERE mbh_id = CAST($1 AS uuid) AND mbh_fg_product_id IS NULL AND deleted_at IS NULL`
-		hres, err := tx.ExecContext(ctx, updHead, spin.headID, in.PoyProductSysID, item, in.Actor)
+			 WHERE mbh_id = CAST($1 AS uuid) AND mbh_fg_product_id IS NULL AND deleted_at IS NULL
+			   AND NOT EXISTS (
+			         SELECT 1 FROM mst_mb_spin o
+			          WHERE o.mbs_mbh_id = CAST($1 AS uuid) AND o.mbs_parent_spin_id IS NULL
+			            AND o.deleted_at IS NULL AND o.mbs_is_active AND o.mbs_superseded_by_spin_id IS NULL
+			            AND o.mbs_id <> CAST($5 AS uuid))`
+		hres, err := tx.ExecContext(ctx, updHead, spin.headID, in.PoyProductSysID, item, in.Actor, in.SpinID)
 		if err != nil {
 			return mbspin.BackfillApplyOutcome{}, fmt.Errorf("update head: %w", err)
 		}
@@ -273,8 +278,13 @@ func writeBackfill(ctx context.Context, tx *sql.Tx, in mbspin.BackfillApplyReque
 			return mbspin.BackfillApplyOutcome{}, fmt.Errorf("head rows affected: %w", err)
 		}
 		headUpdated = hn == 1
+		if !headUpdated {
+			msg = "head FG not set (head already has FG, or head has multiple live root spins)"
+		}
 	}
-	return mbspin.BackfillApplyOutcome{Result: mbspin.BackfillResultApplied, HeadUpdated: headUpdated}, nil
+	return mbspin.BackfillApplyOutcome{
+		Result: mbspin.BackfillResultApplied, HeadUpdated: headUpdated, HeadID: spin.headID, Message: msg,
+	}, nil
 }
 
 func lockBackfillSpin(ctx context.Context, tx *sql.Tx, spinID string) (backfillSpinState, bool, error) {
