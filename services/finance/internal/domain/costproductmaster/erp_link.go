@@ -43,6 +43,9 @@ var (
 	// ErrLinkStale is returned when the product's link or shade changed
 	// between the read and the write (optimistic concurrency miss).
 	ErrLinkStale = errors.New("ERP link: product link or shade changed concurrently; reload and retry")
+	// ErrErpItemRequiresPoy is returned when a create request carries an ERP item
+	// code for a product type other than POY (D3: only POY is linked inline).
+	ErrErpItemRequiresPoy = errors.New("erp_item_code on create is only allowed for POY products")
 	// ErrInvalidErpAttributes is returned for an ERP attribute that fails validation.
 	ErrInvalidErpAttributes = errors.New("invalid ERP attributes")
 )
@@ -333,4 +336,13 @@ type ErpLinkRepository interface {
 	SaveErpLink(ctx context.Context, w ErpLinkWrite) error
 	// SaveErpAttributes writes the five 000551 columns and cpm_updated_at/by.
 	SaveErpAttributes(ctx context.Context, w ErpAttributesWrite) error
+}
+
+// ErpLinkedCreator inserts a new product together with its ERP link in one
+// transaction, so a failed link never leaves an unlinked product behind.
+type ErpLinkedCreator interface {
+	// CreateWithErpLink inserts p (whose ERP item code, linked_at and linked_by
+	// are already set via LinkErpItem) under the same per-key advisory lock and
+	// duplicate re-check as SaveErpLink (ErrLinkDuplicate).
+	CreateWithErpLink(ctx context.Context, p *CostProductMaster) error
 }

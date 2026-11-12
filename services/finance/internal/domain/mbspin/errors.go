@@ -72,4 +72,40 @@ var (
 	// NULL but only fires on a hard delete, so this guard is required because
 	// deletion here is a soft UPDATE.
 	ErrInUse = errors.New("mb spin cannot be deleted while it is used by a master product's cost parameter")
+
+	// --- FG (POY) link (mb-spin-fg-poy-link P2) ---
+	//
+	// Defined here (not in mbhead) because mbspin has no domain imports, so the
+	// mbhead application layer can reuse them without an import cycle.
+
+	// ErrFgNotPoy is returned when the chosen FG product is not an active, live POY product.
+	ErrFgNotPoy = errors.New("fg product must be an active POY product")
+	// ErrFgShadeMismatch is returned when the POY shade differs from the recipe/spin shade.
+	ErrFgShadeMismatch = errors.New("fg poy shade does not match the recipe shade")
+	// ErrSpinShadeFgExists is returned when a live spin already exists for the same shade + FG
+	// (index uix_mbs_shade_fg_live).
+	ErrSpinShadeFgExists = errors.New("a live spin for this shade and fg product already exists")
+	// ErrFgFollowsRecipe is returned when a manual FG change targets a spin whose FG comes from its recipe.
+	ErrFgFollowsRecipe = errors.New("fg of a recipe-generated spin follows its recipe; change it on the recipe")
+	// ErrSpinSuperseded is returned (400) when a superseded spin is re-activated outside Un-supersede.
+	ErrSpinSuperseded = errors.New("mb spin is superseded; use Un-supersede to restore it")
+	// ErrFgSpinNotLive is returned when a manual FG change targets an inactive or superseded spin.
+	ErrFgSpinNotLive = errors.New("fg can only be changed on a live (active, not superseded) mb spin")
+	// ErrInvalidFgLinkSource is returned when fg_link_source is not RECIPE|DUPLICATE|MANUAL|BACKFILL.
+	ErrInvalidFgLinkSource = errors.New("invalid fg link source")
+	// ErrSupersedeConfirmationRequired is returned (409) when Validate would create a root
+	// spin whose shade + FG collides with a live spin of another recipe and the request did
+	// not confirm the supersede. The caller shows the supersede preview.
+	ErrSupersedeConfirmationRequired = errors.New("a live spin of another recipe has the same shade and fg product; supersede confirmation required (see supersede-preview)")
+)
+
+// Un-supersede errors (mb-spin-fg-poy-link P3, design Revisi 1 D8).
+var (
+	// ErrNotSuperseded is returned (400) when un-supersede targets a spin that is not superseded.
+	ErrNotSuperseded = errors.New("mb spin is not superseded")
+	// ErrUnsupersedeNoBatch is returned (409) when no un-reverted supersede batch exists for the spin.
+	ErrUnsupersedeNoBatch = errors.New("no un-reverted supersede batch found for this mb spin")
+	// ErrUnsupersedeConflict is returned (409) when restoring the spin would collide on
+	// shade + FG with another live spin (other than the one that superseded it).
+	ErrUnsupersedeConflict = errors.New("cannot restore: another live spin has the same shade and fg product")
 )

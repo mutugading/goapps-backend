@@ -60,6 +60,13 @@ type Repository interface {
 	// writes (transition + auto-gen) commit or roll back together.
 	TransitionWithAutoGen(ctx context.Context, id uuid.UUID, fromState, toState string, currentVersion int32, stateReason, actorUserID string, params *ParamSnapshot, entity *Entity) error
 
+	// TransitionWithAutoGenOpts is TransitionWithAutoGen with options (mb-spin-fg-poy-link P3).
+	// TransitionWithAutoGen is this method with zero options. On a first Validate of a head
+	// with an FG whose new root spin collides with live spins of other heads it returns
+	// mbspin.ErrSupersedeConfirmationRequired unless opts.ConfirmSupersede, in which case the
+	// supersede runs in the same transaction and its outcome is returned (nil otherwise).
+	TransitionWithAutoGenOpts(ctx context.Context, id uuid.UUID, fromState, toState string, currentVersion int32, stateReason, actorUserID string, params *ParamSnapshot, entity *Entity, opts AutoGenOptions) (*SupersedeOutcome, error)
+
 	// ListShades returns the additional shade rows (mst_mb_head_shade) for one head,
 	// ordered by mbhs_seq_no, excluding soft-deleted rows. An empty result is not an
 	// error — most heads have no additional shades.

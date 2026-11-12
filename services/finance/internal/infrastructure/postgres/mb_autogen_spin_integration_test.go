@@ -36,6 +36,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbhead"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbspin"
 )
 
 const mbSpinAutoGenFixturePrefix = "ITEST-MBSPIN-"
@@ -178,7 +179,8 @@ func (s *MBAutoGenSpinSuite) TestAutoGenSpin_FullyPopulatedHead_PersistsDerivedF
 
 	productSysID := s.seedCostProductMaster()
 	err = s.db.Transaction(s.ctx, func(tx *sql.Tx) error {
-		return mbAutoGenSpin(s.ctx, tx, s.mbhID, entity, productSysID, "itest")
+		_, err := mbAutoGenSpinOpts(s.ctx, tx, s.mbhID, entity, productSysID, "itest", mbhead.AutoGenOptions{})
+		return err
 	})
 	require.NoError(s.T(), err)
 
@@ -231,7 +233,8 @@ func (s *MBAutoGenSpinSuite) TestAutoGenSpin_InheritsHeadOrionItemCode() {
 
 	productSysID := s.seedCostProductMaster()
 	require.NoError(s.T(), s.db.Transaction(s.ctx, func(tx *sql.Tx) error {
-		return mbAutoGenSpin(s.ctx, tx, s.mbhID, entity, productSysID, "itest")
+		_, err := mbAutoGenSpinOpts(s.ctx, tx, s.mbhID, entity, productSysID, "itest", mbhead.AutoGenOptions{})
+		return err
 	}))
 
 	var orion sql.NullString
@@ -263,11 +266,91 @@ func (s *MBAutoGenSpinSuite) TestAutoGenSpin_TakenOrionItemCode_LeftNil() {
 	require.NoError(s.T(), err)
 	productSysID := s.seedCostProductMaster()
 	require.NoError(s.T(), s.db.Transaction(s.ctx, func(tx *sql.Tx) error {
-		return mbAutoGenSpin(s.ctx, tx, s.mbhID, entity, productSysID, "itest")
+		_, err := mbAutoGenSpinOpts(s.ctx, tx, s.mbhID, entity, productSysID, "itest", mbhead.AutoGenOptions{})
+		return err
 	}))
 
 	var orion sql.NullString
 	require.NoError(s.T(), s.db.QueryRowContext(s.ctx,
 		`SELECT mbs_orion_item_code FROM mst_mb_spin WHERE mbs_mbh_id = $1`, s.mbhID).Scan(&orion))
 	require.False(s.T(), orion.Valid, "taken code must not be duplicated onto the new spin")
+}
+
+func (s *MBAutoGenSpinSuite) seedPoy(erp string) int64 {
+	var id int64
+	require.NoError(s.T(), s.db.QueryRowContext(s.ctx, `
+		INSERT INTO cost_product_master (cpm_product_code, cpm_product_type_id, cpm_product_name, cpm_erp_item_code, cpm_is_active, cpm_created_by, cpm_updated_by)
+		VALUES ($1, (SELECT cpt_type_id FROM cost_product_type WHERE cpt_type_code = 'POY'), $2, $3, TRUE, 'itest', 'itest')
+		RETURNING cpm_product_sys_id`,
+		mbSpinAutoGenFixturePrefix+uuid.NewString()[:6], mbSpinAutoGenFixturePrefix+"poy", erp).Scan(&id))
+	return id
+}
+
+func (s *MBAutoGenSpinSuite) autoGen(entity *mbhead.Entity) error {
+	productSysID := s.seedCostProductMaster()
+	return s.db.Transaction(s.ctx, func(tx *sql.Tx) error {
+		_, err := mbAutoGenSpinOpts(s.ctx, tx, s.mbhID, entity, productSysID, "itest", mbhead.AutoGenOptions{})
+		return err
+	})
+}
+
+// Head with FG => root spin carries FG + item code with link source RECIPE; a second live spin
+// with the same shade+FG maps to ErrSpinShadeFgExists.
+func (s *MBAutoGenSpinSuite) TestAutoGenSpin_HeadWithFg_LinksRecipe() {
+	poy := s.seedPoy("ERP-AG-1")
+	shade := "ITEST-AGSH"
+	entity, err := mbhead.New(mbhead.NewParams{
+		MBCosting: mbSpinAutoGenFixturePrefix + "MBC-" + uuid.NewString()[:8],
+		CreatedBy: "itest",
+		ShadeCode: shade,
+	})
+	require.NoError(s.T(), err)
+	itemCode := "ERP-AG-1"
+	require.NoError(s.T(), entity.SetFg(&poy, &itemCode))
+	require.NoError(s.T(), s.autoGen(entity))
+
+	var fg sql.NullInt64
+	var item, src sql.NullString
+	require.NoError(s.T(), s.db.QueryRowContext(s.ctx,
+		`SELECT mbs_fg_product_id, mbs_fg_item_code, mbs_fg_link_source FROM mst_mb_spin WHERE mbs_mbh_id = $1`, s.mbhID).Scan(&fg, &item, &src))
+	require.Equal(s.T(), poy, fg.Int64)
+	require.Equal(s.T(), "ERP-AG-1", item.String)
+	require.Equal(s.T(), "RECIPE", src.String)
+
+	err = s.autoGen(entity)
+	require.ErrorIs(s.T(), err, mbspin.ErrSpinShadeFgExists)
+}
+
+// POY with a blank Orion code: item code snapshot must be NULL, FG + link still written.
+func (s *MBAutoGenSpinSuite) TestAutoGenSpin_HeadWithFg_BlankErpCode_ItemNull() {
+	poy := s.seedPoy("")
+	entity, err := mbhead.New(mbhead.NewParams{
+		MBCosting: mbSpinAutoGenFixturePrefix + "MBC-" + uuid.NewString()[:8],
+		CreatedBy: "itest",
+		ShadeCode: "ITEST-AGSH2",
+	})
+	require.NoError(s.T(), err)
+	require.NoError(s.T(), entity.SetFg(&poy, nil))
+	require.NoError(s.T(), s.autoGen(entity))
+
+	var fg sql.NullInt64
+	var item, src sql.NullString
+	require.NoError(s.T(), s.db.QueryRowContext(s.ctx,
+		`SELECT mbs_fg_product_id, mbs_fg_item_code, mbs_fg_link_source FROM mst_mb_spin WHERE mbs_mbh_id = $1`, s.mbhID).Scan(&fg, &item, &src))
+	require.True(s.T(), fg.Valid)
+	require.Equal(s.T(), poy, fg.Int64)
+	require.False(s.T(), item.Valid, "blank POY erp code => NULL snapshot")
+	require.Equal(s.T(), "RECIPE", src.String)
+}
+
+func (s *MBAutoGenSpinSuite) TestAutoGenSpin_HeadWithoutFg_LeavesNull() {
+	entity, err := mbhead.New(mbhead.NewParams{MBCosting: mbSpinAutoGenFixturePrefix + "MBC-" + uuid.NewString()[:8], CreatedBy: "itest"})
+	require.NoError(s.T(), err)
+	require.NoError(s.T(), s.autoGen(entity))
+
+	var fg sql.NullInt64
+	var item, src sql.NullString
+	require.NoError(s.T(), s.db.QueryRowContext(s.ctx,
+		`SELECT mbs_fg_product_id, mbs_fg_item_code, mbs_fg_link_source FROM mst_mb_spin WHERE mbs_mbh_id = $1`, s.mbhID).Scan(&fg, &item, &src))
+	require.False(s.T(), fg.Valid || item.Valid || src.Valid)
 }

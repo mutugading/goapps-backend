@@ -12,6 +12,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -22,6 +23,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbhead"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbspin"
 )
 
 const mbCascFixturePrefix = "ITEST-MBCASC-"
@@ -535,4 +537,132 @@ func (s *MBHeadCascadeSuite) TestHeadOrionItemCode_RoundTripAndExists() {
 	taken, err = s.headRepo.ExistsByOrionItemCode(s.ctx, "ORI-RT", uuid.Nil)
 	require.NoError(s.T(), err)
 	require.False(s.T(), taken, "soft-deleted heads do not count")
+}
+
+// seedPoy inserts an active POY product and returns its sys id.
+func (s *MBHeadCascadeSuite) seedPoy(erp string) int64 {
+	var id int64
+	require.NoError(s.T(), s.db.QueryRowContext(s.ctx, `
+		INSERT INTO cost_product_master (cpm_product_code, cpm_product_type_id, cpm_product_name, cpm_erp_item_code, cpm_is_active, cpm_created_by, cpm_updated_by)
+		VALUES ($1, (SELECT cpt_type_id FROM cost_product_type WHERE cpt_type_code = 'POY'), 'itest poy', $2, TRUE, 'itest', 'itest')
+		RETURNING cpm_product_sys_id`,
+		mbCascFixturePrefix+uuid.NewString()[:7], erp).Scan(&id))
+	return id
+}
+
+type cascFgRow struct {
+	fg        sql.NullInt64
+	item, src sql.NullString
+}
+
+func (s *MBHeadCascadeSuite) fgOf(id uuid.UUID) cascFgRow {
+	var r cascFgRow
+	require.NoError(s.T(), s.db.QueryRowContext(s.ctx,
+		`SELECT mbs_fg_product_id, mbs_fg_item_code, mbs_fg_link_source FROM mst_mb_spin WHERE mbs_id = $1`, id).
+		Scan(&r.fg, &r.item, &r.src))
+	return r
+}
+
+func (s *MBHeadCascadeSuite) cascadeWithFg(fg *int64, item *string) error {
+	e, _ := s.editedHead(nil)
+	if fg == nil {
+		e.ClearFg()
+	} else {
+		require.NoError(s.T(), e.SetFg(fg, item))
+	}
+	_, err := s.headRepo.UpdateWithCascade(s.ctx, e, mbCascFixturePrefix+"OLD", nil)
+	return err
+}
+
+// Setting FG on the head points the root spin (only) at it with link source RECIPE; clearing
+// it clears only RECIPE links; an unchanged FG is a no-op.
+func (s *MBHeadCascadeSuite) TestCascade_Fg_SetClearAndNoop() {
+	poy := s.seedPoy("ERP-C-1")
+	item := "ERP-C-1"
+	require.NoError(s.T(), s.cascadeWithFg(&poy, &item))
+	r := s.fgOf(s.rootSpin)
+	require.Equal(s.T(), poy, r.fg.Int64)
+	require.Equal(s.T(), "ERP-C-1", r.item.String)
+	require.Equal(s.T(), mbspin.FgLinkSourceRecipe, r.src.String)
+	require.False(s.T(), s.fgOf(s.childSpin).fg.Valid, "child spin untouched")
+
+	// No-op: same FG again must not touch the row (updated_at/by unchanged).
+	var before time.Time
+	require.NoError(s.T(), s.db.QueryRowContext(s.ctx, `SELECT updated_at FROM mst_mb_spin WHERE mbs_id=$1`, s.rootSpin).Scan(&before))
+	s.exec(`UPDATE mst_mb_spin SET updated_by = 'marker' WHERE mbs_id = $1`, s.rootSpin)
+	e, err := s.headRepo.GetByID(s.ctx, s.mbhID)
+	require.NoError(s.T(), err)
+	require.NoError(s.T(), e.SetFg(&poy, &item))
+	tx, err := s.db.BeginTx(s.ctx, nil)
+	require.NoError(s.T(), err)
+	require.NoError(s.T(), syncRootSpinFgTx(s.ctx, tx, e, "someone"))
+	require.NoError(s.T(), tx.Commit())
+	require.Equal(s.T(), "marker", s.spin(s.rootSpin).updatedBy.String, "unchanged FG is a no-op")
+
+	// Clear: RECIPE link is removed.
+	require.NoError(s.T(), s.cascadeWithFg(nil, nil))
+	r = s.fgOf(s.rootSpin)
+	require.False(s.T(), r.fg.Valid || r.item.Valid || r.src.Valid)
+}
+
+// Clearing the head FG never wipes a MANUAL / DUPLICATE / BACKFILL link.
+func (s *MBHeadCascadeSuite) TestCascade_Fg_ClearKeepsNonRecipeLinks() {
+	poy := s.seedPoy("ERP-C-2")
+	s.exec(`UPDATE cost_product_master SET cpm_shade_code = 'NEWSH' WHERE cpm_product_sys_id = $1`, poy)
+	for _, src := range []string{"MANUAL", "DUPLICATE", "BACKFILL"} {
+		s.exec(`UPDATE mst_mb_spin SET mbs_fg_product_id = $1, mbs_fg_item_code = 'ERP-C-2', mbs_fg_link_source = $2 WHERE mbs_id = $3`,
+			poy, src, s.rootSpin)
+		require.NoError(s.T(), s.cascadeWithFg(nil, nil))
+		r := s.fgOf(s.rootSpin)
+		require.Equal(s.T(), poy, r.fg.Int64, src)
+		require.Equal(s.T(), "ERP-C-2", r.item.String, src)
+		require.Equal(s.T(), src, r.src.String, src)
+	}
+}
+
+// Another head's live spin already holds shade+FG: the FG sync maps to ErrSpinShadeFgExists.
+func (s *MBHeadCascadeSuite) seedOtherHeadFgSpin(shade string, poy int64) {
+	other := uuid.New()
+	s.exec(`INSERT INTO mst_mb_head (mbh_id, mbh_mb_costing, mbh_current_version, mbh_entry_status, created_by)
+		VALUES ($1, $2, 1, 'VALIDATED', 'itest')`, other, mbCascFixturePrefix+"OTF-"+uuid.NewString()[:6])
+	s.exec(`INSERT INTO mst_mb_spin (mbs_id, mbs_mbh_id, mbs_mgt_name, mbs_shade_code, mbs_fg_product_id, mbs_fg_link_source, created_by)
+		VALUES ($1, $2, 'other', $3, $4, 'MANUAL', 'itest')`, uuid.New(), other, shade, poy)
+}
+
+func (s *MBHeadCascadeSuite) TestCascade_Fg_ShadeFgTakenByOtherHead() {
+	poy := s.seedPoy("ERP-C-3")
+	s.seedOtherHeadFgSpin("NEWSH", poy)
+	item := "ERP-C-3"
+	// editedHead moves the shade to NEWSH, so root+FG collides with the other head's spin.
+	err := s.cascadeWithFg(&poy, &item)
+	require.Error(s.T(), err)
+	require.True(s.T(), errors.Is(err, mbspin.ErrSpinShadeFgExists))
+	require.False(s.T(), s.fgOf(s.rootSpin).fg.Valid, "whole update rolled back")
+	require.Equal(s.T(), "KEEPSH", s.spin(s.rootSpin).shade.String, "shade cascade rolled back too")
+}
+
+// A shade-only cascade (FG already on the root) that lands on an existing live shade+FG
+// maps to ErrSpinShadeFgExists.
+func (s *MBHeadCascadeSuite) TestCascade_ShadeChange_CollidesOnShadeFgIndex() {
+	poy := s.seedPoy("ERP-C-4")
+	s.exec(`UPDATE cost_product_master SET cpm_shade_code = 'NEWSH' WHERE cpm_product_sys_id = $1`, poy)
+	s.exec(`UPDATE mst_mb_spin SET mbs_fg_product_id = $1, mbs_fg_link_source = 'MANUAL' WHERE mbs_id = $2`, poy, s.rootSpin)
+	s.seedOtherHeadFgSpin("NEWSH", poy)
+	e, _ := s.editedHead(nil)
+	_, err := s.headRepo.UpdateWithCascade(s.ctx, e, mbCascFixturePrefix+"OLD", nil)
+	require.Error(s.T(), err)
+	require.True(s.T(), errors.Is(err, mbspin.ErrSpinShadeFgExists))
+	require.Equal(s.T(), "KEEPSH", s.spin(s.rootSpin).shade.String)
+}
+
+// P8-R BE-4: a shade change is rejected when a live spin holds a non-RECIPE FG whose POY shade
+// differs from the new shade; nothing is written.
+func (s *MBHeadCascadeSuite) TestCascade_ShadeChange_RejectedByNonRecipeFgShadeMismatch() {
+	poy := s.seedPoy("ERP-C-5")
+	s.exec(`UPDATE cost_product_master SET cpm_shade_code = 'OLDSH' WHERE cpm_product_sys_id = $1`, poy)
+	s.exec(`UPDATE mst_mb_spin SET mbs_fg_product_id = $1, mbs_fg_link_source = 'DUPLICATE' WHERE mbs_id = $2`, poy, s.childSpin)
+	e, _ := s.editedHead(nil)
+	_, err := s.headRepo.UpdateWithCascade(s.ctx, e, mbCascFixturePrefix+"OLD", nil)
+	require.ErrorIs(s.T(), err, mbspin.ErrFgShadeMismatch)
+	require.Equal(s.T(), "KEEPSH", s.spin(s.rootSpin).shade.String)
 }

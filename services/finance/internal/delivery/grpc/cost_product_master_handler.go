@@ -15,6 +15,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/costimportjob"
 	domain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductmaster"
 	cptdomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproducttype"
+	shadedomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/shade"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/rabbitmq"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/storage"
 )
@@ -26,6 +27,8 @@ type CostProductMasterHandler struct {
 	getHandler        *app.GetHandler
 	updateHandler     *app.UpdateHandler
 	linkErpHandler    *app.LinkErpHandler
+	mbLink            MBLinkService
+	productEtl        ProductEtlService
 	deactivateHandler *app.DeactivateHandler
 	unlockHandler     *app.UnlockHandler
 	duplicateHandler  *app.DuplicateHandler
@@ -116,6 +119,18 @@ func NewCostProductMasterHandler(repo domain.Repository, typeRepo cptdomain.Repo
 	}, nil
 }
 
+// WithShadeMaster enables best-effort shade master creation on product create/update.
+func (h *CostProductMasterHandler) WithShadeMaster(r shadedomain.Repository) {
+	h.createHandler.WithShadeMaster(r)
+	h.updateHandler.WithShadeMaster(r)
+}
+
+// WithErpLinkOnCreate enables the inline POY ERP link on create (D3): duplicate pre-check via
+// linkRepo, atomic product+link insert via creator, ERP_LINK audit via audit (may be nil).
+func (h *CostProductMasterHandler) WithErpLinkOnCreate(linkRepo domain.ErpLinkRepository, creator domain.ErpLinkedCreator, audit app.AuditSink) {
+	h.createHandler.WithErpLink(linkRepo, creator, audit)
+}
+
 // WithMBSourceAutoFill wires the best-effort shade-driven MB source auto-fill into the create
 // and update paths (decision Q3, 2026-10-10).
 func (h *CostProductMasterHandler) WithMBSourceAutoFill(f app.MBSourceAutoFiller) {
@@ -169,6 +184,7 @@ func (h *CostProductMasterHandler) CreateCostProductMaster(ctx context.Context, 
 		Flex01:        req.GetFlex_01(),
 		Flex02:        req.GetFlex_02(),
 		Flex03:        req.GetFlex_03(),
+		ErpItemCode:   req.GetErpItemCode(),
 		ActorUserID:   actor,
 	})
 	if err != nil {
@@ -486,8 +502,13 @@ func productMasterErrToBase(err error) *commonv1.BaseResponse {
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
 		return NotFoundResponse(err.Error())
-	case errors.Is(err, domain.ErrAlreadyExists):
+	case errors.Is(err, domain.ErrAlreadyExists), errors.Is(err, domain.ErrLinkDuplicate):
 		return ConflictResponse(err.Error())
+	case errors.Is(err, domain.ErrErpItemRequiresPoy),
+		errors.Is(err, domain.ErrLinkInvalidItemCode), errors.Is(err, domain.ErrLinkInvalidShadeCode),
+		errors.Is(err, domain.ErrLinkNotAxGrade), errors.Is(err, domain.ErrLinkCmbRequiresMB),
+		errors.Is(err, domain.ErrLinkShadeMismatch), errors.Is(err, domain.ErrLinkProductHasNoShade):
+		return ErrorResponse("400", err.Error())
 	case errors.Is(err, domain.ErrInvalidProductName),
 		errors.Is(err, domain.ErrInvalidGradeCode),
 		errors.Is(err, domain.ErrInactive),

@@ -3,6 +3,7 @@ package mbspin
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 
@@ -43,14 +44,60 @@ type UpdateCommand struct {
 	// the proto field appears.
 	OrionItemCode *string
 	// VSNumber sets the VS reference number. nil leaves it unchanged.
-	VSNumber  *string
-	UpdatedBy string
+	VSNumber *string
+	// FgProductID is the manual FG (POY) link edit (mb-spin-fg-poy-link P8):
+	// nil = leave unchanged, 0 = clear the link, >0 = link to this POY (source MANUAL).
+	FgProductID *int64
+	UpdatedBy   string
 }
 
 // UpdateHandler handles the UpdateMBSpin command.
 type UpdateHandler struct {
 	repo   mbspin.Repository
 	recalc *RecalcService
+	fgRepo mbspin.ManualFgRepository
+}
+
+// WithManualFg enables the manual FG edit (UpdateCommand.FgProductID). Without it a
+// non-nil FgProductID is rejected. Returns the handler for chaining.
+func (h *UpdateHandler) WithManualFg(r mbspin.ManualFgRepository) *UpdateHandler {
+	h.fgRepo = r
+	return h
+}
+
+// prepareManualFg is a no-op (false, nil) when the command carries no FG edit.
+func (h *UpdateHandler) prepareManualFg(entity *mbspin.Entity, cmd UpdateCommand) (bool, error) {
+	// A superseded spin is only restored through Un-supersede (P8-R backend BE-2).
+	if cmd.IsActive != nil && *cmd.IsActive && entity.IsSuperseded() {
+		return false, mbspin.ErrSpinSuperseded
+	}
+	if cmd.FgProductID == nil {
+		return false, nil
+	}
+	return h.checkManualFg(entity, cmd)
+}
+
+// checkManualFg validates the cheap preconditions on the freshly loaded entity (no write)
+// and reports whether the repository write is needed. A value equal to the current link is a no-op.
+func (h *UpdateHandler) checkManualFg(entity *mbspin.Entity, cmd UpdateCommand) (needWrite bool, err error) {
+	if h.fgRepo == nil {
+		return false, errors.New("manual fg edit is not available")
+	}
+	want := *cmd.FgProductID
+	if want < 0 {
+		return false, mbspin.ErrFgNotPoy
+	}
+	if entity.IsSuperseded() || !entity.IsActive() {
+		return false, mbspin.ErrFgSpinNotLive
+	}
+	if entity.FgFollowsRecipe() {
+		return false, mbspin.ErrFgFollowsRecipe
+	}
+	cur := entity.FgProductID()
+	if (want == 0 && cur == nil) || (cur != nil && *cur == want) {
+		return false, nil
+	}
+	return true, nil
 }
 
 // NewUpdateHandler creates a new UpdateHandler with no child-recalc wiring.
@@ -107,6 +154,13 @@ func (h *UpdateHandler) HandleWithRecalc(ctx context.Context, cmd UpdateCommand)
 		return nil, err
 	}
 
+	// Manual FG edit: cheap pre-check here (before any mutation); the locked write runs
+	// just before the main save. It never triggers a recalc.
+	fgWrite, err := h.prepareManualFg(entity, cmd)
+	if err != nil {
+		return nil, err
+	}
+
 	// Snapshot BEFORE the mutation: the decision "did a recalc-triggering field
 	// change" cannot be made after entity.Update has overwritten the values.
 	triggers := recalcTriggered(entity, cmd)
@@ -149,7 +203,8 @@ func (h *UpdateHandler) HandleWithRecalc(ctx context.Context, cmd UpdateCommand)
 		}
 	}
 
-	if err := h.repo.Update(ctx, entity); err != nil {
+	entity, err = h.saveWithManualFg(ctx, entity, cmd, fgWrite)
+	if err != nil {
 		return nil, err
 	}
 
@@ -213,4 +268,22 @@ func copyFloat(v *float64) *float64 {
 	}
 	c := *v
 	return &c
+}
+
+// saveWithManualFg applies the locked manual FG write (when needed), saves the entity and
+// reloads it so the result carries the new FG columns and joined read model.
+func (h *UpdateHandler) saveWithManualFg(ctx context.Context, entity *mbspin.Entity, cmd UpdateCommand, fgWrite bool) (*mbspin.Entity, error) {
+	if fgWrite {
+		if err := h.fgRepo.UpdateWithManualFg(ctx, entity, *cmd.FgProductID, cmd.UpdatedBy); err != nil {
+			return nil, err
+		}
+	} else if err := h.repo.Update(ctx, entity); err != nil {
+		return nil, err
+	}
+	if fgWrite {
+		if fresh, err := h.repo.GetByID(ctx, cmd.ID); err == nil {
+			return fresh, nil
+		}
+	}
+	return entity, nil
 }

@@ -19,6 +19,10 @@ type ListQuery struct {
 	IsActive  *bool
 	SortBy    string
 	SortOrder string
+	// FG filters (design 2.2): FgProductID 0 = any; IncludeSuperseded false hides superseded spins.
+	FgProductID       int64
+	FgSearch          string
+	IncludeSuperseded bool
 }
 
 // ListResult represents the list MB Spins result.
@@ -50,6 +54,10 @@ func (h *ListHandler) Handle(ctx context.Context, query ListQuery) (*ListResult,
 		SortBy:    query.SortBy,
 		SortOrder: query.SortOrder,
 		IsActive:  query.IsActive,
+
+		FgProductID:       query.FgProductID,
+		FgSearch:          query.FgSearch,
+		IncludeSuperseded: query.IncludeSuperseded,
 	}
 	filter.Validate()
 

@@ -62,17 +62,24 @@ func (p *MBSpinProvider) ResolveByShades(ctx context.Context, shades []string) (
 		return nil, fmt.Errorf("list %s fill group: %w", FillGroupSPCode, err)
 	}
 	for shade, spin := range spins {
-		id := spin.ID()
-		res := Resolution{
-			SPCode:  SpinCode(spin),
-			DyeName: spin.MgtName(),
-			Source:  SourceMBSpin,
-			SpinID:  &id,
-		}
-		res.Children = spinChildren(spin, children)
-		out[shade] = res
+		out[shade] = SpinResolution(spin, children)
 	}
 	return out, nil
+}
+
+// SpinResolution is the Resolution of one MB spin: MB_SP_CODE = SpinCode, the companion
+// spin id, and a value per fill-group child (shared mbspin fill readers). ResolveByShades
+// and the forced repoint of a supersede (mb-spin-fg-poy-link P3) both use it, so the two
+// can never derive different child values for the same spin.
+func SpinResolution(spin *mbspin.Entity, children []*parameter.Parameter) Resolution {
+	id := spin.ID()
+	return Resolution{
+		SPCode:   SpinCode(spin),
+		DyeName:  spin.MgtName(),
+		Source:   SourceMBSpin,
+		SpinID:   &id,
+		Children: spinChildren(spin, children),
+	}
 }
 
 // SpinCode is the MB_SP_CODE value stored for a spin: the ORION item code (the dropdown

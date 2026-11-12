@@ -34,6 +34,10 @@ const (
 	CostProductMasterService_ListRMDenierOverrides_FullMethodName             = "/finance.v1.CostProductMasterService/ListRMDenierOverrides"
 	CostProductMasterService_UpsertRMDenierOverride_FullMethodName            = "/finance.v1.CostProductMasterService/UpsertRMDenierOverride"
 	CostProductMasterService_DeleteRMDenierOverride_FullMethodName            = "/finance.v1.CostProductMasterService/DeleteRMDenierOverride"
+	CostProductMasterService_GetCostProductMbLink_FullMethodName              = "/finance.v1.CostProductMasterService/GetCostProductMbLink"
+	CostProductMasterService_RelinkCostProductMb_FullMethodName               = "/finance.v1.CostProductMasterService/RelinkCostProductMb"
+	CostProductMasterService_PreviewProductEtlFromOracle_FullMethodName       = "/finance.v1.CostProductMasterService/PreviewProductEtlFromOracle"
+	CostProductMasterService_ApplyProductEtlFromOracle_FullMethodName         = "/finance.v1.CostProductMasterService/ApplyProductEtlFromOracle"
 )
 
 // CostProductMasterServiceClient is the client API for CostProductMasterService service.
@@ -55,6 +59,14 @@ type CostProductMasterServiceClient interface {
 	ListRMDenierOverrides(ctx context.Context, in *ListRMDenierOverridesRequest, opts ...grpc.CallOption) (*ListRMDenierOverridesResponse, error)
 	UpsertRMDenierOverride(ctx context.Context, in *UpsertRMDenierOverrideRequest, opts ...grpc.CallOption) (*UpsertRMDenierOverrideResponse, error)
 	DeleteRMDenierOverride(ctx context.Context, in *DeleteRMDenierOverrideRequest, opts ...grpc.CallOption) (*DeleteRMDenierOverrideResponse, error)
+	// GetCostProductMbLink resolves the MB spin link for a product (FG_MATCH | SHADE_ONLY | SUPERBA | NONE).
+	GetCostProductMbLink(ctx context.Context, in *GetCostProductMbLinkRequest, opts ...grpc.CallOption) (*GetCostProductMbLinkResponse, error)
+	// RelinkCostProductMb forces MB autofill (re-link) for a product.
+	RelinkCostProductMb(ctx context.Context, in *RelinkCostProductMbRequest, opts ...grpc.CallOption) (*RelinkCostProductMbResponse, error)
+	// PreviewProductEtlFromOracle previews products to import from Oracle legacy.
+	PreviewProductEtlFromOracle(ctx context.Context, in *PreviewProductEtlFromOracleRequest, opts ...grpc.CallOption) (*PreviewProductEtlFromOracleResponse, error)
+	// ApplyProductEtlFromOracle inserts the selected rows of a previous preview run.
+	ApplyProductEtlFromOracle(ctx context.Context, in *ApplyProductEtlFromOracleRequest, opts ...grpc.CallOption) (*ApplyProductEtlFromOracleResponse, error)
 }
 
 type costProductMasterServiceClient struct {
@@ -215,6 +227,46 @@ func (c *costProductMasterServiceClient) DeleteRMDenierOverride(ctx context.Cont
 	return out, nil
 }
 
+func (c *costProductMasterServiceClient) GetCostProductMbLink(ctx context.Context, in *GetCostProductMbLinkRequest, opts ...grpc.CallOption) (*GetCostProductMbLinkResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetCostProductMbLinkResponse)
+	err := c.cc.Invoke(ctx, CostProductMasterService_GetCostProductMbLink_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *costProductMasterServiceClient) RelinkCostProductMb(ctx context.Context, in *RelinkCostProductMbRequest, opts ...grpc.CallOption) (*RelinkCostProductMbResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RelinkCostProductMbResponse)
+	err := c.cc.Invoke(ctx, CostProductMasterService_RelinkCostProductMb_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *costProductMasterServiceClient) PreviewProductEtlFromOracle(ctx context.Context, in *PreviewProductEtlFromOracleRequest, opts ...grpc.CallOption) (*PreviewProductEtlFromOracleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PreviewProductEtlFromOracleResponse)
+	err := c.cc.Invoke(ctx, CostProductMasterService_PreviewProductEtlFromOracle_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *costProductMasterServiceClient) ApplyProductEtlFromOracle(ctx context.Context, in *ApplyProductEtlFromOracleRequest, opts ...grpc.CallOption) (*ApplyProductEtlFromOracleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ApplyProductEtlFromOracleResponse)
+	err := c.cc.Invoke(ctx, CostProductMasterService_ApplyProductEtlFromOracle_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CostProductMasterServiceServer is the server API for CostProductMasterService service.
 // All implementations must embed UnimplementedCostProductMasterServiceServer
 // for forward compatibility.
@@ -234,6 +286,14 @@ type CostProductMasterServiceServer interface {
 	ListRMDenierOverrides(context.Context, *ListRMDenierOverridesRequest) (*ListRMDenierOverridesResponse, error)
 	UpsertRMDenierOverride(context.Context, *UpsertRMDenierOverrideRequest) (*UpsertRMDenierOverrideResponse, error)
 	DeleteRMDenierOverride(context.Context, *DeleteRMDenierOverrideRequest) (*DeleteRMDenierOverrideResponse, error)
+	// GetCostProductMbLink resolves the MB spin link for a product (FG_MATCH | SHADE_ONLY | SUPERBA | NONE).
+	GetCostProductMbLink(context.Context, *GetCostProductMbLinkRequest) (*GetCostProductMbLinkResponse, error)
+	// RelinkCostProductMb forces MB autofill (re-link) for a product.
+	RelinkCostProductMb(context.Context, *RelinkCostProductMbRequest) (*RelinkCostProductMbResponse, error)
+	// PreviewProductEtlFromOracle previews products to import from Oracle legacy.
+	PreviewProductEtlFromOracle(context.Context, *PreviewProductEtlFromOracleRequest) (*PreviewProductEtlFromOracleResponse, error)
+	// ApplyProductEtlFromOracle inserts the selected rows of a previous preview run.
+	ApplyProductEtlFromOracle(context.Context, *ApplyProductEtlFromOracleRequest) (*ApplyProductEtlFromOracleResponse, error)
 	mustEmbedUnimplementedCostProductMasterServiceServer()
 }
 
@@ -288,6 +348,18 @@ func (UnimplementedCostProductMasterServiceServer) UpsertRMDenierOverride(contex
 }
 func (UnimplementedCostProductMasterServiceServer) DeleteRMDenierOverride(context.Context, *DeleteRMDenierOverrideRequest) (*DeleteRMDenierOverrideResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteRMDenierOverride not implemented")
+}
+func (UnimplementedCostProductMasterServiceServer) GetCostProductMbLink(context.Context, *GetCostProductMbLinkRequest) (*GetCostProductMbLinkResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetCostProductMbLink not implemented")
+}
+func (UnimplementedCostProductMasterServiceServer) RelinkCostProductMb(context.Context, *RelinkCostProductMbRequest) (*RelinkCostProductMbResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RelinkCostProductMb not implemented")
+}
+func (UnimplementedCostProductMasterServiceServer) PreviewProductEtlFromOracle(context.Context, *PreviewProductEtlFromOracleRequest) (*PreviewProductEtlFromOracleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PreviewProductEtlFromOracle not implemented")
+}
+func (UnimplementedCostProductMasterServiceServer) ApplyProductEtlFromOracle(context.Context, *ApplyProductEtlFromOracleRequest) (*ApplyProductEtlFromOracleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ApplyProductEtlFromOracle not implemented")
 }
 func (UnimplementedCostProductMasterServiceServer) mustEmbedUnimplementedCostProductMasterServiceServer() {
 }
@@ -581,6 +653,78 @@ func _CostProductMasterService_DeleteRMDenierOverride_Handler(srv interface{}, c
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CostProductMasterService_GetCostProductMbLink_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCostProductMbLinkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CostProductMasterServiceServer).GetCostProductMbLink(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CostProductMasterService_GetCostProductMbLink_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CostProductMasterServiceServer).GetCostProductMbLink(ctx, req.(*GetCostProductMbLinkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CostProductMasterService_RelinkCostProductMb_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RelinkCostProductMbRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CostProductMasterServiceServer).RelinkCostProductMb(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CostProductMasterService_RelinkCostProductMb_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CostProductMasterServiceServer).RelinkCostProductMb(ctx, req.(*RelinkCostProductMbRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CostProductMasterService_PreviewProductEtlFromOracle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PreviewProductEtlFromOracleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CostProductMasterServiceServer).PreviewProductEtlFromOracle(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CostProductMasterService_PreviewProductEtlFromOracle_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CostProductMasterServiceServer).PreviewProductEtlFromOracle(ctx, req.(*PreviewProductEtlFromOracleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CostProductMasterService_ApplyProductEtlFromOracle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApplyProductEtlFromOracleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CostProductMasterServiceServer).ApplyProductEtlFromOracle(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CostProductMasterService_ApplyProductEtlFromOracle_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CostProductMasterServiceServer).ApplyProductEtlFromOracle(ctx, req.(*ApplyProductEtlFromOracleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CostProductMasterService_ServiceDesc is the grpc.ServiceDesc for CostProductMasterService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -647,6 +791,22 @@ var CostProductMasterService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteRMDenierOverride",
 			Handler:    _CostProductMasterService_DeleteRMDenierOverride_Handler,
+		},
+		{
+			MethodName: "GetCostProductMbLink",
+			Handler:    _CostProductMasterService_GetCostProductMbLink_Handler,
+		},
+		{
+			MethodName: "RelinkCostProductMb",
+			Handler:    _CostProductMasterService_RelinkCostProductMb_Handler,
+		},
+		{
+			MethodName: "PreviewProductEtlFromOracle",
+			Handler:    _CostProductMasterService_PreviewProductEtlFromOracle_Handler,
+		},
+		{
+			MethodName: "ApplyProductEtlFromOracle",
+			Handler:    _CostProductMasterService_ApplyProductEtlFromOracle_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

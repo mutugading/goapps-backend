@@ -432,6 +432,16 @@ if err == nil {
 
 Formula engine semantics, change policy (web edit -> guarded migration) and pending TODOs (e.g. STEAM_COST_CNG / WASHING_COST): see `services/finance/docs/costing-formulas.md`.
 
+### MB spin FG link & supersede (finance, 2026-11)
+
+- A live MB spin is unique per **(shade, FG POY)**: partial unique index `uix_mbs_shade_fg_live` (live = not deleted, active, `mbs_superseded_by_spin_id IS NULL`). Map 23505 on it to `mbspin.ErrSpinShadeFgExists` (409).
+- FG columns `mbs_fg_product_id` / `mbs_fg_item_code` (snapshot of POY `cpm_erp_item_code`) / `mbs_fg_link_source` ∈ `RECIPE | DUPLICATE | MANUAL | BACKFILL`. The FG POY must be active, type POY, and have the **same shade** as the spin (`mbspin.CheckFgShade`). Writers never modify the product master.
+- "FG follows recipe" has one predicate: `mbspin.FgFollowsRecipe` (source RECIPE, or root spin of a head that has an FG). Manual edit (`UpdateMBSpinRequest.fg_product_id`) is rejected for those. `MBSpin.fg_follows_recipe` exposes the same flag to the FE. Do not duplicate the rule.
+- A head shade change that cascades to spins is rejected when a live non-RECIPE spin's FG POY has another shade. Never leave a spin whose shade differs from its FG POY.
+- Supersede/un-supersede are only done through Validate(`confirm_supersede`) / `UnsupersedeMBSpin`, never by toggling `mbs_is_active` (Update rejects reactivating a superseded spin). Un-supersede needs a supersede batch (`mst_mb_spin_supersede_item`) or a SUPERSEDE workflow-log row, else `ErrUnsupersedeNoBatch`.
+- Lookups: FG match first, then the **unchanged** legacy fallback. Do not change `SpinPickOrderSQL`, `MBSourceAutoFillStore.Apply` (fill-empty) or `lookupsync/resolver_mb_spin.go` without an explicit decision.
+- Legacy FG backfill: `cmd/backfill-mb-spin-fg` (dry-run default) — runbook `../docs/runbooks/backfill-mb-spin-fg.md` (workspace root).
+
 ### Seed Migration Guardrails
 
 **Permission codes** must match the `chk_permission_code_format` CHECK constraint:

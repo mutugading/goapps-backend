@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 
 	appmbcomposition "github.com/mutugading/goapps-backend/services/finance/internal/application/mbcomposition"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbcomposition"
@@ -30,6 +31,11 @@ const (
 type ValidateCommand struct {
 	MbhID       uuid.UUID
 	ActorUserID string
+	// ConfirmSupersede (proto ValidateMBHeadRequest.confirm_supersede) lets the first
+	// Validate supersede live spins of other recipes with the same shade + FG. Without it
+	// such a collision fails with mbspin.ErrSupersedeConfirmationRequired (409) and
+	// nothing is written. Bulk Validate and Approve never set it.
+	ConfirmSupersede bool
 }
 
 // ValidateHandler handles the ValidateMBHead command.
@@ -39,6 +45,37 @@ type ValidateHandler struct {
 	// compositionRepo backs the [G.5] composition-sum gate. OPTIONAL: nil skips the
 	// gate, keeping existing construction sites working unchanged.
 	compositionRepo mbcomposition.Repository
+	// lookupSync is the after-commit lookup-sync port; nil disables it.
+	lookupSync LookupSyncTrigger
+}
+
+// WithLookupSyncTrigger attaches the after-commit lookup-sync port used to refresh
+// yarn products repointed by a supersede (best-effort). nil disables it.
+func (h *ValidateHandler) WithLookupSyncTrigger(t LookupSyncTrigger) *ValidateHandler {
+	h.lookupSync = t
+	return h
+}
+
+// triggerSupersedeSync queues, AFTER commit and detached from the request, a lookup sync
+// for the NEW spin. The supersede repoint already moved every affected product's
+// MB_SP_CODE pointer (and text) onto S_new, and the sync scope for a spin key is "products
+// referencing that spin", so S_new alone reaches every repointed product; old spins no
+// longer have referrers. Best-effort: failures are only logged.
+func (h *ValidateHandler) triggerSupersedeSync(ctx context.Context, outcome *mbhead.SupersedeOutcome, actor string) {
+	if h.lookupSync == nil || outcome == nil || outcome.NewSpinID == uuid.Nil || len(outcome.AffectedProductIDs) == 0 {
+		return
+	}
+	trigger := h.lookupSync
+	newSpin := outcome.NewSpinID
+	logger := log.With().Str("mbs_id", newSpin.String()).Str("batch_id", outcome.BatchID.String()).Logger()
+	bg := context.WithoutCancel(ctx)
+	go func() {
+		bgCtx, cancel := context.WithTimeout(bg, lookupSyncTriggerTimeout)
+		defer cancel()
+		if err := trigger.TriggerSpinSync(bgCtx, newSpin, actor); err != nil {
+			logger.Warn().Err(err).Msg("MB supersede: lookup sync for new spin not queued")
+		}
+	}()
 }
 
 // NewValidateHandler creates a ValidateHandler without the [G.5] composition-sum
@@ -118,9 +155,18 @@ var boughtoutValidateOrigins = map[string]struct{}{
 // underlying state-name transition — this handler adds the origin gate the domain state
 // map alone can't express per recipe kind (design.md §2.1).
 func (h *ValidateHandler) Handle(ctx context.Context, cmd ValidateCommand) (*mbhead.Entity, error) {
+	entity, _, err := h.HandleWithOutcome(ctx, cmd)
+	return entity, err
+}
+
+// HandleWithOutcome is Handle plus the supersede outcome (nil when nothing was superseded).
+// Without cmd.ConfirmSupersede the repository is called exactly as before
+// (TransitionWithAutoGen, which itself refuses a real shade+FG collision with
+// mbspin.ErrSupersedeConfirmationRequired); with it, through TransitionWithAutoGenOpts.
+func (h *ValidateHandler) HandleWithOutcome(ctx context.Context, cmd ValidateCommand) (*mbhead.Entity, *mbhead.SupersedeOutcome, error) {
 	entity, err := h.repo.GetByID(ctx, cmd.MbhID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	origins := ownProductionValidateOrigins
@@ -128,7 +174,7 @@ func (h *ValidateHandler) Handle(ctx context.Context, cmd ValidateCommand) (*mbh
 		origins = boughtoutValidateOrigins
 	}
 	if _, ok := origins[entity.EntryStatus()]; !ok {
-		return nil, mbhead.ErrInvalidTransition
+		return nil, nil, mbhead.ErrInvalidTransition
 	}
 
 	// [G.5] Composition-sum gate: checked BEFORE params are frozen and before the
@@ -136,13 +182,13 @@ func (h *ValidateHandler) Handle(ctx context.Context, cmd ValidateCommand) (*mbh
 	// mst_mb_composition_version nor fed to cost auto-gen.
 	if h.compositionRepo != nil {
 		if err := appmbcomposition.EnforceHeadSum(ctx, h.compositionRepo, cmd.MbhID.String()); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
 	params, err := h.resolveParamSnapshot(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	applyHeadParamOverrides(params, entity)
 
@@ -152,14 +198,25 @@ func (h *ValidateHandler) Handle(ctx context.Context, cmd ValidateCommand) (*mbh
 		params.Packing, params.MBProdPerDay, params.ThroughputPerHour, params.NoOfProcess,
 	)
 	if err := entity.Validate(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	if err := h.repo.TransitionWithAutoGen(ctx, entity.ID(), fromState, entity.EntryStatus(), entity.CurrentVersion(), "", cmd.ActorUserID, params, entity); err != nil {
-		return nil, err
+	outcome, err := h.transition(ctx, cmd, entity, fromState, params)
+	if err != nil {
+		return nil, nil, err
 	}
+	h.triggerSupersedeSync(ctx, outcome, cmd.ActorUserID)
+	return entity, outcome, nil
+}
 
-	return entity, nil
+// transition persists the validate. The unconfirmed path keeps calling
+// TransitionWithAutoGen so existing callers/mocks see the exact same call.
+func (h *ValidateHandler) transition(ctx context.Context, cmd ValidateCommand, entity *mbhead.Entity, fromState string, params *mbhead.ParamSnapshot) (*mbhead.SupersedeOutcome, error) {
+	if !cmd.ConfirmSupersede {
+		return nil, h.repo.TransitionWithAutoGen(ctx, entity.ID(), fromState, entity.EntryStatus(), entity.CurrentVersion(), "", cmd.ActorUserID, params, entity)
+	}
+	return h.repo.TransitionWithAutoGenOpts(ctx, entity.ID(), fromState, entity.EntryStatus(), entity.CurrentVersion(), "", cmd.ActorUserID, params, entity,
+		mbhead.AutoGenOptions{ConfirmSupersede: true})
 }
 
 // applyHeadParamOverrides lets the head's own per-product values win over the

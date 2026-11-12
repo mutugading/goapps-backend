@@ -37,6 +37,8 @@ type DuplicateCommand struct {
 	// uniqueness gate is wired on this path too, rather than being a hole that
 	// only shows up the day the field is added.
 	OrionItemCode *string
+	// FgProductID optionally links the clone to an FG (POY) product (>0 = set).
+	FgProductID *int64
 	// ActorUserID lands in created_by and mbs_duplicated_by.
 	ActorUserID string
 }
@@ -115,6 +117,7 @@ func (h *DuplicateHandler) Handle(ctx context.Context, cmd DuplicateCommand) (*D
 		MgtName:      cmd.MgtName,
 		Denier:       cmd.Denier,
 		Filament:     cmd.Filament,
+		FgProductID:  cmd.FgProductID,
 		ActorUserID:  cmd.ActorUserID,
 	})
 	if err != nil {

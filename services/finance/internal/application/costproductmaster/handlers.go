@@ -4,10 +4,14 @@ package costproductmaster
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
+	appshade "github.com/mutugading/goapps-backend/services/finance/internal/application/shade"
+	auditdomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costauditlog"
 	domain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductmaster"
 	cptdomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproducttype"
+	shadedomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/shade"
 )
 
 // mbLockWindow is the escape-hatch auto-relock window (PRD Phase B §7.4.1).
@@ -28,7 +32,10 @@ type CreateCommand struct {
 	Flex01        string // legacy_erp_compound_key
 	Flex02        string // legacy_oracle_sys_id
 	Flex03        string // legacy_type_label
-	ActorUserID   string
+	// ErpItemCode optionally links the new product to an Orion item code right after
+	// create (D3: minimal POY inline). Empty keeps the legacy behavior.
+	ErpItemCode string
+	ActorUserID string
 }
 
 // CreateHandler creates a new product master.
@@ -36,6 +43,18 @@ type CreateHandler struct {
 	repo     domain.Repository
 	typeRepo cptdomain.Repository
 	autoFill MBSourceAutoFiller
+	shades   shadedomain.Repository
+	linkRepo domain.ErpLinkRepository
+	linkedCr domain.ErpLinkedCreator
+	audit    AuditSink
+}
+
+// WithErpLink enables creating a POY product with an inline ERP link (D3). linkRepo runs
+// the V-04 duplicate pre-check, creator persists product+link atomically, audit may be nil.
+// Without it a non-empty erp_item_code is refused (fail closed).
+func (h *CreateHandler) WithErpLink(linkRepo domain.ErpLinkRepository, creator domain.ErpLinkedCreator, audit AuditSink) *CreateHandler {
+	h.linkRepo, h.linkedCr, h.audit = linkRepo, creator, audit
+	return h
 }
 
 // NewCreateHandler constructs a CreateHandler. typeRepo resolves the requested product
@@ -54,6 +73,13 @@ type MBSourceAutoFiller interface {
 // WithMBSourceAutoFill enables the shade-driven MB source auto-fill after a successful create.
 func (h *CreateHandler) WithMBSourceAutoFill(f MBSourceAutoFiller) *CreateHandler {
 	h.autoFill = f
+	return h
+}
+
+// WithShadeMaster enables best-effort creation of a MANUAL shade master row for the
+// product's shade after a successful create (design §2.7).
+func (h *CreateHandler) WithShadeMaster(r shadedomain.Repository) *CreateHandler {
+	h.shades = r
 	return h
 }
 
@@ -76,11 +102,61 @@ func (h *CreateHandler) rejectMBType(ctx context.Context, productTypeID int32) e
 	return nil
 }
 
+// poyTypeCode is the cost_product_type.cpt_type_code allowed to carry an inline ERP link on create.
+const poyTypeCode = "POY"
+
+// requirePoyType returns ErrErpItemRequiresPoy unless productTypeID resolves to POY.
+func (h *CreateHandler) requirePoyType(ctx context.Context, productTypeID int32) error {
+	if h.typeRepo == nil || productTypeID <= 0 {
+		return domain.ErrErpItemRequiresPoy
+	}
+	pt, err := h.typeRepo.GetByID(ctx, productTypeID)
+	if err != nil {
+		if errors.Is(err, cptdomain.ErrNotFound) {
+			return domain.ErrErpItemRequiresPoy
+		}
+		return err
+	}
+	if pt.TypeCode() != poyTypeCode {
+		return domain.ErrErpItemRequiresPoy
+	}
+	return nil
+}
+
+// validateInlineLink runs the same checks as LinkErpItemHandler (active, AX, V-12, shade, V-04)
+// before anything is written. The product is MB-free here (rejectMBType ran first).
+func (h *CreateHandler) validateInlineLink(ctx context.Context, p *domain.CostProductMaster, item string) error {
+	if h.linkRepo == nil || h.linkedCr == nil {
+		return errors.New("ERP link on create is not configured")
+	}
+	if err := p.CheckErpLink(item, p.ShadeCode(), false); err != nil {
+		return err
+	}
+	dups, err := h.linkRepo.ListActiveAxByErpKey(ctx, item, domain.NormalizeShadeKey(p.ShadeCode()), 0)
+	if err != nil {
+		return err
+	}
+	if len(dups) > 0 {
+		return fmt.Errorf("%w: product_sys_id %v", domain.ErrLinkDuplicate, dups)
+	}
+	return nil
+}
+
 // Handle executes the create. MB-typed products are refused: they exist only as the
-// auto-generated output of the MB Recipe workflow.
+// auto-generated output of the MB Recipe workflow. A non-empty ErpItemCode (POY only)
+// is validated like the link workflow and persisted atomically with the product.
 func (h *CreateHandler) Handle(ctx context.Context, cmd CreateCommand) (*domain.CostProductMaster, error) {
 	if err := h.rejectMBType(ctx, cmd.ProductTypeID); err != nil {
 		return nil, err
+	}
+	erpItem, err := domain.NormalizeErpItemCode(cmd.ErpItemCode)
+	if err != nil {
+		return nil, err
+	}
+	if erpItem != "" {
+		if err := h.requirePoyType(ctx, cmd.ProductTypeID); err != nil {
+			return nil, err
+		}
 	}
 	p, err := domain.New(domain.NewInput{
 		ProductTypeID: cmd.ProductTypeID,
@@ -96,13 +172,42 @@ func (h *CreateHandler) Handle(ctx context.Context, cmd CreateCommand) (*domain.
 	if err != nil {
 		return nil, err
 	}
-	if err := h.repo.Create(ctx, p); err != nil {
+	if erpItem != "" {
+		err = h.createLinked(ctx, p, erpItem, cmd.ActorUserID)
+	} else {
+		err = h.repo.Create(ctx, p)
+	}
+	if err != nil {
 		return nil, err
+	}
+	if cmd.ShadeCode != "" {
+		appshade.EnsureShadeMaster(ctx, h.shades, cmd.ShadeCode, "", cmd.ActorUserID)
 	}
 	if h.autoFill != nil {
 		h.autoFill.BestEffort(ctx, []int64{p.ProductSysID()}, cmd.ActorUserID)
 	}
 	return p, nil
+}
+
+// createLinked validates the link, then inserts product + link in one transaction and audits it.
+func (h *CreateHandler) createLinked(ctx context.Context, p *domain.CostProductMaster, item, actor string) error {
+	if err := h.validateInlineLink(ctx, p, item); err != nil {
+		return err
+	}
+	before := linkSnapshotOf(p)
+	p.LinkErpItem(item, actor, time.Now())
+	if err := h.linkedCr.CreateWithErpLink(ctx, p); err != nil {
+		return err
+	}
+	emitProductAudit(ctx, h.audit, auditdomain.NewInput{
+		EntityType: AuditEntityProductMaster,
+		EntityID:   p.ProductSysID(),
+		Operation:  auditdomain.OpErpLink,
+		BeforeData: marshalAudit(before),
+		AfterData:  marshalAudit(linkSnapshotOf(p)),
+		UserID:     actor,
+	})
+	return nil
 }
 
 // GetQuery input.
@@ -142,6 +247,14 @@ type UpdateCommand struct {
 type UpdateHandler struct {
 	repo     domain.Repository
 	autoFill MBSourceAutoFiller
+	shades   shadedomain.Repository
+}
+
+// WithShadeMaster enables best-effort creation of a MANUAL shade master row when the
+// product's shade changes (design §2.7).
+func (h *UpdateHandler) WithShadeMaster(r shadedomain.Repository) *UpdateHandler {
+	h.shades = r
+	return h
 }
 
 // NewUpdateHandler constructs an UpdateHandler.
@@ -161,11 +274,15 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*domain.
 	if err != nil {
 		return nil, err
 	}
+	oldShade := domain.NormalizeShadeKey(p.ShadeCode())
 	if err := p.Update(cmd.ProductName, cmd.ShadeCode, cmd.GradeCode, cmd.Description, cmd.Flex01, cmd.Flex02, cmd.Flex03, cmd.ActorUserID); err != nil {
 		return nil, err
 	}
 	if err := h.repo.Update(ctx, p); err != nil {
 		return nil, err
+	}
+	if p.ShadeCode() != "" && domain.NormalizeShadeKey(p.ShadeCode()) != oldShade {
+		appshade.EnsureShadeMaster(ctx, h.shades, p.ShadeCode(), "", cmd.ActorUserID)
 	}
 	if h.autoFill != nil {
 		h.autoFill.BestEffort(ctx, []int64{p.ProductSysID()}, cmd.ActorUserID)

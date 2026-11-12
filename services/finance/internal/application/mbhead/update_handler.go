@@ -11,6 +11,7 @@ import (
 
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbhead"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbparam"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbspin"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/shade"
 )
 
@@ -57,6 +58,9 @@ type UpdateCommand struct {
 	// OrionItemCode: nil leaves the stored code untouched, "" (or blank) clears it, any
 	// other value is trimmed and must not already be used by another live head.
 	OrionItemCode *string
+
+	// FgProductID: nil = unchanged, 0 = clear the FG link, >0 = set (validated).
+	FgProductID *int64
 }
 
 // LookupSyncTrigger queues a master-lookup sync for the yarn products that reference an
@@ -80,6 +84,14 @@ type UpdateHandler struct {
 	paramRepo mbparam.Repository
 	// lookupSync is the after-commit lookup-sync port; nil disables it.
 	lookupSync LookupSyncTrigger
+	// fgReader validates an FG link; nil rejects any attempt to set one.
+	fgReader mbspin.FgProductReader
+}
+
+// WithFgReader attaches the POY reader used to validate an FG link.
+func (h *UpdateHandler) WithFgReader(r mbspin.FgProductReader) *UpdateHandler {
+	h.fgReader = r
+	return h
 }
 
 // NewUpdateHandler creates a new UpdateHandler. shadeRepo backs the best-effort
@@ -133,6 +145,7 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*mbhead.
 	}
 
 	oldCosting := entity.MBCosting()
+	oldSpinShade := spinShadeCode(entity)
 	oldMachineID := copyUUIDPtr(entity.MachineID())
 	costingChanged := mbCostingChanged(oldCosting, cmd.MBCosting)
 	mbCosting := cmd.MBCosting
@@ -177,6 +190,11 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*mbhead.
 		}
 	}
 
+	fg, err := h.applyFg(ctx, entity, cmd.FgProductID, oldSpinShade)
+	if err != nil {
+		return nil, err
+	}
+
 	refreeze := cppInputsChanged(oldMachineID, entity)
 	spinIDs, err := h.persist(ctx, entity, oldCosting, costingChanged, refreeze)
 	if err != nil {
@@ -193,8 +211,37 @@ func (h *UpdateHandler) Handle(ctx context.Context, cmd UpdateCommand) (*mbhead.
 	}
 
 	ensureShadeMaster(ctx, h.shadeRepo, entity, cmd.UpdatedBy)
+	fg.afterSave(ctx, h.fgReader, h.shadeRepo, entity, cmd.UpdatedBy)
 
 	return entity, nil
+}
+
+// applyFg applies the tri-state FG command: nil unchanged, 0 clear, >0 validate + set.
+// The returned fgLink is the zero value (no-op afterSave) unless an FG was set.
+func (h *UpdateHandler) applyFg(ctx context.Context, entity *mbhead.Entity, fgID *int64, oldSpinShade string) (fgLink, error) {
+	if fgID == nil {
+		// FG unchanged, but a shade change on a head that already has an FG must
+		// still satisfy the shade rule against the existing POY.
+		if cur := entity.FgProductID(); cur != nil && spinShadeCode(entity) != oldSpinShade {
+			return resolveFg(ctx, h.fgReader, *cur, entity)
+		}
+		return fgLink{}, nil
+	}
+	switch {
+	case *fgID == 0:
+		entity.ClearFg()
+		return fgLink{}, nil
+	case *fgID < 0:
+		return fgLink{}, mbspin.ErrFgNotPoy
+	}
+	link, err := resolveFg(ctx, h.fgReader, *fgID, entity)
+	if err != nil {
+		return fgLink{}, err
+	}
+	if err := link.apply(entity); err != nil {
+		return fgLink{}, err
+	}
+	return link, nil
 }
 
 // persist writes the head and returns the spin IDs the cascade touched.

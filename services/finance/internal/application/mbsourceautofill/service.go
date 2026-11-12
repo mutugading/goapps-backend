@@ -69,6 +69,13 @@ type ShadeResolver interface {
 	Resolve(ctx context.Context, shades []string) (map[string]mbsource.Resolution, error)
 }
 
+// TargetResolver is an OPTIONAL extension of ShadeResolver: it resolves per product (shade plus
+// product id), which lets FG-aware providers pick a spin by the product's FG. *mbsource.Resolver
+// satisfies it; resolvers without it keep the shade-only path.
+type TargetResolver interface {
+	ResolveTargets(ctx context.Context, targets []mbsource.Target) (map[int64]mbsource.Resolution, error)
+}
+
 // Service is the auto-fill application service.
 type Service struct {
 	store    Store
@@ -96,22 +103,9 @@ func (s *Service) AutoFillMBSource(ctx context.Context, productSysIDs []int64, a
 	if len(targets) == 0 {
 		return stats, nil
 	}
-	shades := make([]string, 0, len(targets))
-	for _, t := range targets {
-		shades = append(shades, t.Shade)
-	}
-	resolved, err := s.resolver.Resolve(ctx, shades)
+	plans, err := s.resolvePlans(ctx, targets, &stats)
 	if err != nil {
-		return stats, fmt.Errorf("resolve mb source: %w", err)
-	}
-	plans := make([]Plan, 0, len(targets))
-	for _, t := range targets {
-		res, ok := resolved[mbsource.NormalizeShade(t.Shade)]
-		if !ok {
-			stats.NoMatch++
-			continue
-		}
-		plans = append(plans, Plan{ProductSysID: t.ProductSysID, Resolution: res})
+		return stats, err
 	}
 	if len(plans) == 0 {
 		return stats, nil
@@ -130,6 +124,47 @@ func (s *Service) AutoFillMBSource(ctx context.Context, productSysIDs []int64, a
 		stats.BySource[p.Resolution.Source]++
 	}
 	return stats, nil
+}
+
+// resolvePlans resolves every target and returns the plans; unresolved targets count as NoMatch.
+func (s *Service) resolvePlans(ctx context.Context, targets []Target, stats *Stats) ([]Plan, error) {
+	plans := make([]Plan, 0, len(targets))
+	if tr, ok := s.resolver.(TargetResolver); ok {
+		mt := make([]mbsource.Target, 0, len(targets))
+		for _, t := range targets {
+			mt = append(mt, mbsource.Target{ProductSysID: t.ProductSysID, Shade: t.Shade})
+		}
+		byProduct, err := tr.ResolveTargets(ctx, mt)
+		if err != nil {
+			return nil, fmt.Errorf("resolve mb source: %w", err)
+		}
+		for _, t := range targets {
+			res, found := byProduct[t.ProductSysID]
+			if !found {
+				stats.NoMatch++
+				continue
+			}
+			plans = append(plans, Plan{ProductSysID: t.ProductSysID, Resolution: res})
+		}
+		return plans, nil
+	}
+	shades := make([]string, 0, len(targets))
+	for _, t := range targets {
+		shades = append(shades, t.Shade)
+	}
+	resolved, err := s.resolver.Resolve(ctx, shades)
+	if err != nil {
+		return nil, fmt.Errorf("resolve mb source: %w", err)
+	}
+	for _, t := range targets {
+		res, found := resolved[mbsource.NormalizeShade(t.Shade)]
+		if !found {
+			stats.NoMatch++
+			continue
+		}
+		plans = append(plans, Plan{ProductSysID: t.ProductSysID, Resolution: res})
+	}
+	return plans, nil
 }
 
 // BestEffort runs AutoFillMBSource and only logs failures; used by create/update/import hooks

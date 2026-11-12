@@ -31,7 +31,9 @@ type MBSpinHandler struct {
 	// collaborators; DuplicateMBSpin then reports Unimplemented instead of
 	// pretending to work.
 	duplicateHandler *appmbspin.DuplicateHandler
-	validation       *ValidationHelper
+	// unsupersedeHandler is nil unless WithUnsuperseder was called.
+	unsupersedeHandler *appmbspin.UnsupersedeHandler
+	validation         *ValidationHelper
 }
 
 // NewMBSpinHandler constructs an MBSpinHandler without the duplicate/recalc
@@ -83,6 +85,9 @@ func newMBSpinHandler(
 		svc := appmbspin.NewRecalcService(repo, recalcRepo, impactRepo, factorRepo)
 		h.updateHandler = appmbspin.NewUpdateHandlerWithRecalc(repo, svc)
 		h.duplicateHandler = appmbspin.NewDuplicateHandler(repo, svc)
+	}
+	if fgRepo, ok := repo.(mbspin.ManualFgRepository); ok {
+		h.updateHandler = h.updateHandler.WithManualFg(fgRepo)
 	}
 	return h, nil
 }
@@ -201,6 +206,7 @@ func (h *MBSpinHandler) UpdateMBSpin(ctx context.Context, req *financev1.UpdateM
 		LDRAdjustmentPct: req.MbsLdrAdjustmentPct,
 		LDRLockActual:    req.MbsLdrLockActual,
 		VSNumber:         req.MbsVsNumber,
+		FgProductID:      req.FgProductId,
 		UpdatedBy:        getUserFromContext(ctx),
 	})
 	if err != nil {
@@ -267,6 +273,10 @@ func (h *MBSpinHandler) ListMBSpins(ctx context.Context, req *financev1.ListMBSp
 		Search:    req.Search,
 		SortBy:    req.SortBy,
 		SortOrder: req.SortOrder,
+
+		FgProductID:       req.GetFgProductId(),
+		FgSearch:          req.GetFgSearch(),
+		IncludeSuperseded: req.GetIncludeSuperseded(),
 	}
 
 	switch req.ActiveFilter {
@@ -369,6 +379,7 @@ func mbSpinEntityToProto(e *mbspin.Entity) *financev1.MBSpin {
 	if e.CrossSection() != nil {
 		p.MbsCrossSection = *e.CrossSection()
 	}
+	mbSpinFgToProto(p, e)
 	if e.UpdatedAt() != nil {
 		p.Audit.UpdatedAt = e.UpdatedAt().Format(time.RFC3339)
 	}
@@ -376,6 +387,35 @@ func mbSpinEntityToProto(e *mbspin.Entity) *financev1.MBSpin {
 		p.Audit.UpdatedBy = *e.UpdatedBy()
 	}
 	return p
+}
+
+// mbSpinFgToProto maps the FG link and supersede fields (proto 28-35).
+func mbSpinFgToProto(p *financev1.MBSpin, e *mbspin.Entity) {
+	if v := e.FgProductID(); v != nil {
+		p.FgProductId = *v
+	}
+	if v := e.FgItemCode(); v != nil {
+		p.FgItemCode = *v
+	}
+	if v := e.FgProductCode(); v != nil {
+		p.FgProductCode = *v
+	}
+	if v := e.FgProductName(); v != nil {
+		p.FgProductName = *v
+	}
+	if v := e.FgLinkSource(); v != nil {
+		p.FgLinkSource = *v
+	}
+	p.FgFollowsRecipe = e.FgFollowsRecipe()
+	if v := e.SupersededBySpinID(); v != nil {
+		p.SupersededBySpinId = v.String()
+	}
+	if v := e.SupersededAt(); v != nil {
+		p.SupersededAt = v.Format(time.RFC3339)
+	}
+	if v := e.SupersededBySpinCode(); v != nil {
+		p.SupersededBySpinCode = *v
+	}
 }
 
 // =============================================================================
@@ -419,7 +459,13 @@ func (h *MBSpinHandler) DuplicateMBSpin(ctx context.Context, req *financev1.Dupl
 		filament = &v
 	}
 
+	var fgID *int64
+	if v := req.GetFgProductId(); v > 0 {
+		fgID = &v
+	}
+
 	result, err := h.duplicateHandler.Handle(ctx, appmbspin.DuplicateCommand{
+		FgProductID:  fgID,
 		SourceSpinID: spinID,
 		HeadID:       &headID,
 		MgtName:      req.MbsMgtName,
@@ -529,8 +575,20 @@ func mbSpinErrorToBaseResponse(err error) *commonv1.BaseResponse {
 	switch {
 	case errors.Is(err, mbspin.ErrDuplicateOrionItemCode):
 		return ConflictResponse(err.Error())
-	case errors.Is(err, mbspin.ErrAlreadyDuplicated):
+	case errors.Is(err, mbspin.ErrAlreadyDuplicated),
+		errors.Is(err, mbspin.ErrSpinShadeFgExists),
+		errors.Is(err, mbspin.ErrUnsupersedeConflict),
+		errors.Is(err, mbspin.ErrUnsupersedeNoBatch):
 		return ConflictResponse(err.Error())
+	case errors.Is(err, mbspin.ErrNotFound):
+		return NotFoundResponse(err.Error())
+	case errors.Is(err, mbspin.ErrNotSuperseded),
+		errors.Is(err, mbspin.ErrSpinSuperseded),
+		errors.Is(err, mbspin.ErrFgFollowsRecipe),
+		errors.Is(err, mbspin.ErrFgSpinNotLive),
+		errors.Is(err, mbspin.ErrFgNotPoy),
+		errors.Is(err, mbspin.ErrFgShadeMismatch):
+		return BadRequestResponse(err.Error())
 	case errors.Is(err, mbspin.ErrParentCycle),
 		errors.Is(err, mbspin.ErrMaxDuplicateDepth),
 		errors.Is(err, mbspin.ErrAlreadyDeleted),

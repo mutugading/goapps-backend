@@ -77,6 +77,10 @@ func (f *fakeFrozenMBHeadRepo) TransitionWithAutoGen(_ context.Context, _ uuid.U
 	return nil
 }
 
+func (f *fakeFrozenMBHeadRepo) TransitionWithAutoGenOpts(_ context.Context, _ uuid.UUID, _, _ string, _ int32, _, _ string, _ *mbhead.ParamSnapshot, _ *mbhead.Entity, _ mbhead.AutoGenOptions) (*mbhead.SupersedeOutcome, error) {
+	return nil, nil
+}
+
 func (f *fakeFrozenMBHeadRepo) ListShades(_ context.Context, _ uuid.UUID) ([]mbhead.Shade, error) {
 	return nil, nil
 }

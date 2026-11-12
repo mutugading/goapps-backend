@@ -22,24 +22,33 @@ type Entity struct {
 	// DERIVED check status. ⛔ Distinct from mbhCheckStatus, which is the FROZEN
 	// Oracle import trace and is never written from a derivation path (K-1 opt 2).
 	// nil = never calculated by the application; 207 legacy heads stay nil forever.
-	mbhCheckStatusCalc     *string
-	mbhStatus              *string
-	mbhLdrPrsn             *float64
-	mbhRunLdrPct           *float64
-	mbhFinalProduct        *string
-	mbhCode                *string
-	isActive               bool
-	createdAt              time.Time
-	createdBy              string
-	updatedAt              *time.Time
-	updatedBy              *string
-	deletedAt              *time.Time
-	deletedBy              *string
-	entryStatus            string
-	isBoughtout            bool
-	currentVersion         int32
-	machineFixedTotal      *string
-	machineID              *uuid.UUID
+	mbhCheckStatusCalc *string
+	mbhStatus          *string
+	mbhLdrPrsn         *float64
+	mbhRunLdrPct       *float64
+	mbhFinalProduct    *string
+	mbhCode            *string
+	isActive           bool
+	createdAt          time.Time
+	createdBy          string
+	updatedAt          *time.Time
+	updatedBy          *string
+	deletedAt          *time.Time
+	deletedBy          *string
+	entryStatus        string
+	isBoughtout        bool
+	currentVersion     int32
+	machineFixedTotal  *string
+	machineID          *uuid.UUID
+	// FG (POY) link + supersede trail — migration 000607. Set via SetFg /
+	// HydrateFg (fg.go), NOT parameters of New/Reconstruct.
+	fgProductID        *int64
+	fgItemCode         *string
+	supersededByHeadID *uuid.UUID
+	supersededAt       *time.Time
+	// Read-model (joined) display values; never persisted from the entity.
+	fgProductCode          *string
+	fgProductName          *string
 	stateReason            string
 	devCode                string
 	shadeCode              string
