@@ -56,6 +56,12 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -o /bin/backfill-mb-validate \
     ./cmd/backfill-mb-validate/main.go
 
+# Build backfill-mb-spin-fg binary (one-shot: dry-run/apply FG link of legacy MB spins, P6)
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-s -w" \
+    -o /bin/backfill-mb-spin-fg \
+    ./cmd/backfill-mb-spin-fg
+
 # Build pp-facts-rebuild binary (one-shot: re-aggregates PP_PACK_* facts from staging, P007)
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags="-s -w" \
@@ -83,6 +89,7 @@ COPY --from=builder /bin/finance-service /app/finance-service
 COPY --from=builder /bin/finance-worker /app/finance-worker
 COPY --from=builder /bin/finance-seed /app/finance-seed
 COPY --from=builder /bin/backfill-mb-validate /app/backfill-mb-validate
+COPY --from=builder /bin/backfill-mb-spin-fg /app/backfill-mb-spin-fg
 COPY --from=builder /bin/pp-facts-rebuild /app/pp-facts-rebuild
 COPY --from=builder /bin/migrate /app/migrate
 
