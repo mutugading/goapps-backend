@@ -5394,6 +5394,11 @@
         "mbsVsNumber": {
           "type": "string",
           "description": "Optional VS reference number. Absent = leave unchanged."
+        },
+        "fgProductId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Optional FG (POY) product link (mb-spin-fg-poy-link P8). Absent = leave unchanged,\n0 = clear the link, \u003e0 = link to this active POY product (link source MANUAL).\nRejected for spins whose FG comes from their recipe (link source RECIPE) and for superseded/inactive spins."
         }
       },
       "description": "UpdateMBSpinRequest is the request for updating an MB Spin record."

@@ -10841,7 +10841,11 @@ type UpdateMBSpinRequest struct {
 	// Actual, false = unlock. Absent = no-op (leave the lock state untouched).
 	MbsLdrLockActual *bool `protobuf:"varint,18,opt,name=mbs_ldr_lock_actual,json=mbsLdrLockActual,proto3,oneof" json:"mbs_ldr_lock_actual,omitempty"`
 	// Optional VS reference number. Absent = leave unchanged.
-	MbsVsNumber   *string `protobuf:"bytes,19,opt,name=mbs_vs_number,json=mbsVsNumber,proto3,oneof" json:"mbs_vs_number,omitempty"`
+	MbsVsNumber *string `protobuf:"bytes,19,opt,name=mbs_vs_number,json=mbsVsNumber,proto3,oneof" json:"mbs_vs_number,omitempty"`
+	// Optional FG (POY) product link (mb-spin-fg-poy-link P8). Absent = leave unchanged,
+	// 0 = clear the link, >0 = link to this active POY product (link source MANUAL).
+	// Rejected for spins whose FG comes from their recipe (link source RECIPE) and for superseded/inactive spins.
+	FgProductId   *int64 `protobuf:"varint,20,opt,name=fg_product_id,json=fgProductId,proto3,oneof" json:"fg_product_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -11007,6 +11011,13 @@ func (x *UpdateMBSpinRequest) GetMbsVsNumber() string {
 		return *x.MbsVsNumber
 	}
 	return ""
+}
+
+func (x *UpdateMBSpinRequest) GetFgProductId() int64 {
+	if x != nil && x.FgProductId != nil {
+		return *x.FgProductId
+	}
+	return 0
 }
 
 // UpdateMBSpinResponse is the response for updating an MB Spin record.
@@ -22256,7 +22267,8 @@ const file_finance_v1_yarn_master_proto_rawDesc = "" +
 	"\x06mbs_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x05mbsId\"h\n" +
 	"\x11GetMBSpinResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12&\n" +
-	"\x04data\x18\x02 \x01(\v2\x12.finance.v1.MBSpinR\x04data\"\xca\t\n" +
+	"\x04data\x18\x02 \x01(\v2\x12.finance.v1.MBSpinR\x04data\"\x8e\n" +
+	"\n" +
 	"\x13UpdateMBSpinRequest\x12\x1f\n" +
 	"\x06mbh_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x05mbhId\x12\x1f\n" +
 	"\x06mbs_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x05mbsId\x120\n" +
@@ -22283,7 +22295,8 @@ const file_finance_v1_yarn_master_proto_rawDesc = "" +
 	"\x13mbs_dozing_is_fixed\x18\x10 \x01(\bH\rR\x10mbsDozingIsFixed\x88\x01\x01\x128\n" +
 	"\x16mbs_ldr_adjustment_pct\x18\x11 \x01(\x01H\x0eR\x13mbsLdrAdjustmentPct\x88\x01\x01\x122\n" +
 	"\x13mbs_ldr_lock_actual\x18\x12 \x01(\bH\x0fR\x10mbsLdrLockActual\x88\x01\x01\x120\n" +
-	"\rmbs_vs_number\x18\x13 \x01(\tB\a\xbaH\x04r\x02\x182H\x10R\vmbsVsNumber\x88\x01\x01B\x0f\n" +
+	"\rmbs_vs_number\x18\x13 \x01(\tB\a\xbaH\x04r\x02\x182H\x10R\vmbsVsNumber\x88\x01\x01\x120\n" +
+	"\rfg_product_id\x18\x14 \x01(\x03B\a\xbaH\x04\"\x02(\x00H\x11R\vfgProductId\x88\x01\x01B\x0f\n" +
 	"\r_mbs_mgt_nameB\r\n" +
 	"\v_mbs_denierB\x0f\n" +
 	"\r_mbs_filamentB\r\n" +
@@ -22300,7 +22313,8 @@ const file_finance_v1_yarn_master_proto_rawDesc = "" +
 	"\x14_mbs_dozing_is_fixedB\x19\n" +
 	"\x17_mbs_ldr_adjustment_pctB\x16\n" +
 	"\x14_mbs_ldr_lock_actualB\x10\n" +
-	"\x0e_mbs_vs_number\"\x9e\x03\n" +
+	"\x0e_mbs_vs_numberB\x10\n" +
+	"\x0e_fg_product_id\"\x9e\x03\n" +
 	"\x14UpdateMBSpinResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12&\n" +
 	"\x04data\x18\x02 \x01(\v2\x12.finance.v1.MBSpinR\x04data\x129\n" +
