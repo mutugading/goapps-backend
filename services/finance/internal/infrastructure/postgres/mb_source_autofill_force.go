@@ -117,8 +117,10 @@ func forceWriteMBSourceTx(ctx context.Context, tx *sql.Tx, ps mbsourceautofill.P
 
 // forceParamIDs is the trigger id followed by the child ids in code order.
 func forceParamIDs(ps mbsourceautofill.ParamSet) []uuid.UUID {
-	ids := []uuid.UUID{ps.TriggerID}
-	for _, code := range sortedChildCodes(ps) {
+	codes := sortedChildCodes(ps)
+	ids := make([]uuid.UUID, 0, 1+len(codes))
+	ids = append(ids, ps.TriggerID)
+	for _, code := range codes {
 		ids = append(ids, ps.Children[code])
 	}
 	return ids
