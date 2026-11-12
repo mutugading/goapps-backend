@@ -10166,7 +10166,7 @@ type MBSpin struct {
 	FgProductCode string `protobuf:"bytes,30,opt,name=fg_product_code,json=fgProductCode,proto3" json:"fg_product_code,omitempty"`
 	// FG product name (read-only, denormalized).
 	FgProductName string `protobuf:"bytes,31,opt,name=fg_product_name,json=fgProductName,proto3" json:"fg_product_name,omitempty"`
-	// How the FG link was derived (e.g. FG_MATCH | SHADE_ONLY | MANUAL; empty = none).
+	// How the FG link was derived (RECIPE | DUPLICATE | MANUAL | BACKFILL; empty = none).
 	FgLinkSource string `protobuf:"bytes,32,opt,name=fg_link_source,json=fgLinkSource,proto3" json:"fg_link_source,omitempty"`
 	// UUID of the spin that superseded this one (empty = not superseded).
 	SupersededBySpinId string `protobuf:"bytes,33,opt,name=superseded_by_spin_id,json=supersededBySpinId,proto3" json:"superseded_by_spin_id,omitempty"`
@@ -11255,8 +11255,7 @@ type ListMBSpinsRequest struct {
 	FgProductId int64 `protobuf:"varint,8,opt,name=fg_product_id,json=fgProductId,proto3" json:"fg_product_id,omitempty"`
 	// Search by FG product code / name / orion item code (max 200 chars).
 	FgSearch string `protobuf:"bytes,9,opt,name=fg_search,json=fgSearch,proto3" json:"fg_search,omitempty"`
-	// Include superseded spins. NOTE: default behaviour is unchanged (superseded spins are
-	// still listed as before); this flag is reserved for explicit callers.
+	// Include superseded spins. Default false = superseded spins are hidden; true = list them too.
 	IncludeSuperseded bool `protobuf:"varint,10,opt,name=include_superseded,json=includeSuperseded,proto3" json:"include_superseded,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
@@ -11829,7 +11828,7 @@ type DuplicateMBSpinRequest struct {
 	// zero. Absent means the source value is copied as-is. Same stricter-than-
 	// Create/Update reasoning as mbs_denier above.
 	MbsFilament *int32 `protobuf:"varint,5,opt,name=mbs_filament,json=mbsFilament,proto3,oneof" json:"mbs_filament,omitempty"`
-	// FG product link for the clone (cost_product_master id). 0 = not set / inherit.
+	// FG product link for the clone (cost_product_master id). 0 = no FG link (the source FG is never copied; it would collide on shade+FG).
 	FgProductId   int64 `protobuf:"varint,6,opt,name=fg_product_id,json=fgProductId,proto3" json:"fg_product_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

@@ -3848,7 +3848,7 @@
           },
           {
             "name": "includeSuperseded",
-            "description": "Include superseded spins. NOTE: default behaviour is unchanged (superseded spins are\nstill listed as before); this flag is reserved for explicit callers.",
+            "description": "Include superseded spins. Default false = superseded spins are hidden; true = list them too.",
             "in": "query",
             "required": false,
             "type": "boolean"
@@ -5289,7 +5289,7 @@
         "fgProductId": {
           "type": "string",
           "format": "int64",
-          "description": "FG product link for the clone (cost_product_master id). 0 = not set / inherit."
+          "description": "FG product link for the clone (cost_product_master id). 0 = no FG link (the source FG is never copied; it would collide on shade+FG)."
         }
       },
       "description": "DuplicateMBSpinRequest is the request for duplicating an MB Spin record.\n\nShape follows design §3.7. mbs_oracle_sys_id, mbs_orion_item_code and\nmbs_mb_costing are DELIBERATELY ABSENT: decision D19 requires all three to be\nNULL on the clone, so there is no field to carry them. The user fills them in\nafterwards via UpdateMBSpin."
@@ -9214,7 +9214,7 @@
         },
         "fgLinkSource": {
           "type": "string",
-          "description": "How the FG link was derived (e.g. FG_MATCH | SHADE_ONLY | MANUAL; empty = none)."
+          "description": "How the FG link was derived (RECIPE | DUPLICATE | MANUAL | BACKFILL; empty = none)."
         },
         "supersededBySpinId": {
           "type": "string",
