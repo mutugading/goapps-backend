@@ -215,3 +215,40 @@ func (s *MBSpinFgManualSuite) TestDuplicateLiveShadeFgRejected() {
 	fg, _, _ := s.fgOf(sp)
 	require.False(s.T(), fg.Valid)
 }
+
+// P8-R BE-3: a root spin whose head carries an FG follows the recipe, even when its link
+// source is BACKFILL; otherwise the next recipe save would silently revert the manual edit.
+func (s *MBSpinFgManualSuite) TestRootSpinOfHeadWithFgRejectsManualEdit() {
+	sh := "FGM-R"
+	h := s.newHead("H5")
+	poy := s.newProduct("P1", s.typeID, &sh, nil, true)
+	other := s.newProduct("P2", s.typeID, &sh, nil, true)
+	s.exec(`UPDATE mst_mb_head SET mbh_fg_product_id = $2 WHERE mbh_id = $1`, h, poy)
+	root := s.newSpin(h, "R", fgmSpin{shade: &sh, fg: &poy, source: fgmStr("BACKFILL")})
+
+	require.ErrorIs(s.T(), s.repo.ApplyManualFg(s.ctx, root, other, "itest"), mbspin.ErrFgFollowsRecipe)
+	require.ErrorIs(s.T(), s.repo.ApplyManualFg(s.ctx, root, 0, "itest"), mbspin.ErrFgFollowsRecipe)
+	fg, _, src := s.fgOf(root)
+	require.Equal(s.T(), poy, fg.Int64)
+	require.Equal(s.T(), "BACKFILL", src.String)
+}
+
+// P8-R BE-1: un-superseding the spin that a previous un-supersede deactivated has no supersede
+// batch / log row behind it and must be rejected, leaving both spins untouched.
+func (s *MBSpinFgManualSuite) TestUnsupersedeWithoutBatchRejected() {
+	h := s.newHead("H6")
+	sOld := s.newSpin(h, "O", fgmSpin{})
+	sNew := s.newSpin(h, "N", fgmSpin{})
+	// State after un-supersede(sOld): sNew inactive and superseded by sOld; sOld live.
+	s.exec(`UPDATE mst_mb_spin SET mbs_is_active = FALSE, mbs_superseded_by_spin_id = $2 WHERE mbs_id = $1`, sNew, sOld)
+
+	repo := postgres.NewMBUnsupersedeRepository(s.db)
+	_, err := repo.Unsupersede(s.ctx, h, sNew, "itest")
+	require.ErrorIs(s.T(), err, mbspin.ErrUnsupersedeNoBatch)
+
+	var activeOld, activeNew bool
+	require.NoError(s.T(), s.db.QueryRowContext(s.ctx, `SELECT mbs_is_active FROM mst_mb_spin WHERE mbs_id=$1`, sOld).Scan(&activeOld))
+	require.NoError(s.T(), s.db.QueryRowContext(s.ctx, `SELECT mbs_is_active FROM mst_mb_spin WHERE mbs_id=$1`, sNew).Scan(&activeNew))
+	require.True(s.T(), activeOld)
+	require.False(s.T(), activeNew)
+}

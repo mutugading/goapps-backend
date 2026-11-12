@@ -350,11 +350,41 @@ const mbCascadeSpinQuery = `
 		WHERE mbs_mbh_id = $13 AND deleted_at IS NULL
 		RETURNING mbs_id`
 
+// checkCascadeFgShadeTx rejects a shade change that would leave a live spin of the head with
+// a non-RECIPE FG (DUPLICATE / MANUAL / BACKFILL) whose POY shade no longer equals the new
+// spin shade (P8-R backend BE-4). RECIPE-linked FGs are validated against the head itself.
+func checkCascadeFgShadeTx(ctx context.Context, tx *sql.Tx, headID uuid.UUID, newShade *string) error {
+	want := ""
+	if newShade != nil {
+		want = strings.ToUpper(strings.TrimSpace(*newShade))
+	}
+	var bad bool
+	if err := tx.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM mst_mb_spin s
+			JOIN cost_product_master p ON p.cpm_product_sys_id = s.mbs_fg_product_id
+			WHERE s.mbs_mbh_id = $1 AND s.deleted_at IS NULL AND s.mbs_fg_product_id IS NOT NULL
+			  AND s.mbs_fg_link_source IS DISTINCT FROM 'RECIPE'
+			  AND COALESCE(UPPER(TRIM(s.mbs_shade_code)), '') <> $2
+			  AND COALESCE(UPPER(TRIM(p.cpm_shade_code)), '') <> $2)`, headID, want).Scan(&bad); err != nil {
+		return fmt.Errorf("cascade: check spin fg shade: %w", err)
+	}
+	if bad {
+		return mbspin.ErrFgShadeMismatch
+	}
+	return nil
+}
+
 func cascadeHeadToSpinsTx(ctx context.Context, tx *sql.Tx, entity *mbhead.Entity, actor string) ([]uuid.UUID, error) {
 	shadeCode := mbEmptyStringToPtr(entity.ShadeCode())
 	shadeName := mbEmptyStringToPtr(entity.ShadeName())
 	crossSection := mbEmptyStringToPtr(entity.CrossSection())
 	writeShade := shadeCode != nil || shadeName != nil || crossSection != nil
+	if writeShade {
+		if err := checkCascadeFgShadeTx(ctx, tx, entity.ID(), shadeCode); err != nil {
+			return nil, err
+		}
+	}
 	rows, err := tx.QueryContext(ctx, mbCascadeSpinQuery,
 		entity.MBCosting(),
 		mbSpinAutoGenMgtName(entity),

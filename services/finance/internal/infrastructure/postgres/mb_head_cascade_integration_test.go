@@ -608,6 +608,7 @@ func (s *MBHeadCascadeSuite) TestCascade_Fg_SetClearAndNoop() {
 // Clearing the head FG never wipes a MANUAL / DUPLICATE / BACKFILL link.
 func (s *MBHeadCascadeSuite) TestCascade_Fg_ClearKeepsNonRecipeLinks() {
 	poy := s.seedPoy("ERP-C-2")
+	s.exec(`UPDATE cost_product_master SET cpm_shade_code = 'NEWSH' WHERE cpm_product_sys_id = $1`, poy)
 	for _, src := range []string{"MANUAL", "DUPLICATE", "BACKFILL"} {
 		s.exec(`UPDATE mst_mb_spin SET mbs_fg_product_id = $1, mbs_fg_item_code = 'ERP-C-2', mbs_fg_link_source = $2 WHERE mbs_id = $3`,
 			poy, src, s.rootSpin)
@@ -644,11 +645,24 @@ func (s *MBHeadCascadeSuite) TestCascade_Fg_ShadeFgTakenByOtherHead() {
 // maps to ErrSpinShadeFgExists.
 func (s *MBHeadCascadeSuite) TestCascade_ShadeChange_CollidesOnShadeFgIndex() {
 	poy := s.seedPoy("ERP-C-4")
+	s.exec(`UPDATE cost_product_master SET cpm_shade_code = 'NEWSH' WHERE cpm_product_sys_id = $1`, poy)
 	s.exec(`UPDATE mst_mb_spin SET mbs_fg_product_id = $1, mbs_fg_link_source = 'MANUAL' WHERE mbs_id = $2`, poy, s.rootSpin)
 	s.seedOtherHeadFgSpin("NEWSH", poy)
 	e, _ := s.editedHead(nil)
 	_, err := s.headRepo.UpdateWithCascade(s.ctx, e, mbCascFixturePrefix+"OLD", nil)
 	require.Error(s.T(), err)
 	require.True(s.T(), errors.Is(err, mbspin.ErrSpinShadeFgExists))
+	require.Equal(s.T(), "KEEPSH", s.spin(s.rootSpin).shade.String)
+}
+
+// P8-R BE-4: a shade change is rejected when a live spin holds a non-RECIPE FG whose POY shade
+// differs from the new shade; nothing is written.
+func (s *MBHeadCascadeSuite) TestCascade_ShadeChange_RejectedByNonRecipeFgShadeMismatch() {
+	poy := s.seedPoy("ERP-C-5")
+	s.exec(`UPDATE cost_product_master SET cpm_shade_code = 'OLDSH' WHERE cpm_product_sys_id = $1`, poy)
+	s.exec(`UPDATE mst_mb_spin SET mbs_fg_product_id = $1, mbs_fg_link_source = 'DUPLICATE' WHERE mbs_id = $2`, poy, s.childSpin)
+	e, _ := s.editedHead(nil)
+	_, err := s.headRepo.UpdateWithCascade(s.ctx, e, mbCascFixturePrefix+"OLD", nil)
+	require.ErrorIs(s.T(), err, mbspin.ErrFgShadeMismatch)
 	require.Equal(s.T(), "KEEPSH", s.spin(s.rootSpin).shade.String)
 }
