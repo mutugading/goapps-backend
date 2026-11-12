@@ -69,6 +69,17 @@ func unsupersedeTx(ctx context.Context, tx *sql.Tx, headID, spinID uuid.UUID, ac
 	if err != nil {
 		return nil, err
 	}
+	if batchID == uuid.Nil {
+		// A supersede that repointed nothing still leaves a SUPERSEDE log row on the old head.
+		// Without either, S_old was deactivated by an un-supersede swap, not a supersede.
+		logged, err := hasSupersedeLog(ctx, tx, headID, old.NewSpinID)
+		if err != nil {
+			return nil, err
+		}
+		if !logged {
+			return nil, mbspin.ErrUnsupersedeNoBatch
+		}
+	}
 	if err := checkUnsupersedeConflict(ctx, tx, spinID, old); err != nil {
 		return nil, err
 	}
@@ -111,6 +122,19 @@ func findUnsupersedeBatch(ctx context.Context, tx *sql.Tx, spinID, newSpinID uui
 		return uuid.Nil, fmt.Errorf("unsupersede: find batch: %w", err)
 	}
 	return batchID, nil
+}
+
+// hasSupersedeLog reports whether a SUPERSEDE audit row (role OLD) exists for headID that
+// superseded it by newSpinID (P8-R backend BE-1).
+func hasSupersedeLog(ctx context.Context, tx *sql.Tx, headID, newSpinID uuid.UUID) (bool, error) {
+	var ok bool
+	if err := tx.QueryRowContext(ctx, `
+		SELECT EXISTS (SELECT 1 FROM mst_mb_workflow_log
+			WHERE mbwl_mbh_id = $1 AND mbwl_to_state = $2 AND mbwl_meta->>'role' = 'OLD'
+			  AND mbwl_meta->>'new_spin_id' = $3)`, headID, supersedeWorkflowLogToState, newSpinID.String()).Scan(&ok); err != nil {
+		return false, fmt.Errorf("unsupersede: check supersede log: %w", err)
+	}
+	return ok, nil
 }
 
 // lockUnsupersedeSpin locks S_old and validates it belongs to headID and is superseded.
