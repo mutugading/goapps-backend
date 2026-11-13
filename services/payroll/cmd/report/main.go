@@ -27,7 +27,7 @@ const usage = `usage:
   report reco -yymm 202701 -division SOLO [-company 1] [-allow-open] [-actor cli-report] -out x.xlsx -dsn <payroll_app dsn> [-pii-key K | PAYROLL_PII_KEY]
   report bank -yymm 202701 -division SOLO -transfer-date 2027-01-26 [-bank MANDIRI] [-company 1] [-allow-open] [-actor cli-report] -out x.xlsx -dsn <payroll_app dsn> [-pii-key K | PAYROLL_PII_KEY]  (teks surat: PAYROLL_REPORT_*)
   report gl -yymm 202701 -division SOLO [-company 1] [-allow-open] [-actor cli-report] -out x.xlsx -dsn <payroll_app dsn>  (jurnal GL sheet upload, F-2)
-  report slip -yymm 202701 -division SOLO [-nik N] [-nopassword] [-company 1] [-allow-open] [-actor cli-report] -out dir -dsn <payroll_app dsn>`
+  report slip -yymm 202701 -division SOLO [-nik N] [-nopassword] [-company 1] [-allow-open] [-actor cli-report] -out dir -dsn <payroll_app dsn> [-pii-key K | PAYROLL_PII_KEY]  (logo/teks: PAYROLL_REPORT_LOGO, PAYROLL_SLIP_PERHATIAN, PAYROLL_SLIP_CONTACT_IT)`
 
 func main() {
 	cmds := map[string]func(context.Context, []string) error{"recon-komponen": reconKomponen, "reco": reco, "bank": bank, "slip": slip, "gl": gl}
@@ -53,10 +53,11 @@ func reconKomponen(ctx context.Context, args []string) error {
 	allowOpen := fs.Bool("allow-open", false, "izinkan periode belum APPROVED (gladi; tercatat di audit)")
 	actor := fs.String("actor", "cli-report", "identitas aktor untuk audit")
 	out := fs.String("out", "", "berkas xlsx keluaran (wajib; berisi gaji nyata, jangan di-commit)")
-	dsn := fs.String("dsn", os.Getenv("PAYROLL_APP_DSN"), "DSN role payroll_app")
+	dsn := fs.String("dsn", "", "DSN role payroll_app (atau env PAYROLL_APP_DSN)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	envDefault(dsn, "PAYROLL_APP_DSN")
 	if *yymm == 0 || *division == "" || *out == "" || *dsn == "" {
 		return fmt.Errorf("-yymm, -division, -out, dan -dsn (atau PAYROLL_APP_DSN) wajib")
 	}
@@ -110,11 +111,13 @@ func reco(ctx context.Context, args []string) error {
 	allowOpen := fs.Bool("allow-open", false, "izinkan periode belum APPROVED (gladi; tercatat di audit)")
 	actor := fs.String("actor", "cli-report", "identitas aktor untuk audit")
 	out := fs.String("out", "", "berkas xlsx keluaran (wajib; berisi gaji & rekening nyata, jangan di-commit)")
-	dsn := fs.String("dsn", os.Getenv("PAYROLL_APP_DSN"), "DSN role payroll_app")
-	key := fs.String("pii-key", os.Getenv("PAYROLL_PII_KEY"), "kunci PII (dekripsi rekening)")
+	dsn := fs.String("dsn", "", "DSN role payroll_app (atau env PAYROLL_APP_DSN)")
+	key := fs.String("pii-key", "", "kunci PII (dekripsi rekening) (atau env PAYROLL_PII_KEY; utamakan env)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	envDefault(dsn, "PAYROLL_APP_DSN")
+	envDefault(key, "PAYROLL_PII_KEY")
 	if *yymm == 0 || *division == "" || *out == "" || *dsn == "" || *key == "" {
 		return fmt.Errorf("-yymm, -division, -out, -dsn (atau PAYROLL_APP_DSN), dan -pii-key (atau PAYROLL_PII_KEY) wajib")
 	}
@@ -171,11 +174,13 @@ func bank(ctx context.Context, args []string) error {
 	allowOpen := fs.Bool("allow-open", false, "izinkan periode belum APPROVED (gladi; tercatat di audit)")
 	actor := fs.String("actor", "cli-report", "identitas aktor untuk audit")
 	out := fs.String("out", "", "berkas xlsx keluaran (wajib; berisi rekening & gaji nyata, jangan di-commit)")
-	dsn := fs.String("dsn", os.Getenv("PAYROLL_APP_DSN"), "DSN role payroll_app")
-	key := fs.String("pii-key", os.Getenv("PAYROLL_PII_KEY"), "kunci PII (dekripsi rekening); utamakan env PAYROLL_PII_KEY")
+	dsn := fs.String("dsn", "", "DSN role payroll_app (atau env PAYROLL_APP_DSN)")
+	key := fs.String("pii-key", "", "kunci PII (dekripsi rekening) (atau env PAYROLL_PII_KEY; utamakan env)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	envDefault(dsn, "PAYROLL_APP_DSN")
+	envDefault(key, "PAYROLL_PII_KEY")
 	if *yymm == 0 || anyEmpty(*division, *out, *dsn, *key, *tdate) {
 		return fmt.Errorf("-yymm, -division, -transfer-date, -out, -dsn (atau PAYROLL_APP_DSN), dan -pii-key (atau PAYROLL_PII_KEY) wajib")
 	}
@@ -297,12 +302,19 @@ func slip(ctx context.Context, args []string) error {
 	allowOpen := fs.Bool("allow-open", false, "izinkan periode belum APPROVED (gladi; tercatat di audit)")
 	actor := fs.String("actor", "cli-report", "identitas aktor untuk audit")
 	out := fs.String("out", "", "folder keluaran (wajib; berisi slip nyata, jangan di-commit)")
-	dsn := fs.String("dsn", os.Getenv("PAYROLL_APP_DSN"), "DSN role payroll_app")
+	dsn := fs.String("dsn", "", "DSN role payroll_app (atau env PAYROLL_APP_DSN)")
+	key := fs.String("pii-key", "", "kunci PII (dekripsi NPWP dan rekening) (atau env PAYROLL_PII_KEY; utamakan env)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if *yymm == 0 || *division == "" || *out == "" || *dsn == "" {
-		return fmt.Errorf("-yymm, -division, -out, dan -dsn (atau PAYROLL_APP_DSN) wajib")
+	envDefault(dsn, "PAYROLL_APP_DSN")
+	envDefault(key, "PAYROLL_PII_KEY")
+	if *yymm == 0 || *division == "" || *out == "" || *dsn == "" || *key == "" {
+		return fmt.Errorf("-yymm, -division, -out, -dsn (atau PAYROLL_APP_DSN), dan -pii-key (atau PAYROLL_PII_KEY) wajib")
+	}
+	cfg, err := slipConfig(*key)
+	if err != nil {
+		return err
 	}
 	sc, err := scope.New(int16(*company), *division) //nolint:gosec // range checked by FK
 	if err != nil {
@@ -323,7 +335,7 @@ func slip(ctx context.Context, args []string) error {
 	ctx = scope.WithIdentity(ctx, scope.Identity{UserID: *actor, Scopes: []scope.Scope{sc}})
 	svc := report.NewService(postgres.NewDBFromSQL(raw), audit.NewWriter())
 	res, err := svc.ExportSlips(ctx, report.Query{CompanyID: int16(*company), YYMM: *yymm, //nolint:gosec // as above
-		Division: *division, AllowOpen: *allowOpen},
+		Division: *division, AllowOpen: *allowOpen}, cfg,
 		report.SlipOptions{NIK: *nik, NoPassword: *noPassword, OutDir: *out, PeriodName: report.PeriodName(*yymm)})
 	if err != nil {
 		return err
@@ -333,6 +345,31 @@ func slip(ctx context.Context, args []string) error {
 		fmt.Printf("DILEWATI %s (pe_birth_date kosong; tindak lanjut HR)\n", n)
 	}
 	return nil
+}
+
+// envDefault fills an empty flag value from the environment; the secret never becomes a flag default, which
+// flag.PrintDefaults would print.
+func envDefault(v *string, name string) {
+	if *v == "" {
+		*v = os.Getenv(name)
+	}
+}
+
+// slipConfig reads the F-3 layout settings from the environment: the logo file (PAYROLL_REPORT_LOGO, not in the
+// repository; unset = text-only letterhead), the "Perhatian" text lines separated by "|" and the IT contact.
+func slipConfig(piiKey string) (report.SlipConfig, error) {
+	c := report.SlipConfig{PIIKey: piiKey, ContactIT: os.Getenv("PAYROLL_SLIP_CONTACT_IT")}
+	if t := os.Getenv("PAYROLL_SLIP_PERHATIAN"); t != "" {
+		c.Perhatian = strings.Split(t, "|")
+	}
+	if path := os.Getenv("PAYROLL_REPORT_LOGO"); path != "" {
+		b, err := os.ReadFile(path) //nolint:gosec // operator-supplied path from the environment
+		if err != nil {
+			return c, fmt.Errorf("PAYROLL_REPORT_LOGO: %w", err)
+		}
+		c.Logo = b
+	}
+	return c, nil
 }
 
 // gl writes the GAJI journal (F-2 sheet `upload` + Check, 11§4, D-63). An invalid journal (unmapped line, missing
@@ -345,10 +382,11 @@ func gl(ctx context.Context, args []string) error {
 	allowOpen := fs.Bool("allow-open", false, "izinkan periode belum APPROVED (gladi; tercatat di audit)")
 	actor := fs.String("actor", "cli-report", "identitas aktor untuk audit")
 	out := fs.String("out", "", "berkas xlsx keluaran (wajib; berisi nominal gaji, jangan di-commit)")
-	dsn := fs.String("dsn", os.Getenv("PAYROLL_APP_DSN"), "DSN role payroll_app")
+	dsn := fs.String("dsn", "", "DSN role payroll_app (atau env PAYROLL_APP_DSN)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	envDefault(dsn, "PAYROLL_APP_DSN")
 	if *yymm == 0 || anyEmpty(*division, *out, *dsn, *actor) {
 		return fmt.Errorf("-yymm, -division, -out, -actor, dan -dsn (atau PAYROLL_APP_DSN) wajib")
 	}

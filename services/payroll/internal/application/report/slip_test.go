@@ -1,40 +1,83 @@
 package report
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
-)
 
-func TestBuildOvertime(t *testing.T) {
-	d := decimal.RequireFromString
-	jam := map[string]decimal.Decimal{"lembur1": d("2.5"), "nas1": d("1"), "nas2": d("2"), "nas3": d("0.5")}
-	rate := d("10001")
-	m := func(level string) map[string]decimal.Decimal {
-		out := map[string]decimal.Decimal{}
-		for _, l := range BuildOvertime(jam, rate, level) {
-			out[l.Name] = l.Amount
-		}
-		return out
-	}
-	ex := m("Executive")
-	if !ex["Lembur NAS (Executive)"].Equal(d("70007")) { // (1+2+0.5)*2*10001
-		t.Fatalf("executive NAS: %v", ex["Lembur NAS (Executive)"])
-	}
-	if _, ok := ex["Lembur NAS 1"]; ok {
-		t.Fatal("executive tidak boleh punya baris NAS per kolom")
-	}
-	if !ex["Lembur 1"].Equal(d("25002.5")) { // round(2.5*10001, 2)
-		t.Fatalf("lembur1: %v", ex["Lembur 1"])
-	}
-	n := m("Staff")
-	if !n["Lembur NAS 2"].Equal(d("20002")) || !n["Lembur NAS 3"].Equal(d("5000.5")) {
-		t.Fatalf("non-executive: %+v", n)
-	}
-}
+	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/pdf"
+)
 
 func TestRoundMoneyHalfUp(t *testing.T) {
 	if got := roundMoney(decimal.RequireFromString("0.125")); !got.Equal(decimal.RequireFromString("0.13")) {
 		t.Fatalf("half-up: %v", got)
+	}
+}
+
+func TestPeriodHeaderAndPayDate(t *testing.T) {
+	// F-3: "Mon - YY" and "DD-MON-YY" use English abbreviations (Oracle default NLS)
+	if got := periodHeader(202612); got != "Dec - 26" {
+		t.Fatalf("period Des: %q", got)
+	}
+	dec := time.Date(2026, 12, 26, 0, 0, 0, 0, time.UTC)
+	if got := payDateText(&dec); got != "26-DEC-26" {
+		t.Fatalf("paydate Des: %q", got)
+	}
+	if got := periodHeader(202701); got != "Jan - 27" {
+		t.Fatalf("period: %q", got)
+	}
+	tm := time.Date(2027, 1, 26, 0, 0, 0, 0, time.UTC)
+	if got := payDateText(&tm); got != "26-JAN-27" {
+		t.Fatalf("paydate: %q", got)
+	}
+	if payDateText(nil) != "" {
+		t.Fatal("nil harus kosong")
+	}
+}
+
+func TestBuildSlipOrderBasisRemarksZero(t *testing.T) {
+	d := RunData{Comps: []Comp{{Type: "P", ID: 2, Name: "BPJS"}, {Type: "T", ID: 1, Name: "Gaji"}, {Type: "T", ID: 3, Name: "Nol"}}}
+	m := decimal.RequireFromString
+	e := Emp{NIK: "Z1", Nama: "Budi", Amounts: map[string]decimal.Decimal{"P2": m("-5"), "T1": m("100"), "T3": m("0")}}
+	det := map[string]slipDetail{"T1": {Basis: "0.0089", Remarks: "rem"}}
+	s := BuildSlip(d, e, slipExtra{Dept: "D01 X", Currency: "IDR", NPWP: "1", Info: pdfAtt(true)}, det, SlipConfig{}, "PT", 202701, "Januari 2027", time.Unix(0, 0))
+	if len(s.Tunjangan) != 1 || s.Tunjangan[0].Basis != "0.0089" || s.Tunjangan[0].Remarks != "rem" {
+		t.Fatalf("tunjangan %+v", s.Tunjangan)
+	}
+	if len(s.Potongan) != 1 || !s.Potongan[0].Amount.Equal(m("-5")) {
+		t.Fatalf("potongan (subsidi negatif tetap dicetak) %+v", s.Potongan)
+	}
+	if len(s.Perhatian) == 0 || s.Period != "Jan - 27" || s.NPWP != "1" {
+		t.Fatalf("slip %+v", s)
+	}
+}
+
+func TestSanitizeErrHidesKey(t *testing.T) {
+	got := sanitizeErr(errors.New("boom secret-key-123 end"), "secret-key-123")
+	if strings.Contains(got, "secret-key-123") {
+		t.Fatalf("kunci bocor: %s", got)
+	}
+}
+
+func pdfAtt(valid bool) pdf.Attendance { return pdf.Attendance{Valid: valid} }
+
+func TestRedactKeepsChainAndHidesKey(t *testing.T) {
+	orig := fmt.Errorf("query: %w", &pgconn.PgError{Code: "40001", Message: "could not serialize secret-key-123"})
+	err := redact("read slip extra", orig, "secret-key-123")
+	var pe *pgconn.PgError
+	if !errors.As(err, &pe) || pe.Code != "40001" {
+		t.Fatalf("errors.As ke PgError hilang: %v", err)
+	}
+	if strings.Contains(err.Error(), "secret-key-123") {
+		t.Fatalf("kunci bocor: %s", err)
+	}
+	if !errors.Is(redact("x", context.Canceled, "k"), context.Canceled) {
+		t.Fatal("errors.Is context.Canceled hilang")
 	}
 }

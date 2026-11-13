@@ -27,6 +27,23 @@ type SlipOptions struct {
 	PeriodName string
 }
 
+// SlipConfig is the runtime configuration of the F-3 layout (read from env by the CLI, never stored in the DB or the
+// repository). PIIKey decrypts NPWP and the bank account in memory; without it both print empty (cmd/mailer until it
+// is wired). Logo is the PNG/JPEG bytes of the letterhead (empty = text only).
+type SlipConfig struct {
+	PIIKey    string
+	OnlyNIK   string // when set, NPWP/account are decrypted for this NIK only (PII minimisation)
+	Logo      []byte
+	Perhatian []string
+	ContactIT string
+}
+
+// DefaultPerhatian is the confidentiality text used when PAYROLL_SLIP_PERHATIAN is not set.
+var DefaultPerhatian = []string{
+	"Slip gaji ini bersifat RAHASIA dan hanya untuk yang bersangkutan. Dilarang menyebarkan isi slip gaji kepada pihak lain.",
+	"Bila ada ketidaksesuaian data, segera hubungi bagian HR atau IT.",
+}
+
 // SlipResult reports a slip run. Skipped lists NIKs without a birth date (no password can be derived).
 type SlipResult struct {
 	Written []string
@@ -35,56 +52,58 @@ type SlipResult struct {
 
 // slipExtra is the per-NIK data outside RunData.
 type slipExtra struct {
-	Jabatan, Pembayaran, Level, Currency string
-	PayDate                              string
-	Rate                                 decimal.Decimal
-	Jam                                  map[string]decimal.Decimal
-	DOB                                  *time.Time
+	Jabatan, Dept, Grade, TaxCode string
+	NPWP, BankAccount, Currency   string // NPWP and BankAccount are decrypted plaintext: memory only
+	PayDate                       *time.Time
+	DOB                           *time.Time
+	Info                          pdf.Attendance
 }
 
-// lemburLabels fixes the print order and labels of the psh_jam_lembur keys.
-var lemburLabels = []struct{ Key, Label string }{
-	{"lembur1", "Lembur 1"}, {"lembur2", "Lembur 2"},
-	{"off1", "Lembur Off 1"}, {"off2", "Lembur Off 2"}, {"off3", "Lembur Off 3"},
-	{"nasp1", "Lembur NAS+ 1"}, {"nasp2", "Lembur NAS+ 2"}, {"nasp3", "Lembur NAS+ 3"},
-}
+// slipDetail is the Basis/Remarks of one detail line.
+type slipDetail struct{ Basis, Remarks string }
 
 // RoundMoney is Oracle ROUND half-up to 2 decimals (D-07).
 func roundMoney(d decimal.Decimal) decimal.Decimal { return d.Round(2) }
 
-// BuildOvertime computes the overtime rows: round(jam × rate) per column; Executive NAS = (nas1+nas2+nas3) × 2 in one
-// row (D11). Zero rows are kept here and dropped by the renderer.
-func BuildOvertime(jam map[string]decimal.Decimal, rate decimal.Decimal, level string) []pdf.Line {
-	out := make([]pdf.Line, 0, len(lemburLabels)+3)
-	for _, l := range lemburLabels {
-		out = append(out, pdf.Line{Name: l.Label, Amount: roundMoney(jam[l.Key].Mul(rate))})
+// periodHeader renders 202701 as "Jan - 27" (F-3 header).
+func periodHeader(yymm int) string {
+	m := time.Month(yymm % 100)
+	if m < 1 || m > 12 {
+		return fmt.Sprint(yymm)
 	}
-	nas := jam["nas1"].Add(jam["nas2"]).Add(jam["nas3"])
-	if strings.EqualFold(strings.TrimSpace(level), "executive") {
-		out = append(out, pdf.Line{Name: "Lembur NAS (Executive)", Amount: roundMoney(nas.Mul(decimal.NewFromInt(2)).Mul(rate))})
-	} else {
-		for i, k := range []string{"nas1", "nas2", "nas3"} {
-			out = append(out, pdf.Line{Name: fmt.Sprintf("Lembur NAS %d", i+1), Amount: roundMoney(jam[k].Mul(rate))})
-		}
-	}
-	return out
+	return fmt.Sprintf("%s - %02d", m.String()[:3], (yymm/100)%100)
 }
 
-// BuildSlip assembles the content of one slip from a loaded run.
-func BuildSlip(d RunData, e Emp, x slipExtra, company, division, periodName string, approvedAt time.Time) pdf.Slip {
-	s := pdf.Slip{Company: company, PeriodName: periodName, Division: division, NIK: e.NIK, Nama: e.Nama, Dept: e.Dept,
-		Jabatan: x.Jabatan, PayDate: x.PayDate, Rekening: x.Pembayaran, Currency: x.Currency,
-		Overtime:     BuildOvertime(x.Jam, x.Rate, x.Level),
-		TotTunjangan: e.TotTunjangan, TotPotongan: e.TotPotongan, Rounding: e.Rounding, NetPay: e.NetPay, ApprovedAt: approvedAt}
+// payDateText renders the payment date as DD-MON-YY (upper case, e.g. 26-JAN-27); "" when unknown.
+func payDateText(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	return strings.ToUpper(t.Format("02-Jan-06"))
+}
+
+// BuildSlip assembles the content of one slip from a loaded run (F-3). Lines follow pcm_serial; zero lines are
+// dropped; Basis and Remarks come from pyr_salary_detail.
+func BuildSlip(d RunData, e Emp, x slipExtra, det map[string]slipDetail, cfg SlipConfig, company string, yymm int, periodName string, approvedAt time.Time) pdf.Slip {
+	perhatian := cfg.Perhatian
+	if len(perhatian) == 0 {
+		perhatian = DefaultPerhatian
+	}
+	s := pdf.Slip{Company: company, PeriodName: periodName, Period: periodHeader(yymm),
+		NIK: e.NIK, Nama: e.Nama, Dept: x.Dept, Grade: x.Grade, Jabatan: x.Jabatan, TaxCode: x.TaxCode,
+		NPWP: x.NPWP, BankAccount: x.BankAccount, PayDate: payDateText(x.PayDate), Currency: x.Currency,
+		TotTunjangan: e.TotTunjangan, TotPotongan: e.TotPotongan, Rounding: e.Rounding, NetPay: e.NetPay,
+		Info: x.Info, Logo: cfg.Logo, Perhatian: perhatian, ContactIT: cfg.ContactIT, ApprovedAt: approvedAt}
 	for _, c := range d.Comps { // already in pcm_serial order
 		v, ok := e.Amounts[c.Key()]
 		if !ok || v.IsZero() {
 			continue
 		}
+		l := pdf.Line{Name: c.Name, Amount: v, Basis: det[c.Key()].Basis, Remarks: det[c.Key()].Remarks}
 		if c.Type == "T" {
-			s.Tunjangan = append(s.Tunjangan, pdf.Line{Name: c.Name, Amount: v})
+			s.Tunjangan = append(s.Tunjangan, l)
 		} else {
-			s.Potongan = append(s.Potongan, pdf.Line{Name: c.Name, Amount: v})
+			s.Potongan = append(s.Potongan, l)
 		}
 	}
 	return s
@@ -105,14 +124,21 @@ type SlipSource struct {
 	d          RunData
 	company    string
 	policy     string
+	yymm       int
 	approvedAt time.Time
+	cfg        SlipConfig
 	extra      map[string]slipExtra
+	detail     map[string]map[string]slipDetail
 	idx        map[string]int
-	division   string
 }
 
-// LoadSlipSource loads the ACTIVE run of q (same checks as Load) and the slip header data inside tx.
-func LoadSlipSource(ctx context.Context, tx *sql.Tx, q Query) (*SlipSource, error) {
+// LoadSlipSource loads the ACTIVE run of q (same checks as Load) and the slip header data inside tx. At most one
+// SlipConfig may be given; without it the NPWP and bank account stay empty and the slip has the default text.
+func LoadSlipSource(ctx context.Context, tx *sql.Tx, q Query, cfgs ...SlipConfig) (*SlipSource, error) {
+	var cfg SlipConfig
+	if len(cfgs) > 0 {
+		cfg = cfgs[0]
+	}
 	d, err := Load(ctx, tx, q)
 	if err != nil {
 		return nil, err
@@ -121,7 +147,11 @@ func LoadSlipSource(ctx context.Context, tx *sql.Tx, q Query) (*SlipSource, erro
 	if err != nil {
 		return nil, err
 	}
-	extra, err := loadSlipExtra(ctx, tx, q, d.RunID)
+	extra, err := loadSlipExtra(ctx, tx, q, d.RunID, cfg.PIIKey, cfg.OnlyNIK)
+	if err != nil {
+		return nil, err
+	}
+	detail, err := loadSlipDetail(ctx, tx, d.RunID)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +159,8 @@ func LoadSlipSource(ctx context.Context, tx *sql.Tx, q Query) (*SlipSource, erro
 	for i, e := range d.Emps {
 		idx[e.NIK] = i
 	}
-	return &SlipSource{d: d, company: company, policy: policy, approvedAt: approvedAt, extra: extra, idx: idx, division: q.Division}, nil
+	return &SlipSource{d: d, company: company, policy: policy, yymm: q.YYMM, approvedAt: approvedAt, cfg: cfg,
+		extra: extra, detail: detail, idx: idx}, nil
 }
 
 // NIKs lists the employees of the run in NIK order.
@@ -158,15 +189,20 @@ func (s *SlipSource) HasBirthDate(nik string) bool {
 // RunID is the run the slips come from.
 func (s *SlipSource) RunID() int64 { return s.d.RunID }
 
+func (s *SlipSource) renderPlain(nik, periodName string) ([]byte, slipExtra, error) {
+	i, ok := s.idx[nik]
+	if !ok {
+		return nil, slipExtra{}, fmt.Errorf("NIK %s tidak ada di run", nik)
+	}
+	x := s.extra[nik]
+	plain, err := pdf.Render(BuildSlip(s.d, s.d.Emps[i], x, s.detail[nik], s.cfg, s.company, s.yymm, periodName, s.approvedAt))
+	return plain, x, err
+}
+
 // Render returns the plain PDF (for the content hash) and the password-protected PDF of nik. A missing birth date
 // yields pdf.ErrNoBirthDate; an unknown NIK is an error.
 func (s *SlipSource) Render(nik, periodName string) (plain, enc []byte, err error) {
-	i, ok := s.idx[nik]
-	if !ok {
-		return nil, nil, fmt.Errorf("NIK %s tidak ada di run", nik)
-	}
-	x := s.extra[nik]
-	plain, err = pdf.Render(BuildSlip(s.d, s.d.Emps[i], x, s.company, s.division, periodName, s.approvedAt))
+	plain, x, err := s.renderPlain(nik, periodName)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -203,13 +239,17 @@ func (f *stagedFiles) commit() error {
 
 // ExportSlips renders (and unless NoPassword encrypts) one PDF per employee into OutDir as <yymm>G<nik>.pdf. Files are
 // written to a temp name and renamed only after the audit row committed. Employees without a birth date are skipped
-// and reported. The audit row holds counts only.
-func (s *Service) ExportSlips(ctx context.Context, q Query, o SlipOptions) (SlipResult, error) {
+// and reported. The PII key is required (NPWP and bank account are decrypted in memory). The audit row holds counts
+// only: no NIK, NPWP, or account number.
+func (s *Service) ExportSlips(ctx context.Context, q Query, cfg SlipConfig, o SlipOptions) (SlipResult, error) {
+	if cfg.PIIKey == "" {
+		return SlipResult{}, ErrNoPIIKey
+	}
 	var res SlipResult
 	var files stagedFiles
 	err := s.DB.ScopedTxOpts(ctx, run.SnapshotTx, func(tx *sql.Tx) error {
 		res, files = SlipResult{}, stagedFiles{} // the tx may be retried
-		if err := s.slipsInTx(ctx, tx, q, o, &res, &files); err != nil {
+		if err := s.slipsInTx(ctx, tx, q, cfg, o, &res, &files); err != nil {
 			return err
 		}
 		return s.writeAudit(ctx, tx, q, "slip", len(res.Written), map[string]any{
@@ -226,68 +266,43 @@ func (s *Service) ExportSlips(ctx context.Context, q Query, o SlipOptions) (Slip
 	return res, nil
 }
 
-func (s *Service) slipsInTx(ctx context.Context, tx *sql.Tx, q Query, o SlipOptions, res *SlipResult, files *stagedFiles) error {
-	d, err := Load(ctx, tx, q)
+func (s *Service) slipsInTx(ctx context.Context, tx *sql.Tx, q Query, cfg SlipConfig, o SlipOptions, res *SlipResult, files *stagedFiles) error {
+	cfg.OnlyNIK = o.NIK
+	src, err := LoadSlipSource(ctx, tx, q, cfg)
 	if err != nil {
 		return err
 	}
-	company, policy, approvedAt, err := slipHeader(ctx, tx, q, d.RunID)
-	if err != nil {
-		return err
+	niks := src.NIKs()
+	if o.NIK != "" {
+		if _, ok := src.idx[o.NIK]; !ok {
+			return fmt.Errorf("NIK %s tidak ada di run", o.NIK)
+		}
+		niks = []string{o.NIK}
 	}
-	extra, err := loadSlipExtra(ctx, tx, q, d.RunID)
-	if err != nil {
-		return err
-	}
-	if d.Emps, err = filterNIK(d.Emps, o.NIK); err != nil {
-		return err
-	}
-	for _, e := range d.Emps {
-		x := extra[e.NIK]
-		out, err := renderSlip(BuildSlip(d, e, x, company, q.Division, o.PeriodName, approvedAt), x, policy, o.NoPassword)
+	for _, nik := range niks {
+		var out []byte
+		if o.NoPassword {
+			out, _, err = src.renderPlain(nik, o.PeriodName)
+		} else {
+			_, out, err = src.Render(nik, o.PeriodName)
+		}
 		if errors.Is(err, pdf.ErrNoBirthDate) {
-			res.Skipped = append(res.Skipped, e.NIK)
+			res.Skipped = append(res.Skipped, nik)
 			continue
 		}
 		if err != nil {
 			return err
 		}
-		final, err := slipPath(o.OutDir, q.YYMM, e.NIK)
+		final, err := slipPath(o.OutDir, q.YYMM, nik)
 		if err != nil {
 			return err
 		}
 		if err := files.add(final, out); err != nil {
 			return err
 		}
-		res.Written = append(res.Written, e.NIK)
+		res.Written = append(res.Written, nik)
 	}
 	return nil
-}
-
-// filterNIK keeps only nik when set; an unknown NIK is an error.
-func filterNIK(emps []Emp, nik string) ([]Emp, error) {
-	if nik == "" {
-		return emps, nil
-	}
-	for _, e := range emps {
-		if e.NIK == nik {
-			return []Emp{e}, nil
-		}
-	}
-	return nil, fmt.Errorf("NIK %s tidak ada di run", nik)
-}
-
-// renderSlip renders one slip and encrypts it unless noPassword. A missing birth date yields pdf.ErrNoBirthDate.
-func renderSlip(sl pdf.Slip, x slipExtra, policy string, noPassword bool) ([]byte, error) {
-	plain, err := pdf.Render(sl)
-	if err != nil || noPassword {
-		return plain, err
-	}
-	pw, err := pdf.Password(policy, x.DOB)
-	if err != nil {
-		return nil, err
-	}
-	return pdf.Encrypt(plain, pw)
 }
 
 // slipPath is <dir>/<yymm>G<nik>.pdf; a NIK that could escape dir is rejected.
@@ -325,37 +340,115 @@ ORDER BY pspp_valid_from DESC LIMIT 1`, q.CompanyID, approvedAt).Scan(&policy)
 	return company, policy, approvedAt.UTC(), nil
 }
 
-func loadSlipExtra(ctx context.Context, tx *sql.Tx, q Query, runID int64) (map[string]slipExtra, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT h.psh_nik, COALESCE(h.psh_jabatan,''), COALESCE(h.psh_pembayaran,''),
-  COALESCE(to_char(h.psh_pay_date,'DD-MM-YYYY'),''), COALESCE(h.psh_rate_perjam::text,'0'), h.psh_jam_lembur::text,
-  COALESCE(e.pe_level,''), COALESCE(e.pe_pay_currency::text,'IDR'), e.pe_birth_date
+func loadSlipExtra(ctx context.Context, tx *sql.Tx, q Query, runID int64, piiKey, onlyNIK string) (map[string]slipExtra, error) {
+	// NPWP and bank account are decrypted only with a key; the snapshot is the one the run was computed from.
+	rows, err := tx.QueryContext(ctx, `SELECT h.psh_nik, COALESCE(h.psh_jabatan,''),
+  btrim(COALESCE(h.psh_dept_code,'') || ' ' || COALESCE(h.psh_section,'')), COALESCE(h.psh_grade,''), COALESCE(h.psh_tax_code,''),
+  h.psh_pay_date, COALESCE(e.pe_pay_currency::text,'IDR'), e.pe_birth_date,
+  CASE WHEN $3::text = '' OR e.pe_npwp_enc IS NULL THEN '' ELSE payroll.pgp_sym_decrypt(e.pe_npwp_enc, $3::text) END,
+  CASE WHEN $3::text = '' OR e.pe_bank_acnt_enc IS NULL THEN '' ELSE payroll.pgp_sym_decrypt(e.pe_bank_acnt_enc, $3::text) END,
+  r.pasr_nik IS NOT NULL,
+  CASE WHEN r.pasr_data->>'MPAR_DAY_WORK' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN (r.pasr_data->>'MPAR_DAY_WORK')::numeric ELSE 0 END::text, CASE WHEN r.pasr_data->>'MPAR_DAYOFF' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN (r.pasr_data->>'MPAR_DAYOFF')::numeric ELSE 0 END::text, CASE WHEN r.pasr_data->>'MPAR_CUTI' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN (r.pasr_data->>'MPAR_CUTI')::numeric ELSE 0 END::text, CASE WHEN r.pasr_data->>'MPAR_ALPA' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN (r.pasr_data->>'MPAR_ALPA')::numeric ELSE 0 END::text, CASE WHEN r.pasr_data->>'MPAR_IJIN' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN (r.pasr_data->>'MPAR_IJIN')::numeric ELSE 0 END::text
 FROM payroll.pyr_salary_head h
 LEFT JOIN payroll.pyr_employee e ON e.pe_company_id = $2 AND e.pe_nik = h.psh_nik AND e.pe_division = h.psh_division
-WHERE h.psh_run_id = $1`, runID, q.CompanyID)
+LEFT JOIN payroll.pyr_att_snapshot_row r ON r.pasr_snapshot_id = (SELECT pr_snapshot_id FROM payroll.pyr_run WHERE pr_id = $1)
+  AND r.pasr_kind = 'REKAP' AND r.pasr_nik = h.psh_nik
+WHERE h.psh_run_id = $1 AND ($4::text = '' OR h.psh_nik = $4)`, runID, q.CompanyID, piiKey, onlyNIK)
 	if err != nil {
-		return nil, fmt.Errorf("read slip extra: %w", err)
+		return nil, redact("read slip extra", err, piiKey)
 	}
 	defer closeRows(rows)
 	out := map[string]slipExtra{}
 	for rows.Next() {
-		var nik, rate string
-		var jam sql.NullString
-		var dob sql.NullTime
+		var nik string
+		var pay, dob sql.NullTime
+		var has bool
+		var days [5]string
 		var x slipExtra
-		if err := rows.Scan(&nik, &x.Jabatan, &x.Pembayaran, &x.PayDate, &rate, &jam, &x.Level, &x.Currency, &dob); err != nil {
-			return nil, fmt.Errorf("scan slip extra: %w", err)
+		if err := rows.Scan(&nik, &x.Jabatan, &x.Dept, &x.Grade, &x.TaxCode, &pay, &x.Currency, &dob, &x.NPWP, &x.BankAccount,
+			&has, &days[0], &days[1], &days[2], &days[3], &days[4]); err != nil {
+			return nil, redact("scan slip extra", err, piiKey)
 		}
-		if x.Rate, err = decimal.NewFromString(rate); err != nil {
-			return nil, fmt.Errorf("rate %s: %w", nik, err)
-		}
-		if x.Jam, err = parseJam(jam.String); err != nil {
-			return nil, fmt.Errorf("jam_lembur %s: %w", nik, err)
+		x.NPWP, x.BankAccount = strings.TrimSpace(x.NPWP), strings.TrimSpace(x.BankAccount)
+		if pay.Valid {
+			t := pay.Time
+			x.PayDate = &t
 		}
 		if dob.Valid {
 			t := dob.Time
 			x.DOB = &t
 		}
+		if x.Info, err = attendance(has, days); err != nil {
+			return nil, fmt.Errorf("absensi %s: %w", nik, err)
+		}
 		out[nik] = x
+	}
+	if err := rows.Err(); err != nil {
+		return nil, redact("read slip extra", err, piiKey)
+	}
+	return out, nil
+}
+
+// redactedError carries the original error in its chain (errors.As finds *pgconn.PgError, errors.Is finds
+// context.Canceled: ScopedTxOpts relies on SQLSTATE 40001) but its text never holds the PII key.
+type redactedError struct {
+	msg string
+	err error
+}
+
+func (e *redactedError) Error() string { return e.msg }
+func (e *redactedError) Unwrap() error { return e.err }
+
+// redact wraps err with a prefix and masks the PII key in the message (a driver error may echo statement arguments).
+func redact(prefix string, err error, key string) error {
+	return &redactedError{msg: prefix + ": " + sanitizeErr(err, key), err: err}
+}
+
+// sanitizeErr keeps the PII key out of an error message.
+func sanitizeErr(err error, key string) string {
+	m := err.Error()
+	if key != "" {
+		m = strings.ReplaceAll(m, key, "***")
+	}
+	return m
+}
+
+func attendance(has bool, days [5]string) (pdf.Attendance, error) {
+	a := pdf.Attendance{Valid: has}
+	for i, dst := range []*decimal.Decimal{&a.Working, &a.Off, &a.Leave, &a.Alpa, &a.Ijin} {
+		d, err := decimal.NewFromString(days[i])
+		if err != nil {
+			return a, err
+		}
+		*dst = d
+	}
+	return a, nil
+}
+
+// loadSlipDetail reads Basis and Remarks of every detail line of the run: NIK → component key → text.
+func loadSlipDetail(ctx context.Context, tx *sql.Tx, runID int64) (map[string]map[string]slipDetail, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT psd_nik, psd_type::text, psd_id, COALESCE(psd_basis_amount::text,''), COALESCE(psd_remarks,'')
+FROM payroll.pyr_salary_detail WHERE psd_run_id = $1`, runID)
+	if err != nil {
+		return nil, fmt.Errorf("read slip detail: %w", err)
+	}
+	defer closeRows(rows)
+	out := map[string]map[string]slipDetail{}
+	for rows.Next() {
+		var nik, typ string
+		var id int
+		var d slipDetail
+		if err := rows.Scan(&nik, &typ, &id, &d.Basis, &d.Remarks); err != nil {
+			return nil, fmt.Errorf("scan slip detail: %w", err)
+		}
+		c := Comp{Type: "T", ID: id}
+		if typ == "Potongan" || typ == "P" {
+			c.Type = "P"
+		}
+		if out[nik] == nil {
+			out[nik] = map[string]slipDetail{}
+		}
+		out[nik][c.Key()] = d
 	}
 	return out, rows.Err()
 }
