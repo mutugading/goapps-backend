@@ -319,6 +319,14 @@ func TestAttSnapshot_Refused(t *testing.T) {
 			t.Fatalf("%d: snapshot written despite refusal", ym)
 		}
 	}
+	t.Run("JAKARTA tanpa harian ditolak", func(t *testing.T) {
+		const ym = 203909
+		syncAll(t, &fakeAtt{rekap: []etl.RekapRow{rrow(ym, "SN-R3", "JAKARTA", "20")}}, ym, "JAKARTA") // daily batch OK, 0 rows
+		reps, err := etl.RunAttSnapshot(context.Background(), etlDB, etl.AttSnapshotQuery{Company: 1, YYMM: ym, Division: "JAKARTA"})
+		if err == nil || !strings.Contains(err.Error(), "staging harian") || !strings.Contains(err.Error(), "JAKARTA") || len(reps) != 0 {
+			t.Fatalf("want refusal staging harian JAKARTA, got %v %+v", err, reps)
+		}
+	})
 	// Both divisions: SOLO refused (CLOSED) does not stop JAKARTA.
 	syncAll(t, &fakeAtt{rekap: []etl.RekapRow{rrow(closed, "SN-R2", "JAKARTA", "20")}, daily: []etl.DailyRow{{WorkDate: time.Date(2039, 3, 1, 0, 0, 0, 0, time.UTC), NIK: "SN-R2", Division: "JAKARTA", ScheduleCode: "NW"}}}, closed, "JAKARTA")
 	reps, err := etl.RunAttSnapshot(context.Background(), etlDB, etl.AttSnapshotQuery{Company: 1, YYMM: closed})

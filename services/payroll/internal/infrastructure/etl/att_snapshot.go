@@ -147,9 +147,8 @@ const (
 	DerivedOtiwKey  = "derived_otiw_decr"
 )
 
-// checkStagingFilled refuses an empty recap, and for SOLO an empty daily window: a sync batch can be OK with zero rows
+// checkStagingFilled refuses an empty recap and an empty daily window (SOLO and JAKARTA, D-59 (1)): a sync batch can be OK with zero rows
 // (HRIS view late), and an empty daily window would give every NIK premi_fail = days of the period (05§7 (4)).
-// JAKARTA is not checked: whether JAKARTA has daily attendance at all is still open (question in the T021c report).
 func checkStagingFilled(ctx context.Context, tx pgx.Tx, q AttSnapshotQuery, div string) error {
 	start, end := DailyWindow(q.YYMM)
 	var rekap, daily int
@@ -162,7 +161,7 @@ func checkStagingFilled(ctx context.Context, tx pgx.Tx, q AttSnapshotQuery, div 
 	if rekap == 0 {
 		return fmt.Errorf("staging rekap %d %s kosong: jalankan `sync att` dulu", q.YYMM, div)
 	}
-	if daily == 0 && div == DivSolo {
+	if daily == 0 {
 		return fmt.Errorf("staging harian %d %s kosong (%s..%s): premi_fail semua NIK akan = jumlah hari; sync daily dulu",
 			q.YYMM, div, start.Format("2006-01-02"), end.Format("2006-01-02"))
 	}
