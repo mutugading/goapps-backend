@@ -1,7 +1,7 @@
 # Multi-stage Dockerfile for the Payroll Service.
 # Build from repository ROOT: docker build -t payroll-service -f services/payroll/Dockerfile .
 # Stage 1: Build
-FROM golang:1.24-alpine AS builder
+FROM golang:1.27-alpine AS builder
 
 WORKDIR /app
 
@@ -29,12 +29,21 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -o /bin/payroll-service \
     ./cmd/server/main.go
 
+# Build the operator CLIs (D-62 (3)): run by IT with `kubectl exec` / a manual Job, never exposed as a service.
+#   payroll-sync   ETL input + HRIS attendance sync (D-58)
+#   payroll-report bank / reco / GL / slip files (D-62 (3)(7))
+#   payroll-mailer slip distribution (D-62 (5))
+#   payroll-recon  reconciliation against Oracle (D-62 (2))
+RUN for c in sync report mailer recon; do \
+      CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o /bin/payroll-$c ./cmd/$c || exit 1; \
+    done
+
 # Install golang-migrate (for running migrations via K8s Job).
 RUN go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.18.1 \
     && cp $(go env GOPATH)/bin/migrate /bin/migrate
 
 # Stage 2: Runtime
-FROM alpine:3.20
+FROM alpine:3.24
 
 WORKDIR /app
 
@@ -47,6 +56,7 @@ RUN addgroup -g 1000 appgroup && \
 
 # Copy binaries from builder.
 COPY --from=builder /bin/payroll-service /app/payroll-service
+COPY --from=builder /bin/payroll-sync /bin/payroll-report /bin/payroll-mailer /bin/payroll-recon /app/
 COPY --from=builder /bin/migrate /app/migrate
 
 # Copy config (can be overridden by ConfigMap in Kubernetes).
@@ -55,8 +65,8 @@ COPY services/payroll/config.yaml /app/config.yaml
 # Copy migration files (for running migrations via K8s Job).
 COPY services/payroll/migrations/postgres/ /app/migrations/
 
-# Set ownership.
-RUN chown -R appuser:appgroup /app
+# Set ownership. /out is where the CLIs write generated files (salary data: mount an emptyDir, never bake in).
+RUN mkdir -p /out && chown -R appuser:appgroup /app /out
 
 # Switch to non-root user.
 USER appuser
