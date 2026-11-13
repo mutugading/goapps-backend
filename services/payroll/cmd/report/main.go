@@ -1,5 +1,5 @@
 // Package main is the payroll report CLI (D-62 butir 3). Run by IT on the server as payroll_app with an explicit
-// scope; every export is written to pyr_audit_log. Subcommands: recon-komponen.
+// scope; every export is written to pyr_audit_log. Subcommands: recon-komponen, reco, slip.
 package main
 
 import (
@@ -20,10 +20,11 @@ import (
 
 const usage = `usage:
   report recon-komponen -yymm 202701 -division SOLO [-company 1] [-allow-open] [-actor cli-report] -out x.xlsx -dsn <payroll_app dsn>
+  report reco -yymm 202701 -division SOLO [-company 1] [-allow-open] [-actor cli-report] -out x.xlsx -dsn <payroll_app dsn> [-pii-key K | PAYROLL_PII_KEY]
   report slip -yymm 202701 -division SOLO [-nik N] [-nopassword] [-company 1] [-allow-open] [-actor cli-report] -out dir -dsn <payroll_app dsn>`
 
 func main() {
-	cmds := map[string]func(context.Context, []string) error{"recon-komponen": reconKomponen, "slip": slip}
+	cmds := map[string]func(context.Context, []string) error{"recon-komponen": reconKomponen, "reco": reco, "slip": slip}
 	var fn func(context.Context, []string) error
 	if len(os.Args) >= 2 {
 		fn = cmds[os.Args[1]]
@@ -90,6 +91,64 @@ func reconKomponen(ctx context.Context, args []string) error {
 		return err
 	}
 	fmt.Printf("out=%s\n", *out)
+	return nil
+}
+
+// reco writes the F-2 reconciliation workbook (sheet detail, pra-cek, Ringkasan). The bank account is decrypted with
+// the PII key, so the output is as sensitive as the DB itself.
+func reco(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("reco", flag.ContinueOnError)
+	yymm := fs.Int("yymm", 0, "periode yymm (wajib)")
+	division := fs.String("division", "", "divisi (wajib)")
+	company := fs.Int("company", 1, "pyr_company.pco_company_id")
+	allowOpen := fs.Bool("allow-open", false, "izinkan periode belum APPROVED (gladi; tercatat di audit)")
+	actor := fs.String("actor", "cli-report", "identitas aktor untuk audit")
+	out := fs.String("out", "", "berkas xlsx keluaran (wajib; berisi gaji & rekening nyata, jangan di-commit)")
+	dsn := fs.String("dsn", os.Getenv("PAYROLL_APP_DSN"), "DSN role payroll_app")
+	key := fs.String("pii-key", os.Getenv("PAYROLL_PII_KEY"), "kunci PII (dekripsi rekening)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *yymm == 0 || *division == "" || *out == "" || *dsn == "" || *key == "" {
+		return fmt.Errorf("-yymm, -division, -out, -dsn (atau PAYROLL_APP_DSN), dan -pii-key (atau PAYROLL_PII_KEY) wajib")
+	}
+	sc, err := scope.New(int16(*company), *division) //nolint:gosec // range checked by FK
+	if err != nil {
+		return err
+	}
+	raw, err := sql.Open("pgx", *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := raw.Close(); cerr != nil {
+			fmt.Fprintln(os.Stderr, "close:", cerr)
+		}
+	}()
+	ctx = scope.WithIdentity(ctx, scope.Identity{UserID: *actor, Scopes: []scope.Scope{sc}})
+	svc := report.NewService(postgres.NewDBFromSQL(raw), audit.NewWriter())
+	tmp := *out + ".tmp" // renamed only after the audit row committed, as in recon-komponen
+	var pre int
+	err = svc.ExportReco(ctx, report.Query{CompanyID: int16(*company), YYMM: *yymm, //nolint:gosec // as above
+		Division: *division, AllowOpen: *allowOpen}, *key, func(d report.RecoData) (int, error) {
+		var buf bytes.Buffer
+		n, err := report.WriteReco(d, &buf)
+		if err != nil {
+			return 0, err
+		}
+		pre = len(report.PreChecks(d.Rows))
+		return n, os.WriteFile(tmp, buf.Bytes(), 0o600)
+	})
+	if err == nil {
+		err = os.Rename(tmp, *out)
+	}
+	if err != nil {
+		if rerr := os.Remove(tmp); rerr != nil && !os.IsNotExist(rerr) {
+			fmt.Fprintln(os.Stderr, "remove tmp:", rerr)
+		}
+		return err
+	}
+	fmt.Printf("out=%s komponen_tanpa_setup_gl=%d\n", *out, pre)
 	return nil
 }
 
