@@ -46,35 +46,16 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// workspaceRoot walks up from the test dir to the first folder holding deploy/payroll/bootstrap.sql. It is goapps/
-// itself or a worktree that carries its own copy, so tests run from .wt-* without a manual mount (T009e8).
-func workspaceRoot() (string, error) {
-	dir, err := filepath.Abs(".")
-	if err != nil {
-		return "", err
-	}
-	for {
-		if st, err := os.Stat(filepath.Join(dir, "deploy", "payroll", "bootstrap.sql")); err == nil && st.Mode().IsRegular() {
-			return dir, nil
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "", fmt.Errorf("deploy/payroll/bootstrap.sql tidak ditemukan di atas %s", dir)
-		}
-		dir = parent
-	}
-}
-
 func setup() (func(), error) {
 	ctx := context.Background()
-	root, err := workspaceRoot()
+	bootstrap, err := filepath.Abs("../../deploy/bootstrap.sql") // services/payroll/deploy (in-repo, available to CI)
 	if err != nil {
 		return nil, err
 	}
 	ctr, err := tcpostgres.Run(ctx, "postgres:18-alpine",
 		tcpostgres.WithDatabase("postgres"), tcpostgres.WithUsername("postgres"), tcpostgres.WithPassword("postgres"),
 		testcontainers.WithFiles(testcontainers.ContainerFile{
-			HostFilePath: filepath.Join(root, "deploy", "payroll", "bootstrap.sql"), ContainerFilePath: "/bootstrap/bootstrap.sql", FileMode: 0o644,
+			HostFilePath: bootstrap, ContainerFilePath: "/bootstrap/bootstrap.sql", FileMode: 0o644,
 		}),
 		testcontainers.WithWaitStrategy(wait.ForLog("database system is ready to accept connections").
 			WithOccurrence(2).WithStartupTimeout(60*time.Second)))

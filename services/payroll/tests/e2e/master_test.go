@@ -63,14 +63,14 @@ func TestMain(m *testing.M) {
 
 func setup() (func(), error) {
 	ctx := context.Background()
-	root, err := filepath.Abs("../../../../..")
+	bootstrap, err := filepath.Abs("../../deploy/bootstrap.sql") // services/payroll/deploy (in-repo, available to CI)
 	if err != nil {
 		return nil, err
 	}
 	ctr, err := tcpostgres.Run(ctx, "postgres:18-alpine",
 		tcpostgres.WithDatabase("postgres"), tcpostgres.WithUsername("postgres"), tcpostgres.WithPassword("postgres"),
 		testcontainers.WithFiles(testcontainers.ContainerFile{
-			HostFilePath: filepath.Join(root, "deploy", "payroll", "bootstrap.sql"), ContainerFilePath: "/bootstrap/bootstrap.sql", FileMode: 0o644,
+			HostFilePath: bootstrap, ContainerFilePath: "/bootstrap/bootstrap.sql", FileMode: 0o644,
 		}),
 		testcontainers.WithWaitStrategy(wait.ForLog("database system is ready to accept connections").
 			WithOccurrence(2).WithStartupTimeout(60*time.Second)),

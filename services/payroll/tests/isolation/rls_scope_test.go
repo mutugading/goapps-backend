@@ -1,6 +1,6 @@
 // Package isolation holds DB isolation tests (09§6.4, I17–I20) against a real
 // PostgreSQL 18 started with testcontainers. The schema is built by running
-// deploy/payroll/bootstrap.sql then every migrations/postgres/*.up.sql, and the
+// deploy/bootstrap.sql (in-repo copy of goapps/deploy/payroll/bootstrap.sql) then every migrations/postgres/*.up.sql, and the
 // assertions connect as payroll_app, exactly like the service.
 //
 // Gated by INTEGRATION_TEST=true (needs Docker).
@@ -62,11 +62,10 @@ func TestMain(m *testing.M) {
 // It returns the container cleanup func.
 func setup() (func(), error) {
 	ctx := context.Background()
-	root, err := filepath.Abs("../../../../..") // workspace root (goapps/)
+	bootstrap, err := filepath.Abs("../../deploy/bootstrap.sql") // services/payroll/deploy (in-repo, available to CI)
 	if err != nil {
 		return nil, err
 	}
-	bootstrap := filepath.Join(root, "deploy", "payroll", "bootstrap.sql")
 
 	ctr, err := tcpostgres.Run(ctx, "postgres:18-alpine",
 		tcpostgres.WithDatabase("postgres"),

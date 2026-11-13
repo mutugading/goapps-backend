@@ -39,6 +39,9 @@ func TestValidate_PIIKeys(t *testing.T) {
 		{"short ok in development", "development", "dev", "dev", false},
 		{"short rejected in production", "production", "short", long, true},
 		{"strong ok in production", "production", long, long, false},
+		{"dev sample enc key rejected in production", "production", placeholderPIIKeys[0], long, true},
+		{"dev sample hmac key rejected in staging", "staging", long, placeholderPIIKeys[1], true},
+		{"dev sample keys ok in development", "development", placeholderPIIKeys[0], placeholderPIIKeys[1], false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

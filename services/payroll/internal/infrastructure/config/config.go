@@ -150,8 +150,12 @@ const minJWTSecretLen = 32
 // placeholderJWTSecrets are the sample values shipped in config.yaml/compose.
 var placeholderJWTSecrets = []string{"change-this-in-production", "dev-access-secret-change-in-production"}
 
+// placeholderPIIKeys are the dev defaults of pii.enc_key / pii.hmac_key (config.yaml and SetDefault). They are
+// longer than minJWTSecretLen, so the length check alone would let them through outside development.
+var placeholderPIIKeys = []string{"dev-pii-enc-key-change-in-production", "dev-pii-hmac-key-change-in-production"}
+
 // Validate rejects configurations that must not start. Outside development the
-// JWT secret must be set, not a sample value and at least 32 bytes long.
+// JWT secret and the PII keys must be set, not a sample value and at least 32 bytes long.
 func (c *Config) Validate() error {
 	secret := c.JWT.AccessTokenSecret
 	if secret == "" {
@@ -165,6 +169,9 @@ func (c *Config) Validate() error {
 	}
 	if len(c.PII.EncKey) < minJWTSecretLen || len(c.PII.HMACKey) < minJWTSecretLen {
 		return fmt.Errorf("config: pii keys must be at least %d bytes in %q", minJWTSecretLen, c.App.Env)
+	}
+	if slices.Contains(placeholderPIIKeys, c.PII.EncKey) || slices.Contains(placeholderPIIKeys, c.PII.HMACKey) {
+		return fmt.Errorf("config: pii keys are sample values, not allowed in %q", c.App.Env)
 	}
 	if slices.Contains(placeholderJWTSecrets, secret) {
 		return fmt.Errorf("config: jwt.access_token_secret is a sample value, not allowed in %q", c.App.Env)

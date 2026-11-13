@@ -49,9 +49,9 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    # Runs in parallel with lint job. Unit tests only: the integration/e2e/isolation suites (tests/**) start
-    # PostgreSQL 18 with testcontainers and read deploy/payroll/bootstrap.sql from the workspace repo (not in
-    # this repo), so they run locally (`make test-e2e`) until that bootstrap is available to CI.
+    # Runs in parallel with lint job. Unit tests first, then the integration/e2e/isolation suites (tests/**),
+    # which start PostgreSQL 18 with testcontainers (Docker is available on ubuntu-latest) and read the in-repo
+    # copy services/payroll/deploy/bootstrap.sql (mirror of goapps/deploy/payroll/bootstrap.sql; change both).
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -67,12 +67,18 @@ jobs:
         working-directory: ${{ env.WORKING_DIR }}
         run: go mod download
 
-      # `-short` skips the testcontainers suites; tests/** are gated by INTEGRATION_TEST and stay out of CI.
+      # `-short` skips the testcontainers suites; tests/** run in the next step (gated by INTEGRATION_TEST).
       - name: Run unit tests
         working-directory: ${{ env.WORKING_DIR }}
         run: |
           go test -v -race -short -coverprofile=coverage.out -covermode=atomic ./internal/... ./cmd/...
           go tool cover -func=coverage.out | tail -1
+
+      - name: Run integration tests (testcontainers)
+        working-directory: ${{ env.WORKING_DIR }}
+        env:
+          INTEGRATION_TEST: 'true'
+        run: go test -race -timeout 15m ./tests/...
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
