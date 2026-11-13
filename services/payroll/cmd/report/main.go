@@ -1,5 +1,5 @@
 // Package main is the payroll report CLI (D-62 butir 3). Run by IT on the server as payroll_app with an explicit
-// scope; every export is written to pyr_audit_log. Subcommands: recon-komponen, reco, slip.
+// scope; every export is written to pyr_audit_log. Subcommands: recon-komponen, reco, bank, slip.
 package main
 
 import (
@@ -9,22 +9,25 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // driver
 
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/report"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/scope"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/audit"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/config"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/postgres"
 )
 
 const usage = `usage:
   report recon-komponen -yymm 202701 -division SOLO [-company 1] [-allow-open] [-actor cli-report] -out x.xlsx -dsn <payroll_app dsn>
   report reco -yymm 202701 -division SOLO [-company 1] [-allow-open] [-actor cli-report] -out x.xlsx -dsn <payroll_app dsn> [-pii-key K | PAYROLL_PII_KEY]
+  report bank -yymm 202701 -division SOLO -transfer-date 2027-01-26 [-bank MANDIRI] [-company 1] [-allow-open] [-actor cli-report] -out x.xlsx -dsn <payroll_app dsn> [-pii-key K | PAYROLL_PII_KEY]  (teks surat: PAYROLL_REPORT_*)
   report slip -yymm 202701 -division SOLO [-nik N] [-nopassword] [-company 1] [-allow-open] [-actor cli-report] -out dir -dsn <payroll_app dsn>`
 
 func main() {
-	cmds := map[string]func(context.Context, []string) error{"recon-komponen": reconKomponen, "reco": reco, "slip": slip}
+	cmds := map[string]func(context.Context, []string) error{"recon-komponen": reconKomponen, "reco": reco, "bank": bank, "slip": slip}
 	var fn func(context.Context, []string) error
 	if len(os.Args) >= 2 {
 		fn = cmds[os.Args[1]]
@@ -149,6 +152,135 @@ func reco(ctx context.Context, args []string) error {
 		return err
 	}
 	fmt.Printf("out=%s komponen_tanpa_setup_gl=%d\n", *out, pre)
+	return nil
+}
+
+// bank writes the F-1 Mandiri file (COVER LETTER + DETAIL). Employees failing the pre-check are left out of the file and
+// written to <out>.pra-cek.xlsx (NIK, name, reason; never the account number). The account is decrypted with the PII
+// key (env preferred over the flag, which shows up in the process list) and is never printed or audited.
+func bank(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("bank", flag.ContinueOnError)
+	yymm := fs.Int("yymm", 0, "periode yymm (wajib)")
+	division := fs.String("division", "", "divisi (wajib)")
+	company := fs.Int("company", 1, "pyr_company.pco_company_id")
+	tdate := fs.String("transfer-date", "", "tanggal transfer YYYY-MM-DD (wajib)")
+	bankName := fs.String("bank", report.MandiriBank, "nama bank yang diterima di berkas (cocok sebagian, tanpa huruf besar/kecil)")
+	allowOpen := fs.Bool("allow-open", false, "izinkan periode belum APPROVED (gladi; tercatat di audit)")
+	actor := fs.String("actor", "cli-report", "identitas aktor untuk audit")
+	out := fs.String("out", "", "berkas xlsx keluaran (wajib; berisi rekening & gaji nyata, jangan di-commit)")
+	dsn := fs.String("dsn", os.Getenv("PAYROLL_APP_DSN"), "DSN role payroll_app")
+	key := fs.String("pii-key", os.Getenv("PAYROLL_PII_KEY"), "kunci PII (dekripsi rekening); utamakan env PAYROLL_PII_KEY")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *yymm == 0 || anyEmpty(*division, *out, *dsn, *key, *tdate) {
+		return fmt.Errorf("-yymm, -division, -transfer-date, -out, -dsn (atau PAYROLL_APP_DSN), dan -pii-key (atau PAYROLL_PII_KEY) wajib")
+	}
+	text, err := bankText(*tdate)
+	if err != nil {
+		return err
+	}
+	sc, err := scope.New(int16(*company), *division) //nolint:gosec // range checked by FK
+	if err != nil {
+		return err
+	}
+	raw, err := sql.Open("pgx", *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := raw.Close(); cerr != nil {
+			fmt.Fprintln(os.Stderr, "close:", cerr)
+		}
+	}()
+	ctx = scope.WithIdentity(ctx, scope.Identity{UserID: *actor, Scopes: []scope.Scope{sc}})
+	svc := report.NewService(postgres.NewDBFromSQL(raw), audit.NewWriter())
+	var issues int
+	err = svc.ExportBank(ctx, report.Query{CompanyID: int16(*company), YYMM: *yymm, //nolint:gosec // as above
+		Division: *division, AllowOpen: *allowOpen}, *key, *bankName, func(d report.BankData) (int, error) {
+		issues = len(d.Issues)
+		return writeBankFiles(d, text, *out)
+	})
+	if err == nil {
+		err = commitBankFiles(*out, issues > 0)
+	}
+	if err != nil {
+		for _, f := range []string{*out + ".tmp", *out + ".pra-cek.xlsx.tmp"} {
+			if rerr := os.Remove(f); rerr != nil && !os.IsNotExist(rerr) {
+				fmt.Fprintln(os.Stderr, "remove tmp:", rerr)
+			}
+		}
+		return err
+	}
+	fmt.Printf("out=%s dilewati_pra_cek=%d\n", *out, issues)
+	if issues > 0 {
+		fmt.Printf("pra-cek=%s.pra-cek.xlsx\n", *out)
+	}
+	return nil
+}
+
+func anyEmpty(vals ...string) bool {
+	for _, v := range vals {
+		if v == "" {
+			return true
+		}
+	}
+	return false
+}
+
+// bankText builds the cover/title text from PAYROLL_REPORT_* and the transfer date.
+func bankText(tdate string) (report.BankText, error) {
+	td, err := time.Parse("2006-01-02", tdate)
+	if err != nil {
+		return report.BankText{}, fmt.Errorf("-transfer-date harus YYYY-MM-DD: %w", err)
+	}
+	rc, err := config.LoadReport()
+	if err != nil {
+		return report.BankText{}, err
+	}
+	return report.BankText{Letterhead: rc.Letterhead, CompanyName: rc.CompanyName, Branch: rc.BankBranch,
+		EscrowAccount: rc.EscrowAccount, Signer1: rc.Signer1, Title1: rc.Title1, Signer2: rc.Signer2, Title2: rc.Title2,
+		FeePerTransfer: rc.TransferFee, TransferDate: td, PeriodDate: td}, nil
+}
+
+// writeBankFiles writes the bank workbook (and the pre-check workbook when some rows were left out) to .tmp files; they
+// are renamed only after the audit row committed.
+func writeBankFiles(d report.BankData, text report.BankText, out string) (int, error) {
+	if len(d.Rows) == 0 { // no bank file; the pre-check is written at its final name so the reasons are not lost
+		var pb bytes.Buffer
+		if err := report.WriteBankPreCheck(d.Issues, &pb); err != nil {
+			return 0, err
+		}
+		if err := os.WriteFile(out+".pra-cek.xlsx", pb.Bytes(), 0o600); err != nil {
+			return 0, err
+		}
+		return 0, report.ErrNoPayableRows
+	}
+	var buf bytes.Buffer
+	n, err := report.WriteBank(d, text, &buf)
+	if err != nil {
+		return 0, err
+	}
+	if err := os.WriteFile(out+".tmp", buf.Bytes(), 0o600); err != nil {
+		return 0, err
+	}
+	if len(d.Issues) == 0 {
+		return n, nil
+	}
+	var pb bytes.Buffer
+	if err := report.WriteBankPreCheck(d.Issues, &pb); err != nil {
+		return 0, err
+	}
+	return n, os.WriteFile(out+".pra-cek.xlsx.tmp", pb.Bytes(), 0o600)
+}
+
+func commitBankFiles(out string, withPre bool) error {
+	if err := os.Rename(out+".tmp", out); err != nil {
+		return err
+	}
+	if withPre {
+		return os.Rename(out+".pra-cek.xlsx.tmp", out+".pra-cek.xlsx")
+	}
 	return nil
 }
 

@@ -20,7 +20,9 @@ func TestReport_Reco(t *testing.T) {
 	y := itoa(recoYYMM)
 	for _, q := range []string{
 		`INSERT INTO payroll.pyr_employee (pe_company_id, pe_nik, pe_division, pe_nama, pe_orion_sub_acnt, pe_level, pe_cost_group, pe_bank_acnt_enc, pe_birth_date)
-		 VALUES (1,'ZREP0001','SOLO','Rep Satu','ZREP0001','Executive','MGT', payroll.pgp_sym_encrypt('0012345678','` + encKey + `'), '1990-03-07')`,
+		 VALUES (1,'ZREP0001','SOLO','Rep Satu','ZREP0001','Executive','MGT', payroll.pgp_sym_encrypt('0012345678','` + encKey + `'), '1990-03-07')
+		 ON CONFLICT (pe_company_id, pe_nik, pe_division) DO UPDATE SET pe_bank_acnt_enc = EXCLUDED.pe_bank_acnt_enc, pe_level = EXCLUDED.pe_level,
+		   pe_cost_group = EXCLUDED.pe_cost_group, pe_birth_date = EXCLUDED.pe_birth_date`,
 		`INSERT INTO payroll.pyr_gl_group_map (pggm_company_id, pggm_division, pggm_level, pggm_gl_group) VALUES (1,'SOLO','Executive','Executive')
 		 ON CONFLICT DO NOTHING`,
 		`INSERT INTO payroll.pyr_component (pc_company_id, pc_code, pc_type, pc_name, pc_valid_from) VALUES (1,'TREP901','Tunjangan','Rep Gaji',200001)`,

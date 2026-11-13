@@ -43,6 +43,8 @@ type RecoData struct {
 	RunData
 	Rows []DetailRow
 	YYMM int
+	// Transfer is the F-2 `transfer` sheet data (Mandiri payable rows); bank issues are listed in pra-cek.
+	Transfer BankData
 }
 
 // EarnDeduc is the signed amount: Tunjangan +, Potongan −.
@@ -109,11 +111,16 @@ func (s *Service) ExportReco(ctx context.Context, q Query, key string, build fun
 		if rd.Rows, err = loadRecoRows(ctx, tx, q, d.RunID, key); err != nil {
 			return err
 		}
+		all, err := loadBankRows(ctx, tx, q, d.RunID, key)
+		if err != nil {
+			return err
+		}
+		rd.Transfer = SplitBank(q.YYMM, all, MandiriBank)
 		rows, err := build(rd)
 		if err != nil {
 			return err
 		}
-		return s.writeAudit(ctx, tx, q, "reco", rows, map[string]any{"pra_cek": len(PreChecks(rd.Rows))})
+		return s.writeAudit(ctx, tx, q, "reco", rows, map[string]any{"pra_cek": len(PreChecks(rd.Rows)), "pra_cek_transfer": len(rd.Transfer.Issues)})
 	})
 }
 
@@ -215,13 +222,14 @@ func WriteReco(d RecoData, w io.Writer) (int, error) {
 	if err := f.SetSheetName("Sheet1", SheetRecoDetail); err != nil {
 		return 0, fmt.Errorf("rename sheet: %w", err)
 	}
-	for _, n := range []string{SheetPreCheck, SheetSummary} {
+	for _, n := range []string{SheetTransfer, SheetPreCheck, SheetSummary} {
 		if _, err := f.NewSheet(n); err != nil {
 			return 0, fmt.Errorf("new sheet: %w", err)
 		}
 	}
 	sw := &sheetWriter{f: f}
 	sw.recoDetail(d)
+	sw.transfer(d)
 	sw.preCheck(d)
 	sw.summary(d.RunData)
 	if sw.err != nil {
@@ -271,6 +279,7 @@ func (s *sheetWriter) preCheck(d RecoData) {
 	for _, p := range PreChecks(d.Rows) {
 		s.put(p.Type, p.No, p.Name, p.Lines)
 	}
+	s.transferPreCheck(d)
 }
 
 const typePotongan = "Potongan"
