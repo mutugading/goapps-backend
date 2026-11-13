@@ -36,7 +36,7 @@ type DummyReport struct {
 	SnapshotID int64
 	Rows       int // snapshot rows copied (clone) / deleted (purge)
 	Additions  int
-	AttdDays   int  // pyr_attd_days value of the target (clone) or rows deleted (purge)
+	AttdDays   int  // pyr_attd_days value of the target (clone; 0 = SOLO source without a row, D-45) or rows deleted (purge)
 	Unchanged  bool // dummy period already cloned: snapshot kept, attd_days and additions topped up
 }
 
@@ -149,9 +149,11 @@ func cloneDummy(ctx context.Context, tx *sql.Tx, q DummyPeriodQuery, rep *DummyR
 	if err != nil {
 		return err
 	}
-	rep.AttdDays = srcDays + q.WorkdaysDelta
-	if rep.AttdDays < 1 {
-		return fmt.Errorf("pad_days target %d < 1 (sumber %d, delta %d)", rep.AttdDays, srcDays, q.WorkdaysDelta)
+	if srcDays > 0 {
+		rep.AttdDays = srcDays + q.WorkdaysDelta
+		if rep.AttdDays < 1 {
+			return fmt.Errorf("pad_days target %d < 1 (sumber %d, delta %d)", rep.AttdDays, srcDays, q.WorkdaysDelta)
+		}
 	}
 	// pyr_attd_days has no marker: a row of the target is only ours when the dummy snapshot exists.
 	var existing int
@@ -163,16 +165,20 @@ func cloneDummy(ctx context.Context, tx *sql.Tx, q DummyPeriodQuery, rep *DummyR
 		return fmt.Errorf("periode %d %s sudah punya pyr_attd_days non-dummy: dummy ditolak", q.To, q.Division)
 	}
 	var foreign int
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM payroll.pyr_addition WHERE pa_company_id=$1 AND pa_yymm=$2 AND pa_division=$3 AND created_by IS DISTINCT FROM $4`,
+	// Scheduled LEGACY additions (e.g. installments migrated ahead) stay as they are: the clone skips their keys (ON CONFLICT DO NOTHING).
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM payroll.pyr_addition WHERE pa_company_id=$1 AND pa_yymm=$2 AND pa_division=$3 AND created_by IS DISTINCT FROM $4
+  AND pa_source IS DISTINCT FROM 'LEGACY'`,
 		q.Company, q.To, q.Division, DummyMarker).Scan(&foreign); err != nil {
 		return fmt.Errorf("cek addition: %w", err)
 	}
 	if foreign > 0 {
-		return fmt.Errorf("periode %d %s punya %d pyr_addition non-dummy: dummy ditolak", q.To, q.Division, foreign)
+		return fmt.Errorf("periode %d %s punya %d pyr_addition non-dummy di luar LEGACY: dummy ditolak", q.To, q.Division, foreign)
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO payroll.pyr_attd_days (pad_company_id, pad_yymm, pad_division, pad_days) VALUES ($1,$2,$3,$4)
+	if rep.AttdDays > 0 {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO payroll.pyr_attd_days (pad_company_id, pad_yymm, pad_division, pad_days) VALUES ($1,$2,$3,$4)
 ON CONFLICT (pad_company_id, pad_yymm, pad_division) DO UPDATE SET pad_days = EXCLUDED.pad_days`, q.Company, q.To, q.Division, rep.AttdDays); err != nil {
-		return fmt.Errorf("attd_days: %w", err)
+			return fmt.Errorf("attd_days: %w", err)
+		}
 	}
 	if dummyID != 0 {
 		rep.Unchanged, rep.SnapshotID = true, dummyID
@@ -194,7 +200,7 @@ ON CONFLICT DO NOTHING`, q.Company, q.From, q.Division, q.To, DummyMarker)
 		"attd_days": rep.AttdDays, "snapshot": rep.SnapshotID, "unchanged": rep.Unchanged})
 }
 
-// dummySource reads the newest non-dummy snapshot (id, checksum) and pyr_attd_days of the source period.
+// dummySource reads the newest non-dummy snapshot (id, checksum) and pyr_attd_days of the source period (0 = SOLO without a row).
 func dummySource(ctx context.Context, tx *sql.Tx, q DummyPeriodQuery) (srcID int64, srcSum string, srcDays int, err error) {
 	if err := tx.QueryRowContext(ctx, `SELECT pas_snapshot_id, pas_checksum FROM payroll.pyr_att_snapshot
 WHERE pas_company_id=$1 AND pas_yymm=$2 AND pas_division=$3 AND created_by IS DISTINCT FROM $4 ORDER BY pas_snapshot_id DESC LIMIT 1`,
@@ -205,6 +211,9 @@ WHERE pas_company_id=$1 AND pas_yymm=$2 AND pas_division=$3 AND created_by IS DI
 	}
 	if err := tx.QueryRowContext(ctx, `SELECT pad_days FROM payroll.pyr_attd_days WHERE pad_company_id=$1 AND pad_yymm=$2 AND pad_division=$3`,
 		q.Company, q.From, q.Division).Scan(&srcDays); errors.Is(err, sql.ErrNoRows) {
+		if q.Division == DivSolo {
+			return srcID, srcSum, 0, nil // SOLO never had ATTD_DAYS rows: the target stays without one (workdays NULL, D-45)
+		}
 		return 0, "", 0, fmt.Errorf("periode sumber %d %s tidak punya pyr_attd_days", q.From, q.Division)
 	} else if err != nil {
 		return 0, "", 0, fmt.Errorf("attd_days sumber: %w", err)

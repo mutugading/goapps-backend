@@ -157,6 +157,50 @@ func TestDummyPeriod(t *testing.T) {
 			t.Errorf("attd_days periode lain tersentuh: %s", got)
 		}
 	})
+
+	// T029b: SOLO never had ATTD_DAYS rows (D-45): the clone keeps workdays NULL; JAKARTA still needs the source row.
+	t.Run("SOLO source without attd_days, JAKARTA rejected", func(t *testing.T) {
+		for _, qq := range []string{
+			`INSERT INTO payroll.pyr_att_snapshot (pas_company_id, pas_yymm, pas_division, pas_source_batch_ids, pas_checksum, pas_locked, created_by)
+			  VALUES (1,204110,'SOLO','{8}','real-s',false,'etl'), (1,204110,'JAKARTA','{9}','real-j',false,'etl')`,
+			`INSERT INTO payroll.pyr_att_snapshot_row (pasr_snapshot_id, pasr_kind, pasr_nik, pasr_data)
+			  SELECT pas_snapshot_id, 'REKAP', 'DM-A', '{"MPAR_DAY_WORK":26}'::jsonb FROM payroll.pyr_att_snapshot WHERE pas_yymm = 204110`,
+		} {
+			if _, err := ownDB.Exec(qq); err != nil {
+				t.Fatalf("%v\n%s", err, qq)
+			}
+		}
+		rep, err := etl.RunDummyPeriod(ctx, etlDB, etl.DummyPeriodQuery{Company: 1, From: 204110, To: 204111, Division: "SOLO", WorkdaysDelta: -1})
+		if err != nil || rep.AttdDays != 0 || rep.Rows != 1 {
+			t.Fatalf("SOLO tanpa attd_days: %+v %v", rep, err)
+		}
+		if got := scalar(t, `SELECT count(*)::text FROM payroll.pyr_attd_days WHERE pad_yymm=204111`); got != "0" {
+			t.Errorf("attd_days SOLO dummy harus tidak ada: %s", got)
+		}
+		if _, err := etl.RunDummyPeriod(ctx, etlDB, etl.DummyPeriodQuery{Company: 1, From: 204110, To: 204111, Division: "JAKARTA"}); err == nil ||
+			!strings.Contains(err.Error(), "attd_days") {
+			t.Errorf("JAKARTA tanpa attd_days sumber harus ditolak: %v", err)
+		}
+	})
+
+	// T029b: a scheduled LEGACY addition already in the target (installment migrated ahead) is kept; a MANUAL one still refuses.
+	t.Run("LEGACY addition in target kept, MANUAL refused", func(t *testing.T) {
+		if _, err := ownDB.Exec(`INSERT INTO payroll.pyr_addition (pa_company_id, pa_yymm, pa_nik, pa_division, pa_type, pa_id, pa_amount, pa_source, created_by) VALUES
+		  (1,204111,'DM-B','SOLO','Potongan',9,77,'LEGACY',NULL), (1,204201,'DM-B','SOLO','Potongan',6,1,'MANUAL','user')`); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := etl.RunDummyPeriod(ctx, etlDB, etl.DummyPeriodQuery{Company: 1, From: 204010, To: 204111, Division: "SOLO"}); err != nil {
+			t.Fatalf("addition LEGACY di target harus dibiarkan: %v", err)
+		}
+		if got := scalar(t, `SELECT string_agg(pa_id||':'||pa_amount::numeric(18,0)||':'||coalesce(created_by,'-'), ',' ORDER BY pa_id) FROM payroll.pyr_addition
+		  WHERE pa_yymm=204111 AND pa_nik='DM-B'`); got != "9:77:-" {
+			t.Errorf("addition LEGACY tertimpa/ganda: %s", got)
+		}
+		if _, err := etl.RunDummyPeriod(ctx, etlDB, etl.DummyPeriodQuery{Company: 1, From: 204010, To: 204201, Division: "SOLO"}); err == nil ||
+			!strings.Contains(err.Error(), "pyr_addition") {
+			t.Errorf("addition MANUAL di target harus ditolak: %v", err)
+		}
+	})
 }
 
 func TestDummyJanBase(t *testing.T) {
