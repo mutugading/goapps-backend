@@ -155,7 +155,14 @@ func (s *Service) claim(ctx context.Context, o SendOptions) (*claimed, int, erro
 		c, waiting = nil, 0
 		now := s.Now().UTC()
 		var cl claimed
-		var prev string
+		var prev, batchStatus string
+		// A batch cancelled or superseded while a send run is going must stop at the next item (T028g2).
+		if err := tx.QueryRowContext(ctx, `SELECT pdb_status FROM payroll.pyr_distribution_batch WHERE pdb_id=$1`, o.BatchID).Scan(&batchStatus); err != nil {
+			return fmt.Errorf("claim: read batch: %w", err)
+		}
+		if batchStatus == StCancelled || batchStatus == StSuperseded {
+			return nil
+		}
 		err := tx.QueryRowContext(ctx, `SELECT pdi_id, pdi_nik, COALESCE(pdi_email_to,''), pdi_attempts, COALESCE(pdi_attachment_name,''), pdi_status
 FROM payroll.pyr_distribution_item
 WHERE pdi_batch_id=$1 AND pdi_status IN ('QUEUED','FAILED','SENDING') AND COALESCE(pdi_next_attempt_at, $2) <= $2
@@ -438,7 +445,7 @@ WHERE pdb_id=$1 AND pdb_company_id=$2 AND pdb_division=$3 AND pdb_yymm=$4`, batc
 	if err != nil {
 		return nil, fmt.Errorf("read batch: %w", err)
 	}
-	if status == "CANCELLED" || status == "SUPERSEDED" {
+	if status == StCancelled || status == StSuperseded {
 		return nil, fmt.Errorf("batch %d berstatus %s; %s ditolak", batchID, status, what)
 	}
 	src, err := report.LoadSlipSource(ctx, tx, q, cfg...)

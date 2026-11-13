@@ -28,6 +28,7 @@ const (
 	mailYYMM  = 203605
 	mail2YYMM = 203606
 	mail3YYMM = 203607
+	mail4YYMM = 203604
 )
 
 type fakeSMTP struct {
@@ -109,7 +110,7 @@ func (f *fakeSMTP) conn(c net.Conn) {
 			f.msgs = append(f.msgs, b.String())
 			f.rcpt = append(f.rcpt, rcpt)
 			f.mu.Unlock()
-			w("250 queued")
+			w("250 2.0.0 Ok: queued as FAKE123")
 		case cmd == "QUIT":
 			w("221 bye")
 			return
@@ -245,6 +246,11 @@ func TestMailer(t *testing.T) {
 		t.Fatalf("SENT items = %s", got)
 	}
 
+	// T028g2: the evidence is the server's own DATA reply, not a constant
+	if got := scalar(t, fmt.Sprintf(`SELECT string_agg(DISTINCT pdi_smtp_response, '|') FROM payroll.pyr_distribution_item WHERE pdi_batch_id=%d AND pdi_status='SENT'`, b)); got != "250 2.0.0 Ok: queued as FAKE123" {
+		t.Fatalf("pdi_smtp_response = %q", got)
+	}
+
 	// report + audit without PII
 	br, err := svc.Report(ctx, q, b)
 	if err != nil || br.Sent != 2 || len(br.Rows) != 3 {
@@ -259,7 +265,7 @@ func TestMailer(t *testing.T) {
 	  AND (pal_after::text LIKE '%satu@%' OR pal_after::text LIKE '%uji@%' OR pal_after::text LIKE '%ZREP%')`); got != "0" {
 		t.Fatalf("audit memuat PII: %s", got)
 	}
-	if got := scalar(t, `SELECT count(DISTINCT pal_action)::text FROM payroll.pyr_audit_log WHERE pal_action LIKE 'DISTRIBUTION\_%'`); got != "5" {
+	if got := scalar(t, `SELECT count(DISTINCT pal_action)::text FROM payroll.pyr_audit_log WHERE pal_action LIKE 'DISTRIBUTION\_%' AND pal_action NOT IN ('DISTRIBUTION_CANCEL','DISTRIBUTION_SUPERSEDE')`); got != "5" {
 		t.Fatalf("aksi audit = %s", got)
 	}
 	if got := scalar(t, `SELECT count(*)::text FROM payroll.pyr_distribution_item WHERE pdi_last_error LIKE '%@example%' OR pdi_smtp_response LIKE '%@example%'`); got != "0" {
@@ -500,5 +506,113 @@ func TestMailer_SlipPII(t *testing.T) {
 		return o.Bytes()
 	}(), "5550001111") {
 		t.Fatal("slip resend tanpa rekening")
+	}
+}
+
+// T028g2: cancel refuses later send/resend, a new batch may follow; a batch built from a replaced run is SUPERSEDED
+// when the next batch of the period is created, and the new batch records the revision link.
+func TestMailer_CancelAndSupersede(t *testing.T) {
+	seedReportRun(t, mail4YYMM, "APPROVED")
+	y := itoa(mail4YYMM)
+	for _, q := range []string{
+		`INSERT INTO payroll.pyr_slip_password_policy (pspp_company_id, pspp_valid_from, pspp_policy_code, pspp_status, created_by, approved_by)
+		 VALUES (1, DATE '2020-01-01', 'DOB_DDMMYYYY', 'ACTIVE', 'test', 'system') ON CONFLICT DO NOTHING`,
+		`INSERT INTO payroll.pyr_mail_template (pmt_company_id, pmt_doc_type, pmt_version, pmt_subject, pmt_body_html, pmt_body_text, pmt_status, created_by, approved_by)
+		 VALUES (1,'SLIP_GAJI',1,'Slip {{.PeriodName}}','<p>{{.Nama}}</p>','{{.Nama}}','ACTIVE','t','s') ON CONFLICT DO NOTHING`,
+		`INSERT INTO payroll.pyr_employee (pe_company_id, pe_nik, pe_division, pe_nama, pe_orion_sub_acnt, pe_birth_date, pe_email) VALUES
+		 (1,'ZREP0001','SOLO','Rep Satu','ZREP0001','1990-03-07','satu@example.test'),
+		 (1,'ZREP0002','SOLO','Rep Dua','ZREP0002','1991-04-08','dua@example.test')
+		 ON CONFLICT (pe_company_id, pe_nik, pe_division) DO UPDATE SET pe_birth_date=EXCLUDED.pe_birth_date, pe_email=EXCLUDED.pe_email`,
+	} {
+		if _, err := ownDB.Exec(q); err != nil {
+			t.Fatalf("seed: %v\n%s", err, q)
+		}
+	}
+	t.Cleanup(func() {
+		for _, q := range []string{`DELETE FROM payroll.pyr_distribution_item`, `DELETE FROM payroll.pyr_distribution_batch`,
+			`UPDATE payroll.pyr_employee SET pe_birth_date=NULL WHERE pe_nik='ZREP0002'`} {
+			_, _ = ownDB.Exec(q) //nolint:errcheck // cleanup
+		}
+	})
+	fake := newFakeSMTP(t)
+	now := time.Date(2036, 9, 1, 8, 0, 0, 0, time.UTC)
+	svc := mailSvc(fake, &now)
+	ctx := ctxFor(t, userRW)
+	q := report.Query{CompanyID: 1, YYMM: mail4YYMM, Division: "SOLO"}
+	sendOpts := func(b int64) distribution.SendOptions {
+		return distribution.SendOptions{BatchID: b, Query: q, SlipConfig: report.SlipConfig{PIIKey: encKey}}
+	}
+
+	// cancel: reason required; afterwards send and resend are refused, nothing leaves, and a new batch is allowed
+	cr, err := svc.Create(ctx, q, distribution.CreateOptions{})
+	if err != nil || cr.Queued != 2 {
+		t.Fatalf("create %+v %v", cr, err)
+	}
+	if err := svc.Cancel(ctx, q, cr.BatchID, " "); err == nil {
+		t.Fatal("cancel tanpa alasan harus ditolak")
+	}
+	if err := svc.Cancel(ctx, q, cr.BatchID, "salah periode"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Cancel(ctx, q, cr.BatchID, "lagi"); err == nil {
+		t.Fatal("cancel dua kali harus ditolak")
+	}
+	if _, err := svc.Send(ctx, sendOpts(cr.BatchID)); err == nil || !strings.Contains(err.Error(), "CANCELLED") {
+		t.Fatalf("send batch CANCELLED harus ditolak: %v", err)
+	}
+	if _, err := svc.Resend(ctx, distribution.ResendOptions{BatchID: cr.BatchID, NIK: "ZREP0001", Reason: "x", Query: q}); err == nil || !strings.Contains(err.Error(), "CANCELLED") {
+		t.Fatalf("resend batch CANCELLED harus ditolak: %v", err)
+	}
+	if fake.count() != 0 {
+		t.Fatal("tidak boleh ada email dari batch CANCELLED")
+	}
+	if got := scalar(t, `SELECT count(*)::text FROM payroll.pyr_audit_log WHERE pal_action='DISTRIBUTION_CANCEL' AND pal_after::text LIKE '%salah periode%'`); got != "1" {
+		t.Fatalf("audit cancel = %s", got)
+	}
+	cr2, err := svc.Create(ctx, q, distribution.CreateOptions{})
+	if err != nil {
+		t.Fatalf("batch baru setelah cancel: %v", err)
+	}
+
+	// the run is replaced (reopen + new ACTIVE run): the old batch is refused, and creating the next batch marks it SUPERSEDED
+	for _, st := range []string{
+		`UPDATE payroll.pyr_run SET pr_status='SUPERSEDED' WHERE pr_yymm=` + y + ` AND pr_kind='ENGINE'`,
+		`INSERT INTO payroll.pyr_run (pr_company_id, pr_yymm, pr_division, pr_pay_date, pr_rule_set_id, pr_snapshot_id, pr_status, pr_kind)
+		 SELECT pr_company_id, pr_yymm, pr_division, pr_pay_date, pr_rule_set_id, pr_snapshot_id, 'ACTIVE', pr_kind FROM payroll.pyr_run WHERE pr_yymm=` + y + ` AND pr_kind='ENGINE'`,
+		`INSERT INTO payroll.pyr_salary_head (psh_run_id, psh_company_id, psh_nik, psh_yymm, psh_division, psh_nama, psh_tot_tunjangan, psh_tot_potongan, psh_rounding)
+		 SELECT n.pr_id, 1, h.psh_nik, h.psh_yymm, h.psh_division, h.psh_nama, h.psh_tot_tunjangan + 1, h.psh_tot_potongan, h.psh_rounding
+		 FROM payroll.pyr_salary_head h JOIN payroll.pyr_run o ON o.pr_id=h.psh_run_id AND o.pr_status='SUPERSEDED'
+		 JOIN payroll.pyr_run n ON n.pr_yymm=o.pr_yymm AND n.pr_status='ACTIVE' WHERE o.pr_yymm=` + y,
+		`INSERT INTO payroll.pyr_salary_detail (psd_run_id, psd_nik, psd_type, psd_id, psd_amount)
+		 SELECT n.pr_id, d.psd_nik, d.psd_type, d.psd_id, d.psd_amount
+		 FROM payroll.pyr_salary_detail d JOIN payroll.pyr_run o ON o.pr_id=d.psd_run_id AND o.pr_status='SUPERSEDED'
+		 JOIN payroll.pyr_run n ON n.pr_yymm=o.pr_yymm AND n.pr_status='ACTIVE' WHERE o.pr_yymm=` + y,
+	} {
+		if _, err := ownDB.Exec(st); err != nil {
+			t.Fatalf("revisi run: %v\n%s", err, st)
+		}
+	}
+	if _, err := svc.Send(ctx, sendOpts(cr2.BatchID)); err == nil {
+		t.Fatal("send batch dari run lama harus ditolak")
+	}
+	cr3, err := svc.Create(ctx, q, distribution.CreateOptions{})
+	if err != nil {
+		t.Fatalf("batch revisi: %v", err)
+	}
+	if got := scalar(t, fmt.Sprintf(`SELECT pdb_status FROM payroll.pyr_distribution_batch WHERE pdb_id=%d`, cr2.BatchID)); got != "SUPERSEDED" {
+		t.Fatalf("batch lama = %s", got)
+	}
+	if got := scalar(t, fmt.Sprintf(`SELECT pdb_is_revision::text||'|'||pdb_supersedes_batch_id FROM payroll.pyr_distribution_batch WHERE pdb_id=%d`, cr3.BatchID)); got != fmt.Sprintf("true|%d", cr2.BatchID) {
+		t.Fatalf("batch revisi = %s", got)
+	}
+	if got := scalar(t, `SELECT count(*)::text FROM payroll.pyr_audit_log WHERE pal_action='DISTRIBUTION_SUPERSEDE'`); got != "1" {
+		t.Fatalf("audit supersede = %s", got)
+	}
+	if err := svc.Cancel(ctx, q, cr2.BatchID, "x"); err == nil {
+		t.Fatal("cancel batch SUPERSEDED harus ditolak")
+	}
+	res, err := svc.Send(ctx, sendOpts(cr3.BatchID))
+	if err != nil || res.Sent != 2 {
+		t.Fatalf("send batch revisi %+v %v", res, err)
 	}
 }

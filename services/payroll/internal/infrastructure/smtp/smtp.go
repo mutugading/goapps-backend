@@ -53,8 +53,8 @@ func NewClient(cfg config.SMTPConfig) *Client { return &Client{Cfg: cfg, Timeout
 
 var _ Sender = (*Client)(nil)
 
-// Send connects, authenticates, and delivers m. The relay's final reply text is not exposed by net/smtp, so a
-// success is recorded as "250 OK"; a failure carries the server's code and text in the error.
+// Send connects, authenticates, and delivers m. It returns the server's reply to the end of DATA (for example
+// "250 2.0.0 Ok: queued as ABC", the relay's own queue id, 16§2.5); a failure carries the server's code and text.
 func (c *Client) Send(ctx context.Context, m Mail) (string, error) {
 	msg, err := BuildMessage(m)
 	if err != nil {
@@ -77,11 +77,12 @@ func (c *Client) Send(ctx context.Context, m Mail) (string, error) {
 		return "", fmt.Errorf("smtp: alamat tujuan tidak valid: %w", err)
 	}
 	m.To = rcpt.Address
-	if err := c.deliver(cl, m, msg); err != nil {
+	resp, err := c.deliver(cl, m, msg)
+	if err != nil {
 		return "", err
 	}
 	_ = cl.Quit() //nolint:errcheck // the message was accepted; QUIT failure is irrelevant
-	return "250 OK", nil
+	return resp, nil
 }
 
 // connect dials (implicit TLS for mode TLS) and reads the greeting; the deadline covers the whole session.
@@ -115,29 +116,42 @@ func (c *Client) connect(ctx context.Context) (*smtp.Client, net.Conn, error) {
 	return cl, conn, nil
 }
 
-func (c *Client) deliver(cl *smtp.Client, m Mail, msg []byte) error {
+// deliver runs AUTH, MAIL, RCPT and DATA. DATA is driven through cl.Text (exported by net/smtp for this purpose)
+// because Client.Data discards the final 250 reply, which is the delivery evidence stored in pdi_smtp_response.
+func (c *Client) deliver(cl *smtp.Client, m Mail, msg []byte) (string, error) {
 	if c.Cfg.User != "" {
 		if err := cl.Auth(smtp.PlainAuth("", c.Cfg.User, c.Cfg.Password, c.Cfg.Host)); err != nil {
-			return fmt.Errorf("smtp auth: %w", err)
+			return "", fmt.Errorf("smtp auth: %w", err)
 		}
 	}
 	if err := cl.Mail(m.From); err != nil {
-		return fmt.Errorf("smtp mail from: %w", err)
+		return "", fmt.Errorf("smtp mail from: %w", err)
 	}
 	if err := cl.Rcpt(m.To); err != nil {
-		return fmt.Errorf("smtp rcpt: %w", err)
+		return "", fmt.Errorf("smtp rcpt: %w", err)
 	}
-	w, err := cl.Data()
+	id, err := cl.Text.Cmd("DATA")
 	if err != nil {
-		return fmt.Errorf("smtp data: %w", err)
+		return "", fmt.Errorf("smtp data: %w", err)
 	}
+	cl.Text.StartResponse(id)
+	_, _, err = cl.Text.ReadResponse(354)
+	cl.Text.EndResponse(id)
+	if err != nil {
+		return "", fmt.Errorf("smtp data: %w", err)
+	}
+	w := cl.Text.DotWriter()
 	if _, err := w.Write(msg); err != nil {
-		return fmt.Errorf("smtp write: %w", err)
+		return "", fmt.Errorf("smtp write: %w", err)
 	}
 	if err := w.Close(); err != nil {
-		return fmt.Errorf("smtp send: %w", err)
+		return "", fmt.Errorf("smtp send: %w", err)
 	}
-	return nil
+	code, text, err := cl.Text.ReadResponse(250)
+	if err != nil {
+		return "", fmt.Errorf("smtp send: %w", err)
+	}
+	return fmt.Sprintf("%d %s", code, strings.Join(strings.Fields(text), " ")), nil
 }
 
 // BuildMessage renders the RFC 5322 message: multipart/mixed(alternative(text, html), pdf). Header values reject

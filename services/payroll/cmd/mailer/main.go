@@ -1,5 +1,5 @@
 // Package main is the payslip mailer CLI (D-62 butir 5, 16§2.5). Run by IT on the server as payroll_app with an
-// explicit scope. Subcommands: create, send, resend, report. SMTP settings come from PAYROLL_SMTP_*.
+// explicit scope. Subcommands: create, send, resend, cancel, report. SMTP settings come from PAYROLL_SMTP_*.
 package main
 
 import (
@@ -29,6 +29,7 @@ const usage = `usage:
   mailer create -yymm 202701 -division SOLO [-company 1] [-allow-open] [-allow-dup-email] [-actor cli-mailer] -dsn <payroll_app dsn>
   mailer send   -batch ID -yymm 202701 -division SOLO [-company 1] [-allow-open] [-test-to addr] [-limit N] [-wait] [-actor cli-mailer] -dsn <dsn>   (SMTP: PAYROLL_SMTP_*; PAYROLL_PII_KEY wajib; logo/teks: PAYROLL_REPORT_LOGO, PAYROLL_SLIP_PERHATIAN, PAYROLL_SLIP_CONTACT_IT)
   mailer resend -batch ID -yymm 202701 -division SOLO -nik N -reason "..." [-allow-dup-email] [-company 1] [-allow-open] [-actor cli-mailer] -dsn <dsn>
+  mailer cancel -batch ID -yymm 202701 -division SOLO -reason "..." [-company 1] [-actor cli-mailer] -dsn <dsn>   (batch CANCELLED; send/resend ditolak; batch baru boleh dibuat)
   mailer report -batch ID -yymm 202701 -division SOLO -out x.xlsx [-company 1] [-actor cli-mailer] -dsn <dsn>`
 
 type common struct {
@@ -88,7 +89,7 @@ func anyEmpty(vals ...string) bool {
 func main() { os.Exit(realMain()) }
 
 func realMain() int {
-	cmds := map[string]func(context.Context, []string) error{"create": create, "send": send, "resend": resend, "report": batchReport}
+	cmds := map[string]func(context.Context, []string) error{"create": create, "send": send, "resend": resend, "cancel": cancel, "report": batchReport}
 	var fn func(context.Context, []string) error
 	if len(os.Args) >= 2 {
 		fn = cmds[os.Args[1]]
@@ -196,6 +197,29 @@ func resend(ctx context.Context, args []string) error {
 		return err
 	}
 	fmt.Printf("item=%d diantre; jalankan: mailer send -batch %d ...\n", id, *batch)
+	return nil
+}
+
+func cancel(ctx context.Context, args []string) error {
+	c := newCommon("cancel")
+	batch := c.fs.Int64("batch", 0, "id batch (wajib)")
+	reason := c.fs.String("reason", "", "alasan pembatalan (wajib)")
+	if err := c.fs.Parse(args); err != nil {
+		return err
+	}
+	if *batch == 0 || strings.TrimSpace(*reason) == "" {
+		return errors.New("-batch dan -reason wajib")
+	}
+	ctx, q, db, closeDB, err := c.open(ctx)
+	if err != nil {
+		return err
+	}
+	defer closeDB()
+	svc := distribution.NewService(db, audit.NewWriter(), nil, config.SMTPConfig{})
+	if err := svc.Cancel(ctx, q, *batch, *reason); err != nil {
+		return err
+	}
+	fmt.Printf("batch=%d CANCELLED\n", *batch)
 	return nil
 }
 

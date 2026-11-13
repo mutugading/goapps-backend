@@ -34,14 +34,19 @@ const docCode = "G"
 
 // Item statuses (pyr_distribution_item.pdi_status).
 const (
-	StQueued    = "QUEUED"
-	StSending   = "SENDING"
-	StSent      = "SENT"
-	StFailed    = "FAILED"
-	StFinal     = "FAILED_FINAL"
-	StNoEmail   = "BLOCKED_NO_EMAIL"
-	StNoPass    = "BLOCKED_NO_PASSWORD" //nolint:gosec // status name, not a credential
-	StExcluded  = "EXCLUDED"
+	StQueued   = "QUEUED"
+	StSending  = "SENDING"
+	StSent     = "SENT"
+	StFailed   = "FAILED"
+	StFinal    = "FAILED_FINAL"
+	StNoEmail  = "BLOCKED_NO_EMAIL"
+	StNoPass   = "BLOCKED_NO_PASSWORD" //nolint:gosec // status name, not a credential
+	StExcluded = "EXCLUDED"
+
+	// Batch statuses that end a batch (pyr_distribution_batch.pdb_status).
+	StCancelled  = "CANCELLED"
+	StSuperseded = "SUPERSEDED"
+
 	reasonDupe  = "EMAIL_DUPLIKAT"
 	passHint    = "tanggal lahir Anda, format DDMMYYYY" //nolint:gosec // hint text, not a credential
 	auditEntity = "pyr_distribution_batch"
@@ -111,6 +116,10 @@ func (s *Service) createInTx(ctx context.Context, tx *sql.Tx, q report.Query, o 
 	if err != nil {
 		return err
 	}
+	superseded, err := s.supersedeStale(ctx, tx, q, src.RunID())
+	if err != nil {
+		return err
+	}
 	var existing int
 	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM payroll.pyr_distribution_batch
 WHERE pdb_company_id=$1 AND pdb_division=$2 AND pdb_doc_type=$3 AND pdb_yymm=$4 AND pdb_status NOT IN ('CANCELLED','SUPERSEDED')`,
@@ -135,7 +144,7 @@ WHERE pdb_company_id=$1 AND pdb_division=$2 AND pdb_doc_type=$3 AND pdb_yymm=$4 
 			count[strings.ToLower(e.email)]++
 		}
 	}
-	id, err := insertBatch(ctx, tx, q, src.RunID(), tmplID, len(niks))
+	id, err := insertBatch(ctx, tx, q, src.RunID(), tmplID, len(niks), superseded)
 	if err != nil {
 		return err
 	}
@@ -184,16 +193,17 @@ func classify(src *report.SlipSource, e empRow, nik string, count map[string]int
 
 func attachName(yymm int, nik string) string { return fmt.Sprintf("%d%s%s.pdf", yymm, docCode, nik) }
 
-func insertBatch(ctx context.Context, tx *sql.Tx, q report.Query, runID, tmplID int64, total int) (int64, error) {
+func insertBatch(ctx context.Context, tx *sql.Tx, q report.Query, runID, tmplID int64, total int, supersedes int64) (int64, error) {
 	actor, err := actorOf(ctx)
 	if err != nil {
 		return 0, err
 	}
 	var id int64
 	err = tx.QueryRowContext(ctx, `INSERT INTO payroll.pyr_distribution_batch
-(pdb_company_id, pdb_division, pdb_doc_type, pdb_yymm, pdb_run_id, pdb_status, pdb_total, pdb_mail_template_id, created_by)
-VALUES ($1,$2,$3,$4,$5,'DRAFT',$6,$7,$8) RETURNING pdb_id`,
-		q.CompanyID, q.Division, DocType, q.YYMM, runID, total, tmplID, actor).Scan(&id)
+(pdb_company_id, pdb_division, pdb_doc_type, pdb_yymm, pdb_run_id, pdb_status, pdb_total, pdb_mail_template_id, created_by,
+ pdb_is_revision, pdb_supersedes_batch_id)
+VALUES ($1,$2,$3,$4,$5,'DRAFT',$6,$7,$8,$9::bigint IS NOT NULL,$9) RETURNING pdb_id`,
+		q.CompanyID, q.Division, DocType, q.YYMM, runID, total, tmplID, actor, sql.NullInt64{Int64: supersedes, Valid: supersedes > 0}).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("insert batch: %w", err)
 	}
