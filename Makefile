@@ -123,6 +123,16 @@ finance-docker-compose-down:
 # Migrate/seed: <svc>_owner direct on :5440. Dev passwords only: dev_<role>.
 # =============================================================================
 
+# macOS colima: use its socket when DOCKER_HOST is unset and the default socket does not answer.
+ifeq ($(origin DOCKER_HOST),undefined)
+COLIMA_SOCK := $(HOME)/.colima/default/docker.sock
+ifneq ($(wildcard $(COLIMA_SOCK)),)
+ifneq ($(shell docker info >/dev/null 2>&1 && echo ok),ok)
+export DOCKER_HOST := unix://$(COLIMA_SOCK)
+endif
+endif
+endif
+
 V2_COMPOSE  := docker compose -f docker-compose.v2.yaml
 V2_PG       := docker exec -i goapps-v2-postgres psql -X -q -v ON_ERROR_STOP=1 -U postgres
 V2_SERVICES := iam finance ppc
