@@ -208,6 +208,8 @@ IAM default DATABASE_URL: `postgres://iam:iam123@localhost:5435/iam_db?sslmode=d
 
 > Note (ADR 0001): these are legacy single-service dev DSNs. Staging/prod (VPS) use one DB per service with `<svc>_owner` / `<svc>_app` roles, never a superuser; the local stack mirroring the VPS is `docker-compose.v2.yaml` (`make v2-up`, env in `deploy/local-v2/env/<svc>.env`).
 
+> Local data refresh: `make v2-sync` pulls the weekly SANITIZED developer snapshot from staging (rsync, resumable, restore inside the container) - see `docs/local-db-sync.md`. `make v2-refresh` (direct pg_dump stream) is LAN-only.
+
 ### Docker (local infra)
 
 ```bash
