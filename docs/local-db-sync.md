@@ -22,7 +22,7 @@ Required tools: `bash`, `docker`, `ssh`, `rsync`, `sha256sum` or `shasum`. No lo
 
 | OS | Docker |
 |----|--------|
-| macOS | `brew install colima docker docker-compose rsync` then `colima start`. The script auto-detects `~/.colima/default/docker.sock`. |
+| macOS | `brew install colima docker docker-compose rsync` (GNU rsync from brew is needed for resumable downloads; macOS built-in openrsync cannot resume) then `colima start`. The script auto-detects `~/.colima/default/docker.sock`. |
 | Ubuntu | Docker Engine (`apt install docker.io docker-compose-v2 rsync`), add yourself to the `docker` group. |
 | Windows | WSL2 Ubuntu + Docker Desktop (enable WSL integration for your distro). Run everything inside the WSL shell, and keep the repo and cache inside the WSL filesystem (not `/mnt/c`). |
 
@@ -50,7 +50,7 @@ Timing: the download is bound by your link/VPN speed (slim is a fraction of full
 ## After sync
 
 - Application logins in the synced data now use the shared staging password: password manager entry `goapps/staging/app-default-password`.
-- DataGrip/other connections (`ilham` / `dev_ilham`, etc.) are unchanged; run `make v2-migrate` happened automatically and re-applied grants.
+- DataGrip/other connections (`ilham` / `dev_ilham`, etc.) are unchanged; `make v2-migrate` runs automatically at the end of the sync and re-applies grants.
 
 ## Troubleshooting
 
@@ -62,7 +62,8 @@ Timing: the download is bound by your link/VPN speed (slim is a fraction of full
 | `checksum mismatch` | The bad file was removed from the cache; re-run `make v2-sync` |
 | `REFUSING ... not 'sanitized p9'` | Do NOT work around it. Tell the admin; the snapshot is unsafe |
 | not enough disk | Need ~3x the snapshot size free; use `slim`, free space, or set `DEVSNAP_CACHE` |
-| `pg_restore ... errors` | Local DB is left untouched; check the message (version mismatch, disk). Re-run |
+| `pg_restore ... errors` | All-or-nothing: all three databases are restored as `*_refresh` first and swapped in one transaction, so on any error ALL local databases stay untouched. Check the message (version mismatch, disk) and re-run |
+| `not enough disk inside container` | Colima: `colima stop && colima start --disk <GB>`; Docker Desktop: Settings > Resources |
 | snapshot missing / rsync error | Snapshot is built Sunday ~09:30 WIB; during build or refresh it may be briefly unavailable, retry |
 | `v2-migrate` fails | Install `migrate` CLI; then run `make v2-migrate` manually |
 

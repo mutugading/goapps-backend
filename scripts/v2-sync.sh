@@ -11,6 +11,7 @@
 #   DEVSNAP_HOST (192.168.0.60)  DEVSNAP_USER (devsync)  DEVSNAP_KEY (optional ssh key path)
 #   DEVSNAP_PROFILE (slim)       DEVSNAP_CACHE (${XDG_CACHE_HOME:-$HOME/.cache}/goapps/devsnap)
 #   V2_PG_CONTAINER (goapps-v2-postgres)
+#   V2_SYNC_SKIP_MIGRATE=1  TEST ONLY: skip migrations (grants are still applied)
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -48,7 +49,7 @@ while [ $# -gt 0 ]; do
 done
 case "$PROFILE" in slim|full) ;; *) die "profile must be slim or full, got '$PROFILE'" ;; esac
 
-if [ -z "${DOCKER_HOST:-}" ] && [ -S "$HOME/.colima/default/docker.sock" ]; then
+if [ -z "${DOCKER_HOST:-}" ] && ! docker info >/dev/null 2>&1 && [ -S "$HOME/.colima/default/docker.sock" ]; then
   export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"
 fi
 
@@ -68,14 +69,36 @@ for t in docker ssh rsync; do command -v "$t" >/dev/null 2>&1 || die "required t
 docker inspect -f '{{.State.Running}}' "$CONTAINER" 2>/dev/null | grep -q true \
   || die "container $CONTAINER is not running. Start it with: make v2-up   (Docker running? DOCKER_HOST=${DOCKER_HOST:-default})"
 
-SSH_OPTS="-o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=4"
-if [ -n "$KEY" ]; then SSH_OPTS="$SSH_OPTS -i $KEY -o IdentitiesOnly=yes"; fi
-SSH_CMD="ssh $SSH_OPTS"
+# ssh wrapper script: keeps key paths with spaces intact (rsync -e takes one string)
+SSH_WRAP="$WORK/ssh-wrap"
+{
+  echo '#!/bin/sh'
+  printf 'exec ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=4'
+  if [ -n "$KEY" ]; then printf ' -i "%s" -o IdentitiesOnly=yes' "$KEY"; fi
+  echo ' "$@"'
+} > "$SSH_WRAP"
+chmod 700 "$SSH_WRAP"
+SSH_CMD="$SSH_WRAP"
 REMOTE="$RUSER@$HOST"
+
+# rsync: prefer GNU rsync >= 3 (resumable --append-verify); macOS ships openrsync
+RSYNC=""
+for c in "$(command -v rsync 2>/dev/null || true)" /opt/homebrew/bin/rsync /usr/local/bin/rsync; do
+  [ -n "$c" ] && [ -x "$c" ] || continue
+  if "$c" --version 2>&1 | head -n1 | grep -qi openrsync; then continue; fi
+  RSYNC="$c"; break
+done
+if [ -n "$RSYNC" ]; then
+  RSYNC_FLAGS="--partial --append-verify --progress"
+else
+  RSYNC="$(command -v rsync)"
+  RSYNC_FLAGS="--partial --progress"
+  echo "  WARNING: GNU rsync not found (openrsync lacks --append). Install it for resumable downloads: brew install rsync"
+fi
 
 # Fetch MANIFEST + SHA256SUMS (also the reachability test)
 mkdir -p "$WORK/meta"
-if ! rsync -q -e "$SSH_CMD" "$REMOTE:MANIFEST" "$REMOTE:SHA256SUMS" "$WORK/meta/" 2>"$WORK/rsync.err"; then
+if ! "$RSYNC" -q -e "$SSH_CMD" "$REMOTE:latest/MANIFEST" "$WORK/meta/" 2>"$WORK/rsync.err"; then
   sed 's/^/  /' "$WORK/rsync.err" >&2 || true
   if grep -qi "permission denied" "$WORK/rsync.err"; then
     die "permission denied (publickey): your key is not authorised. Send your PUBLIC key to the admin (DEVSNAP_KEY=path to pick another key)."
@@ -88,13 +111,20 @@ step 2 "read MANIFEST"
 MAN="$WORK/meta/MANIFEST"
 SRC_RUN="$(sed -n 's/^source_run=//p' "$MAN" | head -n1)"
 case "$SRC_RUN" in ""|*[!A-Za-z0-9._-]*) die "MANIFEST has missing/unsafe source_run '$SRC_RUN'" ;; esac
-echo "  source_run: $SRC_RUN   created: $(sed -n 's/^created=//p' "$MAN" | head -n1)"
+SNAP_DIR="$(sed -n 's/^dir=//p' "$MAN" | head -n1)"
+case "$SNAP_DIR" in ""|*[!A-Za-z0-9._-]*) die "MANIFEST has missing/unsafe dir '$SNAP_DIR'" ;; esac
+# SHA256SUMS from the real dir (not via the 'latest' symlink) so a concurrent swap cannot mix snapshots
+"$RSYNC" -q -e "$SSH_CMD" "$REMOTE:$SNAP_DIR/SHA256SUMS" "$REMOTE:$SNAP_DIR/MANIFEST" "$WORK/meta/" 2>"$WORK/rsync.err" \
+  || die "cannot fetch $SNAP_DIR/SHA256SUMS (snapshot replaced meanwhile? re-run)"
+SRC_RUN="$(sed -n 's/^source_run=//p' "$MAN" | head -n1)"
+echo "  source_run: $SRC_RUN   dir: $SNAP_DIR   created: $(sed -n 's/^created=//p' "$MAN" | head -n1)"
 
 # Sanity gate #1: every db comment must be sanitized p9
 for s in $SERVICES; do
   c="$(sed -n "s/^comment\.${s}_db=//p" "$MAN" | head -n1)"
+  c3="$(echo "$c" | awk '{print $3}')"
   case "$c" in
-    "sanitized p9"*) ;;
+    "sanitized p9"*) [ "$c3" = "$SRC_RUN" ] || die "REFUSING ${s}_db: comment source_run '$c3' != MANIFEST source_run '$SRC_RUN'" ;;
     *) die "REFUSING ${s}_db: MANIFEST comment is not 'sanitized p9...' (got: '$c'). Raw data must never reach a laptop." ;;
   esac
 done
@@ -106,6 +136,7 @@ while read -r path size; do
   [ -n "$path" ] || continue
   case "$path" in */*.dump) ;; *) die "unexpected file in MANIFEST: $path" ;; esac
   case "$path" in *..*|/*) die "unsafe path in MANIFEST: $path" ;; esac
+  grep -q "^[0-9a-fA-F]\{64\}  *[*]\{0,1\}${path}\$" "$WORK/meta/SHA256SUMS" || die "MANIFEST file $path is not covered by SHA256SUMS"
   FILES="$FILES $path"; TOTAL_BYTES=$((TOTAL_BYTES + size))
 done <<EOT
 $(sed -n "s/^file\.${PROFILE}=//p" "$MAN")
@@ -117,7 +148,7 @@ done
 echo "  download size: $((TOTAL_BYTES / 1048576)) MiB"
 
 # Disk space: restored DB is larger than the compressed dump; require 3x
-RUN_DIR="$CACHE/$SRC_RUN"
+RUN_DIR="$CACHE/$SNAP_DIR"
 mkdir -p "$RUN_DIR/$PROFILE"
 FREE_KB="$(df -Pk "$RUN_DIR" | awk 'NR==2{print $4}')"
 NEED_KB=$((TOTAL_BYTES * 3 / 1024))
@@ -125,10 +156,17 @@ NEED_KB=$((TOTAL_BYTES * 3 / 1024))
 
 cp "$WORK/meta/MANIFEST" "$WORK/meta/SHA256SUMS" "$RUN_DIR/"
 
+# container disk: restored data needs far more than the compressed dumps
+CDATA="$(docker exec "$CONTAINER" psql -X -U postgres -Atc 'SHOW data_directory' 2>/dev/null || true)"
+CFREE_KB=""
+if [ -n "$CDATA" ]; then CFREE_KB="$(docker exec "$CONTAINER" df -Pk "$CDATA" 2>/dev/null | awk 'NR==2{print $4}' || true)"; fi
+if [ -n "$CFREE_KB" ]; then
+  CNEED_KB=$((TOTAL_BYTES * 5 / 1024))
+  [ "$CFREE_KB" -ge "$CNEED_KB" ] || die "not enough disk inside $CONTAINER: free $((CFREE_KB / 1024)) MiB, need ~$((CNEED_KB / 1024)) MiB (5x snapshot). Colima: 'colima stop && colima start --disk <GB>'; Docker Desktop: Settings > Resources > Disk image size."
+fi
+
 # ---------------------------------------------------------------- 3. download
 step 3 "download (resumable; cached files that already match are skipped)"
-RSYNC_APPEND="--append-verify"
-rsync --help 2>&1 | grep -q -- "--append-verify" || RSYNC_APPEND="--append"
 
 sum_of() { # path-relative-to-RUN_DIR -> expected sha
   awk -v p="$1" '$2==p || $2=="*"p {print $1}' "$RUN_DIR/SHA256SUMS"
@@ -144,7 +182,7 @@ for f in $FILES; do
   if file_ok "$f"; then echo "  cached ok: $f"; continue; fi
   echo "  fetching: $f"
   # shellcheck disable=SC2086
-  rsync -e "$SSH_CMD" --partial $RSYNC_APPEND --progress "$REMOTE:$f" "$RUN_DIR/$PROFILE/" \
+  "$RSYNC" -e "$SSH_CMD" $RSYNC_FLAGS "$REMOTE:$SNAP_DIR/$f" "$RUN_DIR/$PROFILE/" \
     || die "download of $f failed (VPN dropped?). Re-run to resume."
 done
 
@@ -162,7 +200,7 @@ done
 if [ "$KEEP_CACHE" -eq 0 ]; then
   for d in "$CACHE"/*/; do
     [ -d "$d" ] || continue
-    [ "$(basename "$d")" = "$SRC_RUN" ] || { echo "  prune old cache: $d"; rm -rf "$d"; }
+    [ "$(basename "$d")" = "$SNAP_DIR" ] || { echo "  prune old cache: $d"; rm -rf "$d"; }
   done
 fi
 
@@ -184,30 +222,69 @@ if [ "$YES" -ne 1 ]; then
 fi
 
 # ---------------------------------------------------------------- 6. restore
-step 6 "restore into <db>_refresh and swap"
+step 6 "restore all into <db>_refresh, then swap in one transaction"
 loc_psql() { docker exec -i "$CONTAINER" psql -X -q -v ON_ERROR_STOP=1 -U postgres "$@"; }
+db_exists() { [ "$(loc_psql -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname='$1'")" = "1" ]; }
+
+# recovery from an interrupted earlier swap: _old without live -> rename back (never drop); both -> drop _old
 for s in $SERVICES; do
-  db="${s}_db"; new="${db}_refresh"; old="${db}_old"
+  db="${s}_db"
+  if db_exists "${db}_old"; then
+    if db_exists "$db"; then
+      loc_psql -d postgres -c "DROP DATABASE ${db}_old WITH (FORCE)"
+    else
+      echo "  recovering ${db}: renaming ${db}_old back"
+      loc_psql -d postgres -c "ALTER DATABASE ${db}_old RENAME TO ${db}"
+    fi
+  fi
+done
+
+drop_refresh() {
+  for x in $SERVICES; do loc_psql -d postgres -c "DROP DATABASE IF EXISTS ${x}_db_refresh WITH (FORCE)" >/dev/null 2>&1 || true; done
+}
+for s in $SERVICES; do
+  db="${s}_db"; new="${db}_refresh"
   echo "== $db: restore into $new"
-  loc_psql -d postgres -c "DROP DATABASE IF EXISTS ${new}" -c "DROP DATABASE IF EXISTS ${old}" \
-           -c "CREATE DATABASE ${new} OWNER ${s}_owner"
+  loc_psql -d postgres -c "DROP DATABASE IF EXISTS ${new} WITH (FORCE)" -c "CREATE DATABASE ${new} OWNER ${s}_owner" \
+    || { drop_refresh; die "cannot create $new; local databases untouched"; }
   if ! docker exec -i "$CONTAINER" pg_restore -U postgres --no-owner --no-acl --role="${s}_owner" -d "$new" \
         < "$RUN_DIR/$PROFILE/${db}.dump"; then
-    loc_psql -d postgres -c "DROP DATABASE IF EXISTS ${new}" >/dev/null || true
-    die "pg_restore of $db reported errors; local $db left untouched"
+    drop_refresh
+    die "pg_restore of $db reported errors; all _refresh databases dropped, ALL local databases untouched"
   fi
-  echo "== $db: swap"
-  loc_psql -d postgres \
-    -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname IN ('${db}','${new}') AND pid <> pg_backend_pid()" \
-    -c "ALTER DATABASE ${db} RENAME TO ${old}" \
-    -c "ALTER DATABASE ${new} RENAME TO ${db}" \
-    -c "DROP DATABASE ${old}"
 done
+
+echo "== swap (all three in one transaction)"
+SWAP_SQL="$WORK/swap.sql"
+{
+  for s in $SERVICES; do
+    echo "ALTER DATABASE ${s}_db ALLOW_CONNECTIONS false;"
+    echo "ALTER DATABASE ${s}_db_refresh ALLOW_CONNECTIONS false;"
+  done
+  echo "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname IN ('iam_db','finance_db','ppc_db','iam_db_refresh','finance_db_refresh','ppc_db_refresh') AND pid <> pg_backend_pid();"
+  echo "BEGIN;"
+  for s in $SERVICES; do echo "ALTER DATABASE ${s}_db RENAME TO ${s}_db_old;"; done
+  for s in $SERVICES; do echo "ALTER DATABASE ${s}_db_refresh RENAME TO ${s}_db;"; done
+  echo "COMMIT;"
+  for s in $SERVICES; do echo "ALTER DATABASE ${s}_db ALLOW_CONNECTIONS true;"; done
+} > "$SWAP_SQL"
+if ! docker exec -i "$CONTAINER" psql -X -q -v ON_ERROR_STOP=1 -U postgres -d postgres < "$SWAP_SQL" >/dev/null; then
+  # transaction rolled back: re-enable connections on whatever is live
+  for s in $SERVICES; do loc_psql -d postgres -c "ALTER DATABASE ${s}_db ALLOW_CONNECTIONS true" >/dev/null 2>&1 || true; done
+  drop_refresh
+  die "swap failed and was rolled back; local databases unchanged"
+fi
+for s in $SERVICES; do loc_psql -d postgres -c "DROP DATABASE IF EXISTS ${s}_db_old WITH (FORCE)"; done
 
 # ---------------------------------------------------------------- 7. migrate + report
 step 7 "make v2-migrate (pending migrations + grants)"
 if [ "${V2_SYNC_SKIP_MIGRATE:-0}" = "1" ]; then
-  echo "  skipped (V2_SYNC_SKIP_MIGRATE=1)"
+  echo "  migrations skipped (V2_SYNC_SKIP_MIGRATE=1, test only); applying grants"
+  if [ "$CONTAINER" = "goapps-v2-postgres" ]; then
+    make -C "$REPO_ROOT" --no-print-directory v2-grants || die "v2-grants failed"
+  else
+    echo "  (custom container $CONTAINER: make v2-grants targets goapps-v2-postgres only, not run)"
+  fi
 else
   make -C "$REPO_ROOT" --no-print-directory v2-migrate \
     || die "restore done but v2-migrate failed (is the 'migrate' CLI installed?). Fix and run: make v2-migrate"
