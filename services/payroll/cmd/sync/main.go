@@ -1,4 +1,4 @@
-// Package main is the payroll sync/ETL entry point (D-01, D-22). Subcommands: migrate, employees, inputs, att, snapshot, att-legacy, salary-legacy, thr-legacy, att-legacy-fail, gl-setup, fx-rate, cost-group.
+// Package main is the payroll sync/ETL entry point (D-01, D-22). Subcommands: dummy-period, dummy-janbase, migrate, employees, inputs, att, snapshot, att-legacy, salary-legacy, thr-legacy, att-legacy-fail, gl-setup, fx-rate, cost-group.
 package main
 
 import (
@@ -34,6 +34,8 @@ var commands = map[string]func([]string) error{
 	"gl-setup":        glSetup,
 	"fx-rate":         fxRate,
 	"cost-group":      costGroup,
+	"dummy-period":    dummyPeriod,
+	"dummy-janbase":   dummyJanBase,
 }
 
 func main() {
@@ -48,6 +50,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, "       sync gl-setup -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-rows 1338] [-allow-exceptions]  (MGT_PAYROLL_SETUP → pyr_gl_setup + pyr_gl_group_map; sesudah migrate, 11§4.5)")
 		fmt.Fprintln(os.Stderr, "       sync cost-group -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-rows 41] [-allow-exceptions]  (FM_DEPARTMENT.DEPT_FIELD_01 → pyr_employee.pe_cost_group per dept; sesudah employees, D-63/T028q)")
 		fmt.Fprintln(os.Stderr, "       sync fx-rate -dir <psv dir> -dsn <payroll_etl dsn> [-expect-rows 297] [-allow-exceptions]  (FM_EXCHANGE_RATE IDR→USD BOOK → pyr_fx_rate; spool dengan SET NUMWIDTH 40, D-63)")
+		fmt.Fprintln(os.Stderr, "       sync dummy-period -dsn <payroll_etl dsn> -from 202610 -to 202611 -division SOLO|JAKARTA [-company 1] [-workdays-delta N] [-purge -owner-dsn <payroll_owner/migrator dsn>]  (klon snapshot+attd_days+addition tanpa THR sebagai data uji D-64; HANYA DB salinan)")
+		fmt.Fprintln(os.Stderr, "       sync dummy-janbase -dsn <payroll_etl dsn> -yymm 202701 [-company 1]  (T901 = Σ TETAP bulan sebelumnya, valid yymm saja; D-64 (4); HANYA DB salinan)")
 		fmt.Fprintln(os.Stderr, "       sync inputs -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-addition 28464 -expect-abnormal 28550]")
 		fmt.Fprintln(os.Stderr, "       sync salary-legacy -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-main 91916 -expect-detail 2274418] [-allow-exceptions]")
 		fmt.Fprintln(os.Stderr, "       sync prune-excluded -owner-dsn <payroll_owner/migrator dsn> [-company 1] [-apply]  (hapus run LEGACY di luar cakupan D-35.1; default dry-run)")
@@ -580,4 +584,91 @@ func snapshot(args []string) error {
 			r.Division, r.YYMM, r.SnapshotID, r.BatchIDs, r.Rekap, r.Add, r.Sch, r.PremiFailNIKs, r.BerasFailNIKs, r.PeriodDayCount, r.Checksum)
 	}
 	return err
+}
+
+// dummyPeriod clones a real period into a synthetic one (D-64), or purges it with -purge (owner DSN, user decision batch T029a).
+func dummyPeriod(args []string) error {
+	fs := flag.NewFlagSet("dummy-period", flag.ExitOnError)
+	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl (klon)")
+	ownerDSN := fs.String("owner-dsn", os.Getenv("PAYROLL_OWNER_DSN"), "DSN pemilik tabel (payroll_migrator); hanya untuk -purge")
+	company := fs.Int("company", 1, "pyr_company.pco_company_id")
+	from := fs.Int("from", 0, "periode sumber YYYYMM (klon; mis. 202610)")
+	to := fs.Int("to", 0, "periode dummy YYYYMM (wajib)")
+	division := fs.String("division", "", "SOLO atau JAKARTA (wajib)")
+	delta := fs.Int("workdays-delta", 0, "tambahan pyr_attd_days dari periode sumber (mis. -1 untuk bulan 30 hari)")
+	purge := fs.Bool("purge", false, "hapus baris dummy periode -to (butuh -owner-dsn)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *company < 1 || *company > math.MaxInt16 {
+		return fmt.Errorf("-company %d di luar 1..%d", *company, math.MaxInt16)
+	}
+	if *to == 0 || *division == "" {
+		return fmt.Errorf("-to dan -division wajib")
+	}
+	var rep etl.DummyReport
+	var err error
+	if *purge {
+		if *ownerDSN == "" {
+			return fmt.Errorf("-purge butuh -owner-dsn (atau PAYROLL_OWNER_DSN): payroll_etl tidak punya DELETE")
+		}
+		db, oerr := sql.Open("pgx", *ownerDSN)
+		if oerr != nil {
+			return oerr
+		}
+		defer closeDB(db)
+		rep, err = etl.RunDummyPurge(context.Background(), db, int16(*company), *to, *division) //nolint:gosec // -company checked to 1..MaxInt16 above
+		if err == nil {
+			fmt.Printf("%-8s %d purge: snapshot=%d rows=%d addition=%d attd_days=%d\n", rep.Division, rep.YYMM, rep.SnapshotID, rep.Rows, rep.Additions, rep.AttdDays)
+		}
+		return err
+	}
+	if *dsn == "" || *from == 0 {
+		return fmt.Errorf("-dsn (atau PAYROLL_ETL_DSN) dan -from wajib")
+	}
+	db, err := sql.Open("pgx", *dsn)
+	if err != nil {
+		return err
+	}
+	defer closeDB(db)
+	rep, err = etl.RunDummyPeriod(context.Background(), db, etl.DummyPeriodQuery{
+		Company: int16(*company), From: *from, To: *to, Division: *division, WorkdaysDelta: *delta, //nolint:gosec // -company checked to 1..MaxInt16 above
+	})
+	if err == nil { // counts only (I25)
+		fmt.Printf("%-8s %d dari %d snapshot=%d rows=%d addition=%d attd_days=%d unchanged=%t\n", rep.Division, rep.YYMM, *from, rep.SnapshotID, rep.Rows, rep.Additions, rep.AttdDays, rep.Unchanged)
+	}
+	return err
+}
+
+// dummyJanBase seeds T901 for a January from the TETAP of the previous month (D-64 (4)).
+func dummyJanBase(args []string) error {
+	fs := flag.NewFlagSet("dummy-janbase", flag.ExitOnError)
+	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl")
+	company := fs.Int("company", 1, "pyr_company.pco_company_id")
+	yymm := fs.Int("yymm", 0, "periode Januari YYYYMM (wajib; mis. 202701)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *dsn == "" || *yymm == 0 {
+		return fmt.Errorf("-dsn (atau PAYROLL_ETL_DSN) dan -yymm wajib")
+	}
+	if *company < 1 || *company > math.MaxInt16 {
+		return fmt.Errorf("-company %d di luar 1..%d", *company, math.MaxInt16)
+	}
+	db, err := sql.Open("pgx", *dsn)
+	if err != nil {
+		return err
+	}
+	defer closeDB(db)
+	rep, err := etl.RunDummyJanBase(context.Background(), db, int16(*company), *yymm) //nolint:gosec // -company checked to 1..MaxInt16 above
+	if err == nil {
+		fmt.Printf("T901 %d dari TETAP %d: %d baris\n", rep.YYMM, rep.Source, rep.Written)
+	}
+	return err
+}
+
+func closeDB(db *sql.DB) {
+	if cerr := db.Close(); cerr != nil {
+		fmt.Fprintln(os.Stderr, "close:", cerr)
+	}
 }
