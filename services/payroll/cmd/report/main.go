@@ -1,14 +1,16 @@
 // Package main is the payroll report CLI (D-62 butir 3). Run by IT on the server as payroll_app with an explicit
-// scope; every export is written to pyr_audit_log. Subcommands: recon-komponen, reco, bank, slip.
+// scope; every export is written to pyr_audit_log. Subcommands: recon-komponen, reco, bank, slip, gl.
 package main
 
 import (
 	"bytes"
 	"context"
 	"database/sql"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // driver
@@ -24,10 +26,11 @@ const usage = `usage:
   report recon-komponen -yymm 202701 -division SOLO [-company 1] [-allow-open] [-actor cli-report] -out x.xlsx -dsn <payroll_app dsn>
   report reco -yymm 202701 -division SOLO [-company 1] [-allow-open] [-actor cli-report] -out x.xlsx -dsn <payroll_app dsn> [-pii-key K | PAYROLL_PII_KEY]
   report bank -yymm 202701 -division SOLO -transfer-date 2027-01-26 [-bank MANDIRI] [-company 1] [-allow-open] [-actor cli-report] -out x.xlsx -dsn <payroll_app dsn> [-pii-key K | PAYROLL_PII_KEY]  (teks surat: PAYROLL_REPORT_*)
+  report gl -yymm 202701 -division SOLO [-company 1] [-allow-open] [-actor cli-report] -out x.xlsx -dsn <payroll_app dsn>  (jurnal GL sheet upload, F-2)
   report slip -yymm 202701 -division SOLO [-nik N] [-nopassword] [-company 1] [-allow-open] [-actor cli-report] -out dir -dsn <payroll_app dsn>`
 
 func main() {
-	cmds := map[string]func(context.Context, []string) error{"recon-komponen": reconKomponen, "reco": reco, "bank": bank, "slip": slip}
+	cmds := map[string]func(context.Context, []string) error{"recon-komponen": reconKomponen, "reco": reco, "bank": bank, "slip": slip, "gl": gl}
 	var fn func(context.Context, []string) error
 	if len(os.Args) >= 2 {
 		fn = cmds[os.Args[1]]
@@ -340,4 +343,72 @@ func slip(ctx context.Context, args []string) error {
 		fmt.Printf("DILEWATI %s (pe_birth_date kosong; tindak lanjut HR)\n", n)
 	}
 	return nil
+}
+
+// gl writes the GAJI journal (F-2 sheet `upload` + Check, 11§4, D-63). An invalid journal (unmapped line, missing
+// sub-account, unbalanced, no BOOK rate) writes nothing and prints every problem. pyr_gl_export records the file hash.
+func gl(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("gl", flag.ContinueOnError)
+	yymm := fs.Int("yymm", 0, "periode yymm (wajib)")
+	division := fs.String("division", "", "divisi (wajib)")
+	company := fs.Int("company", 1, "pyr_company.pco_company_id")
+	allowOpen := fs.Bool("allow-open", false, "izinkan periode belum APPROVED (gladi; tercatat di audit)")
+	actor := fs.String("actor", "cli-report", "identitas aktor untuk audit")
+	out := fs.String("out", "", "berkas xlsx keluaran (wajib; berisi nominal gaji, jangan di-commit)")
+	dsn := fs.String("dsn", os.Getenv("PAYROLL_APP_DSN"), "DSN role payroll_app")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *yymm == 0 || anyEmpty(*division, *out, *dsn, *actor) {
+		return fmt.Errorf("-yymm, -division, -out, -actor, dan -dsn (atau PAYROLL_APP_DSN) wajib")
+	}
+	sc, err := scope.New(int16(*company), *division) //nolint:gosec // range checked by FK
+	if err != nil {
+		return err
+	}
+	raw, err := sql.Open("pgx", *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := raw.Close(); cerr != nil {
+			fmt.Fprintln(os.Stderr, "close:", cerr)
+		}
+	}()
+	ctx = scope.WithIdentity(ctx, scope.Identity{UserID: *actor, Scopes: []scope.Scope{sc}})
+	svc := report.NewService(postgres.NewDBFromSQL(raw), audit.NewWriter())
+	tmp := *out + ".tmp"                                                              // renamed only after pyr_gl_export and the audit row committed
+	j, err := svc.ExportGL(ctx, report.Query{CompanyID: int16(*company), YYMM: *yymm, //nolint:gosec // as above
+		Division: *division, AllowOpen: *allowOpen}, func(j report.GLJournal) ([]byte, error) {
+		var buf bytes.Buffer
+		if err := report.WriteGL(j, &buf); err != nil {
+			return nil, err
+		}
+		return buf.Bytes(), os.WriteFile(tmp, buf.Bytes(), 0o600)
+	})
+	if err == nil {
+		err = os.Rename(tmp, *out)
+	}
+	if err != nil {
+		if rerr := os.Remove(tmp); rerr != nil && !os.IsNotExist(rerr) {
+			fmt.Fprintln(os.Stderr, "remove tmp:", rerr)
+		}
+		return glProblems(err, *out)
+	}
+	fmt.Printf("out=%s baris=%d debit=%s credit=%s nik=%d\n", *out, len(j.Rows), j.Debit, j.Credit, j.NIKCount)
+	return nil
+}
+
+// glProblems writes the full problem list (with NIKs) to <out>.masalah.txt (0600) and returns the error, whose
+// message only counts per code, so no NIK reaches stderr.
+func glProblems(err error, out string) error {
+	var ge *report.GLError
+	if !errors.As(err, &ge) {
+		return err
+	}
+	f := out + ".masalah.txt"
+	if werr := os.WriteFile(f, []byte(strings.Join(ge.Details(), "\n")+"\n"), 0o600); werr != nil {
+		return fmt.Errorf("%w (daftar masalah gagal ditulis: %v)", err, werr) //nolint:errorlint // primary error wrapped
+	}
+	return fmt.Errorf("%w; daftar lengkap: %s", err, f)
 }
