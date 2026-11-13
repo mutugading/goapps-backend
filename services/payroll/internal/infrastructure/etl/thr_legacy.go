@@ -401,35 +401,10 @@ func (l *thrLoader) checkLoaded(ctx context.Context, g *thrGroup, p *thrPlan, ev
 
 // plan builds the COPY buffers of a validated event.
 func (l *thrLoader) plan(g *thrGroup, p *thrPlan, headID map[string]int64, sysids map[sysKey]int64) error {
-	mc := func(r []string, n string) string { return r[mustCol(l.mn, n)] }
-	dc := func(r []string, n string) string { return r[mustCol(l.dt, n)] }
 	for i, r := range g.heads {
-		nik := mc(r, "TM_NIK")
-		join, err := parseDate(mc(r, "TM_DATE_JOIN"))
-		if err != nil {
-			return fmt.Errorf("MAIN nik %s TM_DATE_JOIN: %w", nik, err)
-		}
-		if i == 0 { // event description/date = first MAIN row (14§4)
-			if p.eventDate, err = parseDate(mc(r, "TM_DATE")); err != nil {
-				return fmt.Errorf("MAIN nik %s TM_DATE: %w", nik, err)
-			}
-			p.desc = mc(r, "TM_DESCRIPTION")
-		}
-		tun, pot, rnd := zero0(mc(r, "TM_TOT_TUNJANGAN")), zero0(mc(r, "TM_TOT_POTONGAN")), zero0(mc(r, "TM_ROUNDING"))
-		if err := thrCheckMoney(nik, tun, pot, rnd); err != nil {
+		if err := l.planHead(i, r, p, headID); err != nil {
 			return err
 		}
-		if tot := mc(r, "TM_TOT_THR"); tot != "" {
-			net := decimal.RequireFromString(tun).Sub(decimal.RequireFromString(pot)).Sub(decimal.RequireFromString(rnd))
-			if t, err := decimal.NewFromString(tot); err == nil && !t.Equal(net) {
-				p.warnings = append(p.warnings, fmt.Sprintf("nik %s: TM_TOT_THR %s != tunjangan-potongan-rounding %s", nik, t.String(), net.String()))
-			}
-		}
-		copyRow(&p.heads, "@RUN@", strconv.FormatInt(headID[nik], 10), nik, mc(r, "TM_NAMA"), mc(r, "TM_DEPT"), mc(r, "TM_EMP_TYPE"), join,
-			mc(r, "TM_TAX_CODE"), mc(r, "TM_GAPOK"), tun, pot, rnd)
-		p.totT.add(tun)
-		p.totP.add(pot)
-		p.nHead++
 	}
 	if p.eventDate == "" {
 		_, to, err := periodRange(g.key.yymm)
@@ -444,49 +419,100 @@ func (l *thrLoader) plan(g *thrGroup, p *thrPlan, headID map[string]int64, sysid
 	}
 	seenSys := map[string]bool{}
 	for _, r := range g.lines {
-		nik := dc(r, "TD_NIK")
-		typ := strings.ToLower(dc(r, "TD_JENIS"))
-		id, err := strconv.Atoi(dc(r, "TD_NO"))
-		switch {
-		case typ != typeTunjangan && typ != typePotongan:
-			return fmt.Errorf("DETAIL nik %s TD_JENIS %q", nik, dc(r, "TD_JENIS"))
-		case err != nil:
-			return fmt.Errorf("DETAIL nik %s TD_NO %q", nik, dc(r, "TD_NO"))
-		case dc(r, "TD_AMOUNT") == "":
-			return fmt.Errorf("DETAIL nik %s %s %d: TD_AMOUNT kosong", nik, typ, id)
+		if err := l.planLine(r, p, headID, sysids, seenSys); err != nil {
+			return err
 		}
-		if _, err := decimal.NewFromString(dc(r, "TD_AMOUNT")); err != nil {
-			return fmt.Errorf("DETAIL nik %s TD_AMOUNT %q", nik, dc(r, "TD_AMOUNT"))
-		}
-		typName, tax := nameTunjangan, "t"
-		if typ == typePotongan {
-			typName, tax = namePotongan, "f"
-		}
-		sys, mapped := sysids[sysKey{typ, id}]
-		meta := map[string]any{"legacy": true}
-		sysCell := ""
-		if mapped {
-			sk := nik + "/" + strconv.FormatInt(sys, 10)
-			if seenSys[sk] { // uix_ptd_comp: two legacy ids of one NIK share a master component
-				mapped = false
-				p.coll++
-				meta["sysid_collision"] = sys
-			} else {
-				seenSys[sk] = true
-				sysCell = strconv.FormatInt(sys, 10)
-			}
-		}
-		if !mapped { // D-56: no master counterpart until B-THR
-			meta["legacy_unmapped"] = true
-			p.unmapped++
-		}
-		mj, merr := json.Marshal(meta)
-		if merr != nil {
-			return merr
-		}
-		copyRow(&p.lines, "@RUN@", strconv.FormatInt(headID[nik], 10), nik, sysCell, typName, strconv.Itoa(id), dc(r, "TD_URAIAN"), dc(r, "TD_AMOUNT"), tax, string(mj))
-		p.nLine++
 	}
+	return nil
+}
+
+// planHead validates one MAIN row and appends it to the head COPY buffer.
+func (l *thrLoader) planHead(i int, r []string, p *thrPlan, headID map[string]int64) error {
+	mc := func(n string) string { return r[mustCol(l.mn, n)] }
+	nik := mc("TM_NIK")
+	join, err := parseDate(mc("TM_DATE_JOIN"))
+	if err != nil {
+		return fmt.Errorf("MAIN nik %s TM_DATE_JOIN: %w", nik, err)
+	}
+	if i == 0 { // event description/date = first MAIN row (14§4)
+		if p.eventDate, err = parseDate(mc("TM_DATE")); err != nil {
+			return fmt.Errorf("MAIN nik %s TM_DATE: %w", nik, err)
+		}
+		p.desc = mc("TM_DESCRIPTION")
+	}
+	tun, pot, rnd := zero0(mc("TM_TOT_TUNJANGAN")), zero0(mc("TM_TOT_POTONGAN")), zero0(mc("TM_ROUNDING"))
+	if err := thrCheckMoney(nik, tun, pot, rnd); err != nil {
+		return err
+	}
+	if tot := mc("TM_TOT_THR"); tot != "" {
+		net := decimal.RequireFromString(tun).Sub(decimal.RequireFromString(pot)).Sub(decimal.RequireFromString(rnd))
+		if t, err := decimal.NewFromString(tot); err == nil && !t.Equal(net) {
+			p.warnings = append(p.warnings, fmt.Sprintf("nik %s: TM_TOT_THR %s != tunjangan-potongan-rounding %s", nik, t.String(), net.String()))
+		}
+	}
+	copyRow(&p.heads, "@RUN@", strconv.FormatInt(headID[nik], 10), nik, mc("TM_NAMA"), mc("TM_DEPT"), mc("TM_EMP_TYPE"), join,
+		mc("TM_TAX_CODE"), mc("TM_GAPOK"), tun, pot, rnd)
+	p.totT.add(tun)
+	p.totP.add(pot)
+	p.nHead++
+	return nil
+}
+
+// thrLineKind validates a DETAIL row's type, id and amount.
+func (l *thrLoader) thrLineKind(r []string) (nik, typ string, id int, err error) {
+	dc := func(n string) string { return r[mustCol(l.dt, n)] }
+	nik = dc("TD_NIK")
+	typ = strings.ToLower(dc("TD_JENIS"))
+	id, aerr := strconv.Atoi(dc("TD_NO"))
+	switch {
+	case typ != typeTunjangan && typ != typePotongan:
+		return nik, typ, id, fmt.Errorf("DETAIL nik %s TD_JENIS %q", nik, dc("TD_JENIS"))
+	case aerr != nil:
+		return nik, typ, id, fmt.Errorf("DETAIL nik %s TD_NO %q", nik, dc("TD_NO"))
+	case dc("TD_AMOUNT") == "":
+		return nik, typ, id, fmt.Errorf("DETAIL nik %s %s %d: TD_AMOUNT kosong", nik, typ, id)
+	}
+	if _, derr := decimal.NewFromString(dc("TD_AMOUNT")); derr != nil {
+		return nik, typ, id, fmt.Errorf("DETAIL nik %s TD_AMOUNT %q", nik, dc("TD_AMOUNT"))
+	}
+	return nik, typ, id, nil
+}
+
+// planLine validates one DETAIL row, resolves its master component (D-56) and appends it to the line COPY buffer.
+func (l *thrLoader) planLine(r []string, p *thrPlan, headID map[string]int64, sysids map[sysKey]int64, seenSys map[string]bool) error {
+	dc := func(n string) string { return r[mustCol(l.dt, n)] }
+	nik, typ, id, err := l.thrLineKind(r)
+	if err != nil {
+		return err
+	}
+	typName, tax := nameTunjangan, "t"
+	if typ == typePotongan {
+		typName, tax = namePotongan, "f"
+	}
+	sys, mapped := sysids[sysKey{typ, id}]
+	meta := map[string]any{"legacy": true}
+	sysCell := ""
+	if mapped {
+		sk := nik + "/" + strconv.FormatInt(sys, 10)
+		if seenSys[sk] { // uix_ptd_comp: two legacy ids of one NIK share a master component
+			mapped = false
+			p.coll++
+			meta["sysid_collision"] = sys
+		} else {
+			seenSys[sk] = true
+			sysCell = strconv.FormatInt(sys, 10)
+		}
+	}
+	if !mapped { // D-56: no master counterpart until B-THR
+		meta["legacy_unmapped"] = true
+		p.unmapped++
+	}
+	mj, merr := json.Marshal(meta)
+	if merr != nil {
+		return merr
+	}
+	copyRow(&p.lines, "@RUN@", strconv.FormatInt(headID[nik], 10), nik, sysCell, typName, strconv.Itoa(id), dc("TD_URAIAN"), dc("TD_AMOUNT"), tax, string(mj))
+	p.nLine++
 	return nil
 }
 
