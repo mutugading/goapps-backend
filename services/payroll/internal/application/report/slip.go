@@ -90,6 +90,94 @@ func BuildSlip(d RunData, e Emp, x slipExtra, company, division, periodName stri
 	return s
 }
 
+// PeriodName renders 202701 as "Januari 2027".
+func PeriodName(yymm int) string {
+	months := []string{"Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"}
+	m := yymm % 100
+	if m < 1 || m > 12 {
+		return fmt.Sprint(yymm)
+	}
+	return fmt.Sprintf("%s %d", months[m-1], 2000+yymm/100)
+}
+
+// SlipSource renders the slips of one loaded run (cmd/mailer renders per item without reloading the run).
+type SlipSource struct {
+	d          RunData
+	company    string
+	policy     string
+	approvedAt time.Time
+	extra      map[string]slipExtra
+	idx        map[string]int
+	division   string
+}
+
+// LoadSlipSource loads the ACTIVE run of q (same checks as Load) and the slip header data inside tx.
+func LoadSlipSource(ctx context.Context, tx *sql.Tx, q Query) (*SlipSource, error) {
+	d, err := Load(ctx, tx, q)
+	if err != nil {
+		return nil, err
+	}
+	company, policy, approvedAt, err := slipHeader(ctx, tx, q, d.RunID)
+	if err != nil {
+		return nil, err
+	}
+	extra, err := loadSlipExtra(ctx, tx, q, d.RunID)
+	if err != nil {
+		return nil, err
+	}
+	idx := make(map[string]int, len(d.Emps))
+	for i, e := range d.Emps {
+		idx[e.NIK] = i
+	}
+	return &SlipSource{d: d, company: company, policy: policy, approvedAt: approvedAt, extra: extra, idx: idx, division: q.Division}, nil
+}
+
+// NIKs lists the employees of the run in NIK order.
+func (s *SlipSource) NIKs() []string {
+	out := make([]string, len(s.d.Emps))
+	for i, e := range s.d.Emps {
+		out[i] = e.NIK
+	}
+	return out
+}
+
+// Nama is the employee name on the slip ("" for an unknown NIK).
+func (s *SlipSource) Nama(nik string) string {
+	if i, ok := s.idx[nik]; ok {
+		return s.d.Emps[i].Nama
+	}
+	return ""
+}
+
+// HasBirthDate reports whether the password can be derived for nik.
+func (s *SlipSource) HasBirthDate(nik string) bool {
+	x, ok := s.extra[nik]
+	return ok && x.DOB != nil && !x.DOB.IsZero()
+}
+
+// RunID is the run the slips come from.
+func (s *SlipSource) RunID() int64 { return s.d.RunID }
+
+// Render returns the plain PDF (for the content hash) and the password-protected PDF of nik. A missing birth date
+// yields pdf.ErrNoBirthDate; an unknown NIK is an error.
+func (s *SlipSource) Render(nik, periodName string) (plain, enc []byte, err error) {
+	i, ok := s.idx[nik]
+	if !ok {
+		return nil, nil, fmt.Errorf("NIK %s tidak ada di run", nik)
+	}
+	x := s.extra[nik]
+	plain, err = pdf.Render(BuildSlip(s.d, s.d.Emps[i], x, s.company, s.division, periodName, s.approvedAt))
+	if err != nil {
+		return nil, nil, err
+	}
+	pw, err := pdf.Password(s.policy, x.DOB)
+	if err != nil {
+		return nil, nil, err
+	}
+	enc, err = pdf.Encrypt(plain, pw)
+	return plain, enc, err
+}
+
 // stagedFiles holds files written under a .tmp name until the audit row has committed.
 type stagedFiles struct{ finals []string }
 

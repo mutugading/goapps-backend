@@ -287,16 +287,6 @@ func commitBankFiles(out string, withPre bool) error {
 	return nil
 }
 
-// periodName renders 202701 as "Januari 2027".
-func periodName(yymm int) string {
-	months := []string{"Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"}
-	m := yymm % 100
-	if m < 1 || m > 12 {
-		return fmt.Sprint(yymm)
-	}
-	return fmt.Sprintf("%s %d", months[m-1], 2000+yymm/100)
-}
-
 func slip(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("slip", flag.ContinueOnError)
 	yymm := fs.Int("yymm", 0, "periode yymm (wajib)")
@@ -334,7 +324,7 @@ func slip(ctx context.Context, args []string) error {
 	svc := report.NewService(postgres.NewDBFromSQL(raw), audit.NewWriter())
 	res, err := svc.ExportSlips(ctx, report.Query{CompanyID: int16(*company), YYMM: *yymm, //nolint:gosec // as above
 		Division: *division, AllowOpen: *allowOpen},
-		report.SlipOptions{NIK: *nik, NoPassword: *noPassword, OutDir: *out, PeriodName: periodName(*yymm)})
+		report.SlipOptions{NIK: *nik, NoPassword: *noPassword, OutDir: *out, PeriodName: report.PeriodName(*yymm)})
 	if err != nil {
 		return err
 	}
