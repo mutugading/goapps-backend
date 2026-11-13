@@ -112,7 +112,7 @@ type empRow struct {
 }
 
 func (s *Service) createInTx(ctx context.Context, tx *sql.Tx, q report.Query, o CreateOptions, res *CreateResult) error {
-	src, err := report.LoadSlipSource(ctx, tx, q)
+	src, err := report.LoadSlipSource(ctx, tx, q, report.SlipConfig{})
 	if err != nil {
 		return err
 	}

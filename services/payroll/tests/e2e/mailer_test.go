@@ -21,6 +21,8 @@ import (
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/smtp"
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
+	"github.com/rs/zerolog"
+	zlog "github.com/rs/zerolog/log"
 )
 
 // T028g: mailer outbox against PG18 as payroll_app with an in-process fake SMTP server.
@@ -29,6 +31,7 @@ const (
 	mail2YYMM = 203606
 	mail3YYMM = 203607
 	mail4YYMM = 203604
+	mail5YYMM = 203702
 )
 
 type fakeSMTP struct {
@@ -489,7 +492,7 @@ func TestMailer_SlipPII(t *testing.T) {
 		t.Fatalf("PII di log item: %s", got)
 	}
 
-	// resend renders with the same full slip and also needs the key
+	// resend itself only queues (no rendering, so no key); the send of that item renders the full slip and needs the key
 	if _, err := svc.Resend(ctx, distribution.ResendOptions{BatchID: b, NIK: "ZREP0001", Reason: "uji PII", Query: q}); err != nil {
 		t.Fatal(err)
 	}
@@ -614,5 +617,94 @@ func TestMailer_CancelAndSupersede(t *testing.T) {
 	res, err := svc.Send(ctx, sendOpts(cr3.BatchID))
 	if err != nil || res.Sent != 2 {
 		t.Fatalf("send batch revisi %+v %v", res, err)
+	}
+}
+
+// T028o3: send decrypts NPWP/account per item. A corrupt ciphertext of an employee without a mail address (never
+// queued) does not matter; one of a queued employee fails only that item; neither the item error, the audit log, nor
+// the application log carries the PII key or any NPWP/account (also on an SMTP failure).
+func TestMailer_SlipPIIPerItem(t *testing.T) {
+	seedReportRun(t, mail5YYMM, "APPROVED")
+	y := itoa(mail5YYMM)
+	for _, q := range []string{
+		`INSERT INTO payroll.pyr_slip_password_policy (pspp_company_id, pspp_valid_from, pspp_policy_code, pspp_status, created_by, approved_by)
+		 VALUES (1, DATE '2020-01-01', 'DOB_DDMMYYYY', 'ACTIVE', 'test', 'system') ON CONFLICT DO NOTHING`,
+		`INSERT INTO payroll.pyr_mail_template (pmt_company_id, pmt_doc_type, pmt_version, pmt_subject, pmt_body_html, pmt_body_text, pmt_status, created_by, approved_by)
+		 VALUES (1,'SLIP_GAJI',1,'Slip {{.PeriodName}}','<p>{{.Nama}}</p>','{{.Nama}}','ACTIVE','t','s') ON CONFLICT DO NOTHING`,
+		`INSERT INTO payroll.pyr_salary_head (psh_run_id, psh_company_id, psh_nik, psh_yymm, psh_division, psh_nama, psh_tot_tunjangan, psh_tot_potongan, psh_rounding)
+		 SELECT psh_run_id,1,n.nik,psh_yymm,'SOLO','Rep '||n.nik,700,0,0 FROM payroll.pyr_salary_head, (VALUES ('ZREP0003'),('ZREP0004')) n(nik)
+		 WHERE psh_nik='ZREP0001' AND psh_yymm=` + y,
+		`INSERT INTO payroll.pyr_salary_detail (psd_run_id, psd_nik, psd_type, psd_id, psd_amount)
+		 SELECT psd_run_id,n.nik,'Tunjangan'::payroll.comp_type,901,700 FROM payroll.pyr_salary_detail, (VALUES ('ZREP0003'),('ZREP0004')) n(nik)
+		 WHERE psd_nik='ZREP0001' AND psd_id=901 AND psd_run_id IN (SELECT pr_id FROM payroll.pyr_run WHERE pr_yymm=` + y + `)`,
+		`INSERT INTO payroll.pyr_employee (pe_company_id, pe_nik, pe_division, pe_nama, pe_orion_sub_acnt, pe_birth_date, pe_email, pe_npwp_enc, pe_bank_acnt_enc)
+		 VALUES (1,'ZREP0001','SOLO','Rep Satu','ZREP0001','1990-03-07','satu@example.test', payroll.pgp_sym_encrypt('99.111.222.3-444.000','` + encKey + `'), payroll.pgp_sym_encrypt('5550001111','` + encKey + `')),
+		        (1,'ZREP0002','SOLO','Rep Dua','ZREP0002','1991-04-08','dua@example.test', payroll.pgp_sym_encrypt('99.222.333.4-555.000','` + encKey + `'), payroll.pgp_sym_encrypt('5550002222','` + encKey + `')),
+		        (1,'ZREP0003','SOLO','Rep Tiga','ZREP0003','1985-12-31','tiga@example.test', payroll.pgp_sym_encrypt('99.333.444.5-666.000','` + encKey + `'), payroll.pgp_sym_encrypt('5550003333','` + encKey + `')),
+		        (1,'ZREP0004','SOLO','Rep Empat','ZREP0004','1980-01-02',NULL, '\x00'::bytea, '\x00'::bytea)
+		 ON CONFLICT (pe_company_id, pe_nik, pe_division) DO UPDATE SET pe_birth_date=EXCLUDED.pe_birth_date, pe_email=EXCLUDED.pe_email,
+		   pe_npwp_enc=EXCLUDED.pe_npwp_enc, pe_bank_acnt_enc=EXCLUDED.pe_bank_acnt_enc`,
+		// ZREP0002: queued employee whose NPWP ciphertext is corrupt (render failure of that item only)
+		`UPDATE payroll.pyr_employee SET pe_npwp_enc = '\x00'::bytea WHERE pe_nik = 'ZREP0002'`,
+	} {
+		if _, err := ownDB.Exec(q); err != nil {
+			t.Fatalf("seed: %v\n%s", err, q)
+		}
+	}
+	t.Cleanup(func() {
+		for _, q := range []string{`DELETE FROM payroll.pyr_distribution_item`, `DELETE FROM payroll.pyr_distribution_batch`,
+			`DELETE FROM payroll.pyr_employee WHERE pe_nik IN ('ZREP0003','ZREP0004')`,
+			`UPDATE payroll.pyr_employee SET pe_birth_date=NULL, pe_email=NULL, pe_npwp_enc=NULL, pe_bank_acnt_enc=NULL WHERE pe_nik = 'ZREP0002'`} {
+			_, _ = ownDB.Exec(q) //nolint:errcheck // cleanup
+		}
+	})
+	var logs bytes.Buffer
+	prev := zlog.Logger
+	zlog.Logger = zerolog.New(&logs)
+	t.Cleanup(func() { zlog.Logger = prev })
+
+	fake := newFakeSMTP(t)
+	fake.fail["satu@example.test"] = 1 // ZREP0001: SMTP 451 on the first attempt
+	now := time.Date(2036, 9, 1, 8, 0, 0, 0, time.UTC)
+	svc := mailSvc(fake, &now)
+	ctx := ctxFor(t, userRW)
+	q := report.Query{CompanyID: 1, YYMM: mail5YYMM, Division: "SOLO"}
+	cr, err := svc.Create(ctx, q, distribution.CreateOptions{})
+	if err != nil || cr.Queued != 3 || cr.NoEmail != 1 {
+		t.Fatalf("create %+v %v", cr, err)
+	}
+	b := cr.BatchID
+	cfg := report.SlipConfig{PIIKey: " " + encKey + "\n"} // stray whitespace of an env file is trimmed
+	res, err := svc.Send(ctx, distribution.SendOptions{BatchID: b, Query: q, SlipConfig: cfg})
+	if err != nil {
+		t.Fatalf("send: een corrupt ciphertext tanpa email / satu item tidak boleh menggagalkan send: %v", err)
+	}
+	if res.Sent != 1 || res.Failed != 2 || fake.count() != 1 {
+		t.Fatalf("send %+v count=%d", res, fake.count())
+	}
+	if got := fake.to(); len(got) != 1 || got[0] != "tiga@example.test" {
+		t.Fatalf("hanya ZREP0003 yang terkirim: %v", got)
+	}
+	for nik, want := range map[string]string{"ZREP0001": "FAILED", "ZREP0002": "FAILED", "ZREP0003": "SENT"} {
+		if got := scalar(t, fmt.Sprintf(`SELECT pdi_status FROM payroll.pyr_distribution_item WHERE pdi_batch_id=%d AND pdi_nik='%s'`, b, nik)); got != want {
+			t.Errorf("%s status = %s, want %s", nik, got, want)
+		}
+	}
+	if got := scalar(t, fmt.Sprintf(`SELECT COALESCE(pdi_last_error,'') FROM payroll.pyr_distribution_item WHERE pdi_batch_id=%d AND pdi_nik='ZREP0002'`, b)); got == "" {
+		t.Error("item dengan ciphertext rusak harus mencatat galat")
+	}
+	// no key, NPWP or account in item errors, audit, or application log (SMTP failure and render failure included)
+	leak := `(99\.[0-9]{3}|55500[0-9]{2}|` + encKey + `)`
+	if got := scalar(t, `SELECT count(*)::text FROM payroll.pyr_distribution_item WHERE pdi_last_error ~ '`+leak+`' OR pdi_smtp_response ~ '`+leak+`'`); got != "0" {
+		t.Fatalf("PII/kunci di pdi_last_error: %s", got)
+	}
+	if got := scalar(t, `SELECT count(*)::text FROM payroll.pyr_audit_log WHERE pal_after::text ~ '`+leak+`' OR pal_before::text ~ '`+leak+`'`); got != "0" {
+		t.Fatalf("PII/kunci di audit: %s", got)
+	}
+	if strings.Contains(logs.String(), encKey) || strings.Contains(logs.String(), "5550001111") || strings.Contains(logs.String(), "99.111") {
+		t.Fatalf("PII/kunci di log aplikasi: %s", logs.String())
+	}
+	if !strings.Contains(logs.String(), "slip mail not sent") {
+		t.Fatalf("kegagalan item harus tercatat di log: %q", logs.String())
 	}
 }

@@ -25,7 +25,8 @@ type SendOptions struct {
 	Wait      bool         // keep going until FAILED items whose retry time has not come are done
 	ReplyToHR string       // optional override of the template ReplyTo
 	// SlipConfig carries the F-3 settings (PII key for NPWP/account, logo, texts). The PII key is required: the slip
-	// attachment is rendered here.
+	// attachment is rendered here. Send decrypts NPWP/account per item right before rendering that slip (Deferred), so
+	// only employees with a queued item are decrypted and one corrupt ciphertext fails only its own item.
 	SlipConfig report.SlipConfig
 }
 
@@ -48,9 +49,11 @@ type claimed struct {
 // (pdi_next_attempt_at); after the lease the next send run recovers it under the same attempt and Message-ID.
 func (s *Service) Send(ctx context.Context, o SendOptions) (SendResult, error) {
 	var res SendResult
+	o.SlipConfig.PIIKey = strings.TrimSpace(o.SlipConfig.PIIKey)
 	if o.SlipConfig.PIIKey == "" {
 		return res, fmt.Errorf("send: %w", report.ErrNoPIIKey)
 	}
+	o.SlipConfig.Deferred = true
 	src, tmpl, err := s.prepare(ctx, o)
 	if err != nil {
 		return res, err
@@ -220,8 +223,8 @@ func messageID(batch, item int64, attempt int) string {
 	return fmt.Sprintf("<%d.%d.%d@payroll>", batch, item, attempt)
 }
 
-func (s *Service) buildMail(src *report.SlipSource, tmpl *mailTemplate, o SendOptions, period string, c claimed, to string, testPrefix bool) (smtp.Mail, []byte, error) {
-	plain, enc, err := src.Render(c.nik, period)
+func (s *Service) buildMail(ctx context.Context, src *report.SlipSource, tmpl *mailTemplate, o SendOptions, period string, c claimed, to string, testPrefix bool) (smtp.Mail, []byte, error) {
+	plain, enc, err := s.renderSlip(ctx, src, c.nik, period)
 	if err != nil {
 		return smtp.Mail{}, nil, err
 	}
@@ -241,9 +244,19 @@ func (s *Service) buildMail(src *report.SlipSource, tmpl *mailTemplate, o SendOp
 		ReplyTo: reply, To: to, Subject: subj, Text: text, HTML: html, AttachName: c.name, Attach: enc, Date: s.Now()}, plain, nil
 }
 
+// renderSlip decrypts NPWP and account of nik in a short transaction of its own, renders the slip, and drops the
+// plaintext from memory again.
+func (s *Service) renderSlip(ctx context.Context, src *report.SlipSource, nik, period string) (plain, enc []byte, err error) {
+	if err = s.DB.ScopedTx(ctx, func(tx *sql.Tx) error { return src.LoadPII(ctx, tx, nik) }); err != nil {
+		return nil, nil, fmt.Errorf("slip NIK %s: %w", nik, err)
+	}
+	defer src.ClearPII(nik)
+	return src.Render(nik, period)
+}
+
 // deliver renders and sends one claimed item and records the outcome.
 func (s *Service) deliver(ctx context.Context, o SendOptions, src *report.SlipSource, tmpl *mailTemplate, period string, c claimed, to string) (string, error) {
-	m, plain, err := s.buildMail(src, tmpl, o, period, c, to, false)
+	m, plain, err := s.buildMail(ctx, src, tmpl, o, period, c, to, false)
 	var resp string
 	if err == nil {
 		resp, err = s.Sender.Send(ctx, m)
@@ -354,7 +367,7 @@ func (s *Service) sendTest(ctx context.Context, o SendOptions, src *report.SlipS
 			break
 		}
 		c.attempt = 0
-		m, _, err := s.buildMail(src, tmpl, o, period, c, o.TestTo, true)
+		m, _, err := s.buildMail(ctx, src, tmpl, o, period, c, o.TestTo, true)
 		if err != nil {
 			return res, fmt.Errorf("render item %d: %w", c.id, err)
 		}
@@ -396,7 +409,7 @@ func (s *Service) Resend(ctx context.Context, o ResendOptions) (int64, error) {
 	}
 	var newID int64
 	err = s.DB.ScopedTxOpts(ctx, snapshot(), func(tx *sql.Tx) error {
-		src, err := loadBatchSource(ctx, tx, o.BatchID, o.Query, "resend")
+		src, err := loadBatchSource(ctx, tx, o.BatchID, o.Query, "resend", report.SlipConfig{})
 		if err != nil {
 			return err
 		}
@@ -433,8 +446,9 @@ WHERE pdb_id=$1 AND pdb_status='DONE'`, o.BatchID); err != nil {
 
 // resendTarget finds the employee of a resend and checks that email and birth date exist.
 // loadBatchSource checks that the batch is usable (exists in scope, not CANCELLED/SUPERSEDED) and still belongs to the
-// ACTIVE run, and returns the slip source of that run. A SlipConfig (send only) makes the source decrypt NPWP/account.
-func loadBatchSource(ctx context.Context, tx *sql.Tx, batchID int64, q report.Query, what string, cfg ...report.SlipConfig) (*report.SlipSource, error) {
+// ACTIVE run, and returns the slip source of that run. A SlipConfig with a PII key (send only) lets the source
+// decrypt NPWP/account; the zero value decrypts nothing.
+func loadBatchSource(ctx context.Context, tx *sql.Tx, batchID int64, q report.Query, what string, cfg report.SlipConfig) (*report.SlipSource, error) {
 	var status string
 	var batchRun sql.NullInt64
 	err := tx.QueryRowContext(ctx, `SELECT pdb_status, pdb_run_id FROM payroll.pyr_distribution_batch
@@ -448,7 +462,7 @@ WHERE pdb_id=$1 AND pdb_company_id=$2 AND pdb_division=$3 AND pdb_yymm=$4`, batc
 	if status == StCancelled || status == StSuperseded {
 		return nil, fmt.Errorf("batch %d berstatus %s; %s ditolak", batchID, status, what)
 	}
-	src, err := report.LoadSlipSource(ctx, tx, q, cfg...)
+	src, err := report.LoadSlipSource(ctx, tx, q, cfg)
 	if err != nil {
 		return nil, err
 	}

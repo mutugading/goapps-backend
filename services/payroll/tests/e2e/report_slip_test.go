@@ -156,3 +156,61 @@ func indexOf(b []byte, s string) int {
 	}
 	return -1
 }
+
+// T028o3: a JAKARTA slip with an STS D component (TETAP_D) renders from its own division only: PII decrypted for the
+// JAKARTA NIK, the SOLO scope cannot export it, and a JAKARTA-only caller cannot see SOLO.
+const slipJktYYMM = 203801
+
+func TestReport_SlipJakartaStsD(t *testing.T) {
+	y := itoa(slipJktYYMM)
+	for _, q := range []string{
+		`INSERT INTO payroll.pyr_slip_password_policy (pspp_company_id, pspp_valid_from, pspp_policy_code, pspp_status, created_by, approved_by)
+		 VALUES (1, DATE '2020-01-01', 'DOB_DDMMYYYY', 'ACTIVE', 'test', 'system') ON CONFLICT DO NOTHING`,
+		`INSERT INTO payroll.pyr_period (pp_company_id, pp_yymm, pp_division, pp_date_from, pp_date_to, pp_status)
+		 VALUES (1,` + y + `,'JAKARTA','2037-12-26','2038-01-25','APPROVED')`,
+		`INSERT INTO payroll.pyr_rule_set (prs_id, prs_name, prs_effective_from, prs_status) VALUES (1,'v1',200001,'ACTIVE') ON CONFLICT DO NOTHING`,
+		`INSERT INTO payroll.pyr_att_snapshot (pas_company_id, pas_yymm, pas_division, pas_source_batch_ids, pas_checksum, pas_locked)
+		 VALUES (1,` + y + `,'JAKARTA','{1}','jkt-` + y + `',true)`,
+		`INSERT INTO payroll.pyr_component_master (pcm_type, pcm_id, pcm_name, pcm_serial) VALUES ('Tunjangan',903,'Jkt Tetap D',3)
+		 ON CONFLICT DO NOTHING`,
+		`INSERT INTO payroll.pyr_run (pr_company_id, pr_yymm, pr_division, pr_pay_date, pr_rule_set_id, pr_snapshot_id, pr_status, pr_kind)
+		 SELECT 1,` + y + `,'JAKARTA','2038-01-26',1,pas_snapshot_id,'ACTIVE','ENGINE' FROM payroll.pyr_att_snapshot WHERE pas_checksum='jkt-` + y + `'`,
+		`INSERT INTO payroll.pyr_salary_head (psh_run_id, psh_company_id, psh_nik, psh_yymm, psh_division, psh_nama, psh_tax_code, psh_tot_tunjangan, psh_tot_potongan, psh_rounding)
+		 SELECT pr_id,1,'ZJKT0001',` + y + `,'JAKARTA','Jkt Satu','TK0',2500,0,0 FROM payroll.pyr_run WHERE pr_yymm=` + y + ` AND pr_division='JAKARTA'`,
+		`INSERT INTO payroll.pyr_salary_detail (psd_run_id, psd_nik, psd_type, psd_id, psd_amount, psd_sts, psd_basis_amount, psd_remarks)
+		 SELECT pr_id,'ZJKT0001','Tunjangan'::payroll.comp_type,903,2500,'D',2500,'Remarks sts D jakarta' FROM payroll.pyr_run WHERE pr_yymm=` + y + ` AND pr_division='JAKARTA'`,
+		`INSERT INTO payroll.pyr_employee (pe_company_id, pe_nik, pe_division, pe_nama, pe_orion_sub_acnt, pe_birth_date, pe_npwp_enc, pe_bank_acnt_enc)
+		 VALUES (1,'ZJKT0001','JAKARTA','Jkt Satu','ZJKT0001','1992-02-09', payroll.pgp_sym_encrypt('88.777.666.5-444.000','` + encKey + `'), payroll.pgp_sym_encrypt('7770001111','` + encKey + `'))
+		 ON CONFLICT DO NOTHING`,
+	} {
+		if _, err := ownDB.Exec(q); err != nil {
+			t.Fatalf("seed: %v\n%s", err, q)
+		}
+	}
+	svc := report.NewService(appDB, auditinfra.NewWriter())
+	cfg := report.SlipConfig{PIIKey: encKey}
+	q := report.Query{CompanyID: 1, YYMM: slipJktYYMM, Division: "JAKARTA"}
+
+	dir := t.TempDir()
+	res, err := svc.ExportSlips(ctxFor(t, userJkt), q, cfg, report.SlipOptions{OutDir: dir, NoPassword: true, PeriodName: "Januari 2038"})
+	if err != nil || len(res.Written) != 1 || res.Written[0] != "ZJKT0001" {
+		t.Fatalf("export JAKARTA: %+v %v", res, err)
+	}
+	plain, err := os.ReadFile(filepath.Join(dir, "203801GZJKT0001.pdf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Jkt Tetap D", "Remarks sts D jakarta", "88.777.666.5-444.000", "7770001111", "TK0", "Net Paid"} {
+		if !contains(plain, want) {
+			t.Errorf("slip JAKARTA tidak memuat %q", want)
+		}
+	}
+	// scope: SOLO-only caller cannot export JAKARTA, JAKARTA-only caller cannot export SOLO
+	if _, err := svc.ExportSlips(ctxFor(t, userRW), q, cfg, report.SlipOptions{OutDir: t.TempDir(), NoPassword: true, PeriodName: "x"}); err == nil {
+		t.Fatal("scope SOLO tidak boleh mengekspor slip JAKARTA")
+	}
+	if _, err := svc.ExportSlips(ctxFor(t, userJkt), report.Query{CompanyID: 1, YYMM: slipYYMM, Division: "SOLO"}, cfg,
+		report.SlipOptions{OutDir: t.TempDir(), NoPassword: true, PeriodName: "x"}); err == nil {
+		t.Fatal("scope JAKARTA tidak boleh mengekspor slip SOLO")
+	}
+}

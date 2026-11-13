@@ -31,8 +31,11 @@ type SlipOptions struct {
 // repository). PIIKey decrypts NPWP and the bank account in memory; without it both print empty (create/resend, which
 // render nothing; export and send refuse to run without it). Logo is the PNG/JPEG bytes of the letterhead (empty = text only).
 type SlipConfig struct {
-	PIIKey    string
-	OnlyNIK   string // when set, NPWP/account are decrypted for this NIK only (PII minimisation)
+	PIIKey  string
+	OnlyNIK string // when set, NPWP/account are decrypted for this NIK only (PII minimisation)
+	// Deferred keeps the key but decrypts nothing at load time: the caller calls SlipSource.LoadPII per NIK right before
+	// rendering that slip (cmd/mailer send), so one corrupt ciphertext only hurts its own item.
+	Deferred  bool
 	Logo      []byte
 	Perhatian []string
 	ContactIT string
@@ -42,6 +45,10 @@ type SlipConfig struct {
 // file (PAYROLL_REPORT_LOGO, not in the repository; unset = text-only letterhead), the "Perhatian" lines separated by
 // "|" (PAYROLL_SLIP_PERHATIAN) and the IT contact (PAYROLL_SLIP_CONTACT_IT). The PII key comes from the caller.
 func SlipConfigFromEnv(piiKey string) (SlipConfig, error) {
+	piiKey = strings.TrimSpace(piiKey) // a stray newline or CR from an env file must not become part of the key
+	if piiKey == "" {
+		return SlipConfig{}, ErrNoPIIKey
+	}
 	c := SlipConfig{PIIKey: piiKey, ContactIT: os.Getenv("PAYROLL_SLIP_CONTACT_IT")}
 	if t := os.Getenv("PAYROLL_SLIP_PERHATIAN"); t != "" {
 		c.Perhatian = strings.Split(t, "|")
@@ -141,6 +148,7 @@ func PeriodName(yymm int) string {
 type SlipSource struct {
 	d          RunData
 	company    string
+	companyID  int16
 	policy     string
 	yymm       int
 	approvedAt time.Time
@@ -150,13 +158,10 @@ type SlipSource struct {
 	idx        map[string]int
 }
 
-// LoadSlipSource loads the ACTIVE run of q (same checks as Load) and the slip header data inside tx. At most one
-// SlipConfig may be given; without it the NPWP and bank account stay empty and the slip has the default text.
-func LoadSlipSource(ctx context.Context, tx *sql.Tx, q Query, cfgs ...SlipConfig) (*SlipSource, error) {
-	var cfg SlipConfig
-	if len(cfgs) > 0 {
-		cfg = cfgs[0]
-	}
+// LoadSlipSource loads the ACTIVE run of q (same checks as Load) and the slip header data inside tx. With a zero
+// SlipConfig the NPWP and bank account stay empty and the slip has the default text; with Deferred they are loaded
+// per NIK by LoadPII.
+func LoadSlipSource(ctx context.Context, tx *sql.Tx, q Query, cfg SlipConfig) (*SlipSource, error) {
 	d, err := Load(ctx, tx, q)
 	if err != nil {
 		return nil, err
@@ -165,7 +170,11 @@ func LoadSlipSource(ctx context.Context, tx *sql.Tx, q Query, cfgs ...SlipConfig
 	if err != nil {
 		return nil, err
 	}
-	extra, err := loadSlipExtra(ctx, tx, q, d.RunID, cfg.PIIKey, cfg.OnlyNIK)
+	bulkKey := cfg.PIIKey
+	if cfg.Deferred {
+		bulkKey = ""
+	}
+	extra, err := loadSlipExtra(ctx, tx, q, d.RunID, bulkKey, cfg.OnlyNIK)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +186,7 @@ func LoadSlipSource(ctx context.Context, tx *sql.Tx, q Query, cfgs ...SlipConfig
 	for i, e := range d.Emps {
 		idx[e.NIK] = i
 	}
-	return &SlipSource{d: d, company: company, policy: policy, yymm: q.YYMM, approvedAt: approvedAt, cfg: cfg,
+	return &SlipSource{d: d, company: company, companyID: q.CompanyID, policy: policy, yymm: q.YYMM, approvedAt: approvedAt, cfg: cfg,
 		extra: extra, detail: detail, idx: idx}, nil
 }
 
@@ -206,6 +215,59 @@ func (s *SlipSource) HasBirthDate(nik string) bool {
 
 // RunID is the run the slips come from.
 func (s *SlipSource) RunID() int64 { return s.d.RunID }
+
+// LoadPII decrypts the NPWP and bank account of nik only (SlipConfig.Deferred) inside tx and keeps them in memory for
+// the next Render. An unknown NIK or one without an employee row keeps both empty. The key travels through a
+// transaction-local setting, so a failing decrypt statement never carries it as a bound parameter. Call ClearPII after
+// rendering.
+func (s *SlipSource) LoadPII(ctx context.Context, tx *sql.Tx, nik string) error {
+	if _, ok := s.idx[nik]; !ok || s.cfg.PIIKey == "" {
+		return nil
+	}
+	if err := setPIIKey(ctx, tx, s.cfg.PIIKey); err != nil {
+		return err
+	}
+	var npwp, acnt string
+	err := tx.QueryRowContext(ctx, `SELECT
+  CASE WHEN e.pe_npwp_enc IS NULL THEN '' ELSE payroll.pgp_sym_decrypt(e.pe_npwp_enc, current_setting('app.pii_key', true)) END,
+  CASE WHEN e.pe_bank_acnt_enc IS NULL THEN '' ELSE payroll.pgp_sym_decrypt(e.pe_bank_acnt_enc, current_setting('app.pii_key', true)) END
+FROM payroll.pyr_salary_head h
+JOIN payroll.pyr_employee e ON e.pe_company_id = $2 AND e.pe_nik = h.psh_nik AND e.pe_division = h.psh_division
+WHERE h.psh_run_id = $1 AND h.psh_nik = $3`, s.d.RunID, s.companyID, nik).Scan(&npwp, &acnt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return redact("read slip PII", err, s.cfg.PIIKey)
+	}
+	x := s.extra[nik]
+	x.NPWP, x.BankAccount = strings.TrimSpace(npwp), strings.TrimSpace(acnt)
+	s.extra[nik] = x
+	return nil
+}
+
+// ClearPII drops the decrypted NPWP and account of nik from memory.
+func (s *SlipSource) ClearPII(nik string) {
+	if x, ok := s.extra[nik]; ok {
+		x.NPWP, x.BankAccount = "", ""
+		s.extra[nik] = x
+	}
+}
+
+// setPIIKey hands the PII key to the transaction as the local setting app.pii_key (same mechanism as app.scopes).
+// Decrypt queries read it with current_setting, so they carry no key parameter: a failing decrypt (corrupt ciphertext)
+// is logged by the server without the key. The setting ends with the transaction. A blank key sets nothing. Residual:
+// this one cheap statement still carries the key as a bound parameter, so a server with log_statement='all' (or
+// log_parameter_max_length >= 0 on a logged statement) records it; the DB must not log statements of payroll_app.
+func setPIIKey(ctx context.Context, tx *sql.Tx, key string) error {
+	if key == "" {
+		return nil
+	}
+	if _, err := tx.ExecContext(ctx, `SELECT set_config('app.pii_key', $1, true)`, key); err != nil {
+		return redact("set pii key", err, key)
+	}
+	return nil
+}
 
 func (s *SlipSource) renderPlain(nik, periodName string) ([]byte, slipExtra, error) {
 	i, ok := s.idx[nik]
@@ -260,6 +322,7 @@ func (f *stagedFiles) commit() error {
 // and reported. The PII key is required (NPWP and bank account are decrypted in memory). The audit row holds counts
 // only: no NIK, NPWP, or account number.
 func (s *Service) ExportSlips(ctx context.Context, q Query, cfg SlipConfig, o SlipOptions) (SlipResult, error) {
+	cfg.PIIKey = strings.TrimSpace(cfg.PIIKey)
 	if cfg.PIIKey == "" {
 		return SlipResult{}, ErrNoPIIKey
 	}
@@ -359,19 +422,24 @@ ORDER BY pspp_valid_from DESC LIMIT 1`, q.CompanyID, approvedAt).Scan(&policy)
 }
 
 func loadSlipExtra(ctx context.Context, tx *sql.Tx, q Query, runID int64, piiKey, onlyNIK string) (map[string]slipExtra, error) {
-	// NPWP and bank account are decrypted only with a key; the snapshot is the one the run was computed from.
-	rows, err := tx.QueryContext(ctx, `SELECT h.psh_nik, COALESCE(h.psh_jabatan,''),
+	// NPWP and bank account are decrypted only with a key; the snapshot is the one the run was computed from. The key
+	// is a transaction-local setting (setPIIKey), not a parameter of this statement.
+	if err := setPIIKey(ctx, tx, piiKey); err != nil {
+		return nil, err
+	}
+	rows, err := tx.QueryContext(ctx, `WITH k AS (SELECT COALESCE(current_setting('app.pii_key', true), '') AS v)
+SELECT h.psh_nik, COALESCE(h.psh_jabatan,''),
   btrim(COALESCE(h.psh_dept_code,'') || ' ' || COALESCE(h.psh_section,'')), COALESCE(h.psh_grade,''), COALESCE(h.psh_tax_code,''),
   h.psh_pay_date, COALESCE(e.pe_pay_currency::text,'IDR'), e.pe_birth_date,
-  CASE WHEN $3::text = '' OR e.pe_npwp_enc IS NULL THEN '' ELSE payroll.pgp_sym_decrypt(e.pe_npwp_enc, $3::text) END,
-  CASE WHEN $3::text = '' OR e.pe_bank_acnt_enc IS NULL THEN '' ELSE payroll.pgp_sym_decrypt(e.pe_bank_acnt_enc, $3::text) END,
+  CASE WHEN k.v = '' OR e.pe_npwp_enc IS NULL THEN '' ELSE payroll.pgp_sym_decrypt(e.pe_npwp_enc, k.v) END,
+  CASE WHEN k.v = '' OR e.pe_bank_acnt_enc IS NULL THEN '' ELSE payroll.pgp_sym_decrypt(e.pe_bank_acnt_enc, k.v) END,
   r.pasr_nik IS NOT NULL,
   CASE WHEN r.pasr_data->>'MPAR_DAY_WORK' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN (r.pasr_data->>'MPAR_DAY_WORK')::numeric ELSE 0 END::text, CASE WHEN r.pasr_data->>'MPAR_DAYOFF' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN (r.pasr_data->>'MPAR_DAYOFF')::numeric ELSE 0 END::text, CASE WHEN r.pasr_data->>'MPAR_CUTI' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN (r.pasr_data->>'MPAR_CUTI')::numeric ELSE 0 END::text, CASE WHEN r.pasr_data->>'MPAR_ALPA' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN (r.pasr_data->>'MPAR_ALPA')::numeric ELSE 0 END::text, CASE WHEN r.pasr_data->>'MPAR_IJIN' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN (r.pasr_data->>'MPAR_IJIN')::numeric ELSE 0 END::text
-FROM payroll.pyr_salary_head h
+FROM k, payroll.pyr_salary_head h
 LEFT JOIN payroll.pyr_employee e ON e.pe_company_id = $2 AND e.pe_nik = h.psh_nik AND e.pe_division = h.psh_division
 LEFT JOIN payroll.pyr_att_snapshot_row r ON r.pasr_snapshot_id = (SELECT pr_snapshot_id FROM payroll.pyr_run WHERE pr_id = $1)
   AND r.pasr_kind = 'REKAP' AND r.pasr_nik = h.psh_nik
-WHERE h.psh_run_id = $1 AND ($4::text = '' OR h.psh_nik = $4)`, runID, q.CompanyID, piiKey, onlyNIK)
+WHERE h.psh_run_id = $1 AND ($3::text = '' OR h.psh_nik = $3)`, runID, q.CompanyID, onlyNIK)
 	if err != nil {
 		return nil, redact("read slip extra", err, piiKey)
 	}
@@ -422,13 +490,20 @@ func redact(prefix string, err error, key string) error {
 	return &redactedError{msg: prefix + ": " + sanitizeErr(err, key), err: err}
 }
 
+// minMaskKeyLen is the shortest key that is masked by substitution. A shorter key (dev setups only, D-17 wants 32
+// bytes) would also mangle every unrelated occurrence of the same letters, so a message that contains one is withheld.
+const minMaskKeyLen = 8
+
 // sanitizeErr keeps the PII key out of an error message.
 func sanitizeErr(err error, key string) string {
 	m := err.Error()
-	if key != "" {
-		m = strings.ReplaceAll(m, key, "***")
+	if key == "" || !strings.Contains(m, key) {
+		return m
 	}
-	return m
+	if len(key) < minMaskKeyLen {
+		return "(pesan galat disembunyikan: memuat kunci PII)"
+	}
+	return strings.ReplaceAll(m, key, "***")
 }
 
 func attendance(has bool, days [5]string) (pdf.Attendance, error) {

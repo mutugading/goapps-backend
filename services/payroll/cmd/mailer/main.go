@@ -27,7 +27,7 @@ import (
 
 const usage = `usage:
   mailer create -yymm 202701 -division SOLO [-company 1] [-allow-open] [-allow-dup-email] [-actor cli-mailer] -dsn <payroll_app dsn>
-  mailer send   -batch ID -yymm 202701 -division SOLO [-company 1] [-allow-open] [-test-to addr] [-limit N] [-wait] [-actor cli-mailer] -dsn <dsn>   (SMTP: PAYROLL_SMTP_*; PAYROLL_PII_KEY wajib; logo/teks: PAYROLL_REPORT_LOGO, PAYROLL_SLIP_PERHATIAN, PAYROLL_SLIP_CONTACT_IT)
+  mailer send   -batch ID -yymm 202701 -division SOLO [-company 1] [-allow-open] [-test-to addr] [-limit N] [-wait] [-actor cli-mailer] [-pii-key K | PAYROLL_PII_KEY] -dsn <dsn>   (SMTP: PAYROLL_SMTP_*; kunci PII wajib, utamakan env; logo/teks: PAYROLL_REPORT_LOGO, PAYROLL_SLIP_PERHATIAN, PAYROLL_SLIP_CONTACT_IT)
   mailer resend -batch ID -yymm 202701 -division SOLO -nik N -reason "..." [-allow-dup-email] [-company 1] [-allow-open] [-actor cli-mailer] -dsn <dsn>
   mailer cancel -batch ID -yymm 202701 -division SOLO -reason "..." [-company 1] [-actor cli-mailer] -dsn <dsn>   (batch CANCELLED; send/resend ditolak; batch baru boleh dibuat)
   mailer report -batch ID -yymm 202701 -division SOLO -out x.xlsx [-company 1] [-actor cli-mailer] -dsn <dsn>`
@@ -50,12 +50,15 @@ func newCommon(name string) *common {
 		company:   fs.Int("company", 1, "pyr_company.pco_company_id"),
 		allowOpen: fs.Bool("allow-open", false, "izinkan periode belum APPROVED (gladi; tercatat di audit)"),
 		actor:     fs.String("actor", "cli-mailer", "identitas aktor untuk audit"),
-		dsn:       fs.String("dsn", os.Getenv("PAYROLL_APP_DSN"), "DSN role payroll_app"),
+		dsn:       fs.String("dsn", "", "DSN role payroll_app (atau env PAYROLL_APP_DSN)"), // never a default: -h would print it
 	}
 }
 
 // open validates the common flags and returns the scoped context, query, and a closer.
 func (c *common) open(ctx context.Context) (context.Context, report.Query, *postgres.DB, func(), error) {
+	if *c.dsn == "" { // the DSN holds the password: read from the environment after flag parsing, never as a flag default
+		*c.dsn = os.Getenv("PAYROLL_APP_DSN")
+	}
 	if *c.yymm == 0 || anyEmpty(*c.division, *c.dsn, *c.actor) {
 		return nil, report.Query{}, nil, nil, errors.New("-yymm, -division, dan -dsn (atau PAYROLL_APP_DSN) wajib")
 	}
@@ -152,7 +155,7 @@ func send(ctx context.Context, args []string) error {
 	if *key == "" { // the secret never becomes a flag default, which flag.PrintDefaults would print
 		*key = os.Getenv("PAYROLL_PII_KEY")
 	}
-	if *key == "" {
+	if strings.TrimSpace(*key) == "" {
 		return errors.New("-pii-key (atau PAYROLL_PII_KEY) wajib: slip memuat NPWP dan rekening")
 	}
 	slipCfg, err := report.SlipConfigFromEnv(*key)

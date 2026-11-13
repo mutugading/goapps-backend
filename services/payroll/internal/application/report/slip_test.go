@@ -65,6 +65,30 @@ func TestSanitizeErrHidesKey(t *testing.T) {
 	}
 }
 
+func TestSanitizeErrShortKey(t *testing.T) {
+	// a short key would also mangle unrelated text, so the whole message is withheld instead of substituted
+	got := sanitizeErr(errors.New("column ab missing: abab"), "ab")
+	if strings.Contains(got, "ab") && !strings.Contains(got, "disembunyikan") {
+		t.Fatalf("kunci pendek bocor atau pesan rusak: %s", got)
+	}
+	if got := sanitizeErr(errors.New("no secret here"), "ab"); got != "no secret here" {
+		t.Fatalf("pesan tanpa kunci harus utuh: %s", got)
+	}
+	if got := sanitizeErr(errors.New("x"), ""); got != "x" {
+		t.Fatal("tanpa kunci pesan harus utuh")
+	}
+}
+
+func TestSlipConfigFromEnvTrimsKey(t *testing.T) {
+	c, err := SlipConfigFromEnv("  key-with-newline\r\n")
+	if err != nil || c.PIIKey != "key-with-newline" {
+		t.Fatalf("kunci tidak di-trim: %q %v", c.PIIKey, err)
+	}
+	if _, err := SlipConfigFromEnv(" \n"); !errors.Is(err, ErrNoPIIKey) {
+		t.Fatalf("kunci kosong harus ErrNoPIIKey: %v", err)
+	}
+}
+
 func pdfAtt(valid bool) pdf.Attendance { return pdf.Attendance{Valid: valid} }
 
 func TestRedactKeepsChainAndHidesKey(t *testing.T) {
