@@ -27,7 +27,7 @@ import (
 
 const usage = `usage:
   mailer create -yymm 202701 -division SOLO [-company 1] [-allow-open] [-allow-dup-email] [-actor cli-mailer] -dsn <payroll_app dsn>
-  mailer send   -batch ID -yymm 202701 -division SOLO [-company 1] [-allow-open] [-test-to addr] [-limit N] [-wait] [-actor cli-mailer] -dsn <dsn>   (SMTP: PAYROLL_SMTP_*)
+  mailer send   -batch ID -yymm 202701 -division SOLO [-company 1] [-allow-open] [-test-to addr] [-limit N] [-wait] [-actor cli-mailer] -dsn <dsn>   (SMTP: PAYROLL_SMTP_*; PAYROLL_PII_KEY wajib; logo/teks: PAYROLL_REPORT_LOGO, PAYROLL_SLIP_PERHATIAN, PAYROLL_SLIP_CONTACT_IT)
   mailer resend -batch ID -yymm 202701 -division SOLO -nik N -reason "..." [-allow-dup-email] [-company 1] [-allow-open] [-actor cli-mailer] -dsn <dsn>
   mailer report -batch ID -yymm 202701 -division SOLO -out x.xlsx [-company 1] [-actor cli-mailer] -dsn <dsn>`
 
@@ -141,11 +141,22 @@ func send(ctx context.Context, args []string) error {
 	testTo := c.fs.String("test-to", "", "gladi: kirim semua email ke alamat ini saja; status item tidak berubah")
 	limit := c.fs.Int("limit", 0, "maksimum email dalam satu jalan (0 = semua; dengan -test-to default 3)")
 	wait := c.fs.Bool("wait", false, "tunggu jadwal retry sampai semua item selesai")
+	key := c.fs.String("pii-key", "", "kunci PII (dekripsi NPWP dan rekening di slip) (atau env PAYROLL_PII_KEY; utamakan env)")
 	if err := c.fs.Parse(args); err != nil {
 		return err
 	}
 	if *batch == 0 {
 		return errors.New("-batch wajib")
+	}
+	if *key == "" { // the secret never becomes a flag default, which flag.PrintDefaults would print
+		*key = os.Getenv("PAYROLL_PII_KEY")
+	}
+	if *key == "" {
+		return errors.New("-pii-key (atau PAYROLL_PII_KEY) wajib: slip memuat NPWP dan rekening")
+	}
+	slipCfg, err := report.SlipConfigFromEnv(*key)
+	if err != nil {
+		return err
 	}
 	ctx, q, db, closeDB, err := c.open(ctx)
 	if err != nil {
@@ -157,7 +168,7 @@ func send(ctx context.Context, args []string) error {
 		return err
 	}
 	svc := distribution.NewService(db, audit.NewWriter(), smtp.NewClient(cfg), cfg)
-	res, err := svc.Send(ctx, distribution.SendOptions{BatchID: *batch, Query: q, TestTo: *testTo, Limit: *limit, Wait: *wait})
+	res, err := svc.Send(ctx, distribution.SendOptions{BatchID: *batch, Query: q, TestTo: *testTo, Limit: *limit, Wait: *wait, SlipConfig: slipCfg})
 	fmt.Printf("terkirim=%d gagal=%d gagal_final=%d uji=%d menunggu_retry=%d\n", res.Sent, res.Failed, res.FinalFailed, res.Test, res.Waiting)
 	return err
 }

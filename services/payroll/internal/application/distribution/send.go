@@ -24,6 +24,9 @@ type SendOptions struct {
 	Limit     int          // 0 = all (test mode: number of mails)
 	Wait      bool         // keep going until FAILED items whose retry time has not come are done
 	ReplyToHR string       // optional override of the template ReplyTo
+	// SlipConfig carries the F-3 settings (PII key for NPWP/account, logo, texts). The PII key is required: the slip
+	// attachment is rendered here.
+	SlipConfig report.SlipConfig
 }
 
 // SendResult counts one run.
@@ -45,6 +48,9 @@ type claimed struct {
 // (pdi_next_attempt_at); after the lease the next send run recovers it under the same attempt and Message-ID.
 func (s *Service) Send(ctx context.Context, o SendOptions) (SendResult, error) {
 	var res SendResult
+	if o.SlipConfig.PIIKey == "" {
+		return res, fmt.Errorf("send: %w", report.ErrNoPIIKey)
+	}
 	src, tmpl, err := s.prepare(ctx, o)
 	if err != nil {
 		return res, err
@@ -124,7 +130,7 @@ func (s *Service) prepare(ctx context.Context, o SendOptions) (*report.SlipSourc
 	var tmpl *mailTemplate
 	err := s.DB.ScopedTxOpts(ctx, snapshot(), func(tx *sql.Tx) error {
 		var err error
-		if src, err = loadBatchSource(ctx, tx, o.BatchID, o.Query, "send"); err != nil {
+		if src, err = loadBatchSource(ctx, tx, o.BatchID, o.Query, "send", o.SlipConfig); err != nil {
 			return err
 		}
 		_, tmpl, err = loadMailTemplate(ctx, tx, o.Query.CompanyID)
@@ -420,8 +426,8 @@ WHERE pdb_id=$1 AND pdb_status='DONE'`, o.BatchID); err != nil {
 
 // resendTarget finds the employee of a resend and checks that email and birth date exist.
 // loadBatchSource checks that the batch is usable (exists in scope, not CANCELLED/SUPERSEDED) and still belongs to the
-// ACTIVE run, and returns the slip source of that run.
-func loadBatchSource(ctx context.Context, tx *sql.Tx, batchID int64, q report.Query, what string) (*report.SlipSource, error) {
+// ACTIVE run, and returns the slip source of that run. A SlipConfig (send only) makes the source decrypt NPWP/account.
+func loadBatchSource(ctx context.Context, tx *sql.Tx, batchID int64, q report.Query, what string, cfg ...report.SlipConfig) (*report.SlipSource, error) {
 	var status string
 	var batchRun sql.NullInt64
 	err := tx.QueryRowContext(ctx, `SELECT pdb_status, pdb_run_id FROM payroll.pyr_distribution_batch
@@ -435,7 +441,7 @@ WHERE pdb_id=$1 AND pdb_company_id=$2 AND pdb_division=$3 AND pdb_yymm=$4`, batc
 	if status == "CANCELLED" || status == "SUPERSEDED" {
 		return nil, fmt.Errorf("batch %d berstatus %s; %s ditolak", batchID, status, what)
 	}
-	src, err := report.LoadSlipSource(ctx, tx, q)
+	src, err := report.LoadSlipSource(ctx, tx, q, cfg...)
 	if err != nil {
 		return nil, err
 	}

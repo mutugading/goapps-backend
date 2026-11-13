@@ -2,7 +2,9 @@ package e2e
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net"
@@ -15,13 +17,17 @@ import (
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/report"
 	auditinfra "github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/audit"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/config"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/pdf"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/smtp"
+	"github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 )
 
 // T028g: mailer outbox against PG18 as payroll_app with an in-process fake SMTP server.
 const (
 	mailYYMM  = 203605
 	mail2YYMM = 203606
+	mail3YYMM = 203607
 )
 
 type fakeSMTP struct {
@@ -173,7 +179,7 @@ func TestMailer(t *testing.T) {
 	b := cr.BatchID
 
 	// gladi: -test-to redirects, item state untouched
-	res, err := svc.Send(ctx, distribution.SendOptions{BatchID: b, Query: q, TestTo: "uji@example.test"})
+	res, err := svc.Send(ctx, distribution.SendOptions{SlipConfig: report.SlipConfig{PIIKey: encKey}, BatchID: b, Query: q, TestTo: "uji@example.test"})
 	if err != nil || res.Test != 1 {
 		t.Fatalf("test send %+v %v", res, err)
 	}
@@ -188,14 +194,14 @@ func TestMailer(t *testing.T) {
 	fake.mu.Lock()
 	fake.fail["satu@example.test"] = 2
 	fake.mu.Unlock()
-	res, err = svc.Send(ctx, distribution.SendOptions{BatchID: b, Query: q})
+	res, err = svc.Send(ctx, distribution.SendOptions{SlipConfig: report.SlipConfig{PIIKey: encKey}, BatchID: b, Query: q})
 	if err != nil || res.Failed != 1 || res.Sent != 0 || res.Waiting == 0 {
 		t.Fatalf("attempt 1: %+v %v", res, err)
 	}
 	if got := scalar(t, fmt.Sprintf(`SELECT pdi_attempts||'|'||pdi_status FROM payroll.pyr_distribution_item WHERE pdi_batch_id=%d AND pdi_nik='ZREP0001'`, b)); got != "1|FAILED" {
 		t.Fatalf("after attempt 1: %s", got)
 	}
-	res, err = svc.Send(ctx, distribution.SendOptions{BatchID: b, Query: q, Wait: true})
+	res, err = svc.Send(ctx, distribution.SendOptions{SlipConfig: report.SlipConfig{PIIKey: encKey}, BatchID: b, Query: q, Wait: true})
 	if err != nil || res.Sent != 1 || res.Failed != 1 {
 		t.Fatalf("with wait: %+v %v", res, err)
 	}
@@ -207,7 +213,7 @@ func TestMailer(t *testing.T) {
 	}
 
 	// restart: a second run must not send SENT items again
-	res, err = svc.Send(ctx, distribution.SendOptions{BatchID: b, Query: q})
+	res, err = svc.Send(ctx, distribution.SendOptions{SlipConfig: report.SlipConfig{PIIKey: encKey}, BatchID: b, Query: q})
 	if err != nil || res.Sent+res.Failed != 0 || fake.count() != 2 {
 		t.Fatalf("restart: %+v %v count=%d", res, err, fake.count())
 	}
@@ -231,7 +237,7 @@ func TestMailer(t *testing.T) {
 	if _, err := svc.Resend(ctx, distribution.ResendOptions{BatchID: b, NIK: "ZREP0001", Reason: "karyawan tidak menerima", Query: q}); err != nil {
 		t.Fatal(err)
 	}
-	res, err = svc.Send(ctx, distribution.SendOptions{BatchID: b, Query: q})
+	res, err = svc.Send(ctx, distribution.SendOptions{SlipConfig: report.SlipConfig{PIIKey: encKey}, BatchID: b, Query: q})
 	if err != nil || res.Sent != 1 || fake.count() != 3 {
 		t.Fatalf("resend send: %+v %v count=%d", res, err, fake.count())
 	}
@@ -315,7 +321,7 @@ func TestMailer_StuckAndFinal(t *testing.T) {
 		t.Fatal("resend SENDING harus ditolak (pulih lewat send)")
 	}
 	// lease not expired: ZREP0002 goes out, ZREP0001 is not touched and is reported as waiting
-	res, err := svc.Send(ctx, distribution.SendOptions{BatchID: b, Query: q})
+	res, err := svc.Send(ctx, distribution.SendOptions{SlipConfig: report.SlipConfig{PIIKey: encKey}, BatchID: b, Query: q})
 	if err != nil || res.Sent != 1 || res.Waiting == 0 || fake.count() != 1 {
 		t.Fatalf("before lease: %+v %v count=%d", res, err, fake.count())
 	}
@@ -324,7 +330,7 @@ func TestMailer_StuckAndFinal(t *testing.T) {
 	}
 	// after the lease the item is recovered under the same attempt (same Message-ID suffix .1)
 	now = now.Add(11 * time.Minute)
-	res, err = svc.Send(ctx, distribution.SendOptions{BatchID: b, Query: q})
+	res, err = svc.Send(ctx, distribution.SendOptions{SlipConfig: report.SlipConfig{PIIKey: encKey}, BatchID: b, Query: q})
 	if err != nil || res.Sent != 1 || fake.count() != 2 {
 		t.Fatalf("after lease: %+v %v count=%d", res, err, fake.count())
 	}
@@ -344,7 +350,7 @@ func TestMailer_StuckAndFinal(t *testing.T) {
 	fake.fail["satu@example.test"] = 10
 	fake.mu.Unlock()
 	start := now
-	res, err = svc.Send(ctx, distribution.SendOptions{BatchID: b, Query: q, Wait: true})
+	res, err = svc.Send(ctx, distribution.SendOptions{SlipConfig: report.SlipConfig{PIIKey: encKey}, BatchID: b, Query: q, Wait: true})
 	if err != nil || res.FinalFailed != 1 || res.Failed != 2 {
 		t.Fatalf("final: %+v %v", res, err)
 	}
@@ -353,5 +359,146 @@ func TestMailer_StuckAndFinal(t *testing.T) {
 	}
 	if d := now.Sub(start); d < 6*time.Minute || d > 7*time.Minute {
 		t.Fatalf("backoff waited %s, want about 1m + 5m", d)
+	}
+}
+
+// attachment returns the base64-decoded PDF of the raw message.
+func attachment(t *testing.T, msg string) []byte {
+	t.Helper()
+	i := strings.Index(msg, "Content-Type: application/pdf")
+	if i < 0 {
+		t.Fatal("pesan tanpa lampiran PDF")
+	}
+	rest := msg[i:]
+	rest = rest[strings.Index(rest, "\r\n\r\n")+4:]
+	if j := strings.Index(rest, "\r\n--"); j >= 0 {
+		rest = rest[:j]
+	}
+	b, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(rest, "\r\n", ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+// T028o2: the mailed slip is the full F-3 slip. The attachment (decrypted with the DOB password) holds NPWP and the
+// bank account; audit rows and the item log do not. Send refuses to run without the PII key.
+func TestMailer_SlipPII(t *testing.T) {
+	seedReportRun(t, mail3YYMM, "APPROVED")
+	y := itoa(mail3YYMM)
+	for _, q := range []string{
+		`INSERT INTO payroll.pyr_slip_password_policy (pspp_company_id, pspp_valid_from, pspp_policy_code, pspp_status, created_by, approved_by)
+		 VALUES (1, DATE '2020-01-01', 'DOB_DDMMYYYY', 'ACTIVE', 'test', 'system') ON CONFLICT DO NOTHING`,
+		`INSERT INTO payroll.pyr_mail_template (pmt_company_id, pmt_doc_type, pmt_version, pmt_subject, pmt_body_html, pmt_body_text, pmt_status, created_by, approved_by)
+		 VALUES (1,'SLIP_GAJI',1,'Slip {{.PeriodName}}','<p>{{.Nama}}</p>','{{.Nama}}','ACTIVE','t','s') ON CONFLICT DO NOTHING`,
+		`INSERT INTO payroll.pyr_salary_head (psh_run_id, psh_company_id, psh_nik, psh_yymm, psh_division, psh_nama, psh_tot_tunjangan, psh_tot_potongan, psh_rounding)
+		 SELECT psh_run_id,1,'ZREP0003',psh_yymm,'SOLO','Rep Tiga',700,0,0 FROM payroll.pyr_salary_head WHERE psh_nik='ZREP0001' AND psh_yymm=` + y,
+		`INSERT INTO payroll.pyr_salary_detail (psd_run_id, psd_nik, psd_type, psd_id, psd_amount)
+		 SELECT psd_run_id,'ZREP0003','Tunjangan'::payroll.comp_type,901,700 FROM payroll.pyr_salary_detail WHERE psd_nik='ZREP0001' AND psd_id=901
+		   AND psd_run_id IN (SELECT pr_id FROM payroll.pyr_run WHERE pr_yymm=` + y + `)`,
+		`INSERT INTO payroll.pyr_employee (pe_company_id, pe_nik, pe_division, pe_nama, pe_orion_sub_acnt, pe_birth_date, pe_email, pe_npwp_enc, pe_bank_acnt_enc)
+		 VALUES (1,'ZREP0001','SOLO','Rep Satu','ZREP0001','1990-03-07','satu@example.test', payroll.pgp_sym_encrypt('99.111.222.3-444.000','` + encKey + `'), payroll.pgp_sym_encrypt('5550001111','` + encKey + `')),
+		        (1,'ZREP0002','SOLO','Rep Dua','ZREP0002','1991-04-08','dua@example.test', payroll.pgp_sym_encrypt('99.222.333.4-555.000','` + encKey + `'), payroll.pgp_sym_encrypt('5550002222','` + encKey + `')),
+		        (1,'ZREP0003','SOLO','Rep Tiga','ZREP0003','1985-12-31','tiga@example.test', payroll.pgp_sym_encrypt('99.333.444.5-666.000','` + encKey + `'), payroll.pgp_sym_encrypt('5550003333','` + encKey + `'))
+		 ON CONFLICT (pe_company_id, pe_nik, pe_division) DO UPDATE SET pe_birth_date=EXCLUDED.pe_birth_date, pe_email=EXCLUDED.pe_email,
+		   pe_npwp_enc=EXCLUDED.pe_npwp_enc, pe_bank_acnt_enc=EXCLUDED.pe_bank_acnt_enc`,
+	} {
+		if _, err := ownDB.Exec(q); err != nil {
+			t.Fatalf("seed: %v\n%s", err, q)
+		}
+	}
+	t.Cleanup(func() {
+		for _, q := range []string{`DELETE FROM payroll.pyr_distribution_item`, `DELETE FROM payroll.pyr_distribution_batch`,
+			`DELETE FROM payroll.pyr_employee WHERE pe_nik = 'ZREP0003'`, // other e2e tests seed it themselves
+			`UPDATE payroll.pyr_employee SET pe_birth_date=NULL, pe_email=NULL, pe_npwp_enc=NULL, pe_bank_acnt_enc=NULL WHERE pe_nik = 'ZREP0002'`} {
+			_, _ = ownDB.Exec(q) //nolint:errcheck // cleanup
+		}
+	})
+	fake := newFakeSMTP(t)
+	now := time.Date(2036, 8, 1, 8, 0, 0, 0, time.UTC)
+	svc := mailSvc(fake, &now)
+	ctx := ctxFor(t, userRW)
+	q := report.Query{CompanyID: 1, YYMM: mail3YYMM, Division: "SOLO"}
+	cr, err := svc.Create(ctx, q, distribution.CreateOptions{})
+	if err != nil || cr.Queued != 3 {
+		t.Fatalf("create %+v %v", cr, err)
+	}
+	b := cr.BatchID
+
+	if _, err := svc.Send(ctx, distribution.SendOptions{BatchID: b, Query: q}); !errors.Is(err, report.ErrNoPIIKey) {
+		t.Fatalf("send tanpa kunci PII harus ditolak: %v", err)
+	}
+	if _, err := svc.Send(ctx, distribution.SendOptions{BatchID: b, Query: q, TestTo: "uji@example.test"}); !errors.Is(err, report.ErrNoPIIKey) {
+		t.Fatalf("gladi tanpa kunci PII harus ditolak: %v", err)
+	}
+	if fake.count() != 0 {
+		t.Fatal("tidak boleh ada email terkirim tanpa kunci")
+	}
+
+	cfg := report.SlipConfig{PIIKey: encKey, ContactIT: "it-sintetis@example.test", Perhatian: []string{"Teks perhatian sintetis satu"}}
+	res, err := svc.Send(ctx, distribution.SendOptions{BatchID: b, Query: q, SlipConfig: cfg})
+	if err != nil || res.Sent != 3 || fake.count() != 3 {
+		t.Fatalf("send %+v %v count=%d", res, err, fake.count())
+	}
+	want := map[string][3]string{ // recipient -> DOB password, NPWP, account
+		"satu@example.test": {"07031990", "99.111.222.3-444.000", "5550001111"},
+		"dua@example.test":  {"08041991", "99.222.333.4-555.000", "5550002222"},
+		"tiga@example.test": {"31121985", "99.333.444.5-666.000", "5550003333"},
+	}
+	rcpt, msgs := fake.to(), fake.msgs
+	for i, to := range rcpt {
+		w := want[to]
+		enc := attachment(t, msgs[i])
+		if err := pdf.Validate(enc, w[0]); err != nil {
+			t.Fatalf("%s: password DOB: %v", to, err)
+		}
+		if contains(enc, w[1]) || contains(enc, w[2]) {
+			t.Fatalf("%s: NPWP/rekening terbaca tanpa password", to)
+		}
+		var plain bytes.Buffer
+		if err := api.Decrypt(bytes.NewReader(enc), &plain, model.NewAESConfiguration(w[0], "", 256)); err != nil {
+			t.Fatalf("%s: dekripsi: %v", to, err)
+		}
+		for _, s := range []string{w[1], w[2], "it-sintetis@example.test", "Teks perhatian sintetis satu", "Net Paid"} {
+			if !contains(plain.Bytes(), s) {
+				t.Errorf("%s: slip terdekripsi tidak memuat %q", to, s)
+			}
+		}
+		for _, other := range want { // no other employee's PII
+			if other[1] != w[1] && (contains(plain.Bytes(), other[1]) || contains(plain.Bytes(), other[2])) {
+				t.Errorf("%s: slip memuat PII karyawan lain", to)
+			}
+		}
+		if strings.Contains(msgs[i], w[1]) || strings.Contains(msgs[i], w[2]) {
+			t.Errorf("%s: PII di badan email", to)
+		}
+	}
+
+	// neither the audit log nor the item log carries NPWP, account number or the key
+	if got := scalar(t, `SELECT count(*)::text FROM payroll.pyr_audit_log WHERE pal_after::text ~ '(99\.[0-9]{3}|555000[123]|`+encKey+`)'
+	  OR pal_before::text ~ '(99\.[0-9]{3}|555000[123]|`+encKey+`)'`); got != "0" {
+		t.Fatalf("PII di audit: %s", got)
+	}
+	if got := scalar(t, `SELECT count(*)::text FROM payroll.pyr_distribution_item WHERE pdi_last_error ~ '(99\.[0-9]{3}|555000[123])' OR pdi_smtp_response ~ '(99\.[0-9]{3}|555000[123])'`); got != "0" {
+		t.Fatalf("PII di log item: %s", got)
+	}
+
+	// resend renders with the same full slip and also needs the key
+	if _, err := svc.Resend(ctx, distribution.ResendOptions{BatchID: b, NIK: "ZREP0001", Reason: "uji PII", Query: q}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Send(ctx, distribution.SendOptions{BatchID: b, Query: q}); !errors.Is(err, report.ErrNoPIIKey) {
+		t.Fatalf("send item resend tanpa kunci harus ditolak: %v", err)
+	}
+	res, err = svc.Send(ctx, distribution.SendOptions{BatchID: b, Query: q, SlipConfig: cfg})
+	if err != nil || res.Sent != 1 || fake.count() != 4 {
+		t.Fatalf("resend send %+v %v", res, err)
+	}
+	if !contains(func() []byte {
+		var o bytes.Buffer
+		_ = api.Decrypt(bytes.NewReader(attachment(t, fake.msgs[3])), &o, model.NewAESConfiguration("07031990", "", 256)) //nolint:errcheck // asserted below via content
+		return o.Bytes()
+	}(), "5550001111") {
+		t.Fatal("slip resend tanpa rekening")
 	}
 }

@@ -312,7 +312,7 @@ func slip(ctx context.Context, args []string) error {
 	if *yymm == 0 || *division == "" || *out == "" || *dsn == "" || *key == "" {
 		return fmt.Errorf("-yymm, -division, -out, -dsn (atau PAYROLL_APP_DSN), dan -pii-key (atau PAYROLL_PII_KEY) wajib")
 	}
-	cfg, err := slipConfig(*key)
+	cfg, err := report.SlipConfigFromEnv(*key)
 	if err != nil {
 		return err
 	}
@@ -353,23 +353,6 @@ func envDefault(v *string, name string) {
 	if *v == "" {
 		*v = os.Getenv(name)
 	}
-}
-
-// slipConfig reads the F-3 layout settings from the environment: the logo file (PAYROLL_REPORT_LOGO, not in the
-// repository; unset = text-only letterhead), the "Perhatian" text lines separated by "|" and the IT contact.
-func slipConfig(piiKey string) (report.SlipConfig, error) {
-	c := report.SlipConfig{PIIKey: piiKey, ContactIT: os.Getenv("PAYROLL_SLIP_CONTACT_IT")}
-	if t := os.Getenv("PAYROLL_SLIP_PERHATIAN"); t != "" {
-		c.Perhatian = strings.Split(t, "|")
-	}
-	if path := os.Getenv("PAYROLL_REPORT_LOGO"); path != "" {
-		b, err := os.ReadFile(path) //nolint:gosec // operator-supplied path from the environment
-		if err != nil {
-			return c, fmt.Errorf("PAYROLL_REPORT_LOGO: %w", err)
-		}
-		c.Logo = b
-	}
-	return c, nil
 }
 
 // gl writes the GAJI journal (F-2 sheet `upload` + Check, 11§4, D-63). An invalid journal (unmapped line, missing

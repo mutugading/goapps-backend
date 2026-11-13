@@ -28,14 +28,32 @@ type SlipOptions struct {
 }
 
 // SlipConfig is the runtime configuration of the F-3 layout (read from env by the CLI, never stored in the DB or the
-// repository). PIIKey decrypts NPWP and the bank account in memory; without it both print empty (cmd/mailer until it
-// is wired). Logo is the PNG/JPEG bytes of the letterhead (empty = text only).
+// repository). PIIKey decrypts NPWP and the bank account in memory; without it both print empty (create/resend, which
+// render nothing; export and send refuse to run without it). Logo is the PNG/JPEG bytes of the letterhead (empty = text only).
 type SlipConfig struct {
 	PIIKey    string
 	OnlyNIK   string // when set, NPWP/account are decrypted for this NIK only (PII minimisation)
 	Logo      []byte
 	Perhatian []string
 	ContactIT string
+}
+
+// SlipConfigFromEnv reads the F-3 layout settings shared by cmd/report and cmd/mailer from the environment: the logo
+// file (PAYROLL_REPORT_LOGO, not in the repository; unset = text-only letterhead), the "Perhatian" lines separated by
+// "|" (PAYROLL_SLIP_PERHATIAN) and the IT contact (PAYROLL_SLIP_CONTACT_IT). The PII key comes from the caller.
+func SlipConfigFromEnv(piiKey string) (SlipConfig, error) {
+	c := SlipConfig{PIIKey: piiKey, ContactIT: os.Getenv("PAYROLL_SLIP_CONTACT_IT")}
+	if t := os.Getenv("PAYROLL_SLIP_PERHATIAN"); t != "" {
+		c.Perhatian = strings.Split(t, "|")
+	}
+	if path := os.Getenv("PAYROLL_REPORT_LOGO"); path != "" {
+		b, err := os.ReadFile(path) //nolint:gosec // operator-supplied path from the environment
+		if err != nil {
+			return c, fmt.Errorf("PAYROLL_REPORT_LOGO: %w", err)
+		}
+		c.Logo = b
+	}
+	return c, nil
 }
 
 // DefaultPerhatian is the confidentiality text used when PAYROLL_SLIP_PERHATIAN is not set.
