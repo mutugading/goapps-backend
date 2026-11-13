@@ -118,8 +118,11 @@ func reco(ctx context.Context, args []string) error {
 	}
 	envDefault(dsn, "PAYROLL_APP_DSN")
 	envDefault(key, "PAYROLL_PII_KEY")
-	if *yymm == 0 || *division == "" || *out == "" || *dsn == "" || *key == "" {
-		return fmt.Errorf("-yymm, -division, -out, -dsn (atau PAYROLL_APP_DSN), dan -pii-key (atau PAYROLL_PII_KEY) wajib")
+	if *yymm == 0 || *division == "" || *out == "" || *dsn == "" {
+		return fmt.Errorf("-yymm, -division, -out, -dsn (atau PAYROLL_APP_DSN) wajib (kunci PII dicek terpisah)")
+	}
+	if err := config.ValidatePIIKey(config.EnvFromOS(), "-pii-key (PAYROLL_PII_KEY)", *key); err != nil {
+		return err
 	}
 	sc, err := scope.New(int16(*company), *division) //nolint:gosec // range checked by FK
 	if err != nil {
@@ -181,8 +184,11 @@ func bank(ctx context.Context, args []string) error {
 	}
 	envDefault(dsn, "PAYROLL_APP_DSN")
 	envDefault(key, "PAYROLL_PII_KEY")
-	if *yymm == 0 || anyEmpty(*division, *out, *dsn, *key, *tdate) {
-		return fmt.Errorf("-yymm, -division, -transfer-date, -out, -dsn (atau PAYROLL_APP_DSN), dan -pii-key (atau PAYROLL_PII_KEY) wajib")
+	if *yymm == 0 || anyEmpty(*division, *out, *dsn, *tdate) {
+		return fmt.Errorf("-yymm, -division, -transfer-date, -out, -dsn (atau PAYROLL_APP_DSN) wajib (kunci PII dicek terpisah)")
+	}
+	if err := config.ValidatePIIKey(config.EnvFromOS(), "-pii-key (PAYROLL_PII_KEY)", *key); err != nil {
+		return err
 	}
 	text, err := bankText(*tdate)
 	if err != nil {
@@ -309,8 +315,11 @@ func slip(ctx context.Context, args []string) error {
 	}
 	envDefault(dsn, "PAYROLL_APP_DSN")
 	envDefault(key, "PAYROLL_PII_KEY")
-	if *yymm == 0 || *division == "" || *out == "" || *dsn == "" || *key == "" {
-		return fmt.Errorf("-yymm, -division, -out, -dsn (atau PAYROLL_APP_DSN), dan -pii-key (atau PAYROLL_PII_KEY) wajib")
+	if *yymm == 0 || *division == "" || *out == "" || *dsn == "" {
+		return fmt.Errorf("-yymm, -division, -out, -dsn (atau PAYROLL_APP_DSN) wajib (kunci PII dicek terpisah)")
+	}
+	if err := config.ValidatePIIKey(config.EnvFromOS(), "-pii-key (PAYROLL_PII_KEY)", *key); err != nil {
+		return err
 	}
 	cfg, err := report.SlipConfigFromEnv(*key)
 	if err != nil {

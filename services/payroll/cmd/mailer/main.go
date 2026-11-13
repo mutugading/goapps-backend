@@ -158,6 +158,9 @@ func send(ctx context.Context, args []string) error {
 	if strings.TrimSpace(*key) == "" {
 		return errors.New("-pii-key (atau PAYROLL_PII_KEY) wajib: slip memuat NPWP dan rekening")
 	}
+	if err := config.ValidatePIIKey(config.EnvFromOS(), "-pii-key (PAYROLL_PII_KEY)", *key); err != nil {
+		return err
+	}
 	slipCfg, err := report.SlipConfigFromEnv(*key)
 	if err != nil {
 		return err

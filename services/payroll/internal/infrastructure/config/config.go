@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -150,9 +151,54 @@ const minJWTSecretLen = 32
 // placeholderJWTSecrets are the sample values shipped in config.yaml/compose.
 var placeholderJWTSecrets = []string{"change-this-in-production", "dev-access-secret-change-in-production"}
 
-// placeholderPIIKeys are the dev defaults of pii.enc_key / pii.hmac_key (config.yaml and SetDefault). They are
-// longer than minJWTSecretLen, so the length check alone would let them through outside development.
-var placeholderPIIKeys = []string{"dev-pii-enc-key-change-in-production", "dev-pii-hmac-key-change-in-production"}
+// placeholderPIIMarker is contained in every dev default of pii.enc_key / pii.hmac_key (config.yaml and SetDefault).
+// Those defaults are longer than minJWTSecretLen, so the length check alone would let them through outside development.
+const placeholderPIIMarker = "change-in-production"
+
+// DefaultEnv is the app environment when APP_ENV is unset (same default as Load).
+const DefaultEnv = "development"
+
+// EnvFromOS returns APP_ENV, or DefaultEnv when unset. CLIs (sync/report/mailer) use it so they validate the
+// PII keys by the same rule as the server.
+func EnvFromOS() string {
+	if e := os.Getenv("APP_ENV"); e != "" {
+		return e
+	}
+	return DefaultEnv
+}
+
+// ValidatePIIKey checks one PII key. It must be set; outside development it must also be at least minJWTSecretLen
+// bytes and not a sample value. name is the env var, used in the message only.
+func ValidatePIIKey(env, name, key string) error {
+	if key == "" {
+		return fmt.Errorf("config: %s is required", name)
+	}
+	if env == DefaultEnv {
+		return nil
+	}
+	if len(key) < minJWTSecretLen {
+		return fmt.Errorf("config: %s must be at least %d bytes in %q", name, minJWTSecretLen, env)
+	}
+	if strings.Contains(key, placeholderPIIMarker) {
+		return fmt.Errorf("config: %s is a sample value, not allowed in %q", name, env)
+	}
+	return nil
+}
+
+// ValidatePIIKeys checks the encryption and HMAC keys together (server, sync). Outside development the two must
+// also differ, otherwise one leaked key opens both the ciphertext and the blind index.
+func ValidatePIIKeys(env, enc, hmac string) error {
+	if err := ValidatePIIKey(env, "pii.enc_key (PAYROLL_PII_KEY)", enc); err != nil {
+		return err
+	}
+	if err := ValidatePIIKey(env, "pii.hmac_key (PAYROLL_PII_HMAC_KEY)", hmac); err != nil {
+		return err
+	}
+	if env != DefaultEnv && enc == hmac {
+		return fmt.Errorf("config: pii.enc_key and pii.hmac_key must differ in %q", env)
+	}
+	return nil
+}
 
 // Validate rejects configurations that must not start. Outside development the
 // JWT secret and the PII keys must be set, not a sample value and at least 32 bytes long.
@@ -161,17 +207,11 @@ func (c *Config) Validate() error {
 	if secret == "" {
 		return errors.New("config: jwt.access_token_secret (JWT_ACCESS_SECRET) is required")
 	}
-	if c.PII.EncKey == "" || c.PII.HMACKey == "" {
-		return errors.New("config: pii.enc_key (PAYROLL_PII_KEY) and pii.hmac_key (PAYROLL_PII_HMAC_KEY) are required")
+	if err := ValidatePIIKeys(c.App.Env, c.PII.EncKey, c.PII.HMACKey); err != nil {
+		return err
 	}
-	if c.App.Env == "development" {
+	if c.App.Env == DefaultEnv {
 		return nil
-	}
-	if len(c.PII.EncKey) < minJWTSecretLen || len(c.PII.HMACKey) < minJWTSecretLen {
-		return fmt.Errorf("config: pii keys must be at least %d bytes in %q", minJWTSecretLen, c.App.Env)
-	}
-	if slices.Contains(placeholderPIIKeys, c.PII.EncKey) || slices.Contains(placeholderPIIKeys, c.PII.HMACKey) {
-		return fmt.Errorf("config: pii keys are sample values, not allowed in %q", c.App.Env)
 	}
 	if slices.Contains(placeholderJWTSecrets, secret) {
 		return fmt.Errorf("config: jwt.access_token_secret is a sample value, not allowed in %q", c.App.Env)

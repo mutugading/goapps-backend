@@ -77,6 +77,9 @@ func employees(args []string) error {
 	if *dir == "" || *dsn == "" {
 		return fmt.Errorf("-dir dan -dsn (atau PAYROLL_ETL_DSN) wajib")
 	}
+	if err := config.ValidatePIIKeys(config.EnvFromOS(), os.Getenv("PAYROLL_PII_KEY"), os.Getenv("PAYROLL_PII_HMAC_KEY")); err != nil {
+		return err
+	}
 	db, err := sql.Open("pgx", *dsn)
 	if err != nil {
 		return err

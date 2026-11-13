@@ -20,7 +20,7 @@ func TestValidate_JWTSecret(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := Config{App: AppConfig{Env: tt.env}, JWT: JWTConfig{AccessTokenSecret: tt.secret}, PII: PIIConfig{EncKey: long, HMACKey: long}}
+			cfg := Config{App: AppConfig{Env: tt.env}, JWT: JWTConfig{AccessTokenSecret: tt.secret}, PII: PIIConfig{EncKey: long, HMACKey: long + "h"}}
 			if err := cfg.Validate(); (err != nil) != tt.wantErr {
 				t.Fatalf("Validate() err = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -30,6 +30,8 @@ func TestValidate_JWTSecret(t *testing.T) {
 
 func TestValidate_PIIKeys(t *testing.T) {
 	long := strings.Repeat("p", minJWTSecretLen)
+	long2 := strings.Repeat("q", minJWTSecretLen)
+	devEnc, devHMAC := "dev-pii-enc-key-"+placeholderPIIMarker, "dev-pii-hmac-key-"+placeholderPIIMarker
 	tests := []struct {
 		name, env, enc, hmac string
 		wantErr              bool
@@ -37,11 +39,14 @@ func TestValidate_PIIKeys(t *testing.T) {
 		{"missing enc key rejected", "development", "", long, true},
 		{"missing hmac key rejected", "development", long, "", true},
 		{"short ok in development", "development", "dev", "dev", false},
-		{"short rejected in production", "production", "short", long, true},
-		{"strong ok in production", "production", long, long, false},
-		{"dev sample enc key rejected in production", "production", placeholderPIIKeys[0], long, true},
-		{"dev sample hmac key rejected in staging", "staging", long, placeholderPIIKeys[1], true},
-		{"dev sample keys ok in development", "development", placeholderPIIKeys[0], placeholderPIIKeys[1], false},
+		{"short rejected in production", "production", "short", long2, true},
+		{"strong ok in production", "production", long, long2, false},
+		{"dev sample enc key rejected in production", "production", devEnc, long, true},
+		{"dev sample hmac key rejected in staging", "staging", long, devHMAC, true},
+		{"sample marker inside a long key rejected", "production", strings.Repeat("x", 20) + placeholderPIIMarker, long, true},
+		{"equal enc and hmac key rejected in production", "production", long, long, true},
+		{"equal keys ok in development", "development", "dev", "dev", false},
+		{"dev sample keys ok in development", "development", devEnc, devHMAC, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -78,5 +83,16 @@ func TestLoad_OracleSyncEnv(t *testing.T) {
 	}
 	if !cfg.OracleSync.Configured() || cfg.OracleSync.Port != 1521 || cfg.OracleSync.User != "PAYROLL_SYNC_RO" {
 		t.Fatalf("unexpected %+v", cfg.OracleSync)
+	}
+}
+
+func TestEnvFromOS(t *testing.T) {
+	t.Setenv("APP_ENV", "")
+	if got := EnvFromOS(); got != DefaultEnv {
+		t.Fatalf("unset APP_ENV = %q, want %q", got, DefaultEnv)
+	}
+	t.Setenv("APP_ENV", "production")
+	if got := EnvFromOS(); got != "production" {
+		t.Fatalf("EnvFromOS() = %q, want production", got)
 	}
 }
