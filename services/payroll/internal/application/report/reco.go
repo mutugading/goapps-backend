@@ -45,6 +45,10 @@ type RecoData struct {
 	YYMM int
 	// Transfer is the F-2 `transfer` sheet data (Mandiri payable rows); bank issues are listed in pra-cek.
 	Transfer BankData
+	// F-2 additional / reg / OT payroll sheets.
+	Additions []AdditionRow
+	Reg       []RegRow
+	Overtime  []OTRow
 }
 
 // EarnDeduc is the signed amount: Tunjangan +, Potongan −.
@@ -116,6 +120,15 @@ func (s *Service) ExportReco(ctx context.Context, q Query, key string, build fun
 			return err
 		}
 		rd.Transfer = SplitBank(q.YYMM, all, MandiriBank)
+		if rd.Additions, err = loadAdditions(ctx, tx, q); err != nil {
+			return err
+		}
+		if rd.Reg, err = loadReg(ctx, tx, d.RunID); err != nil {
+			return err
+		}
+		if rd.Overtime, err = loadOvertime(ctx, tx, q, d.RunID); err != nil {
+			return err
+		}
 		rows, err := build(rd)
 		if err != nil {
 			return err
@@ -222,7 +235,7 @@ func WriteReco(d RecoData, w io.Writer) (int, error) {
 	if err := f.SetSheetName("Sheet1", SheetRecoDetail); err != nil {
 		return 0, fmt.Errorf("rename sheet: %w", err)
 	}
-	for _, n := range []string{SheetTransfer, SheetPreCheck, SheetSummary} {
+	for _, n := range []string{SheetTransfer, SheetAdditional, SheetReg, SheetOvertime, SheetPreCheck, SheetSummary} {
 		if _, err := f.NewSheet(n); err != nil {
 			return 0, fmt.Errorf("new sheet: %w", err)
 		}
@@ -230,6 +243,9 @@ func WriteReco(d RecoData, w io.Writer) (int, error) {
 	sw := &sheetWriter{f: f}
 	sw.recoDetail(d)
 	sw.transfer(d)
+	sw.additional(d)
+	sw.reg(d)
+	sw.overtime(d)
 	sw.preCheck(d)
 	sw.summary(d.RunData)
 	if sw.err != nil {
