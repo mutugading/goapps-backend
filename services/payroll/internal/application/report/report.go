@@ -82,10 +82,18 @@ func (s *Service) Export(ctx context.Context, kind string, q Query, build func(R
 		if err != nil {
 			return err
 		}
-		return s.Audit.Write(ctx, tx, audit.Entry{CompanyID: q.CompanyID, Division: q.Division, Action: ActionExport,
-			Entity: "report", EntityKey: kind,
-			After: map[string]any{"jenis": kind, "yymm": q.YYMM, "divisi": q.Division, "baris": rows, "allow_open": q.AllowOpen}})
+		return s.writeAudit(ctx, tx, q, kind, rows, nil)
 	})
+}
+
+// writeAudit records REPORT_EXPORT (counts and flags only; never amounts or NIKs).
+func (s *Service) writeAudit(ctx context.Context, tx *sql.Tx, q Query, kind string, rows int, extra map[string]any) error {
+	after := map[string]any{"jenis": kind, "yymm": q.YYMM, "divisi": q.Division, "baris": rows, "allow_open": q.AllowOpen}
+	for k, v := range extra {
+		after[k] = v
+	}
+	return s.Audit.Write(ctx, tx, audit.Entry{CompanyID: q.CompanyID, Division: q.Division, Action: ActionExport,
+		Entity: "report", EntityKey: kind, After: after})
 }
 
 // Load reads the ACTIVE engine run of the period inside tx.
