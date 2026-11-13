@@ -29,6 +29,7 @@ help:
 	@echo "  make v2-up              - Start docker-compose.v2.yaml (Postgres 18 :5440 + PgBouncer :6440)"
 	@echo "  make v2-migrate         - Migrate all services as <svc>_owner (direct) + refresh grants"
 	@echo "  make v2-seed            - Run seeders for all services as <svc>_owner (direct)"
+	@echo "  make v2-refresh         - Refresh local v2 DBs from SANITIZED staging (needs STAGING_PG_USER, ~/.pgpass)"
 	@echo "  make v2-verify          - Run 90-verify.sql on every DB"
 	@echo "  make v2-down            - Stop the v2 stack (V2_PURGE=1 also drops its volume)"
 	@echo "  make v2-env-on          - Point local services at v2 (writes services/<svc>/.env.local)"
@@ -127,7 +128,7 @@ V2_SERVICES := iam finance ppc
 
 V2_SQL_SRC  ?= ../docs/migration-postgres/v2/sql
 
-.PHONY: v2-up v2-down v2-migrate v2-grants v2-seed v2-verify v2-sync-check v2-env-on v2-env-off migration-lint
+.PHONY: v2-refresh v2-up v2-down v2-migrate v2-grants v2-seed v2-verify v2-sync-check v2-env-on v2-env-off migration-lint
 
 v2-up:
 	$(V2_COMPOSE) up -d --wait
@@ -157,6 +158,10 @@ v2-seed:
 	      $${p}DATABASE_PASSWORD=dev_$${s}_owner $${p}DATABASE_NAME=$${s}_db $${p}DATABASE_SSLMODE=disable \
 	      go run ./seeds ) || exit 1; \
 	done
+
+# Refresh local v2 from SANITIZED staging (P9). Needs STAGING_PG_USER (read-only role) + ~/.pgpass entry.
+v2-refresh:
+	@scripts/v2-refresh.sh
 
 v2-verify:
 	@for d in iam_db finance_db ppc_db; do echo "=== $$d"; docker exec -i goapps-v2-postgres psql -X -U postgres -d $$d -f /v2/sql/90-verify.sql || exit 1; done
