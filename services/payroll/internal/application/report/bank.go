@@ -133,7 +133,10 @@ const bankSQL = `SELECT h.psh_nik, COALESCE(h.psh_nama,''), COALESCE(h.psh_dept_
   h.psh_net_pay::text
 FROM payroll.pyr_salary_head h
 LEFT JOIN payroll.pyr_employee e ON e.pe_company_id = $2 AND e.pe_nik = h.psh_nik AND e.pe_division = h.psh_division
-LEFT JOIN payroll.pyr_gl_group_map g ON g.pggm_company_id = $2 AND g.pggm_division = h.psh_division::text AND g.pggm_level = e.pe_level
+LEFT JOIN LATERAL (SELECT x.pggm_gl_group FROM payroll.pyr_gl_group_map x
+  WHERE x.pggm_company_id = $2 AND x.pggm_division = h.psh_division::text AND x.pggm_level = e.pe_level
+    AND (x.pggm_dept_code IS NULL OR x.pggm_dept_code = h.psh_dept_code)
+  ORDER BY (x.pggm_dept_code IS NULL) LIMIT 1) g ON true
 WHERE h.psh_run_id = $1
 ORDER BY h.psh_nik`
 

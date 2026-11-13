@@ -1,4 +1,4 @@
-// Package main is the payroll sync/ETL entry point (D-01, D-22). Subcommands: migrate, employees, inputs, att, snapshot, att-legacy, salary-legacy, thr-legacy, att-legacy-fail, gl-setup.
+// Package main is the payroll sync/ETL entry point (D-01, D-22). Subcommands: migrate, employees, inputs, att, snapshot, att-legacy, salary-legacy, thr-legacy, att-legacy-fail, gl-setup, fx-rate.
 package main
 
 import (
@@ -32,6 +32,7 @@ var commands = map[string]func([]string) error{
 	"att-legacy-fail": attLegacyFail,
 	"prune-excluded":  pruneExcluded,
 	"gl-setup":        glSetup,
+	"fx-rate":         fxRate,
 }
 
 func main() {
@@ -44,6 +45,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "       sync thr-legacy -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-main 14918 -expect-detail 62246] [-allow-exceptions]  (setelah employees; D-56)")
 		fmt.Fprintln(os.Stderr, "       sync att-legacy-fail -dir <psv dir> -dsn <payroll_etl dsn>  (setelah salary-legacy; isi premi_fail/beras_fail dari DETAIL T40/T74, D-33)")
 		fmt.Fprintln(os.Stderr, "       sync gl-setup -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-rows 1338] [-allow-exceptions]  (MGT_PAYROLL_SETUP → pyr_gl_setup + pyr_gl_group_map; sesudah migrate, 11§4.5)")
+		fmt.Fprintln(os.Stderr, "       sync fx-rate -dir <psv dir> -dsn <payroll_etl dsn> [-expect-rows 297] [-allow-exceptions]  (FM_EXCHANGE_RATE IDR→USD BOOK → pyr_fx_rate; spool dengan SET NUMWIDTH 40, D-63)")
 		fmt.Fprintln(os.Stderr, "       sync inputs -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-addition 28464 -expect-abnormal 28550]")
 		fmt.Fprintln(os.Stderr, "       sync salary-legacy -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-main 91916 -expect-detail 2274418] [-allow-exceptions]")
 		fmt.Fprintln(os.Stderr, "       sync prune-excluded -owner-dsn <payroll_owner/migrator dsn> [-company 1] [-apply]  (hapus run LEGACY di luar cakupan D-35.1; default dry-run)")
@@ -318,6 +320,44 @@ func glSetup(args []string) error {
 	}
 	if len(r.Exceptions) > 0 && !*allowExc {
 		return fmt.Errorf("%d exception (baris ditahan; laporkan ke Finance lalu jalankan ulang, atau -allow-exceptions)", len(r.Exceptions))
+	}
+	return nil
+}
+
+func fxRate(args []string) error {
+	fs := flag.NewFlagSet("fx-rate", flag.ExitOnError)
+	dir := fs.String("dir", "", "folder .psv hasil spool sqlplus (08§1): FM_EXCHANGE_RATE")
+	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl")
+	expRows := fs.Int("expect-rows", 0, "jumlah baris IDR→USD BOOK yang diharapkan")
+	allowExc := fs.Bool("allow-exceptions", false, "exit 0 walau ada exception")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *dir == "" || *dsn == "" {
+		return fmt.Errorf("-dir dan -dsn (atau PAYROLL_ETL_DSN) wajib")
+	}
+	db, err := sql.Open("pgx", *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := db.Close(); cerr != nil {
+			fmt.Fprintln(os.Stderr, "close:", cerr)
+		}
+	}()
+	r, err := etl.RunFxRate(context.Background(), db, etl.PSVDir{Dir: *dir}, etl.FxRateOptions{ExpectRows: *expRows})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%-20s src=%-8d dst=%-8d exc=%-4d sha256=%s\n", r.Table, r.SrcRows, r.DstRows, len(r.Exceptions), r.Checksum)
+	for _, w := range r.Warnings {
+		fmt.Println("  WARNING", w)
+	}
+	for _, e := range r.Exceptions {
+		fmt.Println("  EXCEPTION", e)
+	}
+	if len(r.Exceptions) > 0 && !*allowExc {
+		return fmt.Errorf("%d exception (baris ditahan; atau -allow-exceptions)", len(r.Exceptions))
 	}
 	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -18,8 +19,12 @@ const glValidFrom = 201712
 const (
 	glJenisBalance = "EMPLOYEE BALANCE"
 	glKindComp     = "COMPONENT"
-	glKindBalance  = "EMPLOYEE_BALANCE"
+	glKindPayable  = "PAYABLE"
 )
+
+// glPayableJenis are the legacy MPS_JENIS of the per-group payable line (D-63 butir 1): SALARY001 sums
+// PM_TOT_TUNJANGAN - PM_TOT_POTONGAN - PM_ROUNDING per Level_Status into it. THR uses "THR Payables".
+var glPayableJenis = map[string]bool{"SALARY PAYABLES": true, "THR PAYABLES": true}
 
 // GlSetupOptions controls the GL setup load. ExpectRows = 0 means unchecked (production: 1338).
 type GlSetupOptions struct {
@@ -38,23 +43,23 @@ type glRow struct {
 	main, sub, drcr string
 	desc            string
 	subFromEmp      bool
+	balance         bool // legacy Employee Balance row: a flag on component accounts, not a journal line (D-63 butir 2)
 	legacy          map[string]string
 	srcLine         int
 }
+
+// glBalanceKey is one "main account with employee sub-account" marker: journal type + main account. The legacy
+// SALARY001 subquery does not filter the Employee Balance row on division, so the marker applies to both divisions.
+type glBalanceKey struct{ journal, main string }
 
 var glCostGroups = map[string]string{"MGT": "MGT", "MB": "MB", "CONTRACT": "CONTRACT"}
 
 // glJournalType maps MPS_TYPE (GAJI/THR/Bonus) to pgs_journal_type; "" = unknown.
 func glJournalType(s string) string {
-	switch strings.ToUpper(s) {
-	case "GAJI":
+	if strings.EqualFold(s, "GAJI") {
 		return "GAJI"
-	case "THR":
-		return "THR"
-	case "BONUS":
-		return "BONUS"
 	}
-	return ""
+	return thrKind(s) // THR / BONUS
 }
 
 // GlAccount normalizes MPS_AKUN / MPS_MAIN / MPS_SUB (11§4.5 step 1): "main-sub" in MPS_AKUN is split,
@@ -76,24 +81,11 @@ func parseGlRow(r []string, ix map[string]int, sysids map[sysKey]int64) (glRow, 
 	c := func(n string) string { return r[ix[n]] }
 	var g glRow
 	g.key.division = strings.ToUpper(c("MPS_DIVISION"))
-	if g.key.division != "SOLO" && g.key.division != "JAKARTA" {
+	if g.key.division != DivSolo && g.key.division != DivJakarta {
 		return g, "MPS_DIVISION tidak dikenal: " + fmt.Sprintf("%q", c("MPS_DIVISION"))
 	}
 	if g.key.journal = glJournalType(c("MPS_TYPE")); g.key.journal == "" {
 		return g, fmt.Sprintf("MPS_TYPE %q bukan GAJI/THR/Bonus", c("MPS_TYPE"))
-	}
-	if g.key.group = c("MPS_JABATAN"); g.key.group == "" {
-		return g, "MPS_JABATAN kosong"
-	}
-	if d := strings.ToUpper(c("MPS_DEPT")); d != "" {
-		cg, ok := glCostGroups[d]
-		if !ok {
-			return g, fmt.Sprintf("MPS_DEPT %q bukan MGT/MB/Contract", c("MPS_DEPT"))
-		}
-		g.key.cost = cg
-	}
-	if g.drcr = strings.ToUpper(c("MPS_DRCR")); g.drcr != "D" && g.drcr != "C" {
-		return g, fmt.Sprintf("MPS_DRCR %q bukan D/C", c("MPS_DRCR"))
 	}
 	var ok bool
 	if g.main, g.sub, ok = GlAccount(c("MPS_AKUN"), c("MPS_MAIN"), c("MPS_SUB")); !ok {
@@ -102,13 +94,21 @@ func parseGlRow(r []string, ix map[string]int, sysids map[sysKey]int64) (glRow, 
 	g.desc = c("MPS_DESCRIPTION")
 	jenis := strings.ToUpper(c("MPS_JENIS"))
 	if jenis == glJenisBalance {
-		g.key.kind, g.subFromEmp = glKindBalance, true
+		// D-63 butir 2: legacy rows have no jabatan/no/drcr; they only mark the main account as "sub = employee".
+		g.balance = true
+		return g, ""
+	}
+	if exc := parseGlLine(&g, c); exc != "" {
+		return g, exc
+	}
+	if glPayableJenis[jenis] {
+		g.key.kind = glKindPayable
 		return g, ""
 	}
 	g.key.kind = glKindComp
 	typ := map[string]string{"TUNJANGAN": typeTunjangan, "POTONGAN": typePotongan}[jenis]
 	if typ == "" {
-		return g, fmt.Sprintf("MPS_JENIS %q bukan Tunjangan/Potongan/Employee Balance", c("MPS_JENIS"))
+		return g, fmt.Sprintf("MPS_JENIS %q bukan Tunjangan/Potongan/Salary Payables/THR Payables/Employee Balance", c("MPS_JENIS"))
 	}
 	var no int
 	if _, err := fmt.Sscanf(c("MPS_NO"), "%d", &no); err != nil {
@@ -122,8 +122,32 @@ func parseGlRow(r []string, ix map[string]int, sysids map[sysKey]int64) (glRow, 
 	return g, ""
 }
 
-// glGroupMap is the legacy Level_Status CASE (SALARY001) as level → gl_group rows per division. Driver in dept HRMC
-// becomes "Driver Contract" in the legacy CASE; that depends on the department, so it is resolved by the report, not here.
+// parseGlLine validates the columns every journal line (component or payable) needs: jabatan, dept and drcr.
+func parseGlLine(g *glRow, c func(string) string) string {
+	if g.key.group = c("MPS_JABATAN"); g.key.group == "" {
+		return "MPS_JABATAN kosong"
+	}
+	if d := strings.ToUpper(c("MPS_DEPT")); d != "" {
+		cg, ok := glCostGroups[d]
+		if !ok {
+			return fmt.Sprintf("MPS_DEPT %q bukan MGT/MB/Contract", c("MPS_DEPT"))
+		}
+		g.key.cost = cg
+	}
+	if g.drcr = strings.ToUpper(c("MPS_DRCR")); g.drcr != "D" && g.drcr != "C" {
+		return fmt.Sprintf("MPS_DRCR %q bukan D/C", c("MPS_DRCR"))
+	}
+	return ""
+}
+
+// glDeptGroup is a department-specific gl_group override (pggm_dept_code; wins over the level-only row).
+type glDeptGroup struct{ division, level, dept, group string }
+
+// glDeptGroups: legacy CASE "PM_EMP_TYPE = 'Driver' AND PM_DEPT_CODE = 'HRMC' → 'Driver Contract'" (SOLO, D-63 butir 5).
+var glDeptGroups = []glDeptGroup{{DivSolo, "Driver", "HRMC", "Driver Contract"}}
+
+// glGroupMap is the legacy Level_Status CASE (SALARY001) as level → gl_group rows per division. The department
+// dependent case (Driver in HRMC) is seeded separately from glDeptGroups.
 func glGroupMap() map[string]map[string]string {
 	solo := map[string]string{"Executive": "Executive"}
 	jkt := map[string]string{
@@ -136,11 +160,13 @@ func glGroupMap() map[string]map[string]string {
 			solo[r.Level] = "Operator"
 		}
 	}
-	return map[string]map[string]string{"SOLO": solo, "JAKARTA": jkt}
+	return map[string]map[string]string{DivSolo: solo, DivJakarta: jkt}
 }
 
-// RunGlSetup loads MGT_PAYROLL_SETUP into pyr_gl_setup (+ seeds pyr_gl_group_map) in ONE transaction (11§4.5).
-// Rows that cannot be loaded (unknown division/type/dept/drcr, unparsable account, component without sysid map) and
+// RunGlSetup loads MGT_PAYROLL_SETUP into pyr_gl_setup (+ seeds pyr_gl_group_map) in ONE transaction (11§4.5, D-63).
+// Tunjangan/Potongan rows become COMPONENT lines, Salary/THR Payables rows PAYABLE lines (per group, no component).
+// Employee Balance rows are not lines: they set pgs_sub_from_employee on COMPONENT lines of the same journal type and
+// main account (legacy SALARY001 sub_nik; no NIK fallback, 11§4.2) and count as loaded. Rows that cannot be loaded (unknown division/type/dept/drcr, unparsable account, component without sysid map) and
 // duplicate keys with differing account/drcr (the legacy table has no PK) are reported as Exceptions and not loaded;
 // identical duplicates collapse into one row (Warnings). Idempotent: upsert on the unique index, pgs_legacy_row = source row.
 //
@@ -166,9 +192,10 @@ func RunGlSetup(ctx context.Context, db *sql.DB, src Source, o GlSetupOptions) (
 	sysids := map[string]map[sysKey]int64{}
 	groups := make([]glRow, 0, len(t.Rows))
 	byKey := map[glKey][]glRow{}
+	balances := map[glBalanceKey]int{}
 	for i, r := range t.Rows {
 		div := strings.ToUpper(r[ix["MPS_DIVISION"]])
-		if _, ok := sysids[div]; !ok && (div == "SOLO" || div == "JAKARTA") {
+		if _, ok := sysids[div]; !ok && (div == DivSolo || div == DivJakarta) {
 			if sysids[div], err = glSysids(ctx, tx, o.CompanyID, div); err != nil {
 				return rep, err
 			}
@@ -176,6 +203,10 @@ func RunGlSetup(ctx context.Context, db *sql.DB, src Source, o GlSetupOptions) (
 		g, exc := parseGlRow(r, ix, sysids[div])
 		if exc != "" {
 			rep.Exceptions = append(rep.Exceptions, fmt.Sprintf("%s baris %d: %s", t.Name, i+2, exc))
+			continue
+		}
+		if g.balance {
+			balances[glBalanceKey{g.key.journal, g.main}]++
 			continue
 		}
 		g.srcLine = i + 2
@@ -186,7 +217,7 @@ func RunGlSetup(ctx context.Context, db *sql.DB, src Source, o GlSetupOptions) (
 		byKey[g.key] = append(byKey[g.key], g)
 		groups = append(groups, g)
 	}
-	loaded := 0
+	loaded := applyBalances(groups, byKey, balances, &rep)
 	seen := map[glKey]bool{}
 	for _, g := range groups {
 		if seen[g.key] {
@@ -203,7 +234,7 @@ func RunGlSetup(ctx context.Context, db *sql.DB, src Source, o GlSetupOptions) (
 		if len(dups) > 1 {
 			rep.Warnings = append(rep.Warnings, fmt.Sprintf("%d baris identik digabung: %s", len(dups), glKeyText(g.key)))
 		}
-		if err := upsertGl(ctx, tx, o.CompanyID, g); err != nil {
+		if err := upsertGl(ctx, tx, o.CompanyID, dups[0]); err != nil {
 			return rep, fmt.Errorf("baris %d: %w", g.srcLine, err)
 		}
 		loaded += len(dups)
@@ -216,6 +247,35 @@ func RunGlSetup(ctx context.Context, db *sql.DB, src Source, o GlSetupOptions) (
 		return rep, err
 	}
 	return rep, nil
+}
+
+// applyBalances marks COMPONENT lines whose (journal, main) has an Employee Balance row, warns about markers that match
+// no component, and returns the number of Employee Balance source rows consumed.
+func applyBalances(groups []glRow, byKey map[glKey][]glRow, balances map[glBalanceKey]int, rep *TableReport) int {
+	used := map[glBalanceKey]bool{}
+	for _, g := range groups {
+		bk := glBalanceKey{g.key.journal, g.main}
+		if g.key.kind != glKindComp || balances[bk] == 0 {
+			continue
+		}
+		used[bk] = true
+		for i := range byKey[g.key] {
+			byKey[g.key][i].subFromEmp = true
+		}
+	}
+	n := 0
+	keys := make([]glBalanceKey, 0, len(balances))
+	for k, c := range balances {
+		n += c
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i].journal+keys[i].main < keys[j].journal+keys[j].main })
+	for _, k := range keys {
+		if !used[k] {
+			rep.Warnings = append(rep.Warnings, fmt.Sprintf("Employee Balance %s akun %s tanpa baris komponen ber-akun sama", k.journal, k.main))
+		}
+	}
+	return n
 }
 
 func glKeyText(k glKey) string {
@@ -280,29 +340,37 @@ DO UPDATE SET pgs_account_main=EXCLUDED.pgs_account_main, pgs_account_sub=EXCLUD
 
 // loadGlGroupMap seeds pyr_gl_group_map and warns when a mapped gl_group has no setup row for its division.
 func loadGlGroupMap(ctx context.Context, tx *sql.Tx, company int16, rep *TableReport) error {
+	rows := make([]glDeptGroup, 0, 32)
 	for div, m := range glGroupMap() {
 		for level, grp := range m {
-			if _, err := tx.ExecContext(ctx, `
-INSERT INTO payroll.pyr_gl_group_map (pggm_company_id, pggm_division, pggm_level, pggm_gl_group) VALUES ($1,$2,$3,$4)
-ON CONFLICT (pggm_company_id, pggm_division, pggm_level) DO UPDATE SET pggm_gl_group=EXCLUDED.pggm_gl_group`,
-				company, div, level, grp); err != nil {
-				return fmt.Errorf("gl_group_map %s/%s: %w", div, level, err)
-			}
+			rows = append(rows, glDeptGroup{div, level, "", grp})
 		}
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT DISTINCT m.pggm_division, m.pggm_gl_group FROM payroll.pyr_gl_group_map m
+	for _, r := range append(rows, glDeptGroups...) {
+		var dept any
+		if r.dept != "" {
+			dept = r.dept
+		}
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO payroll.pyr_gl_group_map (pggm_company_id, pggm_division, pggm_level, pggm_dept_code, pggm_gl_group) VALUES ($1,$2,$3,$4,$5)
+ON CONFLICT (pggm_company_id, pggm_division, pggm_level, coalesce(pggm_dept_code,'*')) DO UPDATE SET pggm_gl_group=EXCLUDED.pggm_gl_group`,
+			company, r.division, r.level, dept, r.group); err != nil {
+			return fmt.Errorf("gl_group_map %s/%s/%s: %w", r.division, r.level, r.dept, err)
+		}
+	}
+	q, err := tx.QueryContext(ctx, `SELECT DISTINCT m.pggm_division, m.pggm_gl_group FROM payroll.pyr_gl_group_map m
 WHERE m.pggm_company_id=$1 AND NOT EXISTS (SELECT 1 FROM payroll.pyr_gl_setup s WHERE s.pgs_company_id=m.pggm_company_id
   AND s.pgs_division=m.pggm_division AND s.pgs_gl_group=m.pggm_gl_group) ORDER BY 1,2`, company)
 	if err != nil {
 		return err
 	}
-	defer closeQuiet(rows)
-	for rows.Next() {
+	defer closeQuiet(q)
+	for q.Next() {
 		var d, g string
-		if err := rows.Scan(&d, &g); err != nil {
+		if err := q.Scan(&d, &g); err != nil {
 			return err
 		}
 		rep.Warnings = append(rep.Warnings, fmt.Sprintf("gl_group %q (%s) ada di group_map tetapi tanpa baris setup GL", g, d))
 	}
-	return rows.Err()
+	return q.Err()
 }

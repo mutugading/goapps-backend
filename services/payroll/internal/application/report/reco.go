@@ -148,7 +148,10 @@ const recoSQL = `SELECT d.psd_nik, COALESCE(h.psh_nama,''), COALESCE(h.psh_dept_
 FROM payroll.pyr_salary_detail d
 JOIN payroll.pyr_salary_head h ON h.psh_run_id = d.psd_run_id AND h.psh_nik = d.psd_nik
 LEFT JOIN payroll.pyr_employee e ON e.pe_company_id = $2 AND e.pe_nik = h.psh_nik AND e.pe_division = h.psh_division
-LEFT JOIN payroll.pyr_gl_group_map g ON g.pggm_company_id = $2 AND g.pggm_division = h.psh_division::text AND g.pggm_level = e.pe_level
+LEFT JOIN LATERAL (SELECT x.pggm_gl_group FROM payroll.pyr_gl_group_map x
+  WHERE x.pggm_company_id = $2 AND x.pggm_division = h.psh_division::text AND x.pggm_level = e.pe_level
+    AND (x.pggm_dept_code IS NULL OR x.pggm_dept_code = h.psh_dept_code)
+  ORDER BY (x.pggm_dept_code IS NULL) LIMIT 1) g ON true
 LEFT JOIN payroll.pyr_component_master m ON m.pcm_type = d.psd_type AND m.pcm_id = d.psd_id
 LEFT JOIN payroll.pyr_component_legacy_map lm ON lm.pclm_company_id = $2 AND lm.pclm_legacy_type = d.psd_type
   AND lm.pclm_legacy_id = d.psd_id AND lm.pclm_legacy_division = h.psh_division::text
