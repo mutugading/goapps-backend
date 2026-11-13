@@ -16,4 +16,6 @@ SET NUMWIDTH 40
 @spool_one.sql MGT_PAYROLL_SETUP
 -- [T028p] kurs IDR→USD BOOK untuk jurnal GL (sync fx-rate, D-63)
 @spool_one.sql FM_EXCHANGE_RATE
+-- [T028q] master dept: DEPT_FIELD_01 = cost group MGT|MB|CONTRACT (sync cost-group; spool_one gagal ORA-01489)
+@spool_dept.sql
 EXIT

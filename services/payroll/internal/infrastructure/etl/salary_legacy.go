@@ -561,7 +561,8 @@ func (l *lazyEmp) empAttrs(nik, division string, out map[string]string) error {
 			return ""
 		}
 		out["nama"], out["dept"], out["section"], out["grade"] = get("PE_NAMA"), get("PE_DEPT"), get("PE_SECTION"), get("PE_GRADE")
-		out["jabatan"], out["emp_type"], out["tax"] = get("PE_DESIGNATION"), get("PE_STS_EMP"), get("PE_TAX_ID")
+		// PM_EMP_TYPE of a real MAIN is the level name (= PE_LEVEL, the key of pyr_gl_group_map), not PE_STS_EMP (T028q).
+		out["jabatan"], out["emp_type"], out["tax"] = get("PE_DESIGNATION"), get("PE_LEVEL"), get("PE_TAX_ID")
 		if j := get("PE_DATE_JOIN"); j != "" {
 			d, err := parseDate(j)
 			if err != nil {
