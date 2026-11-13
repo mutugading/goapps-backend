@@ -91,7 +91,7 @@ func TestScanDailyDateAndNull(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !r.WorkDate.Equal(d) || r.CheckIn == nil || !r.CheckIn.Equal(in) || r.CheckOut != nil || r.WorkHours.Decimal.String() != "7.5" ||
+	if !r.WorkDate.Equal(d) || r.CheckIn == nil || !r.CheckIn.Equal(time.Date(2026, 10, 3, 7, 1, 0, 0, wibZone)) || r.CheckOut != nil || r.WorkHours.Decimal.String() != "7.5" ||
 		r.SchType != "Shift" || r.OtInwork != "" {
 		t.Fatalf("bad daily %+v", r)
 	}

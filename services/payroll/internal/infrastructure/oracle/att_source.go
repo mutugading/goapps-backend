@@ -197,14 +197,22 @@ func scanDaily(sc scanner) (etl.DailyRow, error) {
 		return etl.DailyRow{}, fmt.Errorf("daily nik %s: %w", nik.String, err)
 	}
 	return etl.DailyRow{WorkDate: date.Time, HRISSysID: sys.String, NIK: nik.String, Division: dv.String,
-		ScheduleCode: sch.String, CheckIn: nullTime(in), CheckOut: nullTime(out), WorkHours: h, SchType: typ.String, OtInwork: ot.String}, nil
+		ScheduleCode: sch.String, CheckIn: wibClock(in), CheckOut: wibClock(out), WorkHours: h, SchType: typ.String, OtInwork: ot.String}, nil
 }
 
-func nullTime(t sql.NullTime) *time.Time {
+// wibZone is Asia/Jakarta (UTC+7, no DST); fixed so it does not depend on tzdata.
+var wibZone = time.FixedZone("Asia/Jakarta", 7*60*60)
+
+// wibClock reinterprets an Oracle TIMESTAMP (no zone, wall clock in WIB) as WIB.
+// The driver yields the same wall clock tagged UTC, so only the clock fields are
+// kept and the zone is replaced (06:00 stays 06:00 WIB, not 13:00 WIB).
+func wibClock(t sql.NullTime) *time.Time {
 	if !t.Valid {
 		return nil
 	}
-	v := t.Time
+	y, mo, d := t.Time.Date()
+	h, mi, sec := t.Time.Clock()
+	v := time.Date(y, mo, d, h, mi, sec, t.Time.Nanosecond(), wibZone)
 	return &v
 }
 
