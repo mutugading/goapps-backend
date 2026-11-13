@@ -134,3 +134,47 @@ func TestNewClientRequiresConfig(t *testing.T) {
 		t.Fatal("want error when not configured")
 	}
 }
+
+func TestWibClock_EdgeCases(t *testing.T) {
+	jkt := time.FixedZone("x", 7*3600)
+	cases := []struct {
+		name string
+		in   sql.NullTime
+		want *time.Time
+	}{
+		{"null", sql.NullTime{}, nil},
+		{"utc tag", sql.NullTime{Time: time.Date(2026, 10, 3, 6, 0, 0, 0, time.UTC), Valid: true}, ptrTime(time.Date(2026, 10, 3, 6, 0, 0, 0, jkt))},
+		{"local tag", sql.NullTime{Time: time.Date(2026, 10, 3, 6, 0, 0, 0, time.Local), Valid: true}, ptrTime(time.Date(2026, 10, 3, 6, 0, 0, 0, jkt))},
+		{"other zone tag", sql.NullTime{Time: time.Date(2026, 10, 3, 6, 0, 0, 0, time.FixedZone("y", -5*3600)), Valid: true}, ptrTime(time.Date(2026, 10, 3, 6, 0, 0, 0, jkt))},
+		{"midnight", sql.NullTime{Time: time.Date(2026, 10, 3, 0, 30, 0, 0, time.UTC), Valid: true}, ptrTime(time.Date(2026, 10, 3, 0, 30, 0, 0, jkt))},
+		{"checkout past midnight", sql.NullTime{Time: time.Date(2026, 10, 4, 1, 5, 7, 123, time.UTC), Valid: true}, ptrTime(time.Date(2026, 10, 4, 1, 5, 7, 123, jkt))},
+	}
+	for _, c := range cases {
+		got := wibClock(c.in)
+		if c.want == nil {
+			if got != nil {
+				t.Errorf("%s: want nil, got %v", c.name, got)
+			}
+			continue
+		}
+		if got == nil || !got.Equal(*c.want) {
+			t.Errorf("%s: got %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
+func TestScanDaily_CheckOutValidIsWIB(t *testing.T) {
+	d := time.Date(2026, 10, 3, 0, 0, 0, 0, time.UTC)
+	out := time.Date(2026, 10, 4, 1, 5, 0, 0, time.UTC)
+	f := fakeScanner{vals: []any{sql.NullTime{Time: d, Valid: true}, ns("99"), ns("1234"), ns("SOLO"), ns("N"),
+		sql.NullTime{}, sql.NullTime{Time: out, Valid: true}, ns("8"), ns("Shift"), sql.NullString{}}}
+	r, err := scanDaily(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.CheckOut == nil || !r.CheckOut.Equal(time.Date(2026, 10, 4, 1, 5, 0, 0, wibZone)) || r.CheckIn != nil {
+		t.Fatalf("bad checkout %+v", r)
+	}
+}
+
+func ptrTime(t time.Time) *time.Time { return &t }
