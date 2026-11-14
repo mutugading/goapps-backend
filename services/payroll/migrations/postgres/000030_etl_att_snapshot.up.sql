@@ -17,4 +17,4 @@ BEGIN
   END LOOP;
 END $$;
 
-COMMENT ON COLUMN payroll.pyr_att_snapshot_row.pasr_kind IS 'REKAP | ADD | SCH (SCH: satu baris per NIK, pasr_data = {"SCHEDULES": {kode: jumlah}}; hanya snapshot LEGACY)';
+COMMENT ON COLUMN pyr_att_snapshot_row.pasr_kind IS 'REKAP | ADD | SCH (SCH: satu baris per NIK, pasr_data = {"SCHEDULES": {kode: jumlah}}; hanya snapshot LEGACY)';

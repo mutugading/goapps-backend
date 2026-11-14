@@ -39,4 +39,4 @@ BEGIN
     WITH CHECK (EXISTS (SELECT 1 FROM payroll.pyr_run r WHERE r.pr_id = psd_run_id AND r.pr_kind = 'LEGACY'));
 END $$;
 
-COMMENT ON COLUMN payroll.pyr_run.pr_kind IS 'ENGINE = hasil engine goapps | LEGACY = hasil Oracle yang dimigrasi (T009e), rule_set_id 0';
+COMMENT ON COLUMN pyr_run.pr_kind IS 'ENGINE = hasil engine goapps | LEGACY = hasil Oracle yang dimigrasi (T009e), rule_set_id 0';

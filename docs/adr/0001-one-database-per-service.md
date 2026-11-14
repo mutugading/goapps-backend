@@ -58,6 +58,15 @@ Costs:
 | Scheduled "schemas other than public" check wired to monitoring/alerts | Planned (P8b) |
 | goapps-infra CLAUDE.md §15 rule | Planned (P8b) |
 
+## Amendment 1 — payroll (2026-11-14, D-66)
+
+`services/payroll` was designed before this ADR and keeps two internal schemas plus row-level security. The rest of the ADR applies unchanged (DB `payroll_db`, table `schema_migrations_payroll`, no cross-service SQL).
+
+- **Internal schemas**: `payroll` (application tables) and `payroll_stg` (ETL staging), plus RLS policies. Both schemas are created by the DBA script `services/payroll/deploy/bootstrap.sql`, never by a migration (R1 stays clean). The migrator role's `search_path` is `payroll`, so migrations use unqualified names for `payroll` objects.
+- **GRANT/REVOKE** are not in migrations. They live in the idempotent DBA script `services/payroll/deploy/grants.sql`, run by the owner after every migrate (R4 stays clean).
+- **`SET search_path` is allowed only as a function attribute on `SECURITY DEFINER` functions** (`SET search_path = payroll, pg_catalog`). Pinning it prevents search-path hijacking and is verified by isolation test I16 (`services/payroll/tests/isolation`). Each such line is an explicit R2 entry in `scripts/migration-lint.allow`; a new `SECURITY DEFINER` function needs its own entry and an I16 pass.
+- **R6 exception**: `COMMENT ON COLUMN payroll_stg.<table>.<column>` in `000040` cannot be written without a schema (the migrator's `search_path` does not include `payroll_stg`) and is not cross-database. It is allow-listed per line.
+
 ## Related
 
 In this repo:
