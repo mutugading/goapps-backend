@@ -17,6 +17,16 @@
 -- =============================================================================
 BEGIN;
 
+-- 0. GUARD: GRANT/REVOKE by a non-owner only WARNs ("no privileges were granted") and psql still exits 0. Without
+-- the `SET role = 'payroll_owner'` setting of payroll_migrator (bootstrap.sql) the deploy Job would turn green
+-- with no grants at all, so fail loudly instead (T028n5).
+DO $$
+BEGIN
+  IF current_user <> 'payroll_owner' THEN
+    RAISE EXCEPTION 'grants.sql must run as payroll_owner (current_user=%): check the role setting of payroll_migrator', current_user;
+  END IF;
+END $$;
+
 -- 1. RESET: cabut semua hak objek ketiga role (REVOKE di tingkat tabel ikut mencabut grant per kolom).
 REVOKE ALL ON ALL TABLES    IN SCHEMA payroll, payroll_stg FROM payroll_app, payroll_etl, payroll_ro;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA payroll, payroll_stg FROM payroll_app, payroll_etl, payroll_ro;
@@ -39,6 +49,20 @@ REVOKE INSERT, UPDATE, DELETE ON payroll.pyr_doc_template, payroll.pyr_slip_pass
 REVOKE DELETE ON payroll.pyr_distribution_item FROM payroll_app;
 -- view THR hanya baca (000039)
 REVOKE INSERT, UPDATE, DELETE ON payroll.v_pyr_thr_main, payroll.v_pyr_thr_detail FROM payroll_app;
+
+-- golang-migrate version table (schema_migrations_payroll in staging/production, schema_migrations in dev) lands in
+-- schema payroll and was swept up by the GRANT ON ALL TABLES above: app keeps SELECT only (T028n5). Absent in
+-- testcontainers (migrations run as plain SQL), hence the guard.
+DO $$
+DECLARE t regclass;
+BEGIN
+  FOREACH t IN ARRAY ARRAY[to_regclass('payroll.schema_migrations_payroll'), to_regclass('payroll.schema_migrations')]
+  LOOP
+    IF t IS NOT NULL THEN
+      EXECUTE format('REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON %s FROM payroll_app', t);
+    END IF;
+  END LOOP;
+END $$;
 
 -- 4. payroll_etl (D-22): staging penuh; di payroll hanya yang ditulis/dibaca ETL. Tidak bisa membaca gaji (I10).
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA payroll_stg TO payroll_etl;

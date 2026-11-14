@@ -65,6 +65,10 @@ COPY services/payroll/config.yaml /app/config.yaml
 # Copy migration files (for running migrations via K8s Job).
 COPY services/payroll/migrations/postgres/ /app/migrations/
 
+# Object grants run by the owner after every `migrate up` (D-66 C(2)). The migrate Job copies this file to an
+# emptyDir for its psql container (postgres image); psql is deliberately NOT installed in this runtime image.
+COPY services/payroll/deploy/grants.sql /app/deploy/grants.sql
+
 # Set ownership. /out is where the CLIs write generated files (salary data: mount an emptyDir, never bake in).
 RUN mkdir -p /out && chown -R appuser:appgroup /app /out
 

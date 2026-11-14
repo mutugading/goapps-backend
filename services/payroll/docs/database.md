@@ -22,6 +22,24 @@ Keputusan: D-66 opsi C (hibrida terhadap ADR 0001 *one database per service*).
    diakses `payroll_app`/`payroll_ro`, dan hak `payroll_etl` tidak terpasang. Skrip idempoten, berjalan dalam satu transaksi,
    dan mengembalikan hak akses ke keadaan yang dideklarasikan (hak tambahan yang diberikan manual akan dicabut).
 
+Staging/production: langkah 2 dan 3 dijalankan **satu Job** `payroll-migrate` (goapps-infra
+`services/payroll-service/base/jobs/migrate-job.yaml`): initContainer image payroll menjalankan `migrate up` lalu
+menyalin `/app/deploy/grants.sql` (dibawa image, `Dockerfile`) ke emptyDir; container `postgres:18-alpine` menjalankan
+`psql -f grants.sql` dengan login owner yang sama. Image runtime sengaja tanpa `psql`. Job selesai hanya kalau keduanya
+berhasil; kalau grants gagal, migrasi sudah terpasang dan aplikasi tetap memakai grant lama: perbaiki lalu jalankan
+ulang Job (`migrate up` jadi no-op). Urutan deploy: bootstrap (DBA, sekali) → Job `payroll-migrate` → restart `pgbouncer-vps` (kalau `pgbouncer.ini` berubah) → rollout Deployment.
+Kalau grants gagal karena `lock_timeout` (10 s, ada transaksi app yang menahan lock), cukup jalankan ulang Job.
+`grants.sql` menolak jalan kalau `current_user` bukan `payroll_owner` (setting role `payroll_migrator` hilang):
+tanpa guard ini GRANT oleh non-owner hanya WARNING dan Job tetap hijau tanpa grant.
+
+PgBouncer (`pgbouncer-vps`) memakai kunci `payroll_db` (kunci lama `payroll` dihapus). ConfigMap-nya tanpa hash
+suffix, jadi setelah sync **wajib** `kubectl rollout restart deploy/pgbouncer-vps -n database` (atau `RELOAD` di
+console admin) **sebelum** rollout payroll-service; kalau tidak, pod gagal dengan `no such database: payroll_db`.
+Job CLI (sync/recon/report/mailer) konek langsung ke `payroll_db` (bukan lewat PgBouncer).
+
+`grants.sql` juga mencabut DML `payroll_app` pada tabel versi golang-migrate (`schema_migrations_payroll` /
+`schema_migrations`, ada di schema `payroll`), sehingga app hanya bisa SELECT.
+
 Dev lokal: service `payroll` di `goapps/docker-compose.yml` menjalankan langkah 2 dan 3 saat start; `make migrate-up`
 juga menjalankan `make grants`. Testcontainers (`tests/{e2e,etl,isolation}`) menjalankan bootstrap → migrasi → grants.
 
