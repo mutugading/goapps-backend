@@ -22,19 +22,46 @@ Rule behind it: `docs/adr/0001-one-database-per-service.md` (workspace docs) and
 Superuser: `postgres` / `dev_postgres` on `:5440` (break-glass only, like on the VPS).
 All passwords here are **dev-only**; real ones live in the password manager, never in Git.
 
-## Quick start
+## Daily workflow
 
 ```bash
 docker compose up -d redis rabbitmq minio minio-init mailpit   # classic infra (unchanged)
-make v2-up && make v2-migrate && make v2-seed && make v2-verify
+make v2-up                           # Postgres 127.0.0.1:5440, PgBouncer :6440
 make v2-env-on                       # services/<svc>/.env.local -> v2 (PgBouncer :6440, <svc>_app)
+make v2-sync                         # data: weekly sanitized staging snapshot (see docs/local-db-sync.md)
+#   or empty schema instead:  make v2-migrate && make v2-seed
 make -C services/iam run             # and finance / ppc / finance-cost-worker / finance-cost-orchestrator as usual
-make v2-env-off                      # back to the classic per-service DBs (5434/5435/5436)
+make v2-env-off                      # back to the classic per-service DBs (5434/5435/5436, legacy)
 ```
-`v2-env-on` only writes `.env.local` files it owns (first line `# managed-by: make v2-env-on`);
-if you already have your own `services/<svc>/.env.local`, it is skipped and you append the
-`deploy/local-v2/env/<svc>.env` lines yourself. One-off without the switch:
-`set -a; . deploy/local-v2/env/finance.env; set +a; make -C services/finance run`.
+- `v2-env-on` only writes `.env.local` files it owns (first line `# managed-by: make v2-env-on`);
+  if you already have your own `services/<svc>/.env.local`, it is skipped and you append the
+  `deploy/local-v2/env/<svc>.env` lines yourself. One-off without the switch:
+  `set -a; . deploy/local-v2/env/finance.env; set +a; make -C services/finance run`.
+- The `.env.local` files are copies: **re-run `make v2-env-on` after pulling changes to `deploy/local-v2/env/*.env`**.
+- `make v2-verify` checks the stack. On macOS with colima the v2 targets auto-detect the colima socket;
+  give the VM >= 100 GiB disk (`colima stop && colima start --disk 100`).
+- `make v2-sync` needs your ssh public key added to account `devsync` on the staging DB server by an admin. Full guide: [`docs/local-db-sync.md`](../../docs/local-db-sync.md).
+
+## Credentials (dev-only)
+
+| What | Login | Where |
+|---|---|---|
+| Admin, read-only | `ilham` / `dev_ilham` | any `*_db` on `:5440`; write via `SET ROLE <svc>_owner;` (restricted IAM columns hidden) |
+| Superuser | `postgres` / `dev_postgres` | `:5440` |
+| Migrations | `<svc>_owner` / `dev_<svc>_owner` | `:5440` |
+| Runtime | `<svc>_app` / `dev_<svc>_app` | PgBouncer `:6440` |
+| App login after `v2-sync` | any user incl. `admin`, shared **staging** password | password manager: `goapps/staging/app-default-password` |
+| App login on a freshly seeded DB | `admin` / `admin123` | `make v2-seed` (or classic) |
+
+DB roles are not changed by `v2-sync`. 5 failed app logins lock the account; never guess passwords. Local unlock (as `postgres` on `:5440`, in `iam_db`):
+`UPDATE mst_user SET failed_login_attempts=0, is_locked=false, locked_until=NULL WHERE username='admin';`
+
+## Migrations
+
+- Preferred: `make v2-migrate` from the repo root (all services + grants).
+- Per service: `make migrate-up` / `migrate-down` in `services/<svc>` uses v2 automatically when v2 env is on
+  (`DATABASE_URL` in `.env.local`: `<svc>_owner` on `:5440`, table `schema_migrations_<svc>`).
+  After a migration that creates tables, run `make v2-grants`.
 
 Finance e2e through PgBouncer as the runtime role:
 ```bash

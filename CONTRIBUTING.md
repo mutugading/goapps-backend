@@ -112,6 +112,8 @@ export DATABASE_URL="postgres://finance:finance123@localhost:5434/finance_db?ssl
 make finance-migrate
 ```
 
+> Classic (legacy) DSN. With the v2 env on (`make v2-env-on`), per-service `make migrate-up` uses the v2 `DATABASE_URL` from `.env.local` instead; see [`deploy/local-v2/README.md`](deploy/local-v2/README.md).
+
 ### Run Service Locally
 
 ```bash
@@ -156,7 +158,8 @@ Every service owns exactly one database. Full decision: [`docs/adr/0001-one-data
   make v2-env-on        # services now use v2 via services/<svc>/.env.local; make v2-env-off to go back
   make finance-run
   ```
-  Details: [`deploy/local-v2/README.md`](deploy/local-v2/README.md). The classic per-service `docker-compose.yaml` still works.
+  Per-service `make migrate-up` follows the v2 env (`<svc>_owner` on :5440); re-run `make v2-env-on` after `deploy/local-v2/env/*.env` changes. Data: `make v2-sync` ([`docs/local-db-sync.md`](docs/local-db-sync.md)).
+  Details and credentials: [`deploy/local-v2/README.md`](deploy/local-v2/README.md). The classic per-service `docker-compose.yaml` still works.
 
 ---
 
