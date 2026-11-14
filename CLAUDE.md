@@ -5,6 +5,38 @@
 
 ---
 
+## Agent Skills (read first — use them without being asked)
+
+Claude Code skills installed at user level (`~/.claude/skills/`). Invoke the matching skill automatically when the task fits; the user should not have to name it. **Missing skill → recommend installing it.** Other devs may not have these skills yet. At the start of a task, if a skill listed below is not in the session's skill list, do not silently skip it:
+1. Tell the user which skill is missing and why it helps this task (one line).
+2. Give the exact install command from "Setting up a new machine" below (public skills: `npx skills add <owner/repo@skill> -g -y`; they load on the next session start). If the skill is not in that list, run `find-skills` / `npx skills find <topic>` and recommend only well-known sources.
+3. Offer to run the install for them; run it only if they agree. Internal skills (`review-pr`, `triage-issue`, `feature-flow`, `backend`, `frontend`, `proto`, `infra`) can't be installed via npx — ask the user to copy them from a teammate's `~/.claude/skills/`.
+4. Meanwhile, continue the task using this CLAUDE.md as the baseline.
+
+| When | Skill |
+|------|-------|
+| Review a PR (any goapps repo, incl. paired cross-repo PRs) | `review-pr` — draft first in `../docs/pr-review-drafts/`, post only after user approval |
+| Triage an issue / fill labels, assignee, project fields (Status, Prio, Size, Estimate, Iteration, Start, Due) | `triage-issue` — draft first, apply only after approval |
+| Non-trivial feature / bug / refactor end-to-end | `feature-flow` (resume-check first) |
+| Can't find a skill for a task | `find-skills` |
+| Security-sensitive change | `security-review`, `differential-review`; dependency changes: `supply-chain-risk-auditor` |
+| CI workflows (`.github/workflows/*`) | `github-actions-hardening`, `gha-security-review` |
+| Receiving review feedback / before merging own work | `receiving-code-review`, `requesting-code-review` |
+| Any Go work | `golang-how-to` (routes to the right `golang-*` skills: grpc, error-handling, concurrency, database, testing, security, lint…) + team skill `backend` |
+| SQL migrations / repositories / query performance | `supabase-postgres-best-practices` (generic Postgres rules) — this repo's ADR 0001 and §7 still win |
+| Dockerfile | `multi-stage-dockerfile` |
+| Proto / gRPC contract touched | `protobuf`, `public-grpc-api-design`, team skill `proto` |
+
+Setting up a new machine (public skills; `review-pr`, `triage-issue`, `feature-flow` and the team skills `backend`/`frontend`/`proto`/`infra` are internal, so copy them from a teammate's `~/.claude/skills/`):
+```bash
+npx skills add samber/cc-skills-golang vercel-labs/skills@find-skills obra/superpowers@receiving-code-review obra/superpowers@requesting-code-review getsentry/skills@security-review getsentry/skills@gha-security-review trailofbits/skills@differential-review trailofbits/skills@supply-chain-risk-auditor github/awesome-copilot@github-actions-hardening github/awesome-copilot@multi-stage-dockerfile -g -y
+npx skills add supabase/agent-skills@supabase-postgres-best-practices bufbuild/claude-plugins@protobuf samber/developer-platform-skills@public-grpc-api-design -g -y
+```
+
+Precedence: this CLAUDE.md > external skill. External skills fill gaps and flag industry best-practice issues the repo rules don't cover yet; when they conflict with a repo rule, follow the repo rule and mention the conflict to the user.
+
+---
+
 ## 1. Overview
 
 Go gRPC microservice monorepo using **Clean Architecture / DDD**. Each directory under `services/` is an independent Go module sharing generated protobuf code from `goapps-shared-proto`:
@@ -22,7 +54,7 @@ Each service needs its own `.github/workflows/<service>.yml`, or no image is eve
 
 | | |
 |---|---|
-| Language | Go 1.24 |
+| Language | Go 1.26 |
 | Transport | gRPC + gRPC-Gateway (REST) |
 | Database | PostgreSQL 18 (pgx v5) |
 | Cache | Redis 7 (go-redis v9) |
@@ -109,6 +141,9 @@ goapps-backend/
 │       └── go.mod
 ├── scripts/                      # Utility scripts (merge-swagger.py, etc.)
 ├── docker-compose.yaml           # Shared local dev infrastructure
+├── docker-compose.v2.yaml        # Local Postgres+PgBouncer mirroring the VPS (ADR 0001)
+├── deploy/local-v2/              # SQL/init/PgBouncer/env for docker-compose.v2
+├── docs/adr/                     # Architecture Decision Records
 ├── .golangci.yml                 # Lint config (v2 format, 27 linters)
 ├── Makefile                      # Root-level targets
 └── RULES.md                     # Detailed coding conventions
@@ -170,6 +205,8 @@ make seed                          # Run data seeders
 
 Finance default DATABASE_URL: `postgres://finance:finance123@localhost:5434/finance_db?sslmode=disable`
 IAM default DATABASE_URL: `postgres://iam:iam123@localhost:5435/iam_db?sslmode=disable`
+
+> Note (ADR 0001): these are legacy single-service dev DSNs. Staging/prod (VPS) use one DB per service with `<svc>_owner` / `<svc>_app` roles, never a superuser; the local stack mirroring the VPS is `docker-compose.v2.yaml` (`make v2-up`, env in `deploy/local-v2/env/<svc>.env`).
 
 ### Docker (local infra)
 
@@ -389,10 +426,21 @@ if err == nil {
 - Never modify a merged migration -- create a new one
 - Every up migration must have a corresponding down migration
 - Tool: golang-migrate v4
+- **One database per service (ADR 0001, `docs/adr/`)**: schema `public` only, table `schema_migrations_<svc>`, no `CREATE SCHEMA` / `search_path` / `OWNER TO` / `GRANT` / other-schema refs. CI **Migration Lint** enforces it — run `make migration-lint` (repo root) before committing a migration. Details §15.
 
 ### Costing formulas
 
 Formula engine semantics, change policy (web edit -> guarded migration) and pending TODOs (e.g. STEAM_COST_CNG / WASHING_COST): see `services/finance/docs/costing-formulas.md`.
+
+### MB spin FG link & supersede (finance, 2026-11)
+
+- A live MB spin is unique per **(shade, FG POY)**: partial unique index `uix_mbs_shade_fg_live` (live = not deleted, active, `mbs_superseded_by_spin_id IS NULL`). Map 23505 on it to `mbspin.ErrSpinShadeFgExists` (409).
+- FG columns `mbs_fg_product_id` / `mbs_fg_item_code` (snapshot of POY `cpm_erp_item_code`) / `mbs_fg_link_source` ∈ `RECIPE | DUPLICATE | MANUAL | BACKFILL`. The FG POY must be active, type POY, and have the **same shade** as the spin (`mbspin.CheckFgShade`). Writers never modify the product master.
+- "FG follows recipe" has one predicate: `mbspin.FgFollowsRecipe` (source RECIPE, or root spin of a head that has an FG). Manual edit (`UpdateMBSpinRequest.fg_product_id`) is rejected for those. `MBSpin.fg_follows_recipe` exposes the same flag to the FE. Do not duplicate the rule.
+- A head shade change that cascades to spins is rejected when a live non-RECIPE spin's FG POY has another shade. Never leave a spin whose shade differs from its FG POY.
+- Supersede/un-supersede are only done through Validate(`confirm_supersede`) / `UnsupersedeMBSpin`, never by toggling `mbs_is_active` (Update rejects reactivating a superseded spin). Un-supersede needs a supersede batch (`mst_mb_spin_supersede_item`) or a SUPERSEDE workflow-log row, else `ErrUnsupersedeNoBatch`.
+- Lookups: FG match first, then the **unchanged** legacy fallback. Do not change `SpinPickOrderSQL`, `MBSourceAutoFillStore.Apply` (fill-empty) or `lookupsync/resolver_mb_spin.go` without an explicit decision.
+- Legacy FG backfill: `cmd/backfill-mb-spin-fg` (dry-run default) — runbook `../docs/runbooks/backfill-mb-spin-fg.md` (workspace root).
 
 ### Seed Migration Guardrails
 
@@ -574,7 +622,7 @@ logging: { level, format }
 
 - `DATABASE_PASSWORD` -- database password
 - `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` -- token signing keys
-- `SEED_ADMIN_PASSWORD` -- IAM admin seed password (random if unset)
+- `SEED_ADMIN_PASSWORD` -- IAM admin seed password (if unset in non-dev: random, written 0600 to `SEED_ADMIN_PASSWORD_FILE`, default `<tmp>/seed-admin-password.txt`; never logged)
 - Config values can be overridden via env: `DATABASE_HOST=prod-db ./bin/service`
 
 ---
@@ -643,7 +691,7 @@ logging: { level, format }
 
 ## 14. Lint Pre-Flight Checklist (MANDATORY before declaring work complete)
 
-> CI runs golangci-lint v2.3.0. Local binary is v1.62.2, so `make lint` will not catch everything -- **manually review every new file** against this checklist. The most common CI failures are listed below with copy-pasteable fixes.
+> CI runs golangci-lint v2.15.0 (Go 1.26). Local binary is v1.62.2, so `make lint` will not catch everything -- **manually review every new file** against this checklist. The most common CI failures are listed below with copy-pasteable fixes.
 
 ### Pattern 1 — int→int32 conversions (gosec G115)
 
@@ -823,7 +871,7 @@ For a new CRUD entity in an existing service:
 2. **Generate**: `./scripts/gen-go.sh`
 3. **Domain**: `entity.go`, `value_objects.go`, `repository.go`, `errors.go`
    - **No type stuttering**: if package is `formula`, use `Type` not `FormulaType`, `Param` not `FormulaParam`
-4. **Migration**: `make migrate-create NAME=create_mst_xxx`
+4. **Migration**: `make migrate-create NAME=create_mst_xxx` — must pass `make migration-lint` (see "New Microservice — Database Rule" below)
 5. **Infrastructure**: `postgres/xxx_repository.go` implementing domain interface
    - **Handle ALL errors**: including `tx.Rollback()` in defers, and value object constructors in DTO mappers
    - **Transactions**: use `if rbErr := tx.Rollback(); rbErr != nil { err = fmt.Errorf(...) }` pattern
@@ -836,6 +884,20 @@ For a new CRUD entity in an existing service:
 9. **Swagger**: `make proto-copy-swagger`
 10. **Tests**: domain unit tests, application handler tests with mocked repo, integration tests
 11. **Lint**: run `make lint` (or `golangci-lint run ./...`) and fix ALL issues before committing
+
+### New Microservice — Database Rule (ADR 0001)
+
+**Rule**: 1 service = 1 database `<svc>_db`; roles `<svc>_owner` (migrations/seeds only, direct connection), `<svc>_app` (runtime, via PgBouncer, DML only), `<svc>_ro` (read-only group); schema `public` only; migration table `schema_migrations_<svc>`; no cross-service SQL — use gRPC.
+
+Full ADR: `docs/adr/0001-one-database-per-service.md` (this repo). Roles reference: `docs/migration-postgres/v2/roles-and-access.md` (goapps workspace docs). Team-facing summary: `CONTRIBUTING.md` "Database per Service".
+
+- **Provisioning SQL (source of truth)**: `docs/migration-postgres/v2/sql/` (workspace). Roles/DB/pg_hba/secret for a new service are currently **manual** from those scripts; a `new-service-db.sh <svc>` script is **planned (P8b)**, not existing.
+- **Extensions** (`pg_trgm`, `uuid-ossp`) are pre-created by the DBA scripts (`10-create-databases.sql`); `<svc>_owner` is not a superuser, so a migration may only `CREATE EXTENSION IF NOT EXISTS` an already-provisioned one. A new extension goes into the DBA script first.
+- **Migrations must NOT contain**: `CREATE/ALTER SCHEMA`, `SET search_path`, `OWNER TO`, `GRANT/REVOKE`, `ALTER DEFAULT PRIVILEGES`, `dblink`/FDW/`CREATE DATABASE`/`CREATE ROLE`, or references to other schemas.
+- **Lint**: `make migration-lint` (`scripts/migration-lint.sh`), enforced by CI `.github/workflows/migration-lint.yml`. Exceptions go in `scripts/migration-lint.allow`; every entry needs a `# reason`.
+- **Local stack (mirrors VPS)**: `docker-compose.v2.yaml` + `make v2-up / v2-migrate / v2-seed / v2-verify`; `make v2-env-on` / `v2-env-off` switches services via `services/<svc>/.env.local` (source `deploy/local-v2/env/<svc>.env`).
+- **After migrations**: a new materialized view in finance -> re-run `25-finance-runtime.sql`; IAM columns added to restricted tables -> re-run `30-restricted-iam.sql`.
+- **Migrate** as `<svc>_owner` (direct) with `x-migrations-table=schema_migrations_<svc>`; run the service as `<svc>_app` via PgBouncer. Data from another service comes via gRPC, never SQL.
 
 ### File Size Guidelines
 
@@ -856,7 +918,7 @@ Known gaps identified during a 2026-07 documentation audit — not blockers, but
 
 | Area | Severity | Note |
 |------|----------|------|
-| `deploy/` directory empty | Low | K8s manifests live in `goapps-infra` instead |
+| `deploy/` holds only `local-v2/` | Low | Local DB stack for `docker-compose.v2.yaml`; K8s manifests live in `goapps-infra` |
 | Config validation | Low | No viper validation schema — only manual checks in code |
 | Token blacklist cleanup | Medium | No documented TTL/expiration policy for Redis DB 1 entries |
 | Circuit breaker pattern | Medium | Mentioned in RULES.md but not implemented |

@@ -19,6 +19,7 @@ import (
 // cpm_erp_grade_code_1/2 are never written here.
 
 var _ costproductmaster.ErpLinkRepository = (*CostProductMasterRepository)(nil)
+var _ costproductmaster.ErpLinkedCreator = (*CostProductMasterRepository)(nil)
 
 // cpmErpKeyPredicate matches active AX products holding the key ($1 item, $2
 // shade key) other than $3.
@@ -185,5 +186,76 @@ func (r *CostProductMasterRepository) SaveErpAttributes(ctx context.Context, w c
 	if n == 0 {
 		return costproductmaster.ErrNotFound
 	}
+	return nil
+}
+
+// CreateWithErpLink inserts the product and its ERP link atomically: the per-key
+// advisory lock serializes concurrent links of the same key, the duplicate key is
+// re-checked inside the transaction (ErrLinkDuplicate) and the INSERT carries
+// cpm_erp_item_code/linked_at/linked_by, so there is no window with an unlinked product.
+func (r *CostProductMasterRepository) CreateWithErpLink(ctx context.Context, p *costproductmaster.CostProductMaster) (err error) {
+	if err = rejectMBTypeIDs(ctx, r.db, upsertTypeIDSet([]int32{p.ProductTypeID()})); err != nil {
+		return err
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin create+link tx: %w", err)
+	}
+	defer func() {
+		if err == nil {
+			return
+		}
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Warn().Err(rbErr).Msg("rollback create+link tx")
+		}
+	}()
+	item := strings.TrimSpace(p.ErpItemCode())
+	shadeKey := costproductmaster.NormalizeShadeKey(p.ShadeCode())
+	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+		cpmErpLinkLockNS+strings.ToUpper(item)+"|"+shadeKey); err != nil {
+		return fmt.Errorf("lock ERP key: %w", err)
+	}
+	dups, err := listErpKeyHolders(ctx, tx, item, shadeKey, 0)
+	if err != nil {
+		return err
+	}
+	if len(dups) > 0 {
+		err = fmt.Errorf("%w: product_sys_id %v", costproductmaster.ErrLinkDuplicate, dups)
+		return err
+	}
+	var linkedAt sql.NullTime
+	if t := p.ErpLinkedAt(); t != nil {
+		linkedAt = sql.NullTime{Time: *t, Valid: true}
+	}
+	linkedBy := sql.NullString{String: p.ErpLinkedBy(), Valid: p.ErpLinkedBy() != ""}
+	var sysID int64
+	var code string
+	err = tx.QueryRowContext(ctx, `
+		INSERT INTO cost_product_master (
+			cpm_product_code,cpm_product_type_id,cpm_product_name,cpm_shade_code,cpm_grade_code,cpm_description,
+			cpm_is_active,cpm_created_at,cpm_created_by,cpm_updated_at,cpm_updated_by,
+			cpm_erp_item_code,cpm_erp_linked_at,cpm_erp_linked_by
+		)
+		VALUES (
+			generate_cost_product_code($1, $7), $1, $2, $3, $4, $5,
+			$6, $7, $8, $7, $8,
+			$9, $10, $11
+		)
+		RETURNING cpm_product_sys_id,cpm_product_code`,
+		p.ProductTypeID(), p.ProductName(), p.ShadeCode(), p.GradeCode(), p.Description(),
+		p.IsActive(), p.CreatedAt(), p.CreatedBy(), item, linkedAt, linkedBy,
+	).Scan(&sysID, &code)
+	if err != nil {
+		if isProductMasterUniqueViolation(err) {
+			err = costproductmaster.ErrAlreadyExists
+			return err
+		}
+		err = fmt.Errorf("create cost_product_master with ERP link: %w", err)
+		return err
+	}
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("commit create+link tx: %w", err)
+	}
+	p.SetGeneratedCode(sysID, code)
 	return nil
 }

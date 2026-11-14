@@ -37,6 +37,10 @@ const (
 	FillGroupSPCode = "MB_SP_CODE"
 	// FilledBy marks values written by the auto-fill, so a future "re-resolve" can find them.
 	FilledBy = "auto_mb_source"
+	// FilledBySupersede marks MB_SP_CODE group values force-written by a confirmed spin
+	// supersede (mb-spin-fg-poy-link P3). The previous cpp_filled_by is kept in
+	// mst_mb_spin_supersede_item.mssi_old_filled_by so un-supersede can restore it.
+	FilledBySupersede = "supersede"
 )
 
 // ChildValue is the value of one fill-group child parameter (exactly one field is set).
@@ -51,12 +55,14 @@ type Resolution struct {
 	SPCode string
 	// DyeName is the value for MB_SP_DYE (spin MGT name / superba colour name).
 	DyeName string
-	// Source is SourceMBSpin or SourceSuperbaCostSP.
+	// Source is SourceMBSpin, SourceMBSpinFg or SourceSuperbaCostSP.
 	Source string
 	// SpinID is the chosen mst_mb_spin.mbs_id (nil for superba); stored as the CPP companion.
 	SpinID *uuid.UUID
 	// Children is the value per fill-group child param code (includes MB_SP_DYE when known).
 	Children map[string]ChildValue
+	// FgProductID is the FG (POY) product the spin is linked to; set only for SourceMBSpinFg.
+	FgProductID *int64
 }
 
 // NormalizeShade is THE shade match rule: UPPER(TRIM()) on both sides, exact.

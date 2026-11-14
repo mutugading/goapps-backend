@@ -140,7 +140,10 @@ const MaxRecalcChildren = 20
 //	          mbs_ldr_type = source value, EXCEPT an ACTUAL source is demoted
 //	          to CALCULATED on the clone (D32=A),
 //	          mbs_ldr_is_actual = ALWAYS FALSE regardless of source (D32=A),
-//	          created_at/by
+//	          created_at/by,
+//	          mbs_fg_product_id/mbs_fg_item_code = DuplicateInput.FgProductID's
+//	          POY (item code snapshot), mbs_fg_link_source = DUPLICATE — only
+//	          when FgProductID is set; otherwise left NULL (legacy behavior)
 //	DEFAULT : mbs_last_recalc_at/by, updated_at/by, deleted_at/by — left at
 //	          their column defaults (not written by insertClone at all)
 type DuplicateInput struct {
@@ -154,6 +157,13 @@ type DuplicateInput struct {
 	Filament *int
 	// ActorUserID lands in created_by and mbs_duplicated_by.
 	ActorUserID string
+	// FgProductID optionally links the clone to an FG (POY) product. nil => no
+	// FG link (legacy behavior). The source spin's own FG is NEVER copied onto the
+	// clone: same shade + same FG would immediately violate uix_mbs_shade_fg_live,
+	// so an unset FgProductID yields NULL/NULL/NULL. When set, DuplicateSpin validates
+	// POY-ness and shade (vs the SOURCE spin) in the same tx (ErrFgNotPoy,
+	// ErrFgShadeMismatch) and maps a unique violation to ErrSpinShadeFgExists.
+	FgProductID *int64
 }
 
 // DuplicateOutput is the result of a successful DuplicateSpin.
@@ -183,6 +193,12 @@ type ListFilter struct {
 	PageSize  int
 	SortBy    string // "mbs_mgt_name", "mbs_denier", "created_at"
 	SortOrder string // "asc", "desc"
+	// FgProductID filters by mbs_fg_product_id; 0 = no filter.
+	FgProductID int64
+	// FgSearch matches the FG POY code/name or the FG Orion item code; "" = no filter.
+	FgSearch string
+	// IncludeSuperseded false (default) hides spins with mbs_superseded_by_spin_id set.
+	IncludeSuperseded bool
 }
 
 // Validate normalizes filter values to safe defaults.
@@ -207,4 +223,27 @@ func (f *ListFilter) Validate() {
 // Offset returns the pagination offset.
 func (f *ListFilter) Offset() int {
 	return (f.Page - 1) * f.PageSize
+}
+
+// FgProduct is the minimal cost_product_master projection needed to validate an FG (POY)
+// link candidate.
+type FgProduct struct {
+	ID          int64
+	Code        string
+	Name        string
+	ErpItemCode *string // cpm_erp_item_code (Orion code snapshot source)
+	ShadeCode   *string // cpm_shade_code; nil/blank = empty
+	TypeCode    string  // cost_product_type.cpt_type_code, e.g. "POY"
+	IsActive    bool
+}
+
+// FgProductReader loads POY candidates and fills an empty POY shade.
+type FgProductReader interface {
+	// GetFgProduct returns the product, or ErrFgNotPoy when it does not exist.
+	// POY-ness / active state are checked by the caller from TypeCode / IsActive.
+	GetFgProduct(ctx context.Context, id int64) (*FgProduct, error)
+
+	// FillEmptyFgShade sets cpm_shade_code on the product only while it is still empty.
+	// Reports whether a row was updated.
+	FillEmptyFgShade(ctx context.Context, id int64, shadeCode, actor string) (bool, error)
 }

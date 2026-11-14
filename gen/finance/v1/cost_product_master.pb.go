@@ -311,8 +311,10 @@ type CreateCostProductMasterRequest struct {
 	ErpMsBatchItem string `protobuf:"bytes,11,opt,name=erp_ms_batch_item,json=erpMsBatchItem,proto3" json:"erp_ms_batch_item,omitempty"`
 	ErpItemType    string `protobuf:"bytes,12,opt,name=erp_item_type,json=erpItemType,proto3" json:"erp_item_type,omitempty"`
 	ErpPrdPerDay   string `protobuf:"bytes,13,opt,name=erp_prd_per_day,json=erpPrdPerDay,proto3" json:"erp_prd_per_day,omitempty"` // decimal string
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// ERP item code (optional; used for inline minimal POY creation). Empty = unset.
+	ErpItemCode   string `protobuf:"bytes,14,opt,name=erp_item_code,json=erpItemCode,proto3" json:"erp_item_code,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CreateCostProductMasterRequest) Reset() {
@@ -432,6 +434,13 @@ func (x *CreateCostProductMasterRequest) GetErpItemType() string {
 func (x *CreateCostProductMasterRequest) GetErpPrdPerDay() string {
 	if x != nil {
 		return x.ErpPrdPerDay
+	}
+	return ""
+}
+
+func (x *CreateCostProductMasterRequest) GetErpItemCode() string {
+	if x != nil {
+		return x.ErpItemCode
 	}
 	return ""
 }
@@ -2447,6 +2456,1007 @@ func (x *DeleteRMDenierOverrideResponse) GetAppliedProductSysIds() []int64 {
 	return nil
 }
 
+// CostProductMbLink describes how a product resolves to an MB spin.
+type CostProductMbLink struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// FG_MATCH | SHADE_ONLY | SUPERBA | NONE.
+	LinkSource string `protobuf:"bytes,1,opt,name=link_source,json=linkSource,proto3" json:"link_source,omitempty"`
+	// Resolved spin UUID.
+	SpinId string `protobuf:"bytes,2,opt,name=spin_id,json=spinId,proto3" json:"spin_id,omitempty"`
+	// Resolved spin code.
+	SpinCode string `protobuf:"bytes,3,opt,name=spin_code,json=spinCode,proto3" json:"spin_code,omitempty"`
+	// Resolved spin shade code.
+	SpinShadeCode string `protobuf:"bytes,4,opt,name=spin_shade_code,json=spinShadeCode,proto3" json:"spin_shade_code,omitempty"`
+	// FG product id (0 = none).
+	FgProductId int64 `protobuf:"varint,5,opt,name=fg_product_id,json=fgProductId,proto3" json:"fg_product_id,omitempty"`
+	// FG product code.
+	FgProductCode string `protobuf:"bytes,6,opt,name=fg_product_code,json=fgProductCode,proto3" json:"fg_product_code,omitempty"`
+	// Candidate POY product ids when ambiguous.
+	CandidatePoyProductIds []int64 `protobuf:"varint,7,rep,packed,name=candidate_poy_product_ids,json=candidatePoyProductIds,proto3" json:"candidate_poy_product_ids,omitempty"`
+	// Human-readable reason.
+	Reason string `protobuf:"bytes,8,opt,name=reason,proto3" json:"reason,omitempty"`
+	// Current MB_SP_CODE param text value.
+	CurrentParamValue string `protobuf:"bytes,9,opt,name=current_param_value,json=currentParamValue,proto3" json:"current_param_value,omitempty"`
+	// True when current_param_value matches the resolved spin.
+	ParamMatches  bool `protobuf:"varint,10,opt,name=param_matches,json=paramMatches,proto3" json:"param_matches,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CostProductMbLink) Reset() {
+	*x = CostProductMbLink{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CostProductMbLink) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CostProductMbLink) ProtoMessage() {}
+
+func (x *CostProductMbLink) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CostProductMbLink.ProtoReflect.Descriptor instead.
+func (*CostProductMbLink) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *CostProductMbLink) GetLinkSource() string {
+	if x != nil {
+		return x.LinkSource
+	}
+	return ""
+}
+
+func (x *CostProductMbLink) GetSpinId() string {
+	if x != nil {
+		return x.SpinId
+	}
+	return ""
+}
+
+func (x *CostProductMbLink) GetSpinCode() string {
+	if x != nil {
+		return x.SpinCode
+	}
+	return ""
+}
+
+func (x *CostProductMbLink) GetSpinShadeCode() string {
+	if x != nil {
+		return x.SpinShadeCode
+	}
+	return ""
+}
+
+func (x *CostProductMbLink) GetFgProductId() int64 {
+	if x != nil {
+		return x.FgProductId
+	}
+	return 0
+}
+
+func (x *CostProductMbLink) GetFgProductCode() string {
+	if x != nil {
+		return x.FgProductCode
+	}
+	return ""
+}
+
+func (x *CostProductMbLink) GetCandidatePoyProductIds() []int64 {
+	if x != nil {
+		return x.CandidatePoyProductIds
+	}
+	return nil
+}
+
+func (x *CostProductMbLink) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *CostProductMbLink) GetCurrentParamValue() string {
+	if x != nil {
+		return x.CurrentParamValue
+	}
+	return ""
+}
+
+func (x *CostProductMbLink) GetParamMatches() bool {
+	if x != nil {
+		return x.ParamMatches
+	}
+	return false
+}
+
+type GetCostProductMbLinkRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProductSysId  int64                  `protobuf:"varint,1,opt,name=product_sys_id,json=productSysId,proto3" json:"product_sys_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCostProductMbLinkRequest) Reset() {
+	*x = GetCostProductMbLinkRequest{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCostProductMbLinkRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCostProductMbLinkRequest) ProtoMessage() {}
+
+func (x *GetCostProductMbLinkRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCostProductMbLinkRequest.ProtoReflect.Descriptor instead.
+func (*GetCostProductMbLinkRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *GetCostProductMbLinkRequest) GetProductSysId() int64 {
+	if x != nil {
+		return x.ProductSysId
+	}
+	return 0
+}
+
+type GetCostProductMbLinkResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Base          *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	Data          *CostProductMbLink     `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCostProductMbLinkResponse) Reset() {
+	*x = GetCostProductMbLinkResponse{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCostProductMbLinkResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCostProductMbLinkResponse) ProtoMessage() {}
+
+func (x *GetCostProductMbLinkResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCostProductMbLinkResponse.ProtoReflect.Descriptor instead.
+func (*GetCostProductMbLinkResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *GetCostProductMbLinkResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *GetCostProductMbLinkResponse) GetData() *CostProductMbLink {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+type RelinkCostProductMbRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProductSysId  int64                  `protobuf:"varint,1,opt,name=product_sys_id,json=productSysId,proto3" json:"product_sys_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RelinkCostProductMbRequest) Reset() {
+	*x = RelinkCostProductMbRequest{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RelinkCostProductMbRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RelinkCostProductMbRequest) ProtoMessage() {}
+
+func (x *RelinkCostProductMbRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RelinkCostProductMbRequest.ProtoReflect.Descriptor instead.
+func (*RelinkCostProductMbRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *RelinkCostProductMbRequest) GetProductSysId() int64 {
+	if x != nil {
+		return x.ProductSysId
+	}
+	return 0
+}
+
+type RelinkCostProductMbResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Base          *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	Data          *CostProductMbLink     `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RelinkCostProductMbResponse) Reset() {
+	*x = RelinkCostProductMbResponse{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RelinkCostProductMbResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RelinkCostProductMbResponse) ProtoMessage() {}
+
+func (x *RelinkCostProductMbResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RelinkCostProductMbResponse.ProtoReflect.Descriptor instead.
+func (*RelinkCostProductMbResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *RelinkCostProductMbResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *RelinkCostProductMbResponse) GetData() *CostProductMbLink {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+type PreviewProductEtlFromOracleRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Start date YYYY-MM-DD.
+	FromDate string `protobuf:"bytes,1,opt,name=from_date,json=fromDate,proto3" json:"from_date,omitempty"`
+	// Free-text search (max 200 chars).
+	Search string `protobuf:"bytes,2,opt,name=search,proto3" json:"search,omitempty"`
+	// Include rows that already exist.
+	IncludeExisting bool `protobuf:"varint,3,opt,name=include_existing,json=includeExisting,proto3" json:"include_existing,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *PreviewProductEtlFromOracleRequest) Reset() {
+	*x = PreviewProductEtlFromOracleRequest{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PreviewProductEtlFromOracleRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PreviewProductEtlFromOracleRequest) ProtoMessage() {}
+
+func (x *PreviewProductEtlFromOracleRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PreviewProductEtlFromOracleRequest.ProtoReflect.Descriptor instead.
+func (*PreviewProductEtlFromOracleRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *PreviewProductEtlFromOracleRequest) GetFromDate() string {
+	if x != nil {
+		return x.FromDate
+	}
+	return ""
+}
+
+func (x *PreviewProductEtlFromOracleRequest) GetSearch() string {
+	if x != nil {
+		return x.Search
+	}
+	return ""
+}
+
+func (x *PreviewProductEtlFromOracleRequest) GetIncludeExisting() bool {
+	if x != nil {
+		return x.IncludeExisting
+	}
+	return false
+}
+
+// ProductEtlRow is one preview row.
+type ProductEtlRow struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// "<item>|<shade>".
+	RowKey         string `protobuf:"bytes,1,opt,name=row_key,json=rowKey,proto3" json:"row_key,omitempty"`
+	MergeItemOrion string `protobuf:"bytes,2,opt,name=merge_item_orion,json=mergeItemOrion,proto3" json:"merge_item_orion,omitempty"`
+	ItemName       string `protobuf:"bytes,3,opt,name=item_name,json=itemName,proto3" json:"item_name,omitempty"`
+	ShadeCode      string `protobuf:"bytes,4,opt,name=shade_code,json=shadeCode,proto3" json:"shade_code,omitempty"`
+	ShadeName      string `protobuf:"bytes,5,opt,name=shade_name,json=shadeName,proto3" json:"shade_name,omitempty"`
+	TypeCode       string `protobuf:"bytes,6,opt,name=type_code,json=typeCode,proto3" json:"type_code,omitempty"`
+	// EXISTS | EXISTS_MULTI | NEW_SHADE | NEW_ITEM | POSSIBLE_DUPLICATE | INVALID_TYPE.
+	Status string `protobuf:"bytes,7,opt,name=status,proto3" json:"status,omitempty"`
+	// Whether the row can be applied.
+	Selectable        bool    `protobuf:"varint,8,opt,name=selectable,proto3" json:"selectable,omitempty"`
+	MatchedProductIds []int64 `protobuf:"varint,9,rep,packed,name=matched_product_ids,json=matchedProductIds,proto3" json:"matched_product_ids,omitempty"`
+	Denier            string  `protobuf:"bytes,10,opt,name=denier,proto3" json:"denier,omitempty"`
+	Filament          string  `protobuf:"bytes,11,opt,name=filament,proto3" json:"filament,omitempty"`
+	Note              string  `protobuf:"bytes,12,opt,name=note,proto3" json:"note,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ProductEtlRow) Reset() {
+	*x = ProductEtlRow{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProductEtlRow) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProductEtlRow) ProtoMessage() {}
+
+func (x *ProductEtlRow) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProductEtlRow.ProtoReflect.Descriptor instead.
+func (*ProductEtlRow) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *ProductEtlRow) GetRowKey() string {
+	if x != nil {
+		return x.RowKey
+	}
+	return ""
+}
+
+func (x *ProductEtlRow) GetMergeItemOrion() string {
+	if x != nil {
+		return x.MergeItemOrion
+	}
+	return ""
+}
+
+func (x *ProductEtlRow) GetItemName() string {
+	if x != nil {
+		return x.ItemName
+	}
+	return ""
+}
+
+func (x *ProductEtlRow) GetShadeCode() string {
+	if x != nil {
+		return x.ShadeCode
+	}
+	return ""
+}
+
+func (x *ProductEtlRow) GetShadeName() string {
+	if x != nil {
+		return x.ShadeName
+	}
+	return ""
+}
+
+func (x *ProductEtlRow) GetTypeCode() string {
+	if x != nil {
+		return x.TypeCode
+	}
+	return ""
+}
+
+func (x *ProductEtlRow) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *ProductEtlRow) GetSelectable() bool {
+	if x != nil {
+		return x.Selectable
+	}
+	return false
+}
+
+func (x *ProductEtlRow) GetMatchedProductIds() []int64 {
+	if x != nil {
+		return x.MatchedProductIds
+	}
+	return nil
+}
+
+func (x *ProductEtlRow) GetDenier() string {
+	if x != nil {
+		return x.Denier
+	}
+	return ""
+}
+
+func (x *ProductEtlRow) GetFilament() string {
+	if x != nil {
+		return x.Filament
+	}
+	return ""
+}
+
+func (x *ProductEtlRow) GetNote() string {
+	if x != nil {
+		return x.Note
+	}
+	return ""
+}
+
+// ProductEtlCounts holds per-status counts.
+type ProductEtlCounts struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Exists            int32                  `protobuf:"varint,1,opt,name=exists,proto3" json:"exists,omitempty"`
+	ExistsMulti       int32                  `protobuf:"varint,2,opt,name=exists_multi,json=existsMulti,proto3" json:"exists_multi,omitempty"`
+	NewShade          int32                  `protobuf:"varint,3,opt,name=new_shade,json=newShade,proto3" json:"new_shade,omitempty"`
+	NewItem           int32                  `protobuf:"varint,4,opt,name=new_item,json=newItem,proto3" json:"new_item,omitempty"`
+	PossibleDuplicate int32                  `protobuf:"varint,5,opt,name=possible_duplicate,json=possibleDuplicate,proto3" json:"possible_duplicate,omitempty"`
+	InvalidType       int32                  `protobuf:"varint,6,opt,name=invalid_type,json=invalidType,proto3" json:"invalid_type,omitempty"`
+	Total             int32                  `protobuf:"varint,7,opt,name=total,proto3" json:"total,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ProductEtlCounts) Reset() {
+	*x = ProductEtlCounts{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProductEtlCounts) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProductEtlCounts) ProtoMessage() {}
+
+func (x *ProductEtlCounts) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProductEtlCounts.ProtoReflect.Descriptor instead.
+func (*ProductEtlCounts) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *ProductEtlCounts) GetExists() int32 {
+	if x != nil {
+		return x.Exists
+	}
+	return 0
+}
+
+func (x *ProductEtlCounts) GetExistsMulti() int32 {
+	if x != nil {
+		return x.ExistsMulti
+	}
+	return 0
+}
+
+func (x *ProductEtlCounts) GetNewShade() int32 {
+	if x != nil {
+		return x.NewShade
+	}
+	return 0
+}
+
+func (x *ProductEtlCounts) GetNewItem() int32 {
+	if x != nil {
+		return x.NewItem
+	}
+	return 0
+}
+
+func (x *ProductEtlCounts) GetPossibleDuplicate() int32 {
+	if x != nil {
+		return x.PossibleDuplicate
+	}
+	return 0
+}
+
+func (x *ProductEtlCounts) GetInvalidType() int32 {
+	if x != nil {
+		return x.InvalidType
+	}
+	return 0
+}
+
+func (x *ProductEtlCounts) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+type ProductEtlPreview struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Run token (UUID) to pass to apply.
+	RunId    string            `protobuf:"bytes,1,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	FromDate string            `protobuf:"bytes,2,opt,name=from_date,json=fromDate,proto3" json:"from_date,omitempty"`
+	Rows     []*ProductEtlRow  `protobuf:"bytes,3,rep,name=rows,proto3" json:"rows,omitempty"`
+	Counts   *ProductEtlCounts `protobuf:"bytes,4,opt,name=counts,proto3" json:"counts,omitempty"`
+	// Max rows accepted per apply call.
+	ApplyLimit    int32 `protobuf:"varint,5,opt,name=apply_limit,json=applyLimit,proto3" json:"apply_limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProductEtlPreview) Reset() {
+	*x = ProductEtlPreview{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProductEtlPreview) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProductEtlPreview) ProtoMessage() {}
+
+func (x *ProductEtlPreview) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProductEtlPreview.ProtoReflect.Descriptor instead.
+func (*ProductEtlPreview) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *ProductEtlPreview) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *ProductEtlPreview) GetFromDate() string {
+	if x != nil {
+		return x.FromDate
+	}
+	return ""
+}
+
+func (x *ProductEtlPreview) GetRows() []*ProductEtlRow {
+	if x != nil {
+		return x.Rows
+	}
+	return nil
+}
+
+func (x *ProductEtlPreview) GetCounts() *ProductEtlCounts {
+	if x != nil {
+		return x.Counts
+	}
+	return nil
+}
+
+func (x *ProductEtlPreview) GetApplyLimit() int32 {
+	if x != nil {
+		return x.ApplyLimit
+	}
+	return 0
+}
+
+type PreviewProductEtlFromOracleResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Base          *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	Data          *ProductEtlPreview     `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PreviewProductEtlFromOracleResponse) Reset() {
+	*x = PreviewProductEtlFromOracleResponse{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PreviewProductEtlFromOracleResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PreviewProductEtlFromOracleResponse) ProtoMessage() {}
+
+func (x *PreviewProductEtlFromOracleResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PreviewProductEtlFromOracleResponse.ProtoReflect.Descriptor instead.
+func (*PreviewProductEtlFromOracleResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *PreviewProductEtlFromOracleResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *PreviewProductEtlFromOracleResponse) GetData() *ProductEtlPreview {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+type ApplyProductEtlFromOracleRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Run token returned by preview.
+	PreviewRunId string `protobuf:"bytes,1,opt,name=preview_run_id,json=previewRunId,proto3" json:"preview_run_id,omitempty"`
+	// Selected row keys.
+	RowKeys       []string `protobuf:"bytes,2,rep,name=row_keys,json=rowKeys,proto3" json:"row_keys,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ApplyProductEtlFromOracleRequest) Reset() {
+	*x = ApplyProductEtlFromOracleRequest{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ApplyProductEtlFromOracleRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ApplyProductEtlFromOracleRequest) ProtoMessage() {}
+
+func (x *ApplyProductEtlFromOracleRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ApplyProductEtlFromOracleRequest.ProtoReflect.Descriptor instead.
+func (*ApplyProductEtlFromOracleRequest) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *ApplyProductEtlFromOracleRequest) GetPreviewRunId() string {
+	if x != nil {
+		return x.PreviewRunId
+	}
+	return ""
+}
+
+func (x *ApplyProductEtlFromOracleRequest) GetRowKeys() []string {
+	if x != nil {
+		return x.RowKeys
+	}
+	return nil
+}
+
+// ProductEtlApplyRow is the per-row apply result.
+type ProductEtlApplyRow struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	RowKey string                 `protobuf:"bytes,1,opt,name=row_key,json=rowKey,proto3" json:"row_key,omitempty"`
+	// INSERTED | SKIPPED | FAILED.
+	Result        string `protobuf:"bytes,2,opt,name=result,proto3" json:"result,omitempty"`
+	ProductSysId  int64  `protobuf:"varint,3,opt,name=product_sys_id,json=productSysId,proto3" json:"product_sys_id,omitempty"`
+	ProductCode   string `protobuf:"bytes,4,opt,name=product_code,json=productCode,proto3" json:"product_code,omitempty"`
+	Message       string `protobuf:"bytes,5,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProductEtlApplyRow) Reset() {
+	*x = ProductEtlApplyRow{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProductEtlApplyRow) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProductEtlApplyRow) ProtoMessage() {}
+
+func (x *ProductEtlApplyRow) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProductEtlApplyRow.ProtoReflect.Descriptor instead.
+func (*ProductEtlApplyRow) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{44}
+}
+
+func (x *ProductEtlApplyRow) GetRowKey() string {
+	if x != nil {
+		return x.RowKey
+	}
+	return ""
+}
+
+func (x *ProductEtlApplyRow) GetResult() string {
+	if x != nil {
+		return x.Result
+	}
+	return ""
+}
+
+func (x *ProductEtlApplyRow) GetProductSysId() int64 {
+	if x != nil {
+		return x.ProductSysId
+	}
+	return 0
+}
+
+func (x *ProductEtlApplyRow) GetProductCode() string {
+	if x != nil {
+		return x.ProductCode
+	}
+	return ""
+}
+
+func (x *ProductEtlApplyRow) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type ProductEtlApplyResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RunId         string                 `protobuf:"bytes,1,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	Inserted      int32                  `protobuf:"varint,2,opt,name=inserted,proto3" json:"inserted,omitempty"`
+	Skipped       int32                  `protobuf:"varint,3,opt,name=skipped,proto3" json:"skipped,omitempty"`
+	Failed        int32                  `protobuf:"varint,4,opt,name=failed,proto3" json:"failed,omitempty"`
+	Rows          []*ProductEtlApplyRow  `protobuf:"bytes,5,rep,name=rows,proto3" json:"rows,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProductEtlApplyResult) Reset() {
+	*x = ProductEtlApplyResult{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProductEtlApplyResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProductEtlApplyResult) ProtoMessage() {}
+
+func (x *ProductEtlApplyResult) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProductEtlApplyResult.ProtoReflect.Descriptor instead.
+func (*ProductEtlApplyResult) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *ProductEtlApplyResult) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *ProductEtlApplyResult) GetInserted() int32 {
+	if x != nil {
+		return x.Inserted
+	}
+	return 0
+}
+
+func (x *ProductEtlApplyResult) GetSkipped() int32 {
+	if x != nil {
+		return x.Skipped
+	}
+	return 0
+}
+
+func (x *ProductEtlApplyResult) GetFailed() int32 {
+	if x != nil {
+		return x.Failed
+	}
+	return 0
+}
+
+func (x *ProductEtlApplyResult) GetRows() []*ProductEtlApplyRow {
+	if x != nil {
+		return x.Rows
+	}
+	return nil
+}
+
+type ApplyProductEtlFromOracleResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Base          *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	Data          *ProductEtlApplyResult `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ApplyProductEtlFromOracleResponse) Reset() {
+	*x = ApplyProductEtlFromOracleResponse{}
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ApplyProductEtlFromOracleResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ApplyProductEtlFromOracleResponse) ProtoMessage() {}
+
+func (x *ApplyProductEtlFromOracleResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_v1_cost_product_master_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ApplyProductEtlFromOracleResponse.ProtoReflect.Descriptor instead.
+func (*ApplyProductEtlFromOracleResponse) Descriptor() ([]byte, []int) {
+	return file_finance_v1_cost_product_master_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *ApplyProductEtlFromOracleResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *ApplyProductEtlFromOracleResponse) GetData() *ProductEtlApplyResult {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
 var File_finance_v1_cost_product_master_proto protoreflect.FileDescriptor
 
 const file_finance_v1_cost_product_master_proto_rawDesc = "" +
@@ -2486,7 +3496,7 @@ const file_finance_v1_cost_product_master_proto_rawDesc = "" +
 	"\rerp_item_type\x18\x1a \x01(\tR\verpItemType\x12%\n" +
 	"\x0ferp_prd_per_day\x18\x1b \x01(\tR\ferpPrdPerDay\x123\n" +
 	"\x16rm_ratio_mode_override\x18\x1c \x01(\tR\x13rmRatioModeOverride\x125\n" +
-	"\x17effective_rm_ratio_mode\x18\x1d \x01(\tR\x14effectiveRmRatioMode\"\xf2\x04\n" +
+	"\x17effective_rm_ratio_mode\x18\x1d \x01(\tR\x14effectiveRmRatioMode\"\x9f\x05\n" +
 	"\x1eCreateCostProductMasterRequest\x12/\n" +
 	"\x0fproduct_type_id\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x01R\rproductTypeId\x12-\n" +
 	"\fproduct_name\x18\x02 \x01(\tB\n" +
@@ -2504,7 +3514,8 @@ const file_finance_v1_cost_product_master_proto_rawDesc = "" +
 	" \x01(\tB\a\xbaH\x04r\x02\x182R\x0eerpChpItemCode\x122\n" +
 	"\x11erp_ms_batch_item\x18\v \x01(\tB\a\xbaH\x04r\x02\x18\fR\x0eerpMsBatchItem\x12+\n" +
 	"\rerp_item_type\x18\f \x01(\tB\a\xbaH\x04r\x02\x18\x14R\verpItemType\x12M\n" +
-	"\x0ferp_prd_per_day\x18\r \x01(\tB&\xbaH#r!2\x1f^([0-9]{1,12}(\\.[0-9]{1,6})?)?$R\ferpPrdPerDay\"\x81\x01\n" +
+	"\x0ferp_prd_per_day\x18\r \x01(\tB&\xbaH#r!2\x1f^([0-9]{1,12}(\\.[0-9]{1,6})?)?$R\ferpPrdPerDay\x12+\n" +
+	"\rerp_item_code\x18\x0e \x01(\tB\a\xbaH\x04r\x02\x182R\verpItemCode\"\x81\x01\n" +
 	"\x1fCreateCostProductMasterResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x121\n" +
 	"\x04data\x18\x02 \x01(\v2\x1d.finance.v1.CostProductMasterR\x04data\"L\n" +
@@ -2670,7 +3681,88 @@ const file_finance_v1_cost_product_master_proto_rawDesc = "" +
 	"\x1eDeleteRMDenierOverrideResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12#\n" +
 	"\rdeleted_count\x18\x02 \x01(\x05R\fdeletedCount\x125\n" +
-	"\x17applied_product_sys_ids\x18\x03 \x03(\x03R\x14appliedProductSysIds2\xfa\x15\n" +
+	"\x17applied_product_sys_ids\x18\x03 \x03(\x03R\x14appliedProductSysIds\"\x86\x03\n" +
+	"\x11CostProductMbLink\x12\x1f\n" +
+	"\vlink_source\x18\x01 \x01(\tR\n" +
+	"linkSource\x12\x17\n" +
+	"\aspin_id\x18\x02 \x01(\tR\x06spinId\x12\x1b\n" +
+	"\tspin_code\x18\x03 \x01(\tR\bspinCode\x12&\n" +
+	"\x0fspin_shade_code\x18\x04 \x01(\tR\rspinShadeCode\x12\"\n" +
+	"\rfg_product_id\x18\x05 \x01(\x03R\vfgProductId\x12&\n" +
+	"\x0ffg_product_code\x18\x06 \x01(\tR\rfgProductCode\x129\n" +
+	"\x19candidate_poy_product_ids\x18\a \x03(\x03R\x16candidatePoyProductIds\x12\x16\n" +
+	"\x06reason\x18\b \x01(\tR\x06reason\x12.\n" +
+	"\x13current_param_value\x18\t \x01(\tR\x11currentParamValue\x12#\n" +
+	"\rparam_matches\x18\n" +
+	" \x01(\bR\fparamMatches\"L\n" +
+	"\x1bGetCostProductMbLinkRequest\x12-\n" +
+	"\x0eproduct_sys_id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02(\x01R\fproductSysId\"~\n" +
+	"\x1cGetCostProductMbLinkResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x121\n" +
+	"\x04data\x18\x02 \x01(\v2\x1d.finance.v1.CostProductMbLinkR\x04data\"K\n" +
+	"\x1aRelinkCostProductMbRequest\x12-\n" +
+	"\x0eproduct_sys_id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02(\x01R\fproductSysId\"}\n" +
+	"\x1bRelinkCostProductMbResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x121\n" +
+	"\x04data\x18\x02 \x01(\v2\x1d.finance.v1.CostProductMbLinkR\x04data\"\xaa\x01\n" +
+	"\"PreviewProductEtlFromOracleRequest\x127\n" +
+	"\tfrom_date\x18\x01 \x01(\tB\x1a\xbaH\x17r\x152\x13^\\d{4}-\\d{2}-\\d{2}$R\bfromDate\x12 \n" +
+	"\x06search\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\xc8\x01R\x06search\x12)\n" +
+	"\x10include_existing\x18\x03 \x01(\bR\x0fincludeExisting\"\xfa\x02\n" +
+	"\rProductEtlRow\x12\x17\n" +
+	"\arow_key\x18\x01 \x01(\tR\x06rowKey\x12(\n" +
+	"\x10merge_item_orion\x18\x02 \x01(\tR\x0emergeItemOrion\x12\x1b\n" +
+	"\titem_name\x18\x03 \x01(\tR\bitemName\x12\x1d\n" +
+	"\n" +
+	"shade_code\x18\x04 \x01(\tR\tshadeCode\x12\x1d\n" +
+	"\n" +
+	"shade_name\x18\x05 \x01(\tR\tshadeName\x12\x1b\n" +
+	"\ttype_code\x18\x06 \x01(\tR\btypeCode\x12\x16\n" +
+	"\x06status\x18\a \x01(\tR\x06status\x12\x1e\n" +
+	"\n" +
+	"selectable\x18\b \x01(\bR\n" +
+	"selectable\x12.\n" +
+	"\x13matched_product_ids\x18\t \x03(\x03R\x11matchedProductIds\x12\x16\n" +
+	"\x06denier\x18\n" +
+	" \x01(\tR\x06denier\x12\x1a\n" +
+	"\bfilament\x18\v \x01(\tR\bfilament\x12\x12\n" +
+	"\x04note\x18\f \x01(\tR\x04note\"\xed\x01\n" +
+	"\x10ProductEtlCounts\x12\x16\n" +
+	"\x06exists\x18\x01 \x01(\x05R\x06exists\x12!\n" +
+	"\fexists_multi\x18\x02 \x01(\x05R\vexistsMulti\x12\x1b\n" +
+	"\tnew_shade\x18\x03 \x01(\x05R\bnewShade\x12\x19\n" +
+	"\bnew_item\x18\x04 \x01(\x05R\anewItem\x12-\n" +
+	"\x12possible_duplicate\x18\x05 \x01(\x05R\x11possibleDuplicate\x12!\n" +
+	"\finvalid_type\x18\x06 \x01(\x05R\vinvalidType\x12\x14\n" +
+	"\x05total\x18\a \x01(\x05R\x05total\"\xcd\x01\n" +
+	"\x11ProductEtlPreview\x12\x15\n" +
+	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12\x1b\n" +
+	"\tfrom_date\x18\x02 \x01(\tR\bfromDate\x12-\n" +
+	"\x04rows\x18\x03 \x03(\v2\x19.finance.v1.ProductEtlRowR\x04rows\x124\n" +
+	"\x06counts\x18\x04 \x01(\v2\x1c.finance.v1.ProductEtlCountsR\x06counts\x12\x1f\n" +
+	"\vapply_limit\x18\x05 \x01(\x05R\n" +
+	"applyLimit\"\x85\x01\n" +
+	"#PreviewProductEtlFromOracleResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x121\n" +
+	"\x04data\x18\x02 \x01(\v2\x1d.finance.v1.ProductEtlPreviewR\x04data\"z\n" +
+	" ApplyProductEtlFromOracleRequest\x12.\n" +
+	"\x0epreview_run_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\fpreviewRunId\x12&\n" +
+	"\brow_keys\x18\x02 \x03(\tB\v\xbaH\b\x92\x01\x05\b\x01\x10\xf4\x03R\arowKeys\"\xa8\x01\n" +
+	"\x12ProductEtlApplyRow\x12\x17\n" +
+	"\arow_key\x18\x01 \x01(\tR\x06rowKey\x12\x16\n" +
+	"\x06result\x18\x02 \x01(\tR\x06result\x12$\n" +
+	"\x0eproduct_sys_id\x18\x03 \x01(\x03R\fproductSysId\x12!\n" +
+	"\fproduct_code\x18\x04 \x01(\tR\vproductCode\x12\x18\n" +
+	"\amessage\x18\x05 \x01(\tR\amessage\"\xb0\x01\n" +
+	"\x15ProductEtlApplyResult\x12\x15\n" +
+	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12\x1a\n" +
+	"\binserted\x18\x02 \x01(\x05R\binserted\x12\x18\n" +
+	"\askipped\x18\x03 \x01(\x05R\askipped\x12\x16\n" +
+	"\x06failed\x18\x04 \x01(\x05R\x06failed\x122\n" +
+	"\x04rows\x18\x05 \x03(\v2\x1e.finance.v1.ProductEtlApplyRowR\x04rows\"\x87\x01\n" +
+	"!ApplyProductEtlFromOracleResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x125\n" +
+	"\x04data\x18\x02 \x01(\v2!.finance.v1.ProductEtlApplyResultR\x04data2\xd2\x1b\n" +
 	"\x18CostProductMasterService\x12\xa2\x01\n" +
 	"\x17CreateCostProductMaster\x12*.finance.v1.CreateCostProductMasterRequest\x1a+.finance.v1.CreateCostProductMasterResponse\".\x82\xd3\xe4\x93\x02(:\x01*\"#/api/v1/finance/cost-product-master\x12\xa7\x01\n" +
 	"\x14GetCostProductMaster\x12'.finance.v1.GetCostProductMasterRequest\x1a(.finance.v1.GetCostProductMasterResponse\"<\x82\xd3\xe4\x93\x026\x124/api/v1/finance/cost-product-master/{product_sys_id}\x12\xbf\x01\n" +
@@ -2686,7 +3778,11 @@ const file_finance_v1_cost_product_master_proto_rawDesc = "" +
 	"\x10DuplicateProduct\x12#.finance.v1.DuplicateProductRequest\x1a$.finance.v1.DuplicateProductResponse\"I\x82\xd3\xe4\x93\x02C:\x01*\">/api/v1/finance/cost-product-master/{product_sys_id}/duplicate\x12\xbe\x01\n" +
 	"\x15ListRMDenierOverrides\x12(.finance.v1.ListRMDenierOverridesRequest\x1a).finance.v1.ListRMDenierOverridesResponse\"P\x82\xd3\xe4\x93\x02J\x12H/api/v1/finance/cost-product-master/{product_sys_id}/rm-denier-overrides\x12\xc4\x01\n" +
 	"\x16UpsertRMDenierOverride\x12).finance.v1.UpsertRMDenierOverrideRequest\x1a*.finance.v1.UpsertRMDenierOverrideResponse\"S\x82\xd3\xe4\x93\x02M:\x01*\"H/api/v1/finance/cost-product-master/{product_sys_id}/rm-denier-overrides\x12\xc1\x01\n" +
-	"\x16DeleteRMDenierOverride\x12).finance.v1.DeleteRMDenierOverrideRequest\x1a*.finance.v1.DeleteRMDenierOverrideResponse\"P\x82\xd3\xe4\x93\x02J*H/api/v1/finance/cost-product-master/{product_sys_id}/rm-denier-overridesB\xb0\x01\n" +
+	"\x16DeleteRMDenierOverride\x12).finance.v1.DeleteRMDenierOverrideRequest\x1a*.finance.v1.DeleteRMDenierOverrideResponse\"P\x82\xd3\xe4\x93\x02J*H/api/v1/finance/cost-product-master/{product_sys_id}/rm-denier-overrides\x12\xaf\x01\n" +
+	"\x14GetCostProductMbLink\x12'.finance.v1.GetCostProductMbLinkRequest\x1a(.finance.v1.GetCostProductMbLinkResponse\"D\x82\xd3\xe4\x93\x02>\x12</api/v1/finance/cost-product-master/{product_sys_id}/mb-link\x12\xb1\x01\n" +
+	"\x13RelinkCostProductMb\x12&.finance.v1.RelinkCostProductMbRequest\x1a'.finance.v1.RelinkCostProductMbResponse\"I\x82\xd3\xe4\x93\x02C:\x01*\">/api/v1/finance/cost-product-master/{product_sys_id}/mb-relink\x12\xba\x01\n" +
+	"\x1bPreviewProductEtlFromOracle\x12..finance.v1.PreviewProductEtlFromOracleRequest\x1a/.finance.v1.PreviewProductEtlFromOracleResponse\":\x82\xd3\xe4\x93\x024:\x01*\"//api/v1/finance/cost-product-master/etl/preview\x12\xb2\x01\n" +
+	"\x19ApplyProductEtlFromOracle\x12,.finance.v1.ApplyProductEtlFromOracleRequest\x1a-.finance.v1.ApplyProductEtlFromOracleResponse\"8\x82\xd3\xe4\x93\x022:\x01*\"-/api/v1/finance/cost-product-master/etl/applyB\xb0\x01\n" +
 	"\x0ecom.finance.v1B\x16CostProductMasterProtoP\x01Z=github.com/mutugading/goapps-backend/gen/finance/v1;financev1\xa2\x02\x03FXX\xaa\x02\n" +
 	"Finance.V1\xca\x02\n" +
 	"Finance\\V1\xe2\x02\x16Finance\\V1\\GPBMetadata\xea\x02\vFinance::V1b\x06proto3"
@@ -2703,7 +3799,7 @@ func file_finance_v1_cost_product_master_proto_rawDescGZIP() []byte {
 	return file_finance_v1_cost_product_master_proto_rawDescData
 }
 
-var file_finance_v1_cost_product_master_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
+var file_finance_v1_cost_product_master_proto_msgTypes = make([]protoimpl.MessageInfo, 47)
 var file_finance_v1_cost_product_master_proto_goTypes = []any{
 	(*CostProductMaster)(nil),                         // 0: finance.v1.CostProductMaster
 	(*CreateCostProductMasterRequest)(nil),            // 1: finance.v1.CreateCostProductMasterRequest
@@ -2738,75 +3834,108 @@ var file_finance_v1_cost_product_master_proto_goTypes = []any{
 	(*UpsertRMDenierOverrideResponse)(nil),            // 30: finance.v1.UpsertRMDenierOverrideResponse
 	(*DeleteRMDenierOverrideRequest)(nil),             // 31: finance.v1.DeleteRMDenierOverrideRequest
 	(*DeleteRMDenierOverrideResponse)(nil),            // 32: finance.v1.DeleteRMDenierOverrideResponse
-	(*v1.AuditInfo)(nil),                              // 33: common.v1.AuditInfo
-	(*v1.BaseResponse)(nil),                           // 34: common.v1.BaseResponse
-	(*v1.PaginationRequest)(nil),                      // 35: common.v1.PaginationRequest
-	(*v1.PaginationResponse)(nil),                     // 36: common.v1.PaginationResponse
+	(*CostProductMbLink)(nil),                         // 33: finance.v1.CostProductMbLink
+	(*GetCostProductMbLinkRequest)(nil),               // 34: finance.v1.GetCostProductMbLinkRequest
+	(*GetCostProductMbLinkResponse)(nil),              // 35: finance.v1.GetCostProductMbLinkResponse
+	(*RelinkCostProductMbRequest)(nil),                // 36: finance.v1.RelinkCostProductMbRequest
+	(*RelinkCostProductMbResponse)(nil),               // 37: finance.v1.RelinkCostProductMbResponse
+	(*PreviewProductEtlFromOracleRequest)(nil),        // 38: finance.v1.PreviewProductEtlFromOracleRequest
+	(*ProductEtlRow)(nil),                             // 39: finance.v1.ProductEtlRow
+	(*ProductEtlCounts)(nil),                          // 40: finance.v1.ProductEtlCounts
+	(*ProductEtlPreview)(nil),                         // 41: finance.v1.ProductEtlPreview
+	(*PreviewProductEtlFromOracleResponse)(nil),       // 42: finance.v1.PreviewProductEtlFromOracleResponse
+	(*ApplyProductEtlFromOracleRequest)(nil),          // 43: finance.v1.ApplyProductEtlFromOracleRequest
+	(*ProductEtlApplyRow)(nil),                        // 44: finance.v1.ProductEtlApplyRow
+	(*ProductEtlApplyResult)(nil),                     // 45: finance.v1.ProductEtlApplyResult
+	(*ApplyProductEtlFromOracleResponse)(nil),         // 46: finance.v1.ApplyProductEtlFromOracleResponse
+	(*v1.AuditInfo)(nil),                              // 47: common.v1.AuditInfo
+	(*v1.BaseResponse)(nil),                           // 48: common.v1.BaseResponse
+	(*v1.PaginationRequest)(nil),                      // 49: common.v1.PaginationRequest
+	(*v1.PaginationResponse)(nil),                     // 50: common.v1.PaginationResponse
 }
 var file_finance_v1_cost_product_master_proto_depIdxs = []int32{
-	33, // 0: finance.v1.CostProductMaster.audit:type_name -> common.v1.AuditInfo
-	34, // 1: finance.v1.CreateCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
+	47, // 0: finance.v1.CostProductMaster.audit:type_name -> common.v1.AuditInfo
+	48, // 1: finance.v1.CreateCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 2: finance.v1.CreateCostProductMasterResponse.data:type_name -> finance.v1.CostProductMaster
-	34, // 3: finance.v1.GetCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
+	48, // 3: finance.v1.GetCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 4: finance.v1.GetCostProductMasterResponse.data:type_name -> finance.v1.CostProductMaster
-	34, // 5: finance.v1.GetCostProductMasterByCodeResponse.base:type_name -> common.v1.BaseResponse
+	48, // 5: finance.v1.GetCostProductMasterByCodeResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 6: finance.v1.GetCostProductMasterByCodeResponse.data:type_name -> finance.v1.CostProductMaster
-	34, // 7: finance.v1.UpdateCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
+	48, // 7: finance.v1.UpdateCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 8: finance.v1.UpdateCostProductMasterResponse.data:type_name -> finance.v1.CostProductMaster
-	34, // 9: finance.v1.UpdateCostProductMasterErpLinkageResponse.base:type_name -> common.v1.BaseResponse
+	48, // 9: finance.v1.UpdateCostProductMasterErpLinkageResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 10: finance.v1.UpdateCostProductMasterErpLinkageResponse.data:type_name -> finance.v1.CostProductMaster
-	34, // 11: finance.v1.DeactivateCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
-	34, // 12: finance.v1.UnlockCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
+	48, // 11: finance.v1.DeactivateCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
+	48, // 12: finance.v1.UnlockCostProductMasterResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 13: finance.v1.UnlockCostProductMasterResponse.data:type_name -> finance.v1.CostProductMaster
-	35, // 14: finance.v1.ListCostProductMastersRequest.pagination:type_name -> common.v1.PaginationRequest
-	34, // 15: finance.v1.ListCostProductMastersResponse.base:type_name -> common.v1.BaseResponse
+	49, // 14: finance.v1.ListCostProductMastersRequest.pagination:type_name -> common.v1.PaginationRequest
+	48, // 15: finance.v1.ListCostProductMastersResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 16: finance.v1.ListCostProductMastersResponse.data:type_name -> finance.v1.CostProductMaster
-	36, // 17: finance.v1.ListCostProductMastersResponse.pagination:type_name -> common.v1.PaginationResponse
-	34, // 18: finance.v1.ExportCostProductMastersResponse.base:type_name -> common.v1.BaseResponse
-	34, // 19: finance.v1.ImportCostProductMastersResponse.base:type_name -> common.v1.BaseResponse
-	34, // 20: finance.v1.DownloadCostProductMasterTemplateResponse.base:type_name -> common.v1.BaseResponse
-	34, // 21: finance.v1.DuplicateProductResponse.base:type_name -> common.v1.BaseResponse
-	34, // 22: finance.v1.ListRMDenierOverridesResponse.base:type_name -> common.v1.BaseResponse
+	50, // 17: finance.v1.ListCostProductMastersResponse.pagination:type_name -> common.v1.PaginationResponse
+	48, // 18: finance.v1.ExportCostProductMastersResponse.base:type_name -> common.v1.BaseResponse
+	48, // 19: finance.v1.ImportCostProductMastersResponse.base:type_name -> common.v1.BaseResponse
+	48, // 20: finance.v1.DownloadCostProductMasterTemplateResponse.base:type_name -> common.v1.BaseResponse
+	48, // 21: finance.v1.DuplicateProductResponse.base:type_name -> common.v1.BaseResponse
+	48, // 22: finance.v1.ListRMDenierOverridesResponse.base:type_name -> common.v1.BaseResponse
 	25, // 23: finance.v1.ListRMDenierOverridesResponse.data:type_name -> finance.v1.RMDenierOverride
 	26, // 24: finance.v1.ListRMDenierOverridesResponse.duplicate_products:type_name -> finance.v1.DuplicateProductRef
-	34, // 25: finance.v1.UpsertRMDenierOverrideResponse.base:type_name -> common.v1.BaseResponse
+	48, // 25: finance.v1.UpsertRMDenierOverrideResponse.base:type_name -> common.v1.BaseResponse
 	25, // 26: finance.v1.UpsertRMDenierOverrideResponse.data:type_name -> finance.v1.RMDenierOverride
-	34, // 27: finance.v1.DeleteRMDenierOverrideResponse.base:type_name -> common.v1.BaseResponse
-	1,  // 28: finance.v1.CostProductMasterService.CreateCostProductMaster:input_type -> finance.v1.CreateCostProductMasterRequest
-	3,  // 29: finance.v1.CostProductMasterService.GetCostProductMaster:input_type -> finance.v1.GetCostProductMasterRequest
-	5,  // 30: finance.v1.CostProductMasterService.GetCostProductMasterByCode:input_type -> finance.v1.GetCostProductMasterByCodeRequest
-	7,  // 31: finance.v1.CostProductMasterService.UpdateCostProductMaster:input_type -> finance.v1.UpdateCostProductMasterRequest
-	9,  // 32: finance.v1.CostProductMasterService.UpdateCostProductMasterErpLinkage:input_type -> finance.v1.UpdateCostProductMasterErpLinkageRequest
-	11, // 33: finance.v1.CostProductMasterService.DeactivateCostProductMaster:input_type -> finance.v1.DeactivateCostProductMasterRequest
-	13, // 34: finance.v1.CostProductMasterService.UnlockCostProductMaster:input_type -> finance.v1.UnlockCostProductMasterRequest
-	15, // 35: finance.v1.CostProductMasterService.ListCostProductMasters:input_type -> finance.v1.ListCostProductMastersRequest
-	17, // 36: finance.v1.CostProductMasterService.ExportCostProductMasters:input_type -> finance.v1.ExportCostProductMastersRequest
-	19, // 37: finance.v1.CostProductMasterService.ImportCostProductMasters:input_type -> finance.v1.ImportCostProductMastersRequest
-	21, // 38: finance.v1.CostProductMasterService.DownloadCostProductMasterTemplate:input_type -> finance.v1.DownloadCostProductMasterTemplateRequest
-	23, // 39: finance.v1.CostProductMasterService.DuplicateProduct:input_type -> finance.v1.DuplicateProductRequest
-	27, // 40: finance.v1.CostProductMasterService.ListRMDenierOverrides:input_type -> finance.v1.ListRMDenierOverridesRequest
-	29, // 41: finance.v1.CostProductMasterService.UpsertRMDenierOverride:input_type -> finance.v1.UpsertRMDenierOverrideRequest
-	31, // 42: finance.v1.CostProductMasterService.DeleteRMDenierOverride:input_type -> finance.v1.DeleteRMDenierOverrideRequest
-	2,  // 43: finance.v1.CostProductMasterService.CreateCostProductMaster:output_type -> finance.v1.CreateCostProductMasterResponse
-	4,  // 44: finance.v1.CostProductMasterService.GetCostProductMaster:output_type -> finance.v1.GetCostProductMasterResponse
-	6,  // 45: finance.v1.CostProductMasterService.GetCostProductMasterByCode:output_type -> finance.v1.GetCostProductMasterByCodeResponse
-	8,  // 46: finance.v1.CostProductMasterService.UpdateCostProductMaster:output_type -> finance.v1.UpdateCostProductMasterResponse
-	10, // 47: finance.v1.CostProductMasterService.UpdateCostProductMasterErpLinkage:output_type -> finance.v1.UpdateCostProductMasterErpLinkageResponse
-	12, // 48: finance.v1.CostProductMasterService.DeactivateCostProductMaster:output_type -> finance.v1.DeactivateCostProductMasterResponse
-	14, // 49: finance.v1.CostProductMasterService.UnlockCostProductMaster:output_type -> finance.v1.UnlockCostProductMasterResponse
-	16, // 50: finance.v1.CostProductMasterService.ListCostProductMasters:output_type -> finance.v1.ListCostProductMastersResponse
-	18, // 51: finance.v1.CostProductMasterService.ExportCostProductMasters:output_type -> finance.v1.ExportCostProductMastersResponse
-	20, // 52: finance.v1.CostProductMasterService.ImportCostProductMasters:output_type -> finance.v1.ImportCostProductMastersResponse
-	22, // 53: finance.v1.CostProductMasterService.DownloadCostProductMasterTemplate:output_type -> finance.v1.DownloadCostProductMasterTemplateResponse
-	24, // 54: finance.v1.CostProductMasterService.DuplicateProduct:output_type -> finance.v1.DuplicateProductResponse
-	28, // 55: finance.v1.CostProductMasterService.ListRMDenierOverrides:output_type -> finance.v1.ListRMDenierOverridesResponse
-	30, // 56: finance.v1.CostProductMasterService.UpsertRMDenierOverride:output_type -> finance.v1.UpsertRMDenierOverrideResponse
-	32, // 57: finance.v1.CostProductMasterService.DeleteRMDenierOverride:output_type -> finance.v1.DeleteRMDenierOverrideResponse
-	43, // [43:58] is the sub-list for method output_type
-	28, // [28:43] is the sub-list for method input_type
-	28, // [28:28] is the sub-list for extension type_name
-	28, // [28:28] is the sub-list for extension extendee
-	0,  // [0:28] is the sub-list for field type_name
+	48, // 27: finance.v1.DeleteRMDenierOverrideResponse.base:type_name -> common.v1.BaseResponse
+	48, // 28: finance.v1.GetCostProductMbLinkResponse.base:type_name -> common.v1.BaseResponse
+	33, // 29: finance.v1.GetCostProductMbLinkResponse.data:type_name -> finance.v1.CostProductMbLink
+	48, // 30: finance.v1.RelinkCostProductMbResponse.base:type_name -> common.v1.BaseResponse
+	33, // 31: finance.v1.RelinkCostProductMbResponse.data:type_name -> finance.v1.CostProductMbLink
+	39, // 32: finance.v1.ProductEtlPreview.rows:type_name -> finance.v1.ProductEtlRow
+	40, // 33: finance.v1.ProductEtlPreview.counts:type_name -> finance.v1.ProductEtlCounts
+	48, // 34: finance.v1.PreviewProductEtlFromOracleResponse.base:type_name -> common.v1.BaseResponse
+	41, // 35: finance.v1.PreviewProductEtlFromOracleResponse.data:type_name -> finance.v1.ProductEtlPreview
+	44, // 36: finance.v1.ProductEtlApplyResult.rows:type_name -> finance.v1.ProductEtlApplyRow
+	48, // 37: finance.v1.ApplyProductEtlFromOracleResponse.base:type_name -> common.v1.BaseResponse
+	45, // 38: finance.v1.ApplyProductEtlFromOracleResponse.data:type_name -> finance.v1.ProductEtlApplyResult
+	1,  // 39: finance.v1.CostProductMasterService.CreateCostProductMaster:input_type -> finance.v1.CreateCostProductMasterRequest
+	3,  // 40: finance.v1.CostProductMasterService.GetCostProductMaster:input_type -> finance.v1.GetCostProductMasterRequest
+	5,  // 41: finance.v1.CostProductMasterService.GetCostProductMasterByCode:input_type -> finance.v1.GetCostProductMasterByCodeRequest
+	7,  // 42: finance.v1.CostProductMasterService.UpdateCostProductMaster:input_type -> finance.v1.UpdateCostProductMasterRequest
+	9,  // 43: finance.v1.CostProductMasterService.UpdateCostProductMasterErpLinkage:input_type -> finance.v1.UpdateCostProductMasterErpLinkageRequest
+	11, // 44: finance.v1.CostProductMasterService.DeactivateCostProductMaster:input_type -> finance.v1.DeactivateCostProductMasterRequest
+	13, // 45: finance.v1.CostProductMasterService.UnlockCostProductMaster:input_type -> finance.v1.UnlockCostProductMasterRequest
+	15, // 46: finance.v1.CostProductMasterService.ListCostProductMasters:input_type -> finance.v1.ListCostProductMastersRequest
+	17, // 47: finance.v1.CostProductMasterService.ExportCostProductMasters:input_type -> finance.v1.ExportCostProductMastersRequest
+	19, // 48: finance.v1.CostProductMasterService.ImportCostProductMasters:input_type -> finance.v1.ImportCostProductMastersRequest
+	21, // 49: finance.v1.CostProductMasterService.DownloadCostProductMasterTemplate:input_type -> finance.v1.DownloadCostProductMasterTemplateRequest
+	23, // 50: finance.v1.CostProductMasterService.DuplicateProduct:input_type -> finance.v1.DuplicateProductRequest
+	27, // 51: finance.v1.CostProductMasterService.ListRMDenierOverrides:input_type -> finance.v1.ListRMDenierOverridesRequest
+	29, // 52: finance.v1.CostProductMasterService.UpsertRMDenierOverride:input_type -> finance.v1.UpsertRMDenierOverrideRequest
+	31, // 53: finance.v1.CostProductMasterService.DeleteRMDenierOverride:input_type -> finance.v1.DeleteRMDenierOverrideRequest
+	34, // 54: finance.v1.CostProductMasterService.GetCostProductMbLink:input_type -> finance.v1.GetCostProductMbLinkRequest
+	36, // 55: finance.v1.CostProductMasterService.RelinkCostProductMb:input_type -> finance.v1.RelinkCostProductMbRequest
+	38, // 56: finance.v1.CostProductMasterService.PreviewProductEtlFromOracle:input_type -> finance.v1.PreviewProductEtlFromOracleRequest
+	43, // 57: finance.v1.CostProductMasterService.ApplyProductEtlFromOracle:input_type -> finance.v1.ApplyProductEtlFromOracleRequest
+	2,  // 58: finance.v1.CostProductMasterService.CreateCostProductMaster:output_type -> finance.v1.CreateCostProductMasterResponse
+	4,  // 59: finance.v1.CostProductMasterService.GetCostProductMaster:output_type -> finance.v1.GetCostProductMasterResponse
+	6,  // 60: finance.v1.CostProductMasterService.GetCostProductMasterByCode:output_type -> finance.v1.GetCostProductMasterByCodeResponse
+	8,  // 61: finance.v1.CostProductMasterService.UpdateCostProductMaster:output_type -> finance.v1.UpdateCostProductMasterResponse
+	10, // 62: finance.v1.CostProductMasterService.UpdateCostProductMasterErpLinkage:output_type -> finance.v1.UpdateCostProductMasterErpLinkageResponse
+	12, // 63: finance.v1.CostProductMasterService.DeactivateCostProductMaster:output_type -> finance.v1.DeactivateCostProductMasterResponse
+	14, // 64: finance.v1.CostProductMasterService.UnlockCostProductMaster:output_type -> finance.v1.UnlockCostProductMasterResponse
+	16, // 65: finance.v1.CostProductMasterService.ListCostProductMasters:output_type -> finance.v1.ListCostProductMastersResponse
+	18, // 66: finance.v1.CostProductMasterService.ExportCostProductMasters:output_type -> finance.v1.ExportCostProductMastersResponse
+	20, // 67: finance.v1.CostProductMasterService.ImportCostProductMasters:output_type -> finance.v1.ImportCostProductMastersResponse
+	22, // 68: finance.v1.CostProductMasterService.DownloadCostProductMasterTemplate:output_type -> finance.v1.DownloadCostProductMasterTemplateResponse
+	24, // 69: finance.v1.CostProductMasterService.DuplicateProduct:output_type -> finance.v1.DuplicateProductResponse
+	28, // 70: finance.v1.CostProductMasterService.ListRMDenierOverrides:output_type -> finance.v1.ListRMDenierOverridesResponse
+	30, // 71: finance.v1.CostProductMasterService.UpsertRMDenierOverride:output_type -> finance.v1.UpsertRMDenierOverrideResponse
+	32, // 72: finance.v1.CostProductMasterService.DeleteRMDenierOverride:output_type -> finance.v1.DeleteRMDenierOverrideResponse
+	35, // 73: finance.v1.CostProductMasterService.GetCostProductMbLink:output_type -> finance.v1.GetCostProductMbLinkResponse
+	37, // 74: finance.v1.CostProductMasterService.RelinkCostProductMb:output_type -> finance.v1.RelinkCostProductMbResponse
+	42, // 75: finance.v1.CostProductMasterService.PreviewProductEtlFromOracle:output_type -> finance.v1.PreviewProductEtlFromOracleResponse
+	46, // 76: finance.v1.CostProductMasterService.ApplyProductEtlFromOracle:output_type -> finance.v1.ApplyProductEtlFromOracleResponse
+	58, // [58:77] is the sub-list for method output_type
+	39, // [39:58] is the sub-list for method input_type
+	39, // [39:39] is the sub-list for extension type_name
+	39, // [39:39] is the sub-list for extension extendee
+	0,  // [0:39] is the sub-list for field type_name
 }
 
 func init() { file_finance_v1_cost_product_master_proto_init() }
@@ -2821,7 +3950,7 @@ func file_finance_v1_cost_product_master_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_finance_v1_cost_product_master_proto_rawDesc), len(file_finance_v1_cost_product_master_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   33,
+			NumMessages:   47,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

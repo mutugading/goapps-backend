@@ -166,6 +166,72 @@
         ]
       }
     },
+    "/api/v1/finance/cost-product-master/etl/apply": {
+      "post": {
+        "summary": "ApplyProductEtlFromOracle inserts the selected rows of a previous preview run.",
+        "operationId": "CostProductMasterService_ApplyProductEtlFromOracle",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ApplyProductEtlFromOracleResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ApplyProductEtlFromOracleRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CostProductMasterService"
+        ]
+      }
+    },
+    "/api/v1/finance/cost-product-master/etl/preview": {
+      "post": {
+        "summary": "PreviewProductEtlFromOracle previews products to import from Oracle legacy.",
+        "operationId": "CostProductMasterService_PreviewProductEtlFromOracle",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1PreviewProductEtlFromOracleResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1PreviewProductEtlFromOracleRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CostProductMasterService"
+        ]
+      }
+    },
     "/api/v1/finance/cost-product-master/{productSysId}": {
       "get": {
         "operationId": "CostProductMasterService_GetCostProductMaster",
@@ -333,6 +399,78 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/CostProductMasterServiceUpdateCostProductMasterErpLinkageBody"
+            }
+          }
+        ],
+        "tags": [
+          "CostProductMasterService"
+        ]
+      }
+    },
+    "/api/v1/finance/cost-product-master/{productSysId}/mb-link": {
+      "get": {
+        "summary": "GetCostProductMbLink resolves the MB spin link for a product (FG_MATCH | SHADE_ONLY | SUPERBA | NONE).",
+        "operationId": "CostProductMasterService_GetCostProductMbLink",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetCostProductMbLinkResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "productSysId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "CostProductMasterService"
+        ]
+      }
+    },
+    "/api/v1/finance/cost-product-master/{productSysId}/mb-relink": {
+      "post": {
+        "summary": "RelinkCostProductMb forces MB autofill (re-link) for a product.",
+        "operationId": "CostProductMasterService_RelinkCostProductMb",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RelinkCostProductMbResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "productSysId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CostProductMasterServiceRelinkCostProductMbBody"
             }
           }
         ],
@@ -611,6 +749,9 @@
         }
       }
     },
+    "CostProductMasterServiceRelinkCostProductMbBody": {
+      "type": "object"
+    },
     "CostProductMasterServiceUnlockCostProductMasterBody": {
       "type": "object",
       "properties": {
@@ -750,6 +891,33 @@
             "type": "object",
             "$ref": "#/definitions/protobufAny"
           }
+        }
+      }
+    },
+    "v1ApplyProductEtlFromOracleRequest": {
+      "type": "object",
+      "properties": {
+        "previewRunId": {
+          "type": "string",
+          "description": "Run token returned by preview."
+        },
+        "rowKeys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Selected row keys."
+        }
+      }
+    },
+    "v1ApplyProductEtlFromOracleResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1ProductEtlApplyResult"
         }
       }
     },
@@ -903,6 +1071,57 @@
         }
       }
     },
+    "v1CostProductMbLink": {
+      "type": "object",
+      "properties": {
+        "linkSource": {
+          "type": "string",
+          "description": "FG_MATCH | SHADE_ONLY | SUPERBA | NONE."
+        },
+        "spinId": {
+          "type": "string",
+          "description": "Resolved spin UUID."
+        },
+        "spinCode": {
+          "type": "string",
+          "description": "Resolved spin code."
+        },
+        "spinShadeCode": {
+          "type": "string",
+          "description": "Resolved spin shade code."
+        },
+        "fgProductId": {
+          "type": "string",
+          "format": "int64",
+          "description": "FG product id (0 = none)."
+        },
+        "fgProductCode": {
+          "type": "string",
+          "description": "FG product code."
+        },
+        "candidatePoyProductIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "Candidate POY product ids when ambiguous."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Human-readable reason."
+        },
+        "currentParamValue": {
+          "type": "string",
+          "description": "Current MB_SP_CODE param text value."
+        },
+        "paramMatches": {
+          "type": "boolean",
+          "description": "True when current_param_value matches the resolved spin."
+        }
+      },
+      "description": "CostProductMbLink describes how a product resolves to an MB spin."
+    },
     "v1CreateCostProductMasterRequest": {
       "type": "object",
       "properties": {
@@ -950,6 +1169,10 @@
         "erpPrdPerDay": {
           "type": "string",
           "title": "decimal string"
+        },
+        "erpItemCode": {
+          "type": "string",
+          "description": "ERP item code (optional; used for inline minimal POY creation). Empty = unset."
         }
       }
     },
@@ -1074,6 +1297,17 @@
         }
       }
     },
+    "v1GetCostProductMbLinkResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1CostProductMbLink"
+        }
+      }
+    },
     "v1ImportCostProductMastersRequest": {
       "type": "object",
       "properties": {
@@ -1183,6 +1417,194 @@
       },
       "description": "PaginationResponse contains pagination metadata for list responses."
     },
+    "v1PreviewProductEtlFromOracleRequest": {
+      "type": "object",
+      "properties": {
+        "fromDate": {
+          "type": "string",
+          "description": "Start date YYYY-MM-DD."
+        },
+        "search": {
+          "type": "string",
+          "description": "Free-text search (max 200 chars)."
+        },
+        "includeExisting": {
+          "type": "boolean",
+          "description": "Include rows that already exist."
+        }
+      }
+    },
+    "v1PreviewProductEtlFromOracleResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1ProductEtlPreview"
+        }
+      }
+    },
+    "v1ProductEtlApplyResult": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string"
+        },
+        "inserted": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "skipped": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "failed": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ProductEtlApplyRow"
+          }
+        }
+      }
+    },
+    "v1ProductEtlApplyRow": {
+      "type": "object",
+      "properties": {
+        "rowKey": {
+          "type": "string"
+        },
+        "result": {
+          "type": "string",
+          "description": "INSERTED | SKIPPED | FAILED."
+        },
+        "productSysId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "productCode": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "description": "ProductEtlApplyRow is the per-row apply result."
+    },
+    "v1ProductEtlCounts": {
+      "type": "object",
+      "properties": {
+        "exists": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "existsMulti": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "newShade": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "newItem": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "possibleDuplicate": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "invalidType": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "total": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "description": "ProductEtlCounts holds per-status counts."
+    },
+    "v1ProductEtlPreview": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "description": "Run token (UUID) to pass to apply."
+        },
+        "fromDate": {
+          "type": "string"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ProductEtlRow"
+          }
+        },
+        "counts": {
+          "$ref": "#/definitions/v1ProductEtlCounts"
+        },
+        "applyLimit": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Max rows accepted per apply call."
+        }
+      }
+    },
+    "v1ProductEtlRow": {
+      "type": "object",
+      "properties": {
+        "rowKey": {
+          "type": "string",
+          "description": "\"\u003citem\u003e|\u003cshade\u003e\"."
+        },
+        "mergeItemOrion": {
+          "type": "string"
+        },
+        "itemName": {
+          "type": "string"
+        },
+        "shadeCode": {
+          "type": "string"
+        },
+        "shadeName": {
+          "type": "string"
+        },
+        "typeCode": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "description": "EXISTS | EXISTS_MULTI | NEW_SHADE | NEW_ITEM | POSSIBLE_DUPLICATE | INVALID_TYPE."
+        },
+        "selectable": {
+          "type": "boolean",
+          "description": "Whether the row can be applied."
+        },
+        "matchedProductIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "int64"
+          }
+        },
+        "denier": {
+          "type": "string"
+        },
+        "filament": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "description": "ProductEtlRow is one preview row."
+    },
     "v1RMDenierOverride": {
       "type": "object",
       "properties": {
@@ -1235,6 +1657,17 @@
         }
       },
       "description": "RMDenierOverride is a per-product denier override for one RM (product or group)."
+    },
+    "v1RelinkCostProductMbResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1CostProductMbLink"
+        }
+      }
     },
     "v1UnlockCostProductMasterResponse": {
       "type": "object",

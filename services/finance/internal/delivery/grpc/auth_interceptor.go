@@ -350,7 +350,7 @@ func PermissionInterceptor() grpc.UnaryServerInterceptor {
 func getRequiredPermission(fullMethod string) string {
 	// Permission mapping for Finance service.
 	// Format: {service}.{module}.{entity}.{action}
-	permissions := map[string]string{
+	permissions := map[string]string{ //nolint:gosec // G101 false positive: RPC→permission-code map, no credentials
 		// ErpIntegrationService
 		"/finance.v1.ErpIntegrationService/CreateErpBatch":               "finance.cost.erpintegration.trigger",
 		"/finance.v1.ErpIntegrationService/ListErpBatches":               "finance.cost.erpintegration.view",
@@ -675,10 +675,17 @@ func getRequiredPermission(fullMethod string) string {
 		// F2 (B2): DuplicateProduct mints a new product master row -- reuses the same
 		// create-like permission as CreateCostProductMaster/UpdateCostProductMaster per the
 		// locked design decision (no new IAM codes/migrations for this plan).
-		"/finance.v1.CostProductMasterService/DuplicateProduct":       "finance.product.route.create",
-		"/finance.v1.CostProductMasterService/ListRMDenierOverrides":  "finance.product.route.view",
-		"/finance.v1.CostProductMasterService/UpsertRMDenierOverride": "finance.product.route.create",
-		"/finance.v1.CostProductMasterService/DeleteRMDenierOverride": "finance.product.route.create",
+		"/finance.v1.CostProductMasterService/DuplicateProduct": "finance.product.route.create",
+		// mb-spin-fg-poy-link: MB link / Oracle ETL / supersede RPCs.
+		"/finance.v1.CostProductMasterService/GetCostProductMbLink":        "finance.product.route.view",
+		"/finance.v1.CostProductMasterService/RelinkCostProductMb":         "finance.product.route.update",
+		"/finance.v1.CostProductMasterService/PreviewProductEtlFromOracle": "finance.product.master.sync",
+		"/finance.v1.CostProductMasterService/ApplyProductEtlFromOracle":   "finance.product.master.sync",
+		"/finance.v1.MBHeadService/PreviewMBHeadSupersede":                 "finance.mb.head.validate",
+		"/finance.v1.MBSpinService/UnsupersedeMBSpin":                      "finance.yarnmaster.mbspin.restore",
+		"/finance.v1.CostProductMasterService/ListRMDenierOverrides":       "finance.product.route.view",
+		"/finance.v1.CostProductMasterService/UpsertRMDenierOverride":      "finance.product.route.create",
+		"/finance.v1.CostProductMasterService/DeleteRMDenierOverride":      "finance.product.route.create",
 
 		// CostProductParamBulkService (F4, B4): Bulk Edit Product Params reuses the
 		// same finance.product.route.* codes as CostProductParameterService per the
@@ -714,6 +721,9 @@ func getRequiredPermission(fullMethod string) string {
 		"/finance.v1.CostLevelAssignmentConfigService/UpsertLevelConfig":  "finance.product.request.resolve",
 		"/finance.v1.CostLevelAssignmentConfigService/DeleteGlobalConfig": "finance.product.request.resolve",
 		"/finance.v1.CostLevelAssignmentConfigService/ListGlobalConfigs":  "finance.product.request.view",
+
+		// BiJobService.GetEtlStatus: read-only status of ETL_HR_* jobs (HD-27).
+		"/finance.v1.BiJobService/GetEtlStatus": "finance.bi.etlstatus.view",
 
 		// ShadeService (master shade CRUD, R8) — permissions seeded by iam
 		// migration 000089. DeactivateShade maps to .delete: the seed names that

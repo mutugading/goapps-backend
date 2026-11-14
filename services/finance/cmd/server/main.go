@@ -52,6 +52,7 @@ import (
 	grpcdelivery "github.com/mutugading/goapps-backend/services/finance/internal/delivery/grpc"
 	httpdelivery "github.com/mutugading/goapps-backend/services/finance/internal/delivery/httpdelivery"
 	notifDomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costnotification"
+	cpmdomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/costproductmaster"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbsource"
 	domainshade "github.com/mutugading/goapps-backend/services/finance/internal/domain/shade"
 
@@ -256,6 +257,13 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	// does not reuse mbRecipeFullExportRepo: that repo owns the 37-column export's
 	// query, which must stay byte-for-byte unchanged.
 	mbHeadHandler = mbHeadHandler.WithCostCalcDetail(postgres.NewMBCostCalcDetailExportRepository(db))
+	// Recipe create/update auto-creates a MANUAL shade master row for an unknown shade
+	// code (best-effort, never fails the save).
+	mbHeadHandler = mbHeadHandler.WithShadeMaster(shadeRepo)
+	// FG (POY) link validation on head create/update (design 2.1).
+	mbHeadHandler = mbHeadHandler.WithFgReader(postgres.NewFgProductReader(db))
+	// Read-only supersede preview (mb-spin-fg-poy-link P3, design 2.3).
+	mbHeadHandler = mbHeadHandler.WithSupersedeReader(mbHeadRepo, postgres.NewMBSupersedeRepository(db))
 
 	// Full wiring: duplicate spin + child-recalc cascade. mbSpinRepo supplies both
 	// the read side and the recalc write side; mbDozingImpactRepo is READ-ONLY and
@@ -265,6 +273,9 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	if err != nil {
 		return err
 	}
+	// Un-supersede (restore a superseded spin); the lookup-sync trigger is added below when RabbitMQ is wired.
+	mbUnsupersedeRepo := postgres.NewMBUnsupersedeRepository(db)
+	mbSpinHandler = mbSpinHandler.WithUnsuperseder(mbUnsupersedeRepo, nil)
 
 	mbCompositionHandler, err := grpcdelivery.NewMBCompositionHandler(mbCompositionRepo)
 	if err != nil {
@@ -449,14 +460,16 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	if err != nil {
 		return err
 	}
-	mbSourceAutoFill := mbsourceautofill.New(
-		postgres.NewMBSourceAutoFillStore(db),
-		mbsource.NewResolver(
-			mbsource.NewMBSpinProvider(mbSpinRepo, parameterRepo),
-			mbsource.NewSuperbaProvider(superbaCostSpRepo),
-		),
-		parameterRepo,
+	mbFgProvider := mbsource.NewMBSpinFgProvider(postgres.NewFgCandidateReader(db), mbSpinRepo, parameterRepo)
+	mbResolver := mbsource.NewResolver(
+		mbFgProvider,
+		mbsource.NewMBSpinProvider(mbSpinRepo, parameterRepo),
+		mbsource.NewSuperbaProvider(superbaCostSpRepo),
 	)
+	mbSourceStore := postgres.NewMBSourceAutoFillStore(db)
+	mbSourceAutoFill := mbsourceautofill.New(mbSourceStore, mbResolver, parameterRepo)
+	mbLinkService := mbsourceautofill.NewLinkService(
+		postgres.NewMBSourceLinkReader(db), mbResolver, mbFgProvider, mbSourceStore, mbSourceAutoFill)
 	costProductMasterHandler, err := grpcdelivery.NewCostProductMasterHandler(costProductMasterRepo, costProductTypeRepo)
 	if err != nil {
 		return err
@@ -467,6 +480,9 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	costProductMasterHandler.WithAuditSupport(costAuditLogRepo)
 	costProductMasterHandler.WithRMDenierOverrides(costProductMasterRepo)
 	costProductMasterHandler.WithMBSourceAutoFill(mbSourceAutoFill)
+	costProductMasterHandler.WithMBLink(mbLinkService)
+	costProductMasterHandler.WithShadeMaster(shadeRepo)
+	costProductMasterHandler.WithErpLinkOnCreate(costProductMasterRepo, costProductMasterRepo, auditapp.NewEmitter(costAuditLogRepo))
 
 	// Build CostDataImportHandler (CAPP/CPP async import + export/template for CAPP/CPP/CPM).
 	cappExportH := cappapp.NewExportHandler(costProductParameterRepo)
@@ -593,11 +609,19 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	if err != nil {
 		return fmt.Errorf("new cost product lookup sync handler: %w", err)
 	}
+	lookupSyncEnqueuer := lookupsyncjob.NewEnqueuer(jobRepo, lookupSyncPublisher, lookupSyncPlanner)
 	lookupSyncJobs := grpcdelivery.NewLookupSyncJobAdapter(
-		lookupsyncjob.NewEnqueuer(jobRepo, lookupSyncPublisher, lookupSyncPlanner),
+		lookupSyncEnqueuer,
 		lookupsyncjob.NewTracker(jobRepo, costProductMasterRepo),
 	)
 	costProductLookupSyncHandler.WithEnqueuer(lookupSyncJobs).WithJobTracker(lookupSyncJobs)
+	// MB Recipe cascade: an edit of a validated recipe queues a lookup sync per cascaded
+	// spin after commit (best-effort). Only wired with RabbitMQ — without it the trigger
+	// would only ever log ErrPublisherUnavailable.
+	if lookupSyncPublisher != nil {
+		mbHeadHandler = mbHeadHandler.WithLookupSyncTrigger(lookupsyncjob.NewCascadeTrigger(lookupSyncPlanner, lookupSyncEnqueuer))
+		mbSpinHandler = mbSpinHandler.WithUnsuperseder(mbUnsupersedeRepo, lookupsyncjob.NewCascadeTrigger(lookupSyncPlanner, lookupSyncEnqueuer))
+	}
 
 	// Fill-assignment repositories + handlers.
 	fillConfigRepo := postgres.NewCostFillConfigRepository(db)
@@ -832,6 +856,15 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 		biMVRepo := oracleinfra.NewBIMVRepository(oracleClient)
 		biETLRouter.Register(bietl.SourceERPOracle, bietl.NewMVLoader(biMVRepo, biFactRepo))
 	}
+	// Oracle -> Product Master ETL (P5): source only when Oracle is up; otherwise RPCs answer 503.
+	var etlSrc cpmdomain.EtlSource
+	if oracleErr == nil {
+		etlSrc = oracleinfra.NewASPAKMergeItemRepository(oracleClient.ReadOnly())
+	} else {
+		log.Warn().Msg("Product ETL from Oracle disabled (Oracle unavailable); RPCs return 503")
+	}
+	costProductMasterHandler.WithProductEtl(cpmapp.NewProductEtlService(etlSrc,
+		postgres.NewCostProductEtlRepository(db), shadeRepo, mbSourceAutoFill, cfg.ProductETL.ProductApplyLimit))
 	// HRIS connection (HD-02): separate read-only account; opt-in via ORACLE_HRIS_* env.
 	if hrisClient := setupHRISClient(cfg.OracleHRIS); hrisClient != nil {
 		defer func() {
@@ -844,6 +877,10 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 			oracleinfra.NewHRISOTRepository(hrisClient),
 			hrStaging,
 		).WithATT(oracleinfra.NewHRISATTRepository(hrisClient), hrStaging))
+		// The HRIS loader is registered here by H010 (bietl.SourceHRISOracle).
+		// Packed production (PP-03): same connection, routed by target_type PP_PACK.
+		biETLRouter.RegisterTarget(bietl.SourceHRISOracle, bietl.TargetPPPack, bietl.NewPPLoader(
+			oracleinfra.NewASPAKPackProdRepository(hrisClient), postgres.NewBiPPStagingRepository(db), log.Logger))
 	}
 	var biETLRunner jobapp.BIETLRunner = biETLRouter
 
@@ -906,6 +943,7 @@ func run() error { //nolint:gocognit,gocyclo // linear service wiring / DI setup
 	biJobHandler, err := grpcdelivery.NewBIJobHandler(
 		jobapp.NewListHandler(biJobRepo),
 		jobapp.NewListLogsHandler(biJobRepo),
+		jobapp.NewEtlStatusHandler(biJobRepo),
 		biJobTriggerHandler,
 		jobapp.NewCreateHandler(biJobRepo),
 		jobapp.NewUpdateHandler(biJobRepo),

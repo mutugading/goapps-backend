@@ -50,6 +50,14 @@ func (m *MockRepository) Update(ctx context.Context, entity *mbheaddomain.Entity
 	return args.Error(0)
 }
 
+func (m *MockRepository) UpdateWithCascade(ctx context.Context, entity *mbheaddomain.Entity, oldCosting string, params *mbheaddomain.ParamSnapshot) ([]uuid.UUID, error) {
+	args := m.Called(ctx, entity, oldCosting, params)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]uuid.UUID), args.Error(1)
+}
+
 func (m *MockRepository) SoftDelete(ctx context.Context, id uuid.UUID, deletedBy string) error {
 	args := m.Called(ctx, id, deletedBy)
 	return args.Error(0)
@@ -83,6 +91,15 @@ func (m *MockRepository) TransitionWithAutoGen(ctx context.Context, id uuid.UUID
 	return args.Error(0)
 }
 
+func (m *MockRepository) TransitionWithAutoGenOpts(ctx context.Context, id uuid.UUID, fromState, toState string, currentVersion int32, stateReason, actorUserID string, params *mbheaddomain.ParamSnapshot, entity *mbheaddomain.Entity, opts mbheaddomain.AutoGenOptions) (*mbheaddomain.SupersedeOutcome, error) {
+	args := m.Called(ctx, id, fromState, toState, currentVersion, stateReason, actorUserID, params, entity, opts)
+	var out *mbheaddomain.SupersedeOutcome
+	if v := args.Get(0); v != nil {
+		out = v.(*mbheaddomain.SupersedeOutcome)
+	}
+	return out, args.Error(1)
+}
+
 func (m *MockRepository) ListShades(ctx context.Context, mbhID uuid.UUID) ([]mbheaddomain.Shade, error) {
 	args := m.Called(ctx, mbhID)
 	if args.Get(0) == nil {
@@ -106,6 +123,11 @@ func (m *MockRepository) ExistsByDevCode(ctx context.Context, devCode string, ex
 	return args.Bool(0), args.Error(1)
 }
 
+func (m *MockRepository) ExistsByOrionItemCode(ctx context.Context, code string, excludeID uuid.UUID) (bool, error) {
+	args := m.Called(ctx, code, excludeID)
+	return args.Bool(0), args.Error(1)
+}
+
 func (m *MockRepository) RefreezeCostParams(ctx context.Context, id uuid.UUID, entity *mbheaddomain.Entity, params *mbheaddomain.ParamSnapshot) error {
 	args := m.Called(ctx, id, entity, params)
 	return args.Error(0)
@@ -119,7 +141,7 @@ func (m *MockRepository) ForceUnvalidateTransition(ctx context.Context, id uuid.
 func TestCreateHandler_Handle(t *testing.T) {
 	t.Run("success - creates new MB Head", func(t *testing.T) {
 		mockRepo := new(MockRepository)
-		handler := mbhead.NewCreateHandler(mockRepo, newMBMachineRepo())
+		handler := mbhead.NewCreateHandler(mockRepo, newMBMachineRepo(), nil)
 		ctx := context.Background()
 
 		cmd := mbhead.CreateCommand{
@@ -140,7 +162,7 @@ func TestCreateHandler_Handle(t *testing.T) {
 
 	t.Run("error - duplicate mb_costing", func(t *testing.T) {
 		mockRepo := new(MockRepository)
-		handler := mbhead.NewCreateHandler(mockRepo, newMBMachineRepo())
+		handler := mbhead.NewCreateHandler(mockRepo, newMBMachineRepo(), nil)
 		ctx := context.Background()
 
 		cmd := mbhead.CreateCommand{
@@ -159,7 +181,7 @@ func TestCreateHandler_Handle(t *testing.T) {
 
 	t.Run("error - empty mb_costing", func(t *testing.T) {
 		mockRepo := new(MockRepository)
-		handler := mbhead.NewCreateHandler(mockRepo, newMBMachineRepo())
+		handler := mbhead.NewCreateHandler(mockRepo, newMBMachineRepo(), nil)
 		ctx := context.Background()
 
 		cmd := mbhead.CreateCommand{
@@ -177,7 +199,7 @@ func TestCreateHandler_Handle(t *testing.T) {
 
 	t.Run("error - empty created_by", func(t *testing.T) {
 		mockRepo := new(MockRepository)
-		handler := mbhead.NewCreateHandler(mockRepo, newMBMachineRepo())
+		handler := mbhead.NewCreateHandler(mockRepo, newMBMachineRepo(), nil)
 		ctx := context.Background()
 
 		cmd := mbhead.CreateCommand{
@@ -249,7 +271,7 @@ func TestGetHandler_Handle(t *testing.T) {
 func TestUpdateHandler_Handle(t *testing.T) {
 	t.Run("success - updates entity", func(t *testing.T) {
 		mockRepo := new(MockRepository)
-		handler := mbhead.NewUpdateHandler(mockRepo)
+		handler := mbhead.NewUpdateHandler(mockRepo, nil)
 		ctx := context.Background()
 
 		id := uuid.New()
@@ -264,7 +286,8 @@ func TestUpdateHandler_Handle(t *testing.T) {
 		}
 
 		mockRepo.On("GetByID", ctx, id).Return(entity, nil)
-		mockRepo.On("Update", ctx, mock.AnythingOfType("*mbhead.Entity")).Return(nil)
+		mockRepo.On("ExistsByMBCosting", ctx, "MB001-UPD").Return(false, nil)
+		mockRepo.On("UpdateWithCascade", ctx, mock.AnythingOfType("*mbhead.Entity"), "MB001", (*mbheaddomain.ParamSnapshot)(nil)).Return(nil, nil)
 
 		result, err := handler.Handle(ctx, cmd)
 
@@ -276,7 +299,7 @@ func TestUpdateHandler_Handle(t *testing.T) {
 
 	t.Run("error - not found", func(t *testing.T) {
 		mockRepo := new(MockRepository)
-		handler := mbhead.NewUpdateHandler(mockRepo)
+		handler := mbhead.NewUpdateHandler(mockRepo, nil)
 		ctx := context.Background()
 
 		id := uuid.New()
@@ -292,16 +315,16 @@ func TestUpdateHandler_Handle(t *testing.T) {
 }
 
 func TestDeleteHandler_Handle(t *testing.T) {
-	t.Run("success - soft deletes entity", func(t *testing.T) {
+	t.Run("success - soft deletes a DRAFT head", func(t *testing.T) {
 		mockRepo := new(MockRepository)
 		handler := mbhead.NewDeleteHandler(mockRepo)
 		ctx := context.Background()
 
-		id := uuid.New()
-		mockRepo.On("SoftDelete", ctx, id, "admin").Return(nil)
+		head := headInState(mbheaddomain.StatusDraft, "")
+		mockRepo.On("GetByID", ctx, head.ID()).Return(head, nil)
+		mockRepo.On("SoftDelete", ctx, head.ID(), "admin").Return(nil)
 
-		cmd := mbhead.DeleteCommand{ID: id, DeletedBy: "admin"}
-		err := handler.Handle(ctx, cmd)
+		err := handler.Handle(ctx, mbhead.DeleteCommand{ID: head.ID(), DeletedBy: "admin"})
 
 		assert.NoError(t, err)
 		mockRepo.AssertExpectations(t)
@@ -313,14 +336,37 @@ func TestDeleteHandler_Handle(t *testing.T) {
 		ctx := context.Background()
 
 		id := uuid.New()
-		mockRepo.On("SoftDelete", ctx, id, "admin").Return(mbheaddomain.ErrNotFound)
+		mockRepo.On("GetByID", ctx, id).Return(nil, mbheaddomain.ErrNotFound)
 
-		cmd := mbhead.DeleteCommand{ID: id, DeletedBy: "admin"}
-		err := handler.Handle(ctx, cmd)
+		err := handler.Handle(ctx, mbhead.DeleteCommand{ID: id, DeletedBy: "admin"})
 
 		assert.ErrorIs(t, err, mbheaddomain.ErrNotFound)
-		mockRepo.AssertExpectations(t)
+		mockRepo.AssertNotCalled(t, "SoftDelete", mock.Anything, mock.Anything, mock.Anything)
 	})
+
+	for _, status := range []string{
+		mbheaddomain.StatusSubmitted,
+		mbheaddomain.StatusApproved,
+		mbheaddomain.StatusValidated,
+		mbheaddomain.StatusRejected,
+		mbheaddomain.StatusUnlockRequested,
+		mbheaddomain.StatusUnApproved,
+		mbheaddomain.StatusRevoked,
+	} {
+		t.Run("error - not deletable from "+status, func(t *testing.T) {
+			mockRepo := new(MockRepository)
+			handler := mbhead.NewDeleteHandler(mockRepo)
+			ctx := context.Background()
+
+			head := headInState(status, "")
+			mockRepo.On("GetByID", ctx, head.ID()).Return(head, nil)
+
+			err := handler.Handle(ctx, mbhead.DeleteCommand{ID: head.ID(), DeletedBy: "admin"})
+
+			assert.ErrorIs(t, err, mbheaddomain.ErrNotDeletable)
+			mockRepo.AssertNotCalled(t, "SoftDelete", mock.Anything, mock.Anything, mock.Anything)
+		})
+	}
 }
 
 func TestListHandler_Handle(t *testing.T) {

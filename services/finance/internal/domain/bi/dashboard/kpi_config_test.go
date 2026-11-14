@@ -141,3 +141,41 @@ func TestKpiConfig_MarshalToList_RoundTrip(t *testing.T) {
 		t.Errorf("auto sparkline periods lost: %+v", out[0])
 	}
 }
+
+func TestParseKpiConfig_CrossRatioByMetric_RoundTrips(t *testing.T) {
+	raw := []map[string]any{{
+		"label": "AX %", "agg": "cross_ratio", "numerator_metric": "PACK_AX",
+		"denominator_metric": "PACK_TOTAL", "format": "percent", "decimals": float64(1),
+	}}
+	cfg, err := dashboard.ParseKpiConfig(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg[0].CrossRatioNumeratorMetric != "PACK_AX" || cfg[0].CrossRatioDenominatorMetric != "PACK_TOTAL" {
+		t.Fatalf("metric fields not parsed: %+v", cfg[0])
+	}
+	out := cfg.MarshalToList()
+	if out[0]["numerator_metric"] != "PACK_AX" || out[0]["denominator_metric"] != "PACK_TOTAL" {
+		t.Fatalf("metric fields not marshaled: %+v", out[0])
+	}
+}
+
+func TestParseKpiConfig_CrossRatioMetricPairMustBeComplete(t *testing.T) {
+	_, err := dashboard.ParseKpiConfig([]map[string]any{{
+		"label": "AX %", "agg": "cross_ratio", "numerator_metric": "PACK_AX",
+		"period": "current_month", "compare": "none", "format": "percent", "decimals": float64(1),
+	}})
+	if !errors.Is(err, dashboard.ErrInvalidKpiConfig) {
+		t.Fatalf("want ErrInvalidKpiConfig, got %v", err)
+	}
+}
+
+func TestParseKpiConfig_CrossRatioDenominatorOnlyRejected(t *testing.T) {
+	_, err := dashboard.ParseKpiConfig([]map[string]any{{
+		"label": "AX %", "agg": "cross_ratio", "denominator_metric": "PACK_TOTAL",
+		"period": "current_month", "compare": "none", "format": "percent", "decimals": float64(1),
+	}})
+	if !errors.Is(err, dashboard.ErrInvalidKpiConfig) {
+		t.Fatalf("want ErrInvalidKpiConfig, got %v", err)
+	}
+}

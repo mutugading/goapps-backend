@@ -12,6 +12,7 @@ import (
 	financev1 "github.com/mutugading/goapps-backend/gen/finance/v1"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbhead"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbparam"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbspin"
 )
 
 // ---------------------------------------------------------------------------
@@ -43,10 +44,12 @@ type approveFakeRepo struct {
 	head *mbhead.Entity
 
 	autoGenCalls int
+	autoGenErr   error
 	lastFrom     string
 	lastTo       string
 	lastVersion  int32
 	lastParams   *mbhead.ParamSnapshot
+	lastOpts     mbhead.AutoGenOptions
 
 	// plainTransitionCalls counts calls to Transition (the NON-auto-gen path that
 	// ApproveHandler used to take). Under Opsi A it must stay at zero: an approval that
@@ -73,6 +76,10 @@ func (f *approveFakeRepo) List(_ context.Context, _ mbhead.ListFilter) ([]*mbhea
 
 func (f *approveFakeRepo) Update(_ context.Context, _ *mbhead.Entity) error { return nil }
 
+func (f *approveFakeRepo) UpdateWithCascade(_ context.Context, _ *mbhead.Entity, _ string, _ *mbhead.ParamSnapshot) ([]uuid.UUID, error) {
+	return nil, nil
+}
+
 func (f *approveFakeRepo) SoftDelete(_ context.Context, _ uuid.UUID, _ string) error { return nil }
 
 func (f *approveFakeRepo) ExistsByMBCosting(_ context.Context, _ string) (bool, error) {
@@ -98,7 +105,15 @@ func (f *approveFakeRepo) TransitionWithAutoGen(
 ) error {
 	f.autoGenCalls++
 	f.lastFrom, f.lastTo, f.lastVersion, f.lastParams = fromState, toState, currentVersion, params
-	return nil
+	return f.autoGenErr
+}
+
+func (f *approveFakeRepo) TransitionWithAutoGenOpts(
+	ctx context.Context, id uuid.UUID, fromState, toState string, currentVersion int32,
+	stateReason, actor string, params *mbhead.ParamSnapshot, e *mbhead.Entity, opts mbhead.AutoGenOptions,
+) (*mbhead.SupersedeOutcome, error) {
+	f.lastOpts = opts
+	return nil, f.TransitionWithAutoGen(ctx, id, fromState, toState, currentVersion, stateReason, actor, params, e)
 }
 
 func (f *approveFakeRepo) ListShades(_ context.Context, _ uuid.UUID) ([]mbhead.Shade, error) {
@@ -114,6 +129,10 @@ func (f *approveFakeRepo) ExistsByVSNumber(_ context.Context, _ string, _ uuid.U
 }
 
 func (f *approveFakeRepo) ExistsByDevCode(_ context.Context, _ string, _ uuid.UUID) (bool, error) {
+	return false, nil
+}
+
+func (f *approveFakeRepo) ExistsByOrionItemCode(_ context.Context, _ string, _ uuid.UUID) (bool, error) {
 	return false, nil
 }
 
@@ -311,4 +330,17 @@ func TestValidateMBHead_BoughtoutDraftShortcutSurvives(t *testing.T) {
 	require.Truef(t, resp.Base.IsSuccess, "validate failed: %s", resp.Base.Message)
 	assert.Equal(t, mbhead.StatusValidated, resp.Data.EntryStatus)
 	assert.Equal(t, mbhead.StatusDraft, repo.lastFrom)
+}
+
+// TestValidateMBHead_SpinShadeFgExists_Is409 pins that a unique violation on the live
+// shade+FG index during auto-gen surfaces as a 409 conflict, not a 500.
+func TestValidateMBHead_SpinShadeFgExists_Is409(t *testing.T) {
+	h, repo, id := newApproveHandler(t, mbhead.StatusApproved, false)
+	repo.autoGenErr = mbspin.ErrSpinShadeFgExists
+
+	resp, err := h.ValidateMBHead(context.Background(), &financev1.ValidateMBHeadRequest{MbhId: id.String()})
+
+	require.NoError(t, err)
+	require.False(t, resp.Base.IsSuccess)
+	assert.Equal(t, "409", resp.Base.StatusCode)
 }

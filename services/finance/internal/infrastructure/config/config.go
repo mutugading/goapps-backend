@@ -30,6 +30,13 @@ type Config struct {
 	Logger     LoggerConfig         `mapstructure:"logger"`
 	Storage    StorageConfig        `mapstructure:"storage"`
 	IAMClient  IAMClientConfig      `mapstructure:"iam_client"`
+	// ProductETL configures the Oracle -> Product Master ETL (apply limit per run).
+	ProductETL ProductETLConfig `mapstructure:"etl"`
+}
+
+// ProductETLConfig holds the Oracle product ETL settings (key: etl.product_apply_limit).
+type ProductETLConfig struct {
+	ProductApplyLimit int `mapstructure:"product_apply_limit"`
 }
 
 // IAMClientConfig configures the gRPC client used by the worker to call IAM
@@ -318,6 +325,9 @@ func setDefaults(v *viper.Viper) {
 	// Kubernetes Secret for staging/production). Must match the value on the
 	// IAM side.
 	v.SetDefault("iam_client.internal_service_token", "")
+
+	// Oracle product ETL: max rows applied per run.
+	v.SetDefault("etl.product_apply_limit", 200)
 
 	// Storage / MinIO defaults — credentials must come from env vars.
 	v.SetDefault("storage.endpoint", "localhost:9000")

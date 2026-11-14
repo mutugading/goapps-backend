@@ -10,6 +10,8 @@ import (
 
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/machine"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbhead"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbspin"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/shade"
 )
 
 // DefaultMachineCode is the mst_machine.mc_code every MB Head is pinned to (B5).
@@ -73,19 +75,42 @@ type CreateCommand struct {
 	// allowed at create time. Nil means the payload omitted the field, which is the
 	// legacy shape and must succeed.
 	AdditionalShades []mbhead.Shade
+
+	// OrionItemCode is the optional ERP item code. nil or blank = not set (NULL); a
+	// non-empty value must not already be used by another live head.
+	OrionItemCode *string
+
+	// FgProductID links the head to an FG (POY) product. 0 = none.
+	FgProductID int64
 }
 
 // CreateHandler handles the CreateMBHead command.
 type CreateHandler struct {
 	repo        mbhead.Repository
 	machineRepo machine.Repository
+	shadeRepo   shade.Repository
+	fgReader    mbspin.FgProductReader
+}
+
+// WithFgReader attaches the POY reader used to validate an FG link.
+func (h *CreateHandler) WithFgReader(r mbspin.FgProductReader) *CreateHandler {
+	h.fgReader = r
+	return h
 }
 
 // NewCreateHandler creates a new CreateHandler.
 //
-// machineRepo is required for B5 — the "MB" machine lookup.
-func NewCreateHandler(repo mbhead.Repository, machineRepo machine.Repository) *CreateHandler {
-	return &CreateHandler{repo: repo, machineRepo: machineRepo}
+// machineRepo is required for B5 — the "MB" machine lookup. shadeRepo backs the
+// best-effort shade-master auto-create after a successful save; nil disables it.
+func NewCreateHandler(repo mbhead.Repository, machineRepo machine.Repository, shadeRepo shade.Repository) *CreateHandler {
+	return &CreateHandler{repo: repo, machineRepo: machineRepo, shadeRepo: shadeRepo}
+}
+
+// WithShadeRepo attaches the shade master repository used by the best-effort
+// shade auto-create and returns the handler for chaining.
+func (h *CreateHandler) WithShadeRepo(shadeRepo shade.Repository) *CreateHandler {
+	h.shadeRepo = shadeRepo
+	return h
 }
 
 // Handle executes the create MB Head command.
@@ -103,6 +128,10 @@ func (h *CreateHandler) Handle(ctx context.Context, cmd CreateCommand) (*mbhead.
 	}
 
 	if err := h.assertDevCodeFree(ctx, cmd.DevCode, uuid.Nil); err != nil {
+		return nil, err
+	}
+
+	if err := assertOrionItemCodeFree(ctx, h.repo, mbhead.NormalizeOrionItemCode(cmd.OrionItemCode), uuid.Nil); err != nil {
 		return nil, err
 	}
 
@@ -133,6 +162,7 @@ func (h *CreateHandler) Handle(ctx context.Context, cmd CreateCommand) (*mbhead.
 		MachineID:       machineID,
 		VSNumber:        cmd.VSNumber,
 		NoOfProcess:     cmd.NoOfProcess,
+		OrionItemCode:   cmd.OrionItemCode,
 	})
 	if err != nil {
 		return nil, err
@@ -142,6 +172,13 @@ func (h *CreateHandler) Handle(ctx context.Context, cmd CreateCommand) (*mbhead.
 	// cannot leave a half-created head behind.
 	if cmd.AdditionalShades != nil {
 		if err := entity.SetAdditionalShades(cmd.AdditionalShades); err != nil {
+			return nil, err
+		}
+	}
+
+	var fg fgLink
+	if cmd.FgProductID != 0 {
+		if fg, err = h.linkFg(ctx, entity, cmd.FgProductID); err != nil {
 			return nil, err
 		}
 	}
@@ -156,7 +193,25 @@ func (h *CreateHandler) Handle(ctx context.Context, cmd CreateCommand) (*mbhead.
 		}
 	}
 
+	ensureShadeMaster(ctx, h.shadeRepo, entity, cmd.CreatedBy)
+	fg.afterSave(ctx, h.fgReader, h.shadeRepo, entity, cmd.CreatedBy)
+
 	return entity, nil
+}
+
+// linkFg validates the requested FG against the recipe shade and snapshots it on the entity.
+func (h *CreateHandler) linkFg(ctx context.Context, entity *mbhead.Entity, fgID int64) (fgLink, error) {
+	if fgID < 0 {
+		return fgLink{}, mbspin.ErrFgNotPoy
+	}
+	link, err := resolveFg(ctx, h.fgReader, fgID, entity)
+	if err != nil {
+		return fgLink{}, err
+	}
+	if err := link.apply(entity); err != nil {
+		return fgLink{}, err
+	}
+	return link, nil
 }
 
 // resolveDefaultMachineID looks up the "MB" machine (B5). A missing machine is an
@@ -217,6 +272,25 @@ func (h *CreateHandler) assertDevCodeFree(ctx context.Context, devCode string, e
 	}
 	if taken {
 		return mbhead.ErrDuplicateDevCode
+	}
+	return nil
+}
+
+// assertOrionItemCodeFree enforces Orion Item Code uniqueness among live heads in the
+// application layer, mirroring the Dev Code rule: there is ⛔ NO UNIQUE constraint on
+// mbh_orion_item_code, so legacy duplicates stay untouched. The empty string (absent or
+// cleared) is never probed. Callers pass the trimmed value and only call this for a value
+// that is new on the head — see UpdateHandler.assertOrionItemCodeFree.
+func assertOrionItemCodeFree(ctx context.Context, repo mbhead.Repository, code string, excludeID uuid.UUID) error {
+	if code == "" {
+		return nil
+	}
+	taken, err := repo.ExistsByOrionItemCode(ctx, code, excludeID)
+	if err != nil {
+		return err
+	}
+	if taken {
+		return fmt.Errorf("%w: %q", mbhead.ErrDuplicateOrionItemCode, code)
 	}
 	return nil
 }

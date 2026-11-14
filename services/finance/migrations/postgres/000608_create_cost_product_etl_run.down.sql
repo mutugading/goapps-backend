@@ -1,0 +1,4 @@
+-- 000608 (DOWN)
+BEGIN;
+DROP TABLE IF EXISTS cost_product_etl_run;
+COMMIT;

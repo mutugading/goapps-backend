@@ -1,7 +1,13 @@
+# CODEOWNERS — every change to this repo needs review from the owners below.
+# The "Main Branch Protection" ruleset requires code owner approval on PRs to main.
+# Later patterns take precedence over earlier ones, so the Oracle rules below
+# stay explicit even though they currently share the default owner.
+
+* @ilramdhan
+
 # CODEOWNERS — ERP cost integration Oracle safety rails (plan P0-T12, PR-7).
 # Any change to the Oracle write allowlist, the read-only guard or the SQL
 # safety scans needs review from the owners below.
-# NOTE: owner handle is a placeholder pending admin confirmation.
 
 /services/finance/internal/infrastructure/oracle/erp_writer_allowlist.go       @ilramdhan
 /services/finance/internal/infrastructure/oracle/erp_writer_allowlist_test.go  @ilramdhan
@@ -10,3 +16,12 @@
 /services/finance/internal/infrastructure/oracle/sql_safety_test.go            @ilramdhan
 /services/finance/internal/infrastructure/oracle/erp_writer_factory.go         @ilramdhan
 /services/finance/internal/domain/erpintegration/oracle_writer_port.go         @ilramdhan
+
+# Database guardrails (ADR 0001): migrations and v2 DB tooling need owner review
+/services/*/migrations/          @ilramdhan
+/deploy/local-v2/                @ilramdhan
+/docker-compose.v2.yaml          @ilramdhan
+/scripts/migration-lint.sh       @ilramdhan
+/scripts/migration-lint.allow    @ilramdhan
+/.github/workflows/migration-lint.yml @ilramdhan
+/docs/adr/                       @ilramdhan

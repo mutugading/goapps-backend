@@ -10,6 +10,8 @@ package worker
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -23,6 +25,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/job"
 	mbheaddomain "github.com/mutugading/goapps-backend/services/finance/internal/domain/mbhead"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbparam"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbspin"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/rabbitmq"
 )
 
@@ -76,6 +79,10 @@ func (f *fakeWorkerMBHeadRepo) Update(_ context.Context, _ *mbheaddomain.Entity)
 	panic("not used by MBBulkTransitionHandler tests")
 }
 
+func (f *fakeWorkerMBHeadRepo) UpdateWithCascade(_ context.Context, _ *mbheaddomain.Entity, _ string, _ *mbheaddomain.ParamSnapshot) ([]uuid.UUID, error) {
+	panic("not used by MBBulkTransitionHandler tests")
+}
+
 func (f *fakeWorkerMBHeadRepo) SoftDelete(_ context.Context, _ uuid.UUID, _ string) error {
 	panic("not used by MBBulkTransitionHandler tests")
 }
@@ -102,6 +109,11 @@ func (f *fakeWorkerMBHeadRepo) TransitionWithAutoGen(_ context.Context, _ uuid.U
 	return f.transitionWithAutoGenErr
 }
 
+func (f *fakeWorkerMBHeadRepo) TransitionWithAutoGenOpts(_ context.Context, _ uuid.UUID, _, _ string, _ int32, _, _ string, _ *mbheaddomain.ParamSnapshot, _ *mbheaddomain.Entity, _ mbheaddomain.AutoGenOptions) (*mbheaddomain.SupersedeOutcome, error) {
+	f.transitionWithAutoGenCalls++
+	return nil, f.transitionWithAutoGenErr
+}
+
 func (f *fakeWorkerMBHeadRepo) ListShades(_ context.Context, _ uuid.UUID) ([]mbheaddomain.Shade, error) {
 	panic("not used by MBBulkTransitionHandler tests")
 }
@@ -115,6 +127,10 @@ func (f *fakeWorkerMBHeadRepo) ExistsByVSNumber(_ context.Context, _ string, _ u
 }
 
 func (f *fakeWorkerMBHeadRepo) ExistsByDevCode(_ context.Context, _ string, _ uuid.UUID) (bool, error) {
+	panic("not used by MBBulkTransitionHandler tests")
+}
+
+func (f *fakeWorkerMBHeadRepo) ExistsByOrionItemCode(_ context.Context, _ string, _ uuid.UUID) (bool, error) {
 	panic("not used by MBBulkTransitionHandler tests")
 }
 
@@ -414,6 +430,41 @@ func TestMBBulkTransitionHandler_Handle_DownstreamError_MarksChildFailed(t *test
 	require.Equal(t, 0, headRepo.forceUnvalidateTransitionCall, "the domain gate must reject before the repo is ever called")
 
 	jobRepo.AssertExpectations(t)
+}
+
+// TestMBBulkTransitionHandler_Validate_SupersedeConflict_FailsWithPrefix proves a bulk
+// Validate that hits a shade+FG collision never confirms a supersede (opts are zero) and
+// lands in the child error_message with the SUPERSEDE_CONFIRMATION_REQUIRED prefix.
+func TestMBBulkTransitionHandler_Validate_SupersedeConflict_FailsWithPrefix(t *testing.T) {
+	headRepo := newFakeWorkerMBHeadRepo()
+	head := headInState(mbheaddomain.StatusSubmitted)
+	headRepo.put(head)
+	headRepo.transitionWithAutoGenErr = fmt.Errorf("%w (old spin: SP-OLD-1)", mbspin.ErrSupersedeConfirmationRequired)
+	validateH := appmbhead.NewValidateHandler(headRepo, &fakeWorkerParamRepo{active: activeParams()})
+
+	jobRepo := &workerJobRepoMock{}
+	parentID := uuid.New()
+	child := newChildExecWorker(t, mbheadbulk.ActionValidate, parentID)
+	jobRepo.On("GetByID", mock.Anything, child.ID()).Return(child, nil).Once()
+	jobRepo.On("UpdateStatus", mock.Anything, mock.AnythingOfType("*job.Execution")).Return(nil)
+	jobRepo.On("IncrementChildProgress", mock.Anything, parentID, false).Return(false, nil).Once()
+
+	h := NewMBBulkTransitionHandler(jobRepo, nil, nil, validateH, zerolog.Nop())
+	require.NoError(t, h.Handle(context.Background(), rabbitmq.JobMessage{
+		JobID: child.ID().String(), Subtype: mbheadbulk.ActionValidate,
+		MbhID: head.ID().String(), CreatedBy: "admin",
+	}))
+
+	require.Equal(t, job.StatusFailed, child.Status())
+	require.Contains(t, child.ErrorMessage(), "SUPERSEDE_CONFIRMATION_REQUIRED: ")
+	require.Contains(t, child.ErrorMessage(), "SP-OLD-1")
+	jobRepo.AssertExpectations(t)
+}
+
+func TestBulkFailureMessage(t *testing.T) {
+	require.Equal(t, "boom", bulkFailureMessage(errors.New("boom")))
+	require.True(t, errors.Is(fmt.Errorf("w: %w", mbspin.ErrSupersedeConfirmationRequired), mbspin.ErrSupersedeConfirmationRequired))
+	require.Contains(t, bulkFailureMessage(mbspin.ErrSupersedeConfirmationRequired), "SUPERSEDE_CONFIRMATION_REQUIRED: ")
 }
 
 // --- child-completion / notify-once tests ----------------------------------------

@@ -145,6 +145,7 @@ func run() error { //nolint:gocognit,gocyclo // linear setup function
 		WithMBSourceAutoFill(mbsourceautofill.New( // best-effort shade-driven MB_SP_CODE/MB_SP_DYE fill after each committed batch
 			postgres.NewMBSourceAutoFillStore(db),
 			mbsource.NewResolver(
+				mbsource.NewMBSpinFgProvider(postgres.NewFgCandidateReader(db), mbSpinRepo, postgres.NewParameterRepository(db)),
 				mbsource.NewMBSpinProvider(mbSpinRepo, postgres.NewParameterRepository(db)),
 				mbsource.NewSuperbaProvider(postgres.NewSuperbaCostSpRepository(db)),
 			),

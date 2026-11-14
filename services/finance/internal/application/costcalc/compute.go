@@ -119,9 +119,10 @@ type ComputeInput struct {
 	// preserving pre-Task-C behavior for callers that do not supply it.
 	RMRateOrder []string
 	// RMLandedOrder is the calc-type-keyed GROUP-RM landed-cost cascade
-	// config (first non-zero of CL/SL/FL for ACTUAL, SP/PP/FP for
+	// config (first non-zero of CL/SL/FL/PP for ACTUAL, SP/PP/FP for
 	// FORECAST/SELLING), loaded once per chunk from F_YARN_RM_LANDED's
-	// expression column (migration 000519) via loader.LoadRMLandedOrder.
+	// expression column (migrations 000519, 000599) via
+	// loader.LoadRMLandedOrder.
 	// A calc_type missing from this map (including nil/empty) falls back to
 	// that calc_type's hardcoded default in resolveRMLandedCost, preserving
 	// behavior for callers that do not supply it.
@@ -287,6 +288,16 @@ func ComputeProduct(ctx context.Context, in ComputeInput) (*ComputeOutput, error
 	// below must skip; nil means "compute as before".
 	inherited := applyInheritedVBLoss(in, scope, zeroFilled)
 
+	// DENIER-mode products derive their RM line ratios from denier share;
+	// nil for INPUT-mode products, which keeps the legacy aggregation intact.
+	// Pure on in, so it is built here and shared by the upstream conversion
+	// injection below and the RM aggregation (step 2).
+	ratioPlan := planRMRatios(in)
+
+	// 1-'. Route total conversion: inject UPSTREAM_TOTAL_CAP_CONV (Σ effective
+	// ratio × upstream TOTAL_CAP_CONV) for products whose formulas consume it.
+	applyUpstreamTotalCapConv(in, ratioPlan, scope, zeroFilled)
+
 	// 1a. Oil-class products resolve OIL_RATE from their oil RM group's
 	// cst_rm_cost row for the period, overwriting any imported CAPP value.
 	// A missing/unusable oil rate blocks the product (MISSING_RM_COST) —
@@ -311,10 +322,8 @@ func ComputeProduct(ctx context.Context, in ComputeInput) (*ComputeOutput, error
 		return nil, err
 	}
 
-	// 2. Aggregate RM cost across every sequence in the route.
-	// 2-. DENIER-mode products derive their RM line ratios from denier share;
-	// nil for INPUT-mode products, which keeps the legacy aggregation intact.
-	ratioPlan := planRMRatios(in)
+	// 2. Aggregate RM cost across every sequence in the route (ratioPlan
+	// built above).
 	totalRM, rmDetail, levelMap, err := aggregateRMCost(in, ratioPlan, resolveRMUnitCost)
 	if err != nil {
 		recordProductSpanError(span, err)
@@ -897,8 +906,11 @@ func resolveRMUnitCost(in ComputeInput, rm *costroute.Rm) (float64, error) {
 // are identical for those two RM types by design. Only GROUP-type RMs
 // diverge: RM_LANDED_COST runs its own calc-type-DEPENDENT cascade (unlike
 // RM_RATE's calc-type-agnostic CR/SR/PR cascade), configured by
-// F_YARN_RM_LANDED's expression column (migration 000519):
-//   - ACTUAL:             first non-zero of CL -> SL -> FL
+// F_YARN_RM_LANDED's expression column (migrations 000519, 000599):
+//   - ACTUAL:             first non-zero of CL -> SL -> FL -> PP. PP (the
+//     PO-based landed projection) is the last-resort fallback, mirroring PR
+//     at the tail of RM_RATE's CR -> SR -> PR cascade; without it, groups
+//     with only PO data silently resolved a landed cost of 0 (000599).
 //   - FORECAST:           first non-zero of SP -> PP -> FP
 //   - SELLING:            DELIBERATE PLACEHOLDER, no SELLING-specific
 //     landed-cost definition exists anywhere in the codebase today (see
@@ -952,7 +964,7 @@ func rmRateCandidates(order []string, rates RMCostRates) []rmcost.LabeledRate {
 }
 
 // rmLandedCandidates maps a GROUP-RM landed-cost cascade order (tokens
-// CL/SL/FL for ACTUAL, SP/PP/FP for FORECAST/SELLING) onto rates' matching
+// CL/SL/FL/PP for ACTUAL, SP/PP/FP for FORECAST/SELLING) onto rates' matching
 // fields, in that order, for rmcost.FirstNonZeroWithLabel. Callers resolve
 // the order itself via rmLandedOrderForCalcType before calling this, so an
 // empty order here (e.g. a caller-constructed empty slice) simply yields no
@@ -1299,7 +1311,13 @@ func resolveFinalCost(in ComputeInput, scope map[string]any, totalRM float64) (f
 	if len(in.Formulas) == 0 {
 		return totalRM, nil
 	}
-	terminal, termErr := findTerminalFormula(in.Formulas)
+	candidates := excludeInformationalFormulas(in.Formulas)
+	if len(candidates) == 0 {
+		return 0, fmt.Errorf("%w: product %d: only %d informational conversion formulas loaded (%s), no cost sink to infer; complete CAPP",
+			costcalcdom.ErrMissingFinalCostFormula, in.ProductSysID, len(in.Formulas),
+			strings.Join(formulaCodes(in.Formulas), ", "))
+	}
+	terminal, termErr := findTerminalFormula(candidates)
 	if termErr != nil {
 		return 0, fmt.Errorf("%w: product %d: %w", costcalcdom.ErrFormulaEval, in.ProductSysID, termErr)
 	}
@@ -1321,6 +1339,30 @@ var auxiliaryResultParams = map[string]bool{
 	ParamOilCost:           true,
 	ParamOilGain:           true,
 	ParamOilGainPOYDefault: true,
+}
+
+// informationalResultParams are route-conversion breakdown params (migration
+// 000605). They are display-only and must be INVISIBLE to terminal inference,
+// both as candidates and as consumers: F_YARN_CAP/DEL_CONV_STAGE read
+// CAPTIVE/DELIVERY_COST_QLTY_LOSS, so leaving them in would stop those real
+// cost sinks from being terminals, while leaving them as candidates would let
+// the deepest-terminal heuristic pick TOTAL_*_CONV as the final cost.
+var informationalResultParams = map[string]bool{
+	"CAP_CONV_STAGE":  true,
+	"DEL_CONV_STAGE":  true,
+	paramTotalCapConv: true,
+	"TOTAL_DEL_CONV":  true,
+}
+
+// excludeInformationalFormulas drops formulas producing informational params.
+func excludeInformationalFormulas(formulas []Formula) []Formula {
+	out := make([]Formula, 0, len(formulas))
+	for _, f := range formulas {
+		if !informationalResultParams[f.ResultParamCode] {
+			out = append(out, f)
+		}
+	}
+	return out
 }
 
 // formulaCodes returns the formula codes of the set, in load order.

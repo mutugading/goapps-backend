@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbhead"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbspin"
 )
 
 // MBHeadRepository implements mbhead.Repository using PostgreSQL.
@@ -40,8 +41,9 @@ func (r *MBHeadRepository) Create(ctx context.Context, entity *mbhead.Entity) er
 			mbh_is_boughtout, mbh_dev_code, mbh_shade_code, mbh_shade_name,
 			mbh_cross_section, mbh_lusture_code, mbh_machine_id, mbh_run_ldr_pct,
 			mbh_vs_number, mbh_no_of_process,
-			mbh_check_status_calc
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
+			mbh_check_status_calc, mbh_orion_item_code,
+			mbh_fg_product_id, mbh_fg_item_code
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
 	`,
 		entity.ID(),
 		entity.OracleSysID(),
@@ -74,6 +76,9 @@ func (r *MBHeadRepository) Create(ctx context.Context, entity *mbhead.Entity) er
 		// Derived column (000487). mbh_check_status above stays a pure passthrough of
 		// whatever the caller supplied — ⛔ this value is NEVER written there (K-1).
 		entity.MBHCheckStatusCalc(),
+		entity.OrionItemCode(),
+		entity.FgProductID(),
+		entity.FgItemCode(),
 	)
 	if err != nil {
 		if isMBHeadUniqueViolation(err) {
@@ -110,8 +115,8 @@ func buildMBHeadListWhere(filter mbhead.ListFilter) (string, []interface{}) {
 
 	if filter.Search != "" {
 		base += fmt.Sprintf(
-			` AND (mbh_mb_costing ILIKE $%d OR mbh_mgt_name ILIKE $%d OR mbh_dev_code ILIKE $%d OR mbh_shade_code ILIKE $%d OR mbh_shade_name ILIKE $%d)`,
-			idx, idx, idx, idx, idx,
+			` AND (mbh_mb_costing ILIKE $%d OR mbh_mgt_name ILIKE $%d OR mbh_dev_code ILIKE $%d OR mbh_shade_code ILIKE $%d OR mbh_shade_name ILIKE $%d OR mbh_orion_item_code ILIKE $%d)`,
+			idx, idx, idx, idx, idx, idx,
 		)
 		args = append(args, "%"+filter.Search+"%")
 		idx++
@@ -172,7 +177,283 @@ func (r *MBHeadRepository) List(ctx context.Context, filter mbhead.ListFilter) (
 
 // Update persists changes to an existing MB Head.
 func (r *MBHeadRepository) Update(ctx context.Context, entity *mbhead.Entity) error {
-	result, err := r.db.ExecContext(ctx, `
+	return r.updateOn(ctx, r.db, entity)
+}
+
+// UpdateWithCascade persists the head exactly like Update and, in the SAME transaction,
+// cascades the recipe onto every row the Validate auto-gen copied it into (MB Recipe
+// cascade design §3.2) — once the head has a cost product (entity.CostProductID() != 0):
+//
+//  1. mst_mb_head itself (updateOn).
+//  2. Every live MB Spin of the head — root AND children — gets the head's identity/spec
+//     fields (mbCascadeSpinQuery). Shade code/name/cross-section follow the old
+//     syncRootSpinShadeFromHead rule: written together, or not at all when all are empty.
+//  3. The root spin's LDR via the existing guarded sync (mbs_ldr_is_actual = FALSE), then
+//     the root spin's FG link (syncRootSpinFgTx, design §2.2).
+//  4. The linked cost product's name and shade — only while cpm_source = MB_RECIPE.
+//  5. When params is non-nil: the frozen mbh_param_* columns and the CPP freeze
+//     (mbFreezeCostParams), the same writes RefreezeCostParams performs.
+//
+// A head WITHOUT a cost product keeps the pre-cascade behavior: only an MB Costing rename
+// (oldCosting != entity.MBCosting()) reaches its spins still carrying oldCosting — legacy
+// Oracle-imported spins can hang off a head that was never validated here.
+//
+// Returns the mbs_id of every spin the full cascade touched (nil on the legacy path) so the
+// caller can queue lookup syncs after commit. Any failure rolls back the whole update.
+//
+// ⛔ Product param values that captured the old costing text are NOT rewritten here.
+func (r *MBHeadRepository) UpdateWithCascade(ctx context.Context, entity *mbhead.Entity, oldCosting string, params *mbhead.ParamSnapshot) ([]uuid.UUID, error) {
+	actor := ""
+	if entity.UpdatedBy() != nil {
+		actor = *entity.UpdatedBy()
+	}
+	var spinIDs []uuid.UUID
+	err := r.db.Transaction(ctx, func(tx *sql.Tx) error {
+		if err := r.updateOn(ctx, tx, entity); err != nil {
+			return err
+		}
+		productID := entity.CostProductID()
+		if productID == 0 {
+			return renameSpinCostingTx(ctx, tx, entity, oldCosting, actor)
+		}
+		ids, err := cascadeHeadToSpinsTx(ctx, tx, entity, actor)
+		if err != nil {
+			return err
+		}
+		if err := cascadeRootAndProductTx(ctx, tx, entity, productID, params, actor); err != nil {
+			return err
+		}
+		spinIDs = ids
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return spinIDs, nil
+}
+
+// cascadeRootAndProductTx runs the root-spin / cost-product steps (3-5 of UpdateWithCascade).
+func cascadeRootAndProductTx(ctx context.Context, tx *sql.Tx, entity *mbhead.Entity, productID int64, params *mbhead.ParamSnapshot, actor string) error {
+	if err := syncRootSpinLDRFromHead(ctx, tx, entity.ID(), entity, actor); err != nil {
+		return err
+	}
+	if err := syncRootSpinFgTx(ctx, tx, entity, actor); err != nil {
+		return err
+	}
+	if err := cascadeHeadToCostProductTx(ctx, tx, entity, productID, actor); err != nil {
+		return err
+	}
+	if params == nil {
+		return nil
+	}
+	if err := updateFrozenParamsTx(ctx, tx, entity.ID(), params); err != nil {
+		return err
+	}
+	if err := mbFreezeCostParams(ctx, tx, productID, entity, actor); err != nil {
+		return fmt.Errorf("cascade: freeze CPP: %w", err)
+	}
+	return nil
+}
+
+// mbCostingRenameSpinQuery renames the head's spin rows still carrying the old costing.
+// Orion Item Code is NOT touched here — see fillRootSpinOrionTx (root spin only, and only
+// when no other live spin already carries the head code).
+const mbCostingRenameSpinQuery = `
+		UPDATE mst_mb_spin
+		SET mbs_mb_costing = $1,
+		    updated_at = NOW(), updated_by = $2
+		WHERE mbs_mbh_id = $3 AND mbs_mb_costing = $4 AND deleted_at IS NULL`
+
+// renameSpinCostingTx is the legacy (no cost product) rename: a no-op unless the costing
+// really changed. Before renaming, the head's root spin — if it is one of the rows being
+// renamed (still on the old costing) — gets an empty Orion Item Code filled.
+func renameSpinCostingTx(ctx context.Context, tx *sql.Tx, entity *mbhead.Entity, oldCosting, actor string) error {
+	if oldCosting == entity.MBCosting() {
+		return nil
+	}
+	if err := fillRootSpinOrionTx(ctx, tx, entity, actor, &oldCosting); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, mbCostingRenameSpinQuery,
+		entity.MBCosting(), actor, entity.ID(), oldCosting,
+	); err != nil {
+		return fmt.Errorf("rename mb spin costing: %w", err)
+	}
+	return nil
+}
+
+// mbFillRootSpinOrionQuery fills the Orion Item Code of ONE spin of a head — its oldest live
+// root spin (mbs_parent_spin_id IS NULL), optionally restricted to a costing ($4, NULL = any)
+// — with the head code ($1), and only when:
+//   - that root's code is empty (NULL / blank), and
+//   - no OTHER live spin (any head) already carries the code (TRIM compare).
+//
+// Children never receive the head code. This keeps MB_SP_CODE text-keyed yarn rows
+// unambiguous: a second live spin with the same code would trip SkipMBSpinAmbiguous /
+// ResolveUniqueByOrionItemCode and shift GetByOrionItemCode's oldest-wins winner.
+const mbFillRootSpinOrionQuery = `
+		UPDATE mst_mb_spin r
+		SET mbs_orion_item_code = CAST($1 AS TEXT), updated_at = NOW(), updated_by = $2
+		WHERE r.mbs_id = (
+		        SELECT x.mbs_id FROM mst_mb_spin x
+		        WHERE x.mbs_mbh_id = $3 AND x.mbs_parent_spin_id IS NULL AND x.deleted_at IS NULL
+		          AND (CAST($4 AS TEXT) IS NULL OR x.mbs_mb_costing = CAST($4 AS TEXT))
+		        ORDER BY x.created_at ASC, x.mbs_id ASC LIMIT 1)
+		  AND NULLIF(TRIM(r.mbs_orion_item_code), '') IS NULL
+		  AND NOT EXISTS (
+		        SELECT 1 FROM mst_mb_spin o
+		        WHERE o.deleted_at IS NULL AND o.mbs_id <> r.mbs_id
+		          AND TRIM(o.mbs_orion_item_code) = CAST($1 AS TEXT))`
+
+// fillRootSpinOrionTx runs mbFillRootSpinOrionQuery; a head without a code is a no-op.
+func fillRootSpinOrionTx(ctx context.Context, tx *sql.Tx, entity *mbhead.Entity, actor string, costing *string) error {
+	code := entity.OrionItemCode()
+	if code == nil || strings.TrimSpace(*code) == "" {
+		return nil
+	}
+	if _, err := tx.ExecContext(ctx, mbFillRootSpinOrionQuery, strings.TrimSpace(*code), actor, entity.ID(), costing); err != nil {
+		return fmt.Errorf("fill root mb spin orion item code: %w", err)
+	}
+	return nil
+}
+
+// mbCascadeSpinQuery overwrites the head-derived columns of every live spin of a head
+// (decision 1: no manual-edit detection). Nullable spec fields (final product, VS
+// number, lusture) are overwritten even with NULL — user decision "overwrite all".
+//
+// Shade code, shade name and cross-section mirror syncRootSpinShadeFromHead exactly:
+// when $14 (any of the three is non-empty on the head) they are written as a set — an
+// empty one as NULL — so a code and a name from different shades can never be mixed;
+// when all three are empty the spin keeps its values. mbs_cc follows the shade code (000499).
+//
+// mbs_orion_item_code is NOT written here: cascadeHeadToSpinsTx follows up with
+// fillRootSpinOrionTx (root spin only, only when empty and no other live spin has the code).
+//
+// ⛔ Deliberately untouched: mbs_status, mbs_is_active, mbs_cost_rate_mkt, mbs_ldr_*,
+// mbs_run_ldr_pct, mbs_ldr_prsn and the *_is_fixed flags.
+const mbCascadeSpinQuery = `
+		UPDATE mst_mb_spin SET
+			mbs_mb_costing    = $1,
+			mbs_mgt_name      = $2,
+			mbs_denier        = $3,
+			mbs_filament      = $4,
+			mbs_dozing        = $5,
+			mbs_final_product = $6,
+			mbs_vs_number     = $7,
+			mbs_lusture_code  = $8,
+			mbs_cross_section = CASE WHEN $14 THEN $9 ELSE mbs_cross_section END,
+			mbs_shade_code    = CASE WHEN $14 THEN $10 ELSE mbs_shade_code END,
+			mbs_shade_name    = CASE WHEN $14 THEN $11 ELSE mbs_shade_name END,
+			mbs_cc            = CASE WHEN $14 THEN $10 ELSE mbs_cc END,
+			updated_at        = NOW(),
+			updated_by        = $12
+		WHERE mbs_mbh_id = $13 AND deleted_at IS NULL
+		RETURNING mbs_id`
+
+// checkCascadeFgShadeTx rejects a shade change that would leave a live spin of the head with
+// a non-RECIPE FG (DUPLICATE / MANUAL / BACKFILL) whose POY shade no longer equals the new
+// spin shade (P8-R backend BE-4). RECIPE-linked FGs are validated against the head itself.
+func checkCascadeFgShadeTx(ctx context.Context, tx *sql.Tx, headID uuid.UUID, newShade *string) error {
+	want := ""
+	if newShade != nil {
+		want = strings.ToUpper(strings.TrimSpace(*newShade))
+	}
+	var bad bool
+	if err := tx.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM mst_mb_spin s
+			JOIN cost_product_master p ON p.cpm_product_sys_id = s.mbs_fg_product_id
+			WHERE s.mbs_mbh_id = $1 AND s.deleted_at IS NULL AND s.mbs_fg_product_id IS NOT NULL
+			  AND s.mbs_fg_link_source IS DISTINCT FROM 'RECIPE'
+			  AND COALESCE(UPPER(TRIM(s.mbs_shade_code)), '') <> $2
+			  AND COALESCE(UPPER(TRIM(p.cpm_shade_code)), '') <> $2)`, headID, want).Scan(&bad); err != nil {
+		return fmt.Errorf("cascade: check spin fg shade: %w", err)
+	}
+	if bad {
+		return mbspin.ErrFgShadeMismatch
+	}
+	return nil
+}
+
+func cascadeHeadToSpinsTx(ctx context.Context, tx *sql.Tx, entity *mbhead.Entity, actor string) ([]uuid.UUID, error) {
+	shadeCode := mbEmptyStringToPtr(entity.ShadeCode())
+	shadeName := mbEmptyStringToPtr(entity.ShadeName())
+	crossSection := mbEmptyStringToPtr(entity.CrossSection())
+	writeShade := shadeCode != nil || shadeName != nil || crossSection != nil
+	if writeShade {
+		if err := checkCascadeFgShadeTx(ctx, tx, entity.ID(), shadeCode); err != nil {
+			return nil, err
+		}
+	}
+	rows, err := tx.QueryContext(ctx, mbCascadeSpinQuery,
+		entity.MBCosting(),
+		mbSpinAutoGenMgtName(entity),
+		entity.Denier(),
+		entity.Filament(),
+		entity.Dozing(),
+		entity.MBHFinalProduct(),
+		entity.VSNumber(),
+		mbEmptyStringToPtr(entity.LustureCode()),
+		crossSection,
+		shadeCode,
+		shadeName,
+		actor,
+		entity.ID(),
+		writeShade,
+	)
+	if err != nil {
+		if isSpinShadeFgViolation(err) {
+			return nil, mbspin.ErrSpinShadeFgExists
+		}
+		return nil, fmt.Errorf("cascade mb head to spins: %w", err)
+	}
+	defer closeRows(rows)
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan cascaded spin id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate cascaded spin ids: %w", err)
+	}
+	if err := fillRootSpinOrionTx(ctx, tx, entity, actor, nil); err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+// mbCascadeProductQuery keeps the auto-generated MB-recipe cost product's name and shade
+// in step with the head. The cpm_source guard keeps a hand-made product that happens to
+// be linked untouched. Shade code + name mirror syncCostProductMasterShadeFromHead: when
+// $6 (either is non-empty on the head) both are written as a pair — an empty one as NULL —
+// otherwise the product keeps its shade.
+const mbCascadeProductQuery = `
+		UPDATE cost_product_master SET
+			cpm_product_name = $1,
+			cpm_shade_code   = CASE WHEN $6 THEN $2 ELSE cpm_shade_code END,
+			cpm_shade_name   = CASE WHEN $6 THEN $3 ELSE cpm_shade_name END,
+			cpm_updated_at   = NOW(),
+			cpm_updated_by   = $4
+		WHERE cpm_product_sys_id = $5 AND cpm_source = $7`
+
+func cascadeHeadToCostProductTx(ctx context.Context, tx *sql.Tx, entity *mbhead.Entity, productID int64, actor string) error {
+	shadeCode := mbEmptyStringToPtr(entity.ShadeCode())
+	shadeName := mbEmptyStringToPtr(entity.ShadeName())
+	writeShade := shadeCode != nil || shadeName != nil
+	if _, err := tx.ExecContext(ctx, mbCascadeProductQuery,
+		entity.MBCosting(), shadeCode, shadeName,
+		actor, productID, writeShade, mbCostProductSource,
+	); err != nil {
+		return fmt.Errorf("cascade mb head to cost product: %w", err)
+	}
+	return nil
+}
+
+func (r *MBHeadRepository) updateOn(ctx context.Context, q rowQuerier, entity *mbhead.Entity) error {
+	result, err := q.ExecContext(ctx, `
 		UPDATE mst_mb_head SET
 			mbh_mb_costing    = $2,
 			mbh_mgt_name      = $3,
@@ -195,7 +476,10 @@ func (r *MBHeadRepository) Update(ctx context.Context, entity *mbhead.Entity) er
 			mbh_machine_id    = $20,
 			mbh_run_ldr_pct   = $21,
 			mbh_vs_number     = $22,
-			mbh_no_of_process = $23
+			mbh_no_of_process = $23,
+			mbh_orion_item_code = $24,
+			mbh_fg_product_id   = $25,
+			mbh_fg_item_code    = $26
 		WHERE mbh_id = $1 AND deleted_at IS NULL
 	`,
 		entity.ID(),
@@ -227,8 +511,14 @@ func (r *MBHeadRepository) Update(ctx context.Context, entity *mbhead.Entity) er
 		entity.MBHRunLdrPct(),
 		entity.VSNumber(),
 		entity.NoOfProcess(),
+		entity.OrionItemCode(),
+		entity.FgProductID(),
+		entity.FgItemCode(),
 	)
 	if err != nil {
+		if isMBHeadUniqueViolation(err) {
+			return mbhead.ErrAlreadyExists
+		}
 		return fmt.Errorf("update mb head: %w", err)
 	}
 	rowsAffected, err := result.RowsAffected()
@@ -408,7 +698,11 @@ func (r *MBHeadRepository) selectCols() string {
 		           AND w.mbwl_to_state = 'UNLOCK_REQUESTED'
 		         ORDER BY w.mbwl_actor_at DESC
 		         LIMIT 1),
-		       mbh_check_status_calc
+		       mbh_check_status_calc, mbh_orion_item_code,
+		       mbh_fg_product_id, mbh_fg_item_code,
+		       mbh_superseded_by_head_id, mbh_superseded_at,
+		       (SELECT p.cpm_product_code FROM cost_product_master p WHERE p.cpm_product_sys_id = mst_mb_head.mbh_fg_product_id),
+		       (SELECT p.cpm_product_name FROM cost_product_master p WHERE p.cpm_product_sys_id = mst_mb_head.mbh_fg_product_id)
 		FROM mst_mb_head
 	`
 }
@@ -489,6 +783,15 @@ type mbHeadDTO struct {
 	PreUnlockStatus sql.NullString
 	// MBHCheckStatusCalc is the DERIVED column (000487). NULL = never calculated.
 	MBHCheckStatusCalc sql.NullString
+	// OrionItemCode is mbh_orion_item_code (000416). NULL = not set.
+	OrionItemCode sql.NullString
+	// FG link columns (000607) + read-model subqueries (POY code/name).
+	FgProductID        sql.NullInt64
+	FgItemCode         sql.NullString
+	SupersededByHeadID sql.NullString
+	SupersededAt       sql.NullTime
+	FgProductCode      sql.NullString
+	FgProductName      sql.NullString
 }
 
 func nullTimeToStringPtr(n sql.NullTime) *string {
@@ -539,6 +842,13 @@ func (d *mbHeadDTO) toEntity() *mbhead.Entity {
 		LockedBy:           nullableStringPtr(d.LockedBy),
 		UnlockReason:       nullableStringPtr(d.UnlockReason),
 		PreUnlockStatus:    d.PreUnlockStatus.String,
+		OrionItemCode:      nullableStringPtr(d.OrionItemCode),
+	})
+	e.HydrateFg(nullableInt64Ptr(d.FgProductID), nullableStringPtr(d.FgItemCode),
+		nullableUUIDPtr(d.SupersededByHeadID), nullableTimePtr(d.SupersededAt))
+	e.HydrateFgReadModel(mbhead.FgReadModel{
+		FgProductCode: nullableStringPtr(d.FgProductCode),
+		FgProductName: nullableStringPtr(d.FgProductName),
 	})
 	return e
 }
@@ -560,7 +870,9 @@ func (r *MBHeadRepository) scanOne(row *sql.Row) (*mbhead.Entity, error) {
 		&d.VSNumber, &d.NoOfProcess,
 		&d.IsLocked, &d.UnlockRequestedAt, &d.UnlockRequestedBy,
 		&d.LockedAt, &d.LockedBy, &d.UnlockReason, &d.PreUnlockStatus,
-		&d.MBHCheckStatusCalc,
+		&d.MBHCheckStatusCalc, &d.OrionItemCode,
+		&d.FgProductID, &d.FgItemCode, &d.SupersededByHeadID, &d.SupersededAt,
+		&d.FgProductCode, &d.FgProductName,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, mbhead.ErrNotFound
@@ -588,7 +900,9 @@ func (r *MBHeadRepository) scanRow(rows *sql.Rows) (*mbhead.Entity, error) {
 		&d.VSNumber, &d.NoOfProcess,
 		&d.IsLocked, &d.UnlockRequestedAt, &d.UnlockRequestedBy,
 		&d.LockedAt, &d.LockedBy, &d.UnlockReason, &d.PreUnlockStatus,
-		&d.MBHCheckStatusCalc,
+		&d.MBHCheckStatusCalc, &d.OrionItemCode,
+		&d.FgProductID, &d.FgItemCode, &d.SupersededByHeadID, &d.SupersededAt,
+		&d.FgProductCode, &d.FgProductName,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("scan mb head row: %w", err)
@@ -598,4 +912,34 @@ func (r *MBHeadRepository) scanRow(rows *sql.Rows) (*mbhead.Entity, error) {
 
 func isMBHeadUniqueViolation(err error) bool {
 	return isPGUniqueViolation(err)
+}
+
+// mbSyncRootSpinFgQuery points the head's root spin(s) at the head's FG (design §2.2).
+// Only rows whose FG really differs are written. When the head has NO FG ($1 NULL) only a
+// link this flow created (link_source RECIPE) is cleared; a MANUAL/DUPLICATE/BACKFILL link
+// is never wiped by a recipe edit.
+const mbSyncRootSpinFgQuery = `
+		UPDATE mst_mb_spin SET
+			mbs_fg_product_id = CAST($1 AS BIGINT),
+			mbs_fg_item_code  = CAST($2 AS VARCHAR),
+			mbs_fg_link_source = CASE WHEN CAST($1 AS BIGINT) IS NULL THEN NULL ELSE 'RECIPE' END,
+			updated_at = NOW(), updated_by = $4
+		WHERE mbs_mbh_id = $3 AND mbs_parent_spin_id IS NULL AND deleted_at IS NULL
+		  AND (mbs_fg_product_id IS DISTINCT FROM CAST($1 AS BIGINT)
+		       OR mbs_fg_item_code IS DISTINCT FROM CAST($2 AS VARCHAR))
+		  AND (CAST($1 AS BIGINT) IS NOT NULL OR mbs_fg_link_source = 'RECIPE')`
+
+// syncRootSpinFgTx runs mbSyncRootSpinFgQuery inside the cascade transaction. A violation
+// of uix_mbs_shade_fg_live (same shade + FG already live on another spin) maps to
+// mbspin.ErrSpinShadeFgExists and rolls the whole update back.
+func syncRootSpinFgTx(ctx context.Context, tx *sql.Tx, entity *mbhead.Entity, actor string) error {
+	if _, err := tx.ExecContext(ctx, mbSyncRootSpinFgQuery,
+		entity.FgProductID(), entity.FgItemCode(), entity.ID(), actor,
+	); err != nil {
+		if isSpinShadeFgViolation(err) {
+			return mbspin.ErrSpinShadeFgExists
+		}
+		return fmt.Errorf("cascade mb head fg to root spin: %w", err)
+	}
+	return nil
 }

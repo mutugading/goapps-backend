@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -56,7 +57,19 @@ const (
 // re-validate after an edit) so MB Batch never keeps costing off a stale, first-ever-approved
 // recipe. All writes (transition + auto-gen/regen) commit or roll back together.
 func (r *MBHeadRepository) TransitionWithAutoGen(ctx context.Context, id uuid.UUID, fromState, toState string, currentVersion int32, stateReason, actorUserID string, params *mbhead.ParamSnapshot, entity *mbhead.Entity) error {
-	return r.db.Transaction(ctx, func(tx *sql.Tx) error {
+	_, err := r.TransitionWithAutoGenOpts(ctx, id, fromState, toState, currentVersion, stateReason, actorUserID, params, entity, mbhead.AutoGenOptions{})
+	return err
+}
+
+// TransitionWithAutoGenOpts is TransitionWithAutoGen with options (mb-spin-fg-poy-link P3).
+// Only the first-Validate auto-gen path (autoGenCostProduct → mbAutoGenSpinOpts) looks at
+// opts: a root spin colliding (shade + FG) with live spins of other heads either fails with
+// mbspin.ErrSupersedeConfirmationRequired (whole tx rolled back) or, with
+// opts.ConfirmSupersede, supersedes them in this same tx. The outcome is nil when nothing
+// was superseded.
+func (r *MBHeadRepository) TransitionWithAutoGenOpts(ctx context.Context, id uuid.UUID, fromState, toState string, currentVersion int32, stateReason, actorUserID string, params *mbhead.ParamSnapshot, entity *mbhead.Entity, opts mbhead.AutoGenOptions) (*mbhead.SupersedeOutcome, error) {
+	var outcome *mbhead.SupersedeOutcome
+	err := r.db.Transaction(ctx, func(tx *sql.Tx) error {
 		if err := r.updateEntryStatusTx(ctx, tx, id, fromState, toState, currentVersion, stateReason, actorUserID, params); err != nil {
 			return err
 		}
@@ -75,8 +88,14 @@ func (r *MBHeadRepository) TransitionWithAutoGen(ctx context.Context, id uuid.UU
 		if entity.CostProductID() != 0 {
 			return r.regenerateCostProductRMs(ctx, tx, id, currentVersion, actorUserID, entity.CostProductID(), entity)
 		}
-		return r.autoGenCostProduct(ctx, tx, id, currentVersion, actorUserID, entity)
+		var err error
+		outcome, err = r.autoGenCostProduct(ctx, tx, id, currentVersion, actorUserID, entity, opts)
+		return err
 	})
+	if err != nil {
+		return nil, err
+	}
+	return outcome, nil
 }
 
 // regenerateCostProductRMs refreshes the cost_route_rm rows under the MB's existing cost product
@@ -265,35 +284,35 @@ func mbResolveExistingRouteSeqID(ctx context.Context, tx *sql.Tx, productSysID i
 
 // autoGenCostProduct runs the 6-step auto-gen write sequence (design addendum §10.2) inside the
 // caller's transaction.
-func (r *MBHeadRepository) autoGenCostProduct(ctx context.Context, tx *sql.Tx, id uuid.UUID, version int32, actorUserID string, entity *mbhead.Entity) error {
+func (r *MBHeadRepository) autoGenCostProduct(ctx context.Context, tx *sql.Tx, id uuid.UUID, version int32, actorUserID string, entity *mbhead.Entity, opts mbhead.AutoGenOptions) (*mbhead.SupersedeOutcome, error) {
 	typeID, err := mbResolveCostProductTypeID(ctx, tx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	productSysID, err := mbInsertCostProductMaster(ctx, tx, typeID, entity, actorUserID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	headID, err := mbInsertRouteHead(ctx, tx, productSysID, actorUserID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	seqID, err := mbInsertRouteSeq(ctx, tx, headID, productSysID, actorUserID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	rows, err := r.compositionRepo.ListVersionByMbhIDAndVersion(ctx, tx, id.String(), version)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := mbInsertRouteRMs(ctx, tx, seqID, productSysID, rows, actorUserID); err != nil {
-		return err
+		return nil, err
 	}
 	if err := mbFreezeCostParams(ctx, tx, productSysID, entity, actorUserID); err != nil {
-		return err
+		return nil, err
 	}
 	if err := mbWriteBackCostProduct(ctx, tx, id, productSysID, actorUserID); err != nil {
-		return err
+		return nil, err
 	}
 	// Business-decision-driven auto-generation (confirmed by the stakeholder, not guessed):
 	// right after a brand-new Master Product MB is created — first-ever Validate ONLY,
@@ -305,10 +324,10 @@ func (r *MBHeadRepository) autoGenCostProduct(ctx context.Context, tx *sql.Tx, i
 	// mbWriteBackCostProduct has succeeded above, and it runs inside the SAME tx as every
 	// other write in this function/TransitionWithAutoGen, so a failure here rolls back the
 	// whole Lock/Validate transaction together — including the cost product and route rows.
-	return mbAutoGenSpin(ctx, tx, id, entity, productSysID, actorUserID)
+	return mbAutoGenSpinOpts(ctx, tx, id, entity, productSysID, actorUserID, opts)
 }
 
-// mbAutoGenSpin creates the single MB Spin row that must exist alongside every
+// mbAutoGenSpinOpts creates the single MB Spin row that must exist alongside every
 // first-ever-generated Master Product MB (business decision, see autoGenCostProduct's call
 // site comment above — never fires on re-validate). Shade/cross-section, CC, Final Product,
 // Lusture Code and (putaran 83 stakeholder decision) Denier/Filament/Dozing/MB Costing/VS
@@ -318,21 +337,67 @@ func (r *MBHeadRepository) autoGenCostProduct(ctx context.Context, tx *sql.Tx, i
 // manually-created MB Spin rows today; and the new row's cost-product linkage is set via the
 // same HydrateLineage/CostProductID path the repository already uses to read that column back
 // from storage (migration 000490).
-func mbAutoGenSpin(ctx context.Context, tx *sql.Tx, headID uuid.UUID, entity *mbhead.Entity, productSysID int64, actorUserID string) error {
-	spin, err := mbBuildAutoGenSpin(headID, entity, productSysID, actorUserID)
+//
+// Supersede check (mb-spin-fg-poy-link P3,
+// design §2.3/§2.5): for a head with FG, live spins of OTHER heads with the same shade + FG
+// are locked FOR UPDATE; none → the old behavior exactly; some and !opts.ConfirmSupersede →
+// mbspin.ErrSupersedeConfirmationRequired; some and confirmed → supersedeOnAutoGenTx.
+func mbAutoGenSpinOpts(ctx context.Context, tx *sql.Tx, headID uuid.UUID, entity *mbhead.Entity, productSysID int64, actorUserID string, opts mbhead.AutoGenOptions) (*mbhead.SupersedeOutcome, error) {
+	orion, err := mbAutoGenSpinOrionCode(ctx, tx, entity)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	spin, err := mbBuildAutoGenSpin(headID, entity, mbEmptyStringToPtr(orion), productSysID, actorUserID)
+	if err != nil {
+		return nil, err
+	}
+	cands, err := mbAutoGenSupersedeCandidates(ctx, tx, headID, entity)
+	if err != nil {
+		return nil, err
+	}
+	if len(cands) > 0 {
+		if !opts.ConfirmSupersede {
+			codes := make([]string, 0, len(cands))
+			for _, c := range cands {
+				codes = append(codes, c.SpinCode)
+			}
+			return nil, fmt.Errorf("%w (old spin: %s)", mbspin.ErrSupersedeConfirmationRequired, strings.Join(codes, ", "))
+		}
+		return supersedeOnAutoGenTx(ctx, tx, headID, spin, cands, actorUserID)
 	}
 	if err := createSpinOn(ctx, tx, spin); err != nil {
-		return fmt.Errorf("mb_autogen: insert auto-generated mb spin: %w", err)
+		return nil, fmt.Errorf("mb_autogen: insert auto-generated mb spin: %w", err)
 	}
-	return nil
+	return nil, nil //nolint:nilnil // documented contract: nil outcome = nothing superseded
+}
+
+// mbAutoGenSpinOrionCode returns the (trimmed) head Orion Item Code the auto-generated root
+// spin may inherit, or "" when the head has none OR any live spin already carries it (TRIM
+// compare, same tx). A second live spin with the same code would make MB_SP_CODE text-keyed
+// yarn rows ambiguous (SkipMBSpinAmbiguous / ResolveUniqueByOrionItemCode).
+func mbAutoGenSpinOrionCode(ctx context.Context, tx *sql.Tx, entity *mbhead.Entity) (string, error) {
+	code := entity.OrionItemCode()
+	if code == nil || strings.TrimSpace(*code) == "" {
+		return "", nil
+	}
+	trimmed := strings.TrimSpace(*code)
+	var taken bool
+	if err := tx.QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 FROM mst_mb_spin WHERE deleted_at IS NULL AND TRIM(mbs_orion_item_code) = $1)`,
+		trimmed,
+	).Scan(&taken); err != nil {
+		return "", fmt.Errorf("mb_autogen: check spin orion item code taken: %w", err)
+	}
+	if taken {
+		return "", nil
+	}
+	return trimmed, nil
 }
 
 // mbBuildAutoGenSpin constructs (without persisting) the *mbspin.Entity that mbAutoGenSpin
 // writes. Split out from mbAutoGenSpin so the field-derivation rules can be unit-tested without
 // a database connection — createSpinOn (the only DB-touching step) stays in mbAutoGenSpin.
-func mbBuildAutoGenSpin(headID uuid.UUID, entity *mbhead.Entity, productSysID int64, actorUserID string) (*mbspin.Entity, error) {
+func mbBuildAutoGenSpin(headID uuid.UUID, entity *mbhead.Entity, orionItemCode *string, productSysID int64, actorUserID string) (*mbspin.Entity, error) {
 	mgtName := mbSpinAutoGenMgtName(entity)
 	rndStatus := mbspin.StatusRnD
 	mbCosting := mbEmptyStringToPtr(entity.MBCosting())
@@ -341,7 +406,9 @@ func mbBuildAutoGenSpin(headID uuid.UUID, entity *mbhead.Entity, productSysID in
 	// Stakeholder decision (putaran 83): Denier/Filament/Dozing/MB Costing/CC/Final Product
 	// carry straight over from the parent MB Head — they are plain identity/spec fields with
 	// no separate recalculation process, unlike the LDR fields below.
-	spin, err := mbspin.New(headID, mgtName, nil, nil, entity.Denier(), entity.Filament(), entity.Dozing(), mbCosting, cc, nil, &rndStatus, nil, nil, entity.MBHFinalProduct(), nil, nil, actorUserID)
+	// orionItemCode is the head code already vetted by mbAutoGenSpinOrionCode (nil when the
+	// head has none or another live spin carries it).
+	spin, err := mbspin.New(headID, mgtName, nil, orionItemCode, entity.Denier(), entity.Filament(), entity.Dozing(), mbCosting, cc, nil, &rndStatus, nil, nil, entity.MBHFinalProduct(), nil, nil, actorUserID)
 	if err != nil {
 		return nil, fmt.Errorf("mb_autogen: construct auto-generated mb spin: %w", err)
 	}
@@ -367,6 +434,14 @@ func mbBuildAutoGenSpin(headID uuid.UUID, entity *mbhead.Entity, productSysID in
 	spin.HydrateVSNumber(entity.VSNumber())
 	spin.HydrateLustureCode(mbEmptyStringToPtr(entity.LustureCode()))
 	spin.HydrateLineage(mbspin.Lineage{CostProductID: &productSysID})
+
+	// FG (POY) link: the root spin inherits the head's FG with link source RECIPE. A head
+	// without FG leaves the spin FG columns NULL (identical to pre-FG behavior).
+	if entity.FgProductID() != nil {
+		if err := spin.WithFg(entity.FgProductID(), entity.FgItemCode(), mbspin.FgLinkSourceRecipe); err != nil {
+			return nil, fmt.Errorf("mb_autogen: link auto-generated mb spin to FG: %w", err)
+		}
+	}
 
 	return spin, nil
 }

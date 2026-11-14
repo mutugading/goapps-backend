@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -10,6 +11,7 @@ import (
 	appmbhead "github.com/mutugading/goapps-backend/services/finance/internal/application/mbhead"
 	"github.com/mutugading/goapps-backend/services/finance/internal/application/mbheadbulk"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/job"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbspin"
 	"github.com/mutugading/goapps-backend/services/finance/internal/infrastructure/rabbitmq"
 )
 
@@ -146,7 +148,7 @@ func (h *MBBulkTransitionHandler) markCompleted(ctx context.Context, exec *job.E
 // ListBulkMBHeadJobFailures, which reads it straight off the child job row) and
 // reports the failure to the parent batch job's progress counters.
 func (h *MBBulkTransitionHandler) markFailed(ctx context.Context, exec *job.Execution, msg rabbitmq.JobMessage, runErr error) {
-	if err := exec.Fail(runErr.Error()); err != nil {
+	if err := exec.Fail(bulkFailureMessage(runErr)); err != nil {
 		h.logger.Warn().Err(err).Str("job_id", msg.JobID).Msg("mb bulk transition: fail state transition failed")
 	}
 	if err := h.jobRepo.UpdateStatus(ctx, exec); err != nil {
@@ -212,4 +214,18 @@ func (h *MBBulkTransitionHandler) completeParentJob(ctx context.Context, parentI
 		return
 	}
 	_ = msg // msg is retained on the signature for logging-context symmetry with markCompleted/markFailed.
+}
+
+// supersedeConfirmationPrefix marks a child failure caused by a shade+FG collision that
+// needs an explicit supersede confirmation. Bulk Validate never confirms, so it never
+// supersedes silently; the operator validates that head individually instead.
+const supersedeConfirmationPrefix = "SUPERSEDE_CONFIRMATION_REQUIRED: "
+
+// bulkFailureMessage renders the child job error_message (surfaced unchanged by
+// ListBulkMBHeadJobFailures).
+func bulkFailureMessage(err error) string {
+	if errors.Is(err, mbspin.ErrSupersedeConfirmationRequired) {
+		return supersedeConfirmationPrefix + err.Error()
+	}
+	return err.Error()
 }

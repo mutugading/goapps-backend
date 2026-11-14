@@ -3,6 +3,7 @@ package grpc
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,6 +17,8 @@ import (
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbcomposition"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbhead"
 	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbparam"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/mbspin"
+	"github.com/mutugading/goapps-backend/services/finance/internal/domain/shade"
 	"github.com/mutugading/goapps-backend/services/finance/pkg/safeconv"
 )
 
@@ -71,6 +74,9 @@ type MBHeadHandler struct {
 	bulkTransitionHandler *mbheadbulk.RequestBulkTransitionHandler
 	bulkJobRepo           job.Repository
 	bulkMBHeadRepo        mbhead.Repository
+	// previewSupersedeH backs PreviewMBHeadSupersede (mb-spin-fg-poy-link P3). Nil until
+	// WithSupersedeReader is called; the RPC then answers a clean 500 "not configured".
+	previewSupersedeH *appmbhead.PreviewSupersedeHandler
 }
 
 // NewMBHeadHandler constructs an MBHeadHandler without the [G.5] composition-sum
@@ -106,10 +112,10 @@ func NewMBHeadHandlerWithRecipeFull(
 		return nil, err
 	}
 	return &MBHeadHandler{
-		createHandler:        appmbhead.NewCreateHandler(repo, machineRepo),
+		createHandler:        appmbhead.NewCreateHandler(repo, machineRepo, nil),
 		getHandler:           appmbhead.NewGetHandler(repo),
 		listHandler:          appmbhead.NewListHandler(repo),
-		updateHandler:        appmbhead.NewUpdateHandler(repo),
+		updateHandler:        appmbhead.NewUpdateHandler(repo, nil).WithParamRepo(paramRepo),
 		deleteHandler:        appmbhead.NewDeleteHandler(repo),
 		submitHandler:        appmbhead.NewSubmitHandlerWithComposition(repo, compositionRepo),
 		validateHandler:      appmbhead.NewValidateHandlerWithComposition(repo, paramRepo, compositionRepo),
@@ -126,6 +132,36 @@ func NewMBHeadHandlerWithRecipeFull(
 		templateHandler:      appmbhead.NewTemplateHandler(),
 		validation:           v,
 	}, nil
+}
+
+// WithShadeMaster attaches the shade master repository so a successful recipe
+// create/update auto-creates a MANUAL shade row for an unknown shade code
+// (best-effort — a shade failure is logged and never fails the save). A nil repo
+// leaves the hook disabled. Returns the handler for chaining.
+func (h *MBHeadHandler) WithShadeMaster(shadeRepo shade.Repository) *MBHeadHandler {
+	if shadeRepo != nil {
+		h.createHandler.WithShadeRepo(shadeRepo)
+		h.updateHandler.WithShadeRepo(shadeRepo)
+	}
+	return h
+}
+
+// WithFgReader attaches the POY reader that validates an FG link on create/update.
+// Without it, a request carrying fg_product_id fails with a configuration error.
+func (h *MBHeadHandler) WithFgReader(r mbspin.FgProductReader) *MBHeadHandler {
+	h.createHandler.WithFgReader(r)
+	h.updateHandler.WithFgReader(r)
+	return h
+}
+
+// WithLookupSyncTrigger attaches the after-commit lookup-sync port used when an edit of an
+// already-validated recipe cascades into its MB Spins (best-effort — a queueing failure
+// is logged and never fails the save). A nil trigger leaves it disabled. Returns the
+// handler for chaining.
+func (h *MBHeadHandler) WithLookupSyncTrigger(t appmbhead.LookupSyncTrigger) *MBHeadHandler {
+	h.updateHandler.WithLookupSyncTrigger(t)
+	h.validateHandler.WithLookupSyncTrigger(t)
+	return h
 }
 
 // WithCostCalcDetail attaches the read-only reader backing ExportMBCostCalcDetail and
@@ -242,10 +278,12 @@ func (h *MBHeadHandler) CreateMBHead(ctx context.Context, req *financev1.CreateM
 		VSNumber:         req.MbhVsNumber,
 		NoOfProcess:      req.MbhNoOfProcess,
 		AdditionalShades: shadeInputsToDomain(req.AdditionalShades),
+		OrionItemCode:    req.MbhOrionItemCode,
+		FgProductID:      req.GetFgProductId(),
 	})
 	if err != nil {
 		RecordMBHeadOperation("create", false)
-		return &financev1.CreateMBHeadResponse{Base: domainErrorToBaseResponse(err)}, nil
+		return &financev1.CreateMBHeadResponse{Base: mbHeadWriteErrToBase(err)}, nil
 	}
 
 	RecordMBHeadOperation("create", true)
@@ -343,10 +381,14 @@ func (h *MBHeadHandler) UpdateMBHead(ctx context.Context, req *financev1.UpdateM
 		// sends replace_additional_shades leaves the stored shade rows intact.
 		AdditionalShades:        shadeInputsToDomain(req.AdditionalShades),
 		ReplaceAdditionalShades: req.GetReplaceAdditionalShades(),
+		// nil = unchanged, "" = clear.
+		OrionItemCode: req.MbhOrionItemCode,
+		// nil = unchanged, 0 = clear, >0 = set.
+		FgProductID: req.FgProductId,
 	})
 	if err != nil {
 		RecordMBHeadOperation("update", false)
-		return &financev1.UpdateMBHeadResponse{Base: domainErrorToBaseResponse(err)}, nil
+		return &financev1.UpdateMBHeadResponse{Base: mbHeadWriteErrToBase(err)}, nil
 	}
 
 	RecordMBHeadOperation("update", true)
@@ -354,6 +396,58 @@ func (h *MBHeadHandler) UpdateMBHead(ctx context.Context, req *financev1.UpdateM
 		Base: successResponse("MB head updated successfully"),
 		Data: mbHeadEntityToProto(entity),
 	}, nil
+}
+
+// mbHeadWriteErrToBase maps create/update errors, giving the MB Costing uniqueness
+// conflict a clear user-facing message; everything else falls through to the generic
+// domain mapping.
+func mbHeadWriteErrToBase(err error) *commonv1.BaseResponse {
+	if errors.Is(err, mbhead.ErrAlreadyExists) {
+		return ConflictResponse("MB Costing code already exists")
+	}
+	if errors.Is(err, mbhead.ErrDuplicateOrionItemCode) {
+		return ConflictResponse("Orion Item Code already exists")
+	}
+	if resp := fgErrToBase(err); resp != nil {
+		return resp
+	}
+	return domainErrorToBaseResponse(err)
+}
+
+// fgErrToBase maps FG link errors (design 2.1); nil when err is not an FG error.
+func fgErrToBase(err error) *commonv1.BaseResponse {
+	switch {
+	case errors.Is(err, mbspin.ErrFgNotPoy),
+		errors.Is(err, mbspin.ErrFgShadeMismatch),
+		errors.Is(err, mbhead.ErrInvalidFgProduct):
+		return BadRequestResponse(err.Error())
+	case errors.Is(err, mbspin.ErrSpinShadeFgExists):
+		return ConflictResponse(err.Error())
+	default:
+		return nil
+	}
+}
+
+// mbHeadFgToProto maps the FG link and supersede fields (proto 47-52).
+func mbHeadFgToProto(p *financev1.MBHead, e *mbhead.Entity) {
+	if v := e.FgProductID(); v != nil {
+		p.FgProductId = *v
+	}
+	if v := e.FgItemCode(); v != nil {
+		p.FgItemCode = *v
+	}
+	if v := e.FgProductCode(); v != nil {
+		p.FgProductCode = *v
+	}
+	if v := e.FgProductName(); v != nil {
+		p.FgProductName = *v
+	}
+	if v := e.SupersededByHeadID(); v != nil {
+		p.SupersededByHeadId = v.String()
+	}
+	if v := e.SupersededAt(); v != nil {
+		p.SupersededAt = v.Format(time.RFC3339)
+	}
 }
 
 // DeleteMBHead soft-deletes an MB head record.
@@ -439,6 +533,12 @@ func (h *MBHeadHandler) ApproveMBHead(ctx context.Context, req *financev1.Approv
 	entity, err := h.validateHandler.Handle(ctx, appmbhead.ValidateCommand{MbhID: id, ActorUserID: getUserFromContext(ctx)})
 	if err != nil {
 		RecordMBHeadOperation("approve", false)
+		if resp := validateSupersedeErrToBase(err, id); resp != nil {
+			return &financev1.ApproveMBHeadResponse{Base: resp}, nil
+		}
+		if resp := fgErrToBase(err); resp != nil {
+			return &financev1.ApproveMBHeadResponse{Base: resp}, nil
+		}
 		return &financev1.ApproveMBHeadResponse{Base: domainErrorToBaseResponse(err)}, nil
 	}
 
@@ -463,9 +563,17 @@ func (h *MBHeadHandler) ValidateMBHead(ctx context.Context, req *financev1.Valid
 		return &financev1.ValidateMBHeadResponse{Base: invalidIDResponse("mbh_id")}, nil //nolint:nilerr // BaseResponse pattern: error returned in response body
 	}
 
-	entity, err := h.validateHandler.Handle(ctx, appmbhead.ValidateCommand{MbhID: id, ActorUserID: getUserFromContext(ctx)})
+	entity, err := h.validateHandler.Handle(ctx, appmbhead.ValidateCommand{
+		MbhID: id, ActorUserID: getUserFromContext(ctx), ConfirmSupersede: req.GetConfirmSupersede(),
+	})
 	if err != nil {
 		RecordMBHeadOperation("validate", false)
+		if resp := validateSupersedeErrToBase(err, id); resp != nil {
+			return &financev1.ValidateMBHeadResponse{Base: resp}, nil
+		}
+		if resp := fgErrToBase(err); resp != nil {
+			return &financev1.ValidateMBHeadResponse{Base: resp}, nil
+		}
 		return &financev1.ValidateMBHeadResponse{Base: domainErrorToBaseResponse(err)}, nil
 	}
 
@@ -951,6 +1059,7 @@ func mbHeadEntityToProto(e *mbhead.Entity) *financev1.MBHead {
 	p.ParamThroughputPerHour = e.ParamThroughputPerHour()
 	p.ParamNoOfProcess = e.ParamNoOfProcess()
 	mbHeadRecipeFieldsToProto(p, e)
+	mbHeadFgToProto(p, e)
 	if e.UpdatedAt() != nil {
 		p.Audit.UpdatedAt = e.UpdatedAt().Format(time.RFC3339)
 	}
@@ -992,6 +1101,9 @@ func parseOptionalMachineID(raw *string) (*uuid.UUID, *commonv1.BaseResponse) {
 func mbHeadRecipeFieldsToProto(p *financev1.MBHead, e *mbhead.Entity) {
 	p.MbhVsNumber = e.VSNumber()
 	p.MbhNoOfProcess = e.NoOfProcess()
+	if code := e.OrionItemCode(); code != nil {
+		p.MbhOrionItemCode = *code
+	}
 
 	locked := e.IsLocked()
 	p.MbhIsLocked = &locked

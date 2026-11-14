@@ -25,6 +25,11 @@ type KpiEntry struct {
 	CrossRatioNumeratorGroup1   string  // e.g. "NET PROFIT"
 	CrossRatioDenominatorGroup1 string  // e.g. "EBITDA"
 	CrossRatioScale             float64 // e.g. 100 for percentage; default 1
+
+	// When both metric fields are set, the ratio is SUM(numerator metric) / SUM(denominator metric)
+	// over the dashboard's type (all groups) instead of comparing two group_1 values (PP-10).
+	CrossRatioNumeratorMetric   string // e.g. "PACK_AX"
+	CrossRatioDenominatorMetric string // e.g. "PACK_TOTAL"
 	// HD-08: optional fact types for numerator/denominator (default = dashboard type), so a ratio
 	// can span two types (e.g. HR_SICK_DAYS / HR_SCHED_DAYS). When a side's group_1 is empty the
 	// viewer's group_1 (dept) filter applies to that side instead of a fixed group_1.
@@ -129,25 +134,19 @@ func parseKpiEntry(m map[string]any, idx int) (KpiEntry, error) {
 		return KpiEntry{}, fmt.Errorf("%w: entry %d format %q is not a recognized number-format", ErrInvalidKpiConfig, idx, format)
 	}
 
-	decimals := 0
-	if v, ok := mergedAsInt(m, "decimals"); ok {
-		decimals = v
-	}
-	if decimals < 0 || decimals > 6 {
-		return KpiEntry{}, fmt.Errorf("%w: entry %d decimals %d out of [0,6]", ErrInvalidKpiConfig, idx, decimals)
+	decimals, err := parseKpiDecimals(m, idx)
+	if err != nil {
+		return KpiEntry{}, err
 	}
 
-	showSparkline := mapBoolVal(m, "show_sparkline")
-	sparkPeriods := 0
-	if v, ok := mergedAsInt(m, "sparkline_periods"); ok {
-		sparkPeriods = v
-	}
-	if showSparkline && sparkPeriods == 0 {
-		sparkPeriods = 12
-	}
+	showSparkline, sparkPeriods := parseKpiSparkline(m)
 
 	crossNumer, crossDenom, crossScale := parseCrossRatioFields(agg, m)
 	crossNumerType, crossDenomType := parseCrossRatioTypes(agg, m)
+	numMetric, denMetric := parseCrossRatioMetrics(agg, m)
+	if (numMetric == "") != (denMetric == "") {
+		return KpiEntry{}, fmt.Errorf("%w: entry %d cross_ratio needs both numerator_metric and denominator_metric", ErrInvalidKpiConfig, idx)
+	}
 
 	return KpiEntry{
 		Label:                       label,
@@ -163,10 +162,36 @@ func parseKpiEntry(m map[string]any, idx int) (KpiEntry, error) {
 		CrossRatioNumeratorGroup1:   crossNumer,
 		CrossRatioDenominatorGroup1: crossDenom,
 		CrossRatioScale:             crossScale,
+		CrossRatioNumeratorMetric:   numMetric,
+		CrossRatioDenominatorMetric: denMetric,
 		CrossRatioNumeratorType:     crossNumerType,
 		CrossRatioDenominatorType:   crossDenomType,
 		FilterGroup2:                mapStringVal(m, "filter_group_2"),
 	}, nil
+}
+
+// parseKpiDecimals reads and range-checks the optional 'decimals' field (default 0).
+func parseKpiDecimals(m map[string]any, idx int) (int, error) {
+	decimals := 0
+	if v, ok := mergedAsInt(m, "decimals"); ok {
+		decimals = v
+	}
+	if decimals < 0 || decimals > 6 {
+		return 0, fmt.Errorf("%w: entry %d decimals %d out of [0,6]", ErrInvalidKpiConfig, idx, decimals)
+	}
+	return decimals, nil
+}
+
+// parseKpiSparkline reads the sparkline flags; periods default to 12 when the sparkline is shown.
+func parseKpiSparkline(m map[string]any) (show bool, periods int) {
+	show = mapBoolVal(m, "show_sparkline")
+	if v, ok := mergedAsInt(m, "sparkline_periods"); ok {
+		periods = v
+	}
+	if show && periods == 0 {
+		periods = 12
+	}
+	return show, periods
 }
 
 // parseCrossRatioFields reads cross_ratio-specific fields from the raw map.
@@ -182,6 +207,29 @@ func parseCrossRatioFields(agg string, m map[string]any) (numer, denom string, s
 		scale = v
 	}
 	return numer, denom, scale
+}
+
+// parseCrossRatioMetrics reads the optional metric-mode fields of a cross_ratio KPI (PP-10).
+func parseCrossRatioMetrics(agg string, m map[string]any) (numerator, denominator string) {
+	if agg != kpiAggCrossRatio {
+		return "", ""
+	}
+	return mapStringVal(m, "numerator_metric"), mapStringVal(m, "denominator_metric")
+}
+
+// putCrossRatio writes the cross_ratio fields of e into m.
+func putCrossRatio(m map[string]any, e KpiEntry) {
+	m["numerator_group_1"] = e.CrossRatioNumeratorGroup1
+	m["denominator_group_1"] = e.CrossRatioDenominatorGroup1
+	if e.CrossRatioNumeratorMetric != "" {
+		m["numerator_metric"] = e.CrossRatioNumeratorMetric
+		m["denominator_metric"] = e.CrossRatioDenominatorMetric
+	}
+	putString(m, "cross_ratio_numerator_type", e.CrossRatioNumeratorType)
+	putString(m, "cross_ratio_denominator_type", e.CrossRatioDenominatorType)
+	if e.CrossRatioScale != 0 && e.CrossRatioScale != 1 {
+		m["scale"] = e.CrossRatioScale
+	}
 }
 
 // parseCrossRatioTypes reads the optional per-side fact types (HD-08); empty = dashboard type.
@@ -263,11 +311,7 @@ func (k KpiConfig) MarshalToList() []map[string]any {
 			}
 		}
 		if e.Agg == kpiAggCrossRatio {
-			m["numerator_group_1"] = e.CrossRatioNumeratorGroup1
-			m["denominator_group_1"] = e.CrossRatioDenominatorGroup1
-			if e.CrossRatioScale != 0 && e.CrossRatioScale != 1 {
-				m["scale"] = e.CrossRatioScale
-			}
+			putCrossRatio(m, e)
 		}
 		out[i] = m
 	}
