@@ -182,7 +182,7 @@ func (s *Service) ExportBank(ctx context.Context, q Query, key, bank string, bui
 		if err != nil {
 			return err
 		}
-		return s.writeAudit(ctx, tx, q, "bank", rows, map[string]any{"pra_cek": len(bd.Issues)})
+		return s.writeAudit(ctx, tx, q, "bank", rows, map[string]any{"pra_cek": len(bd.Issues), "bank": bank, keyPeriodStatus: d.Status})
 	})
 }
 

@@ -17,6 +17,7 @@ import (
 	masterapp "github.com/mutugading/goapps-backend/services/payroll/internal/application/master"
 	periodapp "github.com/mutugading/goapps-backend/services/payroll/internal/application/period"
 	reconapp "github.com/mutugading/goapps-backend/services/payroll/internal/application/recon"
+	reportapp "github.com/mutugading/goapps-backend/services/payroll/internal/application/report"
 	runapp "github.com/mutugading/goapps-backend/services/payroll/internal/application/run"
 	grpcdelivery "github.com/mutugading/goapps-backend/services/payroll/internal/delivery/grpc"
 	httpdelivery "github.com/mutugading/goapps-backend/services/payroll/internal/delivery/httpdelivery"
@@ -102,6 +103,16 @@ func rulesFunc(ctx context.Context, tx *sql.Tx, q runapp.Query, ruleSetID int) (
 	return runapp.Rules{Set: rr.Rules, Tax: rr.Tax, Subsidy: rr.Subsidy}, nil
 }
 
+// bankText loads the cover/title text of the bank file from PAYROLL_REPORT_* at request time (T030d), so a missing
+// setting fails the export with a clear message instead of keeping the server from starting.
+func bankText(transferDate time.Time) (reportapp.BankText, error) {
+	rc, err := config.LoadReport()
+	if err != nil {
+		return reportapp.BankText{}, err
+	}
+	return reportapp.NewBankText(rc, transferDate), nil
+}
+
 // startServers starts the gRPC and HTTP servers and handles graceful shutdown.
 func startServers(ctx context.Context, cfg *config.Config) error {
 	db, err := postgres.NewConnection(&cfg.Database)
@@ -129,7 +140,8 @@ func startServers(ctx context.Context, cfg *config.Config) error {
 	payrollv1.RegisterPayrollServiceServer(grpcServer.GRPCServer(), grpcdelivery.NewPayrollHandler(
 		grpcdelivery.NewMasterHandler(masterSvc),
 		grpcdelivery.NewRunHandler(runSvc, periodSvc, postgres.NewRunQuery(db)).
-			WithDiff(reconapp.RunDiffSource{DB: db, Rules: rulesFunc})))
+			WithDiff(reconapp.RunDiffSource{DB: db, Rules: rulesFunc}).
+			WithReports(reportapp.NewService(db, auditWriter), cfg.PII.EncKey, bankText)))
 
 	// Start gRPC server.
 	go func() {

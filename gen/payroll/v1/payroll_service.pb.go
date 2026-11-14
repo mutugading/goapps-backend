@@ -26,7 +26,7 @@ var File_payroll_v1_payroll_service_proto protoreflect.FileDescriptor
 const file_payroll_v1_payroll_service_proto_rawDesc = "" +
 	"\n" +
 	" payroll/v1/payroll_service.proto\x12\n" +
-	"payroll.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1apayroll/v1/component.proto\x1a#payroll/v1/employee_component.proto\x1a\x17payroll/v1/master.proto\x1a\x14payroll/v1/run.proto2\x92$\n" +
+	"payroll.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1apayroll/v1/component.proto\x1a#payroll/v1/employee_component.proto\x1a\x17payroll/v1/master.proto\x1a\x17payroll/v1/report.proto\x1a\x14payroll/v1/run.proto2\x8d%\n" +
 	"\x0ePayrollService\x12~\n" +
 	"\x0eCreateCurrency\x12!.payroll.v1.CreateCurrencyRequest\x1a\".payroll.v1.CreateCurrencyResponse\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/api/v1/payroll/currencies\x12{\n" +
 	"\x0eListCurrencies\x12!.payroll.v1.ListCurrenciesRequest\x1a\".payroll.v1.ListCurrenciesResponse\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/api/v1/payroll/currencies\x12\x85\x01\n" +
@@ -63,7 +63,8 @@ const file_payroll_v1_payroll_service_proto_rawDesc = "" +
 	"\vListPeriods\x12\x1e.payroll.v1.ListPeriodsRequest\x1a\x1f.payroll.v1.ListPeriodsResponse\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/api/v1/payroll/periods\x12\x92\x01\n" +
 	"\rApprovePeriod\x12 .payroll.v1.ApprovePeriodRequest\x1a!.payroll.v1.ApprovePeriodResponse\"<\x82\xd3\xe4\x93\x026:\x01*\"1/api/v1/payroll/periods/{yymm}/{division}:approve\x12\x8a\x01\n" +
 	"\vClosePeriod\x12\x1e.payroll.v1.ClosePeriodRequest\x1a\x1f.payroll.v1.ClosePeriodResponse\":\x82\xd3\xe4\x93\x024:\x01*\"//api/v1/payroll/periods/{yymm}/{division}:close\x12\x8e\x01\n" +
-	"\fReopenPeriod\x12\x1f.payroll.v1.ReopenPeriodRequest\x1a .payroll.v1.ReopenPeriodResponse\";\x82\xd3\xe4\x93\x025:\x01*\"0/api/v1/payroll/periods/{yymm}/{division}:reopenB\xad\x01\n" +
+	"\fReopenPeriod\x12\x1f.payroll.v1.ReopenPeriodRequest\x1a .payroll.v1.ReopenPeriodResponse\";\x82\xd3\xe4\x93\x025:\x01*\"0/api/v1/payroll/periods/{yymm}/{division}:reopen\x12y\n" +
+	"\fExportReport\x12\x1f.payroll.v1.ExportReportRequest\x1a .payroll.v1.ExportReportResponse\"&\x82\xd3\xe4\x93\x02 \x12\x1e/api/v1/payroll/reports/exportB\xad\x01\n" +
 	"\x0ecom.payroll.v1B\x13PayrollServiceProtoP\x01Z=github.com/mutugading/goapps-backend/gen/payroll/v1;payrollv1\xa2\x02\x03PXX\xaa\x02\n" +
 	"Payroll.V1\xca\x02\n" +
 	"Payroll\\V1\xe2\x02\x16Payroll\\V1\\GPBMetadata\xea\x02\vPayroll::V1b\x06proto3"
@@ -103,40 +104,42 @@ var file_payroll_v1_payroll_service_proto_goTypes = []any{
 	(*ApprovePeriodRequest)(nil),          // 31: payroll.v1.ApprovePeriodRequest
 	(*ClosePeriodRequest)(nil),            // 32: payroll.v1.ClosePeriodRequest
 	(*ReopenPeriodRequest)(nil),           // 33: payroll.v1.ReopenPeriodRequest
-	(*CreateCurrencyResponse)(nil),        // 34: payroll.v1.CreateCurrencyResponse
-	(*ListCurrenciesResponse)(nil),        // 35: payroll.v1.ListCurrenciesResponse
-	(*UpdateCurrencyResponse)(nil),        // 36: payroll.v1.UpdateCurrencyResponse
-	(*CreateCompanyResponse)(nil),         // 37: payroll.v1.CreateCompanyResponse
-	(*GetCompanyResponse)(nil),            // 38: payroll.v1.GetCompanyResponse
-	(*ListCompaniesResponse)(nil),         // 39: payroll.v1.ListCompaniesResponse
-	(*UpdateCompanyResponse)(nil),         // 40: payroll.v1.UpdateCompanyResponse
-	(*CreateDivisionResponse)(nil),        // 41: payroll.v1.CreateDivisionResponse
-	(*ListDivisionsResponse)(nil),         // 42: payroll.v1.ListDivisionsResponse
-	(*UpdateDivisionResponse)(nil),        // 43: payroll.v1.UpdateDivisionResponse
-	(*CreateEmployeeResponse)(nil),        // 44: payroll.v1.CreateEmployeeResponse
-	(*GetEmployeeResponse)(nil),           // 45: payroll.v1.GetEmployeeResponse
-	(*ListEmployeesResponse)(nil),         // 46: payroll.v1.ListEmployeesResponse
-	(*UpdateEmployeeResponse)(nil),        // 47: payroll.v1.UpdateEmployeeResponse
-	(*CreateComponentResponse)(nil),       // 48: payroll.v1.CreateComponentResponse
-	(*GetComponentResponse)(nil),          // 49: payroll.v1.GetComponentResponse
-	(*ListComponentsResponse)(nil),        // 50: payroll.v1.ListComponentsResponse
-	(*UpdateComponentResponse)(nil),       // 51: payroll.v1.UpdateComponentResponse
-	(*RetireComponentResponse)(nil),       // 52: payroll.v1.RetireComponentResponse
-	(*GetComponentTemplateResponse)(nil),  // 53: payroll.v1.GetComponentTemplateResponse
-	(*PutComponentTemplateResponse)(nil),  // 54: payroll.v1.PutComponentTemplateResponse
-	(*GetEmployeeComponentsResponse)(nil), // 55: payroll.v1.GetEmployeeComponentsResponse
-	(*PutEmployeeComponentsResponse)(nil), // 56: payroll.v1.PutEmployeeComponentsResponse
-	(*PreviewLevelChangeResponse)(nil),    // 57: payroll.v1.PreviewLevelChangeResponse
-	(*ApplyLevelChangeResponse)(nil),      // 58: payroll.v1.ApplyLevelChangeResponse
-	(*CreateRunResponse)(nil),             // 59: payroll.v1.CreateRunResponse
-	(*GetRunResponse)(nil),                // 60: payroll.v1.GetRunResponse
-	(*ListRunsResponse)(nil),              // 61: payroll.v1.ListRunsResponse
-	(*ListRunLinesResponse)(nil),          // 62: payroll.v1.ListRunLinesResponse
-	(*GetRunDiffResponse)(nil),            // 63: payroll.v1.GetRunDiffResponse
-	(*ListPeriodsResponse)(nil),           // 64: payroll.v1.ListPeriodsResponse
-	(*ApprovePeriodResponse)(nil),         // 65: payroll.v1.ApprovePeriodResponse
-	(*ClosePeriodResponse)(nil),           // 66: payroll.v1.ClosePeriodResponse
-	(*ReopenPeriodResponse)(nil),          // 67: payroll.v1.ReopenPeriodResponse
+	(*ExportReportRequest)(nil),           // 34: payroll.v1.ExportReportRequest
+	(*CreateCurrencyResponse)(nil),        // 35: payroll.v1.CreateCurrencyResponse
+	(*ListCurrenciesResponse)(nil),        // 36: payroll.v1.ListCurrenciesResponse
+	(*UpdateCurrencyResponse)(nil),        // 37: payroll.v1.UpdateCurrencyResponse
+	(*CreateCompanyResponse)(nil),         // 38: payroll.v1.CreateCompanyResponse
+	(*GetCompanyResponse)(nil),            // 39: payroll.v1.GetCompanyResponse
+	(*ListCompaniesResponse)(nil),         // 40: payroll.v1.ListCompaniesResponse
+	(*UpdateCompanyResponse)(nil),         // 41: payroll.v1.UpdateCompanyResponse
+	(*CreateDivisionResponse)(nil),        // 42: payroll.v1.CreateDivisionResponse
+	(*ListDivisionsResponse)(nil),         // 43: payroll.v1.ListDivisionsResponse
+	(*UpdateDivisionResponse)(nil),        // 44: payroll.v1.UpdateDivisionResponse
+	(*CreateEmployeeResponse)(nil),        // 45: payroll.v1.CreateEmployeeResponse
+	(*GetEmployeeResponse)(nil),           // 46: payroll.v1.GetEmployeeResponse
+	(*ListEmployeesResponse)(nil),         // 47: payroll.v1.ListEmployeesResponse
+	(*UpdateEmployeeResponse)(nil),        // 48: payroll.v1.UpdateEmployeeResponse
+	(*CreateComponentResponse)(nil),       // 49: payroll.v1.CreateComponentResponse
+	(*GetComponentResponse)(nil),          // 50: payroll.v1.GetComponentResponse
+	(*ListComponentsResponse)(nil),        // 51: payroll.v1.ListComponentsResponse
+	(*UpdateComponentResponse)(nil),       // 52: payroll.v1.UpdateComponentResponse
+	(*RetireComponentResponse)(nil),       // 53: payroll.v1.RetireComponentResponse
+	(*GetComponentTemplateResponse)(nil),  // 54: payroll.v1.GetComponentTemplateResponse
+	(*PutComponentTemplateResponse)(nil),  // 55: payroll.v1.PutComponentTemplateResponse
+	(*GetEmployeeComponentsResponse)(nil), // 56: payroll.v1.GetEmployeeComponentsResponse
+	(*PutEmployeeComponentsResponse)(nil), // 57: payroll.v1.PutEmployeeComponentsResponse
+	(*PreviewLevelChangeResponse)(nil),    // 58: payroll.v1.PreviewLevelChangeResponse
+	(*ApplyLevelChangeResponse)(nil),      // 59: payroll.v1.ApplyLevelChangeResponse
+	(*CreateRunResponse)(nil),             // 60: payroll.v1.CreateRunResponse
+	(*GetRunResponse)(nil),                // 61: payroll.v1.GetRunResponse
+	(*ListRunsResponse)(nil),              // 62: payroll.v1.ListRunsResponse
+	(*ListRunLinesResponse)(nil),          // 63: payroll.v1.ListRunLinesResponse
+	(*GetRunDiffResponse)(nil),            // 64: payroll.v1.GetRunDiffResponse
+	(*ListPeriodsResponse)(nil),           // 65: payroll.v1.ListPeriodsResponse
+	(*ApprovePeriodResponse)(nil),         // 66: payroll.v1.ApprovePeriodResponse
+	(*ClosePeriodResponse)(nil),           // 67: payroll.v1.ClosePeriodResponse
+	(*ReopenPeriodResponse)(nil),          // 68: payroll.v1.ReopenPeriodResponse
+	(*ExportReportResponse)(nil),          // 69: payroll.v1.ExportReportResponse
 }
 var file_payroll_v1_payroll_service_proto_depIdxs = []int32{
 	0,  // 0: payroll.v1.PayrollService.CreateCurrency:input_type -> payroll.v1.CreateCurrencyRequest
@@ -173,42 +176,44 @@ var file_payroll_v1_payroll_service_proto_depIdxs = []int32{
 	31, // 31: payroll.v1.PayrollService.ApprovePeriod:input_type -> payroll.v1.ApprovePeriodRequest
 	32, // 32: payroll.v1.PayrollService.ClosePeriod:input_type -> payroll.v1.ClosePeriodRequest
 	33, // 33: payroll.v1.PayrollService.ReopenPeriod:input_type -> payroll.v1.ReopenPeriodRequest
-	34, // 34: payroll.v1.PayrollService.CreateCurrency:output_type -> payroll.v1.CreateCurrencyResponse
-	35, // 35: payroll.v1.PayrollService.ListCurrencies:output_type -> payroll.v1.ListCurrenciesResponse
-	36, // 36: payroll.v1.PayrollService.UpdateCurrency:output_type -> payroll.v1.UpdateCurrencyResponse
-	37, // 37: payroll.v1.PayrollService.CreateCompany:output_type -> payroll.v1.CreateCompanyResponse
-	38, // 38: payroll.v1.PayrollService.GetCompany:output_type -> payroll.v1.GetCompanyResponse
-	39, // 39: payroll.v1.PayrollService.ListCompanies:output_type -> payroll.v1.ListCompaniesResponse
-	40, // 40: payroll.v1.PayrollService.UpdateCompany:output_type -> payroll.v1.UpdateCompanyResponse
-	41, // 41: payroll.v1.PayrollService.CreateDivision:output_type -> payroll.v1.CreateDivisionResponse
-	42, // 42: payroll.v1.PayrollService.ListDivisions:output_type -> payroll.v1.ListDivisionsResponse
-	43, // 43: payroll.v1.PayrollService.UpdateDivision:output_type -> payroll.v1.UpdateDivisionResponse
-	44, // 44: payroll.v1.PayrollService.CreateEmployee:output_type -> payroll.v1.CreateEmployeeResponse
-	45, // 45: payroll.v1.PayrollService.GetEmployee:output_type -> payroll.v1.GetEmployeeResponse
-	46, // 46: payroll.v1.PayrollService.ListEmployees:output_type -> payroll.v1.ListEmployeesResponse
-	47, // 47: payroll.v1.PayrollService.UpdateEmployee:output_type -> payroll.v1.UpdateEmployeeResponse
-	48, // 48: payroll.v1.PayrollService.CreateComponent:output_type -> payroll.v1.CreateComponentResponse
-	49, // 49: payroll.v1.PayrollService.GetComponent:output_type -> payroll.v1.GetComponentResponse
-	50, // 50: payroll.v1.PayrollService.ListComponents:output_type -> payroll.v1.ListComponentsResponse
-	51, // 51: payroll.v1.PayrollService.UpdateComponent:output_type -> payroll.v1.UpdateComponentResponse
-	52, // 52: payroll.v1.PayrollService.RetireComponent:output_type -> payroll.v1.RetireComponentResponse
-	53, // 53: payroll.v1.PayrollService.GetComponentTemplate:output_type -> payroll.v1.GetComponentTemplateResponse
-	54, // 54: payroll.v1.PayrollService.PutComponentTemplate:output_type -> payroll.v1.PutComponentTemplateResponse
-	55, // 55: payroll.v1.PayrollService.GetEmployeeComponents:output_type -> payroll.v1.GetEmployeeComponentsResponse
-	56, // 56: payroll.v1.PayrollService.PutEmployeeComponents:output_type -> payroll.v1.PutEmployeeComponentsResponse
-	57, // 57: payroll.v1.PayrollService.PreviewLevelChange:output_type -> payroll.v1.PreviewLevelChangeResponse
-	58, // 58: payroll.v1.PayrollService.ApplyLevelChange:output_type -> payroll.v1.ApplyLevelChangeResponse
-	59, // 59: payroll.v1.PayrollService.CreateRun:output_type -> payroll.v1.CreateRunResponse
-	60, // 60: payroll.v1.PayrollService.GetRun:output_type -> payroll.v1.GetRunResponse
-	61, // 61: payroll.v1.PayrollService.ListRuns:output_type -> payroll.v1.ListRunsResponse
-	62, // 62: payroll.v1.PayrollService.ListRunLines:output_type -> payroll.v1.ListRunLinesResponse
-	63, // 63: payroll.v1.PayrollService.GetRunDiff:output_type -> payroll.v1.GetRunDiffResponse
-	64, // 64: payroll.v1.PayrollService.ListPeriods:output_type -> payroll.v1.ListPeriodsResponse
-	65, // 65: payroll.v1.PayrollService.ApprovePeriod:output_type -> payroll.v1.ApprovePeriodResponse
-	66, // 66: payroll.v1.PayrollService.ClosePeriod:output_type -> payroll.v1.ClosePeriodResponse
-	67, // 67: payroll.v1.PayrollService.ReopenPeriod:output_type -> payroll.v1.ReopenPeriodResponse
-	34, // [34:68] is the sub-list for method output_type
-	0,  // [0:34] is the sub-list for method input_type
+	34, // 34: payroll.v1.PayrollService.ExportReport:input_type -> payroll.v1.ExportReportRequest
+	35, // 35: payroll.v1.PayrollService.CreateCurrency:output_type -> payroll.v1.CreateCurrencyResponse
+	36, // 36: payroll.v1.PayrollService.ListCurrencies:output_type -> payroll.v1.ListCurrenciesResponse
+	37, // 37: payroll.v1.PayrollService.UpdateCurrency:output_type -> payroll.v1.UpdateCurrencyResponse
+	38, // 38: payroll.v1.PayrollService.CreateCompany:output_type -> payroll.v1.CreateCompanyResponse
+	39, // 39: payroll.v1.PayrollService.GetCompany:output_type -> payroll.v1.GetCompanyResponse
+	40, // 40: payroll.v1.PayrollService.ListCompanies:output_type -> payroll.v1.ListCompaniesResponse
+	41, // 41: payroll.v1.PayrollService.UpdateCompany:output_type -> payroll.v1.UpdateCompanyResponse
+	42, // 42: payroll.v1.PayrollService.CreateDivision:output_type -> payroll.v1.CreateDivisionResponse
+	43, // 43: payroll.v1.PayrollService.ListDivisions:output_type -> payroll.v1.ListDivisionsResponse
+	44, // 44: payroll.v1.PayrollService.UpdateDivision:output_type -> payroll.v1.UpdateDivisionResponse
+	45, // 45: payroll.v1.PayrollService.CreateEmployee:output_type -> payroll.v1.CreateEmployeeResponse
+	46, // 46: payroll.v1.PayrollService.GetEmployee:output_type -> payroll.v1.GetEmployeeResponse
+	47, // 47: payroll.v1.PayrollService.ListEmployees:output_type -> payroll.v1.ListEmployeesResponse
+	48, // 48: payroll.v1.PayrollService.UpdateEmployee:output_type -> payroll.v1.UpdateEmployeeResponse
+	49, // 49: payroll.v1.PayrollService.CreateComponent:output_type -> payroll.v1.CreateComponentResponse
+	50, // 50: payroll.v1.PayrollService.GetComponent:output_type -> payroll.v1.GetComponentResponse
+	51, // 51: payroll.v1.PayrollService.ListComponents:output_type -> payroll.v1.ListComponentsResponse
+	52, // 52: payroll.v1.PayrollService.UpdateComponent:output_type -> payroll.v1.UpdateComponentResponse
+	53, // 53: payroll.v1.PayrollService.RetireComponent:output_type -> payroll.v1.RetireComponentResponse
+	54, // 54: payroll.v1.PayrollService.GetComponentTemplate:output_type -> payroll.v1.GetComponentTemplateResponse
+	55, // 55: payroll.v1.PayrollService.PutComponentTemplate:output_type -> payroll.v1.PutComponentTemplateResponse
+	56, // 56: payroll.v1.PayrollService.GetEmployeeComponents:output_type -> payroll.v1.GetEmployeeComponentsResponse
+	57, // 57: payroll.v1.PayrollService.PutEmployeeComponents:output_type -> payroll.v1.PutEmployeeComponentsResponse
+	58, // 58: payroll.v1.PayrollService.PreviewLevelChange:output_type -> payroll.v1.PreviewLevelChangeResponse
+	59, // 59: payroll.v1.PayrollService.ApplyLevelChange:output_type -> payroll.v1.ApplyLevelChangeResponse
+	60, // 60: payroll.v1.PayrollService.CreateRun:output_type -> payroll.v1.CreateRunResponse
+	61, // 61: payroll.v1.PayrollService.GetRun:output_type -> payroll.v1.GetRunResponse
+	62, // 62: payroll.v1.PayrollService.ListRuns:output_type -> payroll.v1.ListRunsResponse
+	63, // 63: payroll.v1.PayrollService.ListRunLines:output_type -> payroll.v1.ListRunLinesResponse
+	64, // 64: payroll.v1.PayrollService.GetRunDiff:output_type -> payroll.v1.GetRunDiffResponse
+	65, // 65: payroll.v1.PayrollService.ListPeriods:output_type -> payroll.v1.ListPeriodsResponse
+	66, // 66: payroll.v1.PayrollService.ApprovePeriod:output_type -> payroll.v1.ApprovePeriodResponse
+	67, // 67: payroll.v1.PayrollService.ClosePeriod:output_type -> payroll.v1.ClosePeriodResponse
+	68, // 68: payroll.v1.PayrollService.ReopenPeriod:output_type -> payroll.v1.ReopenPeriodResponse
+	69, // 69: payroll.v1.PayrollService.ExportReport:output_type -> payroll.v1.ExportReportResponse
+	35, // [35:70] is the sub-list for method output_type
+	0,  // [0:35] is the sub-list for method input_type
 	0,  // [0:0] is the sub-list for extension type_name
 	0,  // [0:0] is the sub-list for extension extendee
 	0,  // [0:0] is the sub-list for field type_name
@@ -222,6 +227,7 @@ func file_payroll_v1_payroll_service_proto_init() {
 	file_payroll_v1_component_proto_init()
 	file_payroll_v1_employee_component_proto_init()
 	file_payroll_v1_master_proto_init()
+	file_payroll_v1_report_proto_init()
 	file_payroll_v1_run_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{

@@ -9,10 +9,19 @@ import (
 )
 
 func TestRunRPCsHavePermissions(t *testing.T) {
-	for _, m := range []string{"CreateRun", "GetRun", "ListRuns", "ListRunLines", "ListPeriods", "ApprovePeriod", "ClosePeriod", "ReopenPeriod", "GetRunDiff"} {
+	for _, m := range []string{"CreateRun", "GetRun", "ListRuns", "ListRunLines", "ListPeriods", "ApprovePeriod", "ClosePeriod", "ReopenPeriod", "GetRunDiff", "ExportReport"} {
 		if rpcPermissions["/payroll.v1.PayrollService/"+m] == "" {
 			t.Errorf("%s has no permission mapping (fail closed)", m)
 		}
+	}
+}
+
+func TestExportReportPermissionAndTimeout(t *testing.T) {
+	if got := rpcPermissions["/payroll.v1.PayrollService/ExportReport"]; got != permReportView {
+		t.Fatalf("ExportReport permission = %q, want %s", got, permReportView)
+	}
+	if methodTimeouts["/payroll.v1.PayrollService/ExportReport"] != runTimeout {
+		t.Fatal("ExportReport needs the long timeout")
 	}
 }
 

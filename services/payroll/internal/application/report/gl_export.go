@@ -77,7 +77,7 @@ func (s *Service) ExportGL(ctx context.Context, q Query, write func(GLJournal) (
 			runID, journalGaji, status, len(j.Rows), j.Debit.String(), j.Credit.String(), hex.EncodeToString(sum[:]), id.UserID); err != nil {
 			return fmt.Errorf("write gl export: %w", err)
 		}
-		return s.writeAudit(ctx, tx, q, "gl", len(j.Rows), map[string]any{"status": status, "nik": j.NIKCount})
+		return s.writeAudit(ctx, tx, q, "gl", len(j.Rows), map[string]any{"status": status, "nik": j.NIKCount, keyPeriodStatus: st})
 	})
 	return j, err
 }
@@ -109,7 +109,7 @@ WHERE pp_company_id = $1 AND pp_yymm = $2 AND pp_division = $3`, q.CompanyID, q.
 	if err != nil {
 		return "", 0, fmt.Errorf("read period: %w", err)
 	}
-	if st != "APPROVED" && st != statusClosed && !q.AllowOpen {
+	if st != statusApproved && st != statusClosed && !q.AllowOpen {
 		return "", 0, fmt.Errorf("%w (status %s, periode %d %s)", ErrPeriodNotApproved, st, q.YYMM, q.Division)
 	}
 	// The ACTIVE run of the period: ENGINE after go-live, LEGACY for the parity check (T028l on 202610).

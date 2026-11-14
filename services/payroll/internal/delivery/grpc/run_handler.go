@@ -9,6 +9,7 @@ import (
 	commonv1 "github.com/mutugading/goapps-backend/gen/common/v1"
 	payrollv1 "github.com/mutugading/goapps-backend/gen/payroll/v1"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/period"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/application/report"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/run"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/apperr"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/scope"
@@ -35,7 +36,10 @@ const (
 )
 
 // methodTimeouts raises the server timeout of the synchronous run RPC above the default (TimeoutInterceptor).
-var methodTimeouts = map[string]time.Duration{"/payroll.v1.PayrollService/CreateRun": runTimeout}
+var methodTimeouts = map[string]time.Duration{
+	"/payroll.v1.PayrollService/CreateRun":    runTimeout,
+	"/payroll.v1.PayrollService/ExportReport": runTimeout, // T030d: ~1.300 employees × components, PII decrypt per row
+}
 
 func init() {
 	const svc = "/payroll.v1.PayrollService/"
@@ -43,6 +47,7 @@ func init() {
 		"CreateRun": permRunDry, // commit mode additionally needs permRunCommit (checked in CreateRun)
 		"GetRun":    permReportView, "ListRuns": permReportView, "ListRunLines": permReportView, "ListPeriods": permReportView,
 		"GetRunDiff":    permReportView,
+		"ExportReport":  permReportView, // the handler additionally requires permSalaryAmount (no masked variant)
 		"ApprovePeriod": permPeriodApprove, "ClosePeriod": permPeriodClose, "ReopenPeriod": permPeriodReopen,
 	} {
 		rpcPermissions[svc+m] = p
@@ -55,6 +60,10 @@ type RunHandler struct {
 	periods *period.Service
 	reader  run.Reader
 	diff    RunDiffLoader
+
+	reports  ReportExporter // T030d
+	piiKey   string
+	bankText report.TextLoader
 }
 
 // NewRunHandler creates a RunHandler.

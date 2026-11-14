@@ -53,6 +53,7 @@ const (
 	PayrollService_ApprovePeriod_FullMethodName         = "/payroll.v1.PayrollService/ApprovePeriod"
 	PayrollService_ClosePeriod_FullMethodName           = "/payroll.v1.PayrollService/ClosePeriod"
 	PayrollService_ReopenPeriod_FullMethodName          = "/payroll.v1.PayrollService/ReopenPeriod"
+	PayrollService_ExportReport_FullMethodName          = "/payroll.v1.PayrollService/ExportReport"
 )
 
 // PayrollServiceClient is the client API for PayrollService service.
@@ -111,6 +112,8 @@ type PayrollServiceClient interface {
 	ApprovePeriod(ctx context.Context, in *ApprovePeriodRequest, opts ...grpc.CallOption) (*ApprovePeriodResponse, error)
 	ClosePeriod(ctx context.Context, in *ClosePeriodRequest, opts ...grpc.CallOption) (*ClosePeriodResponse, error)
 	ReopenPeriod(ctx context.Context, in *ReopenPeriodRequest, opts ...grpc.CallOption) (*ReopenPeriodResponse, error)
+	// ExportReport returns the reco or bank xlsx of a period, audited (07§6, T030d, D-67).
+	ExportReport(ctx context.Context, in *ExportReportRequest, opts ...grpc.CallOption) (*ExportReportResponse, error)
 }
 
 type payrollServiceClient struct {
@@ -461,6 +464,16 @@ func (c *payrollServiceClient) ReopenPeriod(ctx context.Context, in *ReopenPerio
 	return out, nil
 }
 
+func (c *payrollServiceClient) ExportReport(ctx context.Context, in *ExportReportRequest, opts ...grpc.CallOption) (*ExportReportResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExportReportResponse)
+	err := c.cc.Invoke(ctx, PayrollService_ExportReport_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PayrollServiceServer is the server API for PayrollService service.
 // All implementations must embed UnimplementedPayrollServiceServer
 // for forward compatibility.
@@ -517,6 +530,8 @@ type PayrollServiceServer interface {
 	ApprovePeriod(context.Context, *ApprovePeriodRequest) (*ApprovePeriodResponse, error)
 	ClosePeriod(context.Context, *ClosePeriodRequest) (*ClosePeriodResponse, error)
 	ReopenPeriod(context.Context, *ReopenPeriodRequest) (*ReopenPeriodResponse, error)
+	// ExportReport returns the reco or bank xlsx of a period, audited (07§6, T030d, D-67).
+	ExportReport(context.Context, *ExportReportRequest) (*ExportReportResponse, error)
 	mustEmbedUnimplementedPayrollServiceServer()
 }
 
@@ -628,6 +643,9 @@ func (UnimplementedPayrollServiceServer) ClosePeriod(context.Context, *ClosePeri
 }
 func (UnimplementedPayrollServiceServer) ReopenPeriod(context.Context, *ReopenPeriodRequest) (*ReopenPeriodResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReopenPeriod not implemented")
+}
+func (UnimplementedPayrollServiceServer) ExportReport(context.Context, *ExportReportRequest) (*ExportReportResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ExportReport not implemented")
 }
 func (UnimplementedPayrollServiceServer) mustEmbedUnimplementedPayrollServiceServer() {}
 func (UnimplementedPayrollServiceServer) testEmbeddedByValue()                        {}
@@ -1262,6 +1280,24 @@ func _PayrollService_ReopenPeriod_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PayrollService_ExportReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExportReportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).ExportReport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_ExportReport_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).ExportReport(ctx, req.(*ExportReportRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PayrollService_ServiceDesc is the grpc.ServiceDesc for PayrollService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1404,6 +1440,10 @@ var PayrollService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReopenPeriod",
 			Handler:    _PayrollService_ReopenPeriod_Handler,
+		},
+		{
+			MethodName: "ExportReport",
+			Handler:    _PayrollService_ExportReport_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

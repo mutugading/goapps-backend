@@ -1117,6 +1117,64 @@
         ]
       }
     },
+    "/api/v1/payroll/reports/export": {
+      "get": {
+        "summary": "ExportReport returns the reco or bank xlsx of a period, audited (07§6, T030d, D-67).",
+        "operationId": "PayrollService_ExportReport",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ExportReportResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "yymm",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "division",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "kind",
+            "description": " - REPORT_KIND_RECO: Reconciliation workbook (F-2): detail, transfer, upload, additional, reg,\nOT payroll. Also available for a period that is not yet APPROVED.\n - REPORT_KIND_BANK: Bank transfer file (F-1, Mandiri): cover letter + DETAIL. Only for an\nAPPROVED or CLOSED period; employees failing the pre-check are left out.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "REPORT_KIND_UNSPECIFIED",
+              "REPORT_KIND_RECO",
+              "REPORT_KIND_BANK"
+            ],
+            "default": "REPORT_KIND_UNSPECIFIED"
+          },
+          {
+            "name": "transferDate",
+            "description": "Transfer date YYYY-MM-DD (cover letter of the bank file). Required for BANK,\nignored for RECO.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
     "/api/v1/payroll/runs": {
       "get": {
         "operationId": "PayrollService_ListRuns",
@@ -2399,6 +2457,34 @@
       },
       "description": "EmployeeInput carries the writable fields shared by create and update."
     },
+    "v1ExportReportResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "Excel file content as bytes."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Suggested filename, e.g. bank_SOLO_202701.xlsx."
+        },
+        "rowCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Rows written (the figure recorded in the audit row)."
+        },
+        "skippedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "BANK: employees left out by the pre-check (the CLI lists them in a separate\nworkbook). RECO: components without a GL setup."
+        }
+      },
+      "description": "ExportReportResponse contains the xlsx file."
+    },
     "v1GetCompanyResponse": {
       "type": "object",
       "properties": {
@@ -2772,6 +2858,16 @@
           "$ref": "#/definitions/v1Period"
         }
       }
+    },
+    "v1ReportKind": {
+      "type": "string",
+      "enum": [
+        "REPORT_KIND_UNSPECIFIED",
+        "REPORT_KIND_RECO",
+        "REPORT_KIND_BANK"
+      ],
+      "default": "REPORT_KIND_UNSPECIFIED",
+      "description": "ReportKind selects the workbook.\n\n - REPORT_KIND_RECO: Reconciliation workbook (F-2): detail, transfer, upload, additional, reg,\nOT payroll. Also available for a period that is not yet APPROVED.\n - REPORT_KIND_BANK: Bank transfer file (F-1, Mandiri): cover letter + DETAIL. Only for an\nAPPROVED or CLOSED period; employees failing the pre-check are left out."
     },
     "v1RetireComponentResponse": {
       "type": "object",

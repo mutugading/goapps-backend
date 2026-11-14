@@ -252,9 +252,7 @@ func bankText(tdate string) (report.BankText, error) {
 	if err != nil {
 		return report.BankText{}, err
 	}
-	return report.BankText{Letterhead: rc.Letterhead, CompanyName: rc.CompanyName, Branch: rc.BankBranch,
-		EscrowAccount: rc.EscrowAccount, Signer1: rc.Signer1, Title1: rc.Title1, Signer2: rc.Signer2, Title2: rc.Title2,
-		FeePerTransfer: rc.TransferFee, TransferDate: td, PeriodDate: td}, nil
+	return report.NewBankText(rc, td), nil
 }
 
 // writeBankFiles writes the bank workbook (and the pre-check workbook when some rows were left out) to .tmp files; they
