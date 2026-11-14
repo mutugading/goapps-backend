@@ -228,9 +228,9 @@ func (s *Service) buildMail(ctx context.Context, src *report.SlipSource, tmpl *m
 	if err != nil {
 		return smtp.Mail{}, nil, err
 	}
-	reply := s.Cfg.ReplyTo
-	if o.ReplyToHR != "" {
-		reply = o.ReplyToHR
+	reply, err := s.ResolveReplyTo(ctx, o)
+	if err != nil {
+		return smtp.Mail{}, nil, err
 	}
 	subj, text, html, err := tmpl.render(MailData{PeriodName: period, Nama: src.Nama(c.nik), PasswordHint: passHint,
 		Division: o.Query.Division, ReplyTo: reply, Yymm: fmt.Sprint(o.Query.YYMM), DocCode: docCode, NIK: c.nik})
@@ -242,6 +242,29 @@ func (s *Service) buildMail(ctx context.Context, src *report.SlipSource, tmpl *m
 	}
 	return smtp.Mail{MessageID: messageID(o.BatchID, c.id, c.attempt), From: s.Cfg.From, FromName: s.Cfg.FromName,
 		ReplyTo: reply, To: to, Subject: subj, Text: text, HTML: html, AttachName: c.name, Attach: enc, Date: s.Now()}, plain, nil
+}
+
+// ResolveReplyTo picks the Reply-To of a batch (D-69 (2)): SendOptions.ReplyToHR, then the active pyr_mail_account row
+// of the batch division, then the company default row (pma_division NULL), then PAYROLL_SMTP_REPLY_TO. An empty address
+// in the table falls through to the next level. The table is read through the same scoped payroll_app transaction
+// as the rest of Send (SELECT only, D-62).
+func (s *Service) ResolveReplyTo(ctx context.Context, o SendOptions) (string, error) {
+	if o.ReplyToHR != "" {
+		return o.ReplyToHR, nil
+	}
+	var addr string
+	err := s.DB.ScopedTx(ctx, func(tx *sql.Tx) error {
+		return tx.QueryRowContext(ctx, `SELECT COALESCE(pma_reply_to,'') FROM payroll.pyr_mail_account
+WHERE pma_company_id=$1 AND pma_active AND COALESCE(pma_reply_to,'') <> '' AND (pma_division IS NULL OR pma_division=$2)
+ORDER BY (pma_division IS NULL) LIMIT 1`, o.Query.CompanyID, o.Query.Division).Scan(&addr)
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return s.Cfg.ReplyTo, nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("read mail account reply-to: %w", err)
+	}
+	return addr, nil
 }
 
 // renderSlip decrypts NPWP and account of nik in a short transaction of its own, renders the slip, and drops the

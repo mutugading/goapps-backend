@@ -708,3 +708,71 @@ func TestMailer_SlipPIIPerItem(t *testing.T) {
 		t.Fatalf("kegagalan item harus tercatat di log: %q", logs.String())
 	}
 }
+
+// T028g3 (D-69): Reply-To resolution order ReplyToHR > active row of the batch division > company default row (NULL
+// division) > env; an empty address in the table falls through; one active row per (company, division).
+func TestMailer_ReplyToPerDivision(t *testing.T) {
+	t.Cleanup(func() { _, _ = ownDB.Exec(`DELETE FROM payroll.pyr_mail_account`) }) //nolint:errcheck // cleanup
+	acct := func(div, reply string, active bool) {
+		t.Helper()
+		dv, rt := "NULL", "NULL"
+		if div != "" {
+			dv = "'" + div + "'"
+		}
+		if reply != "" {
+			rt = "'" + reply + "'"
+		}
+		q := fmt.Sprintf(`INSERT INTO payroll.pyr_mail_account (pma_company_id, pma_division, pma_host, pma_from_address, pma_reply_to, pma_secret_ref, pma_active)
+		 VALUES (1, %s, 'smtp.example.test', 'from@example.test', %s, 'secret-x', %t)`, dv, rt, active)
+		if _, err := ownDB.Exec(q); err != nil {
+			t.Fatalf("seed account: %v\n%s", err, q)
+		}
+	}
+	fake := newFakeSMTP(t)
+	now := time.Date(2036, 10, 1, 8, 0, 0, 0, time.UTC)
+	svc := mailSvc(fake, &now) // env ReplyTo = hr@example.test
+	ctx := ctxFor(t, userRW)
+	resolve := func(div, override string) string {
+		t.Helper()
+		got, err := svc.ResolveReplyTo(ctx, distribution.SendOptions{ReplyToHR: override, Query: report.Query{CompanyID: 1, Division: div}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+
+	if got := resolve("SOLO", ""); got != "hr@example.test" { // no rows: env
+		t.Fatalf("tanpa baris = %q", got)
+	}
+	acct("", "default@example.test", true)
+	if got := resolve("JAKARTA", ""); got != "default@example.test" { // fallback to the NULL row
+		t.Fatalf("fallback NULL = %q", got)
+	}
+	acct("SOLO", "solo@example.test", true)
+	acct("JAKARTA", "jakarta@example.test", true)
+	if s, j := resolve("SOLO", ""), resolve("JAKARTA", ""); s != "solo@example.test" || j != "jakarta@example.test" || s == j {
+		t.Fatalf("per divisi: SOLO=%q JAKARTA=%q", s, j)
+	}
+	if got := resolve("SOLO", "override@example.test"); got != "override@example.test" {
+		t.Fatalf("ReplyToHR harus menang = %q", got)
+	}
+	if _, err := ownDB.Exec(`UPDATE payroll.pyr_mail_account SET pma_reply_to='' WHERE pma_division='JAKARTA'`); err != nil {
+		t.Fatal(err)
+	}
+	if got := resolve("JAKARTA", ""); got != "default@example.test" { // empty address skips to the next level
+		t.Fatalf("alamat kosong = %q", got)
+	}
+	if _, err := ownDB.Exec(`UPDATE payroll.pyr_mail_account SET pma_active=false WHERE pma_division IS NULL`); err != nil {
+		t.Fatal(err)
+	}
+	if got := resolve("JAKARTA", ""); got != "hr@example.test" { // default row inactive: env
+		t.Fatalf("fallback env = %q", got)
+	}
+	// unique partial index: a second active row for the same (company, division) is rejected, an inactive one is not
+	if _, err := ownDB.Exec(`INSERT INTO payroll.pyr_mail_account (pma_company_id, pma_division, pma_host, pma_from_address, pma_secret_ref)
+	  VALUES (1,'SOLO','h','f@example.test','s')`); err == nil {
+		t.Fatal("baris aktif kedua (company, divisi) harus ditolak")
+	}
+	acct("SOLO", "solo-old@example.test", false)
+	acct("", "default2@example.test", true) // the former default row is inactive, so a new active one is allowed
+}
