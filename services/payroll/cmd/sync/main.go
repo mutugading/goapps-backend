@@ -50,8 +50,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, "       sync gl-setup -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-rows 1338] [-allow-exceptions]  (MGT_PAYROLL_SETUP → pyr_gl_setup + pyr_gl_group_map; sesudah migrate, 11§4.5)")
 		fmt.Fprintln(os.Stderr, "       sync cost-group -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-rows 41] [-allow-exceptions]  (FM_DEPARTMENT.DEPT_FIELD_01 → pyr_employee.pe_cost_group per dept; sesudah employees, D-63/T028q)")
 		fmt.Fprintln(os.Stderr, "       sync fx-rate -dir <psv dir> -dsn <payroll_etl dsn> [-expect-rows 297] [-allow-exceptions]  (FM_EXCHANGE_RATE IDR→USD BOOK → pyr_fx_rate; spool dengan SET NUMWIDTH 40, D-63)")
-		fmt.Fprintln(os.Stderr, "       sync dummy-period -dsn <payroll_etl dsn> -from 202610 -to 202611 -division SOLO|JAKARTA [-company 1] [-workdays-delta N] [-purge -owner-dsn <payroll_owner/migrator dsn>]  (klon snapshot+attd_days+addition tanpa THR sebagai data uji D-64; HANYA DB salinan)")
-		fmt.Fprintln(os.Stderr, "       sync dummy-janbase -dsn <payroll_etl dsn> -yymm 202701 [-company 1]  (T901 = Σ TETAP bulan sebelumnya, valid yymm saja; D-64 (4); HANYA DB salinan)")
+		fmt.Fprintln(os.Stderr, "       sync dummy-period -dsn <payroll_etl dsn> -from 202610 -to 202611 -division SOLO|JAKARTA [-company 1] [-workdays-delta N] [-purge -owner-dsn <payroll_owner/migrator dsn>]  (klon snapshot+attd_days+addition tanpa THR sebagai data uji D-64; HANYA DB salinan/staging, ditolak di production D-68)")
+		fmt.Fprintln(os.Stderr, "       sync dummy-janbase -dsn <payroll_etl dsn> -yymm 202701 [-company 1]  (T901 = Σ TETAP bulan sebelumnya, valid yymm saja; D-64 (4); HANYA DB salinan/staging, ditolak di production D-68)")
 		fmt.Fprintln(os.Stderr, "       sync inputs -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-addition 28464 -expect-abnormal 28550]")
 		fmt.Fprintln(os.Stderr, "       sync salary-legacy -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-main 91916 -expect-detail 2274418] [-allow-exceptions]")
 		fmt.Fprintln(os.Stderr, "       sync prune-excluded -owner-dsn <payroll_owner/migrator dsn> [-company 1] [-apply]  (hapus run LEGACY di luar cakupan D-35.1; default dry-run)")
@@ -589,8 +589,20 @@ func snapshot(args []string) error {
 	return err
 }
 
+// rejectProduction refuses synthetic-data subcommands when APP_ENV=production. It runs before any DB connection:
+// production holds real data only (D-68 (1)); dummy periods belong to a copy or staging DB (D-64, D-68 (2)).
+func rejectProduction(cmd string) error {
+	if config.EnvFromOS() == "production" {
+		return fmt.Errorf("%s ditolak di APP_ENV=production: data dummy dilarang di production (D-68); pakai DB salinan/staging", cmd)
+	}
+	return nil
+}
+
 // dummyPeriod clones a real period into a synthetic one (D-64), or purges it with -purge (owner DSN, user decision batch T029a).
 func dummyPeriod(args []string) error {
+	if err := rejectProduction("dummy-period"); err != nil {
+		return err
+	}
 	fs := flag.NewFlagSet("dummy-period", flag.ExitOnError)
 	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl (klon)")
 	ownerDSN := fs.String("owner-dsn", os.Getenv("PAYROLL_OWNER_DSN"), "DSN pemilik tabel (payroll_migrator); hanya untuk -purge")
@@ -645,6 +657,9 @@ func dummyPeriod(args []string) error {
 
 // dummyJanBase seeds T901 for a January from the TETAP of the previous month (D-64 (4)).
 func dummyJanBase(args []string) error {
+	if err := rejectProduction("dummy-janbase"); err != nil {
+		return err
+	}
 	fs := flag.NewFlagSet("dummy-janbase", flag.ExitOnError)
 	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl")
 	company := fs.Int("company", 1, "pyr_company.pco_company_id")

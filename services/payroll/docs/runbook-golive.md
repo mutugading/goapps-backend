@@ -6,7 +6,9 @@ Setiap baris `payroll-sync|report|mailer|recon <sub> -flag` di berkas ini sudah 
 
 Placeholder: `<ENV>` (staging|production), `<NS>` (namespace), `<TAG>` (tag image payroll), `<CID>` (company id
 MGT di DB target), `<DUMP>` (folder spool lokal IT), `<N_*>` (jumlah baris dari `check_spool.sh`), `<HOST>`.
-Bagian yang masih menunggu keputusan ditandai **[D-68]**: jangan dijalankan sebelum D-68 ACCEPTED.
+Keputusan D-68 (ACCEPTED 2026-11-14): production hanya data riil (dump sesudah close Oracle 202612); gladi 202612 di **staging**
+dengan absensi dummy (D-64); recon 202701 di **DB salinan** production. `sync dummy-period`/`dummy-janbase` menolak
+`APP_ENV=production` (T028w).
 
 ## 0. Prasyarat
 
@@ -57,8 +59,9 @@ Bagian yang masih menunggu keputusan ditandai **[D-68]**: jangan dijalankan sebe
 
 ### 2.1 Dump Oracle (IT, read-only, SQL*Plus ≥ 12.2)
 
-**[D-68]** Waktu dump production (sesudah close Oracle 202612 sehingga 202612 ikut sebagai LEGACY, atau lebih awal)
-ditetapkan D-68: `salary-legacy` menutup (CLOSED) **setiap** periode yang ada di MAIN/DETAIL dump. Dari folder `<DUMP>`
+**Waktu dump (D-68 (1)(2))**: `salary-legacy` menutup (CLOSED) **setiap** periode yang ada di MAIN/DETAIL dump. Dump
+**production** diambil **sesudah close Oracle 202612** (202612 masuk sebagai LEGACY CLOSED; YTD/JAN_BASE 202701 dari LEGACY).
+Dump **staging** (gladi) memakai dump yang sudah ada s.d. 202610, sehingga 202611/202612 tetap OPEN untuk engine. Dari folder `<DUMP>`
 berisi `spool_one.sql`:
 ```sh
 sqlplus -s <oracle_ro>@<ezconnect> @scripts/oracle-spool/spool_recon_open.sql   # EMP, COMPNT_*, input, MAIN/DETAIL, rekap, THR, DONE
@@ -145,18 +148,22 @@ SkippedRows di log Job, bukan selisih); (c) `bukan_closed` = 0 dan `max` = 20261
 
 ## 4. Gladi end-to-end 202612 (staging, ACCEPTANCE L.2)
 
-**[D-68]** Initial load 2.3 menutup setiap periode di dump sebagai LEGACY CLOSED, sedangkan run engine menolak periode
-CLOSED. Gladi 202612 butuh DB staging tempat 202612 **belum** dimuat sebagai LEGACY; cara memisahkannya ditetapkan D-68.
-Langkah sesudah prasyarat itu (staging, namespace `<NS>` staging):
+**Staging saja, bukan production (D-68 (2))**: initial load 2.3 menutup setiap periode di dump sebagai LEGACY CLOSED,
+sedangkan run engine menolak periode CLOSED. Maka staging di-load dari dump s.d. 202610 (bukan dump sesudah close 202612),
+dan periode 202611 (bila belum riil) + 202612 dibuat sebagai **dummy** klon 202610 (D-64 amandemen D-68). Hasil gladi
+membuktikan alur dan Σ bank = Σ net_pay, **bukan** nominal (D-64 (6)). `sync dummy-*` ditolak di `APP_ENV=production`.
+Langkah (staging, namespace `<NS>` staging, `APP_ENV` bukan production):
 
-1. Absensi dari HRIS (D-58, D-61: ambil pada hari close legacy, sebelum periode dikunci):
+1. Absensi dummy dari 202610, berurutan 202611 lalu 202612, per divisi (SOLO dan JAKARTA; `-workdays-delta` bila hari kerja beda):
    ```sh
-   # args Job payroll-sync (pola header sync-job.yaml), per divisi:
-   ["att","-dsn","$(PAYROLL_ETL_DSN)","-company","<CID>","-yymm","202612","-division","SOLO"]
-   ["snapshot","-dsn","$(PAYROLL_ETL_DSN)","-company","<CID>","-yymm","202612","-division","SOLO"]
+   # args Job payroll-sync (pola header sync-job.yaml); DSN payroll_etl
+   ["dummy-period","-dsn","$(PAYROLL_ETL_DSN)","-company","<CID>","-from","202610","-to","202611","-division","SOLO"]
+   ["dummy-period","-dsn","$(PAYROLL_ETL_DSN)","-company","<CID>","-from","202611","-to","202612","-division","SOLO"]
+   ["dummy-janbase","-dsn","$(PAYROLL_ETL_DSN)","-company","<CID>","-yymm","202701"]   # hanya bila gladi menjangkau Januari (D-64 (4))
    ```
-   Ulangi untuk `JAKARTA`. `snapshot` menolak bila staging harian kosong (D-59 (1)).
-2. Input 202612 (addition dsb.) dari dump periode OPEN: `inputs -dir /out/dump -dsn "$PAYROLL_ETL_DSN" -company <CID>` (pola 2.3).
+   Klon snapshot + attd_days + addition (tanpa THR); tanpa konek HRIS, jadi tidak ada `att`/`snapshot` di gladi. Ulangi untuk `JAKARTA`.
+   Bersihkan dummy sesudah gladi: `dummy-period -purge -owner-dsn "$(PAYROLL_OWNER_DSN)" -to <YYMM> -division <DIV>`.
+2. Input periode (addition dsb.) tidak perlu diulang: sudah ikut terklon pada langkah 1.
 3. Run lewat API (user ber-permission `payroll.run.dryrun.execute`, `payroll.run.salary.commit`, `payroll.period.salary.approve`):
    ```sh
    curl -sf -X POST "$API/api/v1/payroll/runs" -H "Authorization: Bearer $TOKEN" \
@@ -186,11 +193,21 @@ Langkah sesudah prasyarat itu (staging, namespace `<NS>` staging):
 
 ## 5. Go-live 202701 (production, T028j) dan rollback
 
-1. Hari proses: `att` + `snapshot` 202701 SOLO/JAKARTA (pola 4.1), `inputs` dari dump 202701 OPEN (pola 2.3/4.2),
-   run dry → commit → approve (pola 4.3, `yymm` 202701).
-2. **Recon vs Oracle (syarat bayar D-62 (2b))** **[D-68]**: `recon diff -target run:<RUN_ID>` membutuhkan run LEGACY
-   202701 ACTIVE dan run ENGINE di DB yang sama, padahal satu periode hanya boleh punya satu run ACTIVE dan
-   `salary-legacy` menolak periode yang sudah dibuat engine. Lokasi dan cara recon ditetapkan D-68. Perintahnya:
+1. Hari proses: absensi **riil** dari HRIS (D-58, D-61: ambil pada hari close legacy, sebelum periode dikunci), per divisi;
+   `snapshot` menolak bila staging harian kosong (D-59 (1)):
+   ```sh
+   ["att","-dsn","$(PAYROLL_ETL_DSN)","-company","<CID>","-yymm","202701","-division","SOLO"]
+   ["snapshot","-dsn","$(PAYROLL_ETL_DSN)","-company","<CID>","-yymm","202701","-division","SOLO"]
+   ```
+   Lalu `inputs` dari dump 202701 OPEN (pola 2.3: `inputs -dir /out/dump -dsn "$PAYROLL_ETL_DSN" -company <CID>`), run dry →
+   commit → approve (pola 4.3, `yymm` 202701). Bagian 5.2 (recon) dikerjakan di DB salinan; tanpa dummy.
+2. **Recon vs Oracle (syarat bayar D-62 (2b), D-68 (3))** di **DB salinan**, bukan production: `recon diff -target run:<RUN_ID>`
+   butuh run LEGACY 202701 ACTIVE dan run ENGINE di DB yang sama, padahal satu periode hanya punya satu run ACTIVE dan
+   `salary-legacy` menolak periode yang sudah dibuat engine. Alur: (a) `pg_dump` production → DB recon terpisah (mis.
+   `payroll_recon`); (b) di salinan: `att` + `snapshot` + `inputs` 202701 (absensi **riil**, HRIS), run engine dry → commit
+   (`<RUN_ID>`); (c) sesudah Oracle menghitung 202701: dump `salary-legacy` 202701 dimuat sebagai LEGACY di salinan;
+   (d) `recon diff` di bawah, `PAYROLL_RO_DSN` menunjuk salinan; (e) `DROP DATABASE` salinan sesudah keputusan bayar.
+   Production tidak diubah oleh langkah ini. Perintahnya:
    ```sh
    ["diff","-yymm","202701","-division","SOLO","-company","<CID>","-target","run:<RUN_ID>","-out","/out/recon_202701_SOLO.json","-xlsx","/out/recon_202701_SOLO.xlsx"]
    ```
@@ -203,6 +220,6 @@ Langkah sesudah prasyarat itu (staging, namespace `<NS>` staging):
    Kirim ulang satu orang: `["resend","-batch","<BATCH>","-yymm","202701","-division","SOLO","-company","<CID>","-nik","<NIK>","-reason","<alasan>"]`.
 4. **Rollback (gagal salah satu syarat D-62 (2))**: 202701 dibayar dari Oracle seperti biasa. Di GoApps: **jangan**
    jalankan `bank`, `slip`, atau `mailer send`; batch yang sudah dibuat di-`cancel` (pola 4.5). Periode GoApps 202701
-   dibiarkan APPROVED/tidak dipakai bayar sampai D-68 menetapkan nasibnya (reopen untuk run ulang, atau diganti LEGACY).
+   dibiarkan APPROVED/tidak dipakai bayar (reopen untuk run ulang bila perlu, D-68 tidak mengubah ini); hasil recon salinan menjadi bahan task selisih.
    Catat keputusan + tanggal di ACCEPTANCE L.4 (agregat, tanpa NIK), buat task selisih `T028jN`, go-live geser ke 202702
    (ulangi bagian 5 dengan `yymm` 202702).
