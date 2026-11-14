@@ -1218,6 +1218,75 @@
         ]
       }
     },
+    "/api/v1/payroll/runs/{runId}/diff": {
+      "get": {
+        "summary": "Diff of a run against the ACTIVE run, another run of the period, or the LEGACY run (07§4, T030c, D-67).",
+        "operationId": "PayrollService_GetRunDiff",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetRunDiffResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "against",
+            "description": "Empty or active = the ACTIVE run of the period | legacy = the LEGACY run of the\nperiod (recon, D-41) | run:\u003cid\u003e = another run of the same period.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "nik",
+            "description": "Empty = all.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "category",
+            "description": "Line category filter (e.g. FORMULA); empty = every non-MATCH line.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "page",
+            "description": "0 = 1.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pageSize",
+            "description": "0 = 100.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
     "/api/v1/payroll/runs/{runId}/lines": {
       "get": {
         "operationId": "PayrollService_ListRunLines",
@@ -2400,6 +2469,21 @@
         }
       }
     },
+    "v1GetRunDiffResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1RunDiff"
+        },
+        "pagination": {
+          "$ref": "#/definitions/v1PaginationResponse",
+          "description": "Pagination of data.lines."
+        }
+      }
+    },
     "v1GetRunResponse": {
       "type": "object",
       "properties": {
@@ -2776,6 +2860,204 @@
         }
       },
       "description": "Run is the summary of one payroll run (≈ pyr_run)."
+    },
+    "v1RunDiff": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "against": {
+          "type": "string"
+        },
+        "againstRunId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Run id of the against side (the LEGACY run for against=legacy)."
+        },
+        "yymm": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "division": {
+          "type": "string"
+        },
+        "summary": {
+          "$ref": "#/definitions/v1RunDiffSummary"
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1RunDiffLine"
+          },
+          "description": "Lines of the requested page (filters applied)."
+        },
+        "heads": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1RunDiffHead"
+          },
+          "description": "Every header mismatch (nik filter applied)."
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Code and NIK stay visible; the message is masked like Run.warnings."
+        }
+      }
+    },
+    "v1RunDiffExclusion": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "nik": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "lines": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "otherLines": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "headMismatch": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "takeHomeLegacy": {
+          "type": "string",
+          "description": "Nominals: decimal string, or \"***\" when masked."
+        },
+        "takeHomeTarget": {
+          "type": "string"
+        },
+        "takeHomeDelta": {
+          "type": "string"
+        }
+      },
+      "description": "RunDiffExclusion aggregates the NIKs left out of parity (D-47/D-50)."
+    },
+    "v1RunDiffHead": {
+      "type": "object",
+      "properties": {
+        "nik": {
+          "type": "string"
+        },
+        "hasLegacy": {
+          "type": "boolean"
+        },
+        "hasTarget": {
+          "type": "boolean"
+        },
+        "legacyTotalTunjangan": {
+          "type": "string",
+          "description": "Nominals: decimal string (\"\" when the side is missing), or \"***\" when masked\n(a missing side is \"***\" too)."
+        },
+        "legacyTotalPotongan": {
+          "type": "string"
+        },
+        "legacyTakeHome": {
+          "type": "string"
+        },
+        "targetTotalTunjangan": {
+          "type": "string"
+        },
+        "targetTotalPotongan": {
+          "type": "string"
+        },
+        "targetTakeHome": {
+          "type": "string"
+        },
+        "excluded": {
+          "type": "string",
+          "description": "D-47/D-50 exclusion reason (against=legacy only); empty = counted."
+        }
+      },
+      "description": "RunDiffHead is a NIK whose header totals differ or exist on one side only."
+    },
+    "v1RunDiffLine": {
+      "type": "object",
+      "properties": {
+        "nik": {
+          "type": "string"
+        },
+        "component": {
+          "type": "string",
+          "title": "T001 / P032"
+        },
+        "legacyAmount": {
+          "type": "string",
+          "description": "Nominal: decimal string (\"\" = no line / NULL), or \"***\" when masked."
+        },
+        "targetAmount": {
+          "type": "string",
+          "description": "Nominal: decimal string (\"\" = no line / NULL), or \"***\" when masked."
+        },
+        "deltaAmount": {
+          "type": "string",
+          "description": "Nominal: decimal string, or \"***\" when masked."
+        },
+        "category": {
+          "type": "string",
+          "description": "ROUNDING | FORMULA | INPUT_ATT | INPUT_MASTER | ONLY_LEGACY | ONLY_TARGET |\nMASTER_DRIFT | KNOWN_DEFECT."
+        }
+      },
+      "description": "RunDiffLine is one non-MATCH (nik, component) line; delta = run - against."
+    },
+    "v1RunDiffSummary": {
+      "type": "object",
+      "properties": {
+        "categories": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "description": "Line count per category (MATCH included)."
+        },
+        "nikLegacy": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "nikTarget": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "headMismatch": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "takeHomeLegacy": {
+          "type": "string",
+          "description": "Nominals: decimal string, or \"***\" when masked."
+        },
+        "takeHomeTarget": {
+          "type": "string"
+        },
+        "takeHomeDelta": {
+          "type": "string"
+        },
+        "parity": {
+          "type": "boolean",
+          "description": "Parity verdict of rule set v1 (09§4, D-49)."
+        },
+        "excluded": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1RunDiffExclusion"
+          }
+        }
+      }
     },
     "v1RunEmployeeTotal": {
       "type": "object",

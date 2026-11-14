@@ -9,7 +9,7 @@ import (
 )
 
 func TestRunRPCsHavePermissions(t *testing.T) {
-	for _, m := range []string{"CreateRun", "GetRun", "ListRuns", "ListRunLines", "ListPeriods", "ApprovePeriod", "ClosePeriod", "ReopenPeriod"} {
+	for _, m := range []string{"CreateRun", "GetRun", "ListRuns", "ListRunLines", "ListPeriods", "ApprovePeriod", "ClosePeriod", "ReopenPeriod", "GetRunDiff"} {
 		if rpcPermissions["/payroll.v1.PayrollService/"+m] == "" {
 			t.Errorf("%s has no permission mapping (fail closed)", m)
 		}

@@ -42,6 +42,7 @@ func init() {
 	for m, p := range map[string]string{
 		"CreateRun": permRunDry, // commit mode additionally needs permRunCommit (checked in CreateRun)
 		"GetRun":    permReportView, "ListRuns": permReportView, "ListRunLines": permReportView, "ListPeriods": permReportView,
+		"GetRunDiff":    permReportView,
 		"ApprovePeriod": permPeriodApprove, "ClosePeriod": permPeriodClose, "ReopenPeriod": permPeriodReopen,
 	} {
 		rpcPermissions[svc+m] = p
@@ -53,11 +54,18 @@ type RunHandler struct {
 	runs    *run.Service
 	periods *period.Service
 	reader  run.Reader
+	diff    RunDiffLoader
 }
 
 // NewRunHandler creates a RunHandler.
 func NewRunHandler(runs *run.Service, periods *period.Service, reader run.Reader) *RunHandler {
 	return &RunHandler{runs: runs, periods: periods, reader: reader}
+}
+
+// WithDiff wires the run diff source (T030c); without it GetRunDiff answers UNIMPLEMENTED.
+func (h *RunHandler) WithDiff(d RunDiffLoader) *RunHandler {
+	h.diff = d
+	return h
 }
 
 // PayrollHandler combines the master-data and run handlers into one PayrollServiceServer.

@@ -16,6 +16,7 @@ import (
 	payrollv1 "github.com/mutugading/goapps-backend/gen/payroll/v1"
 	masterapp "github.com/mutugading/goapps-backend/services/payroll/internal/application/master"
 	periodapp "github.com/mutugading/goapps-backend/services/payroll/internal/application/period"
+	reconapp "github.com/mutugading/goapps-backend/services/payroll/internal/application/recon"
 	runapp "github.com/mutugading/goapps-backend/services/payroll/internal/application/run"
 	grpcdelivery "github.com/mutugading/goapps-backend/services/payroll/internal/delivery/grpc"
 	httpdelivery "github.com/mutugading/goapps-backend/services/payroll/internal/delivery/httpdelivery"
@@ -127,7 +128,8 @@ func startServers(ctx context.Context, cfg *config.Config) error {
 	periodSvc := periodapp.NewService(db, auditWriter, runSvc)
 	payrollv1.RegisterPayrollServiceServer(grpcServer.GRPCServer(), grpcdelivery.NewPayrollHandler(
 		grpcdelivery.NewMasterHandler(masterSvc),
-		grpcdelivery.NewRunHandler(runSvc, periodSvc, postgres.NewRunQuery(db))))
+		grpcdelivery.NewRunHandler(runSvc, periodSvc, postgres.NewRunQuery(db)).
+			WithDiff(reconapp.RunDiffSource{DB: db, Rules: rulesFunc})))
 
 	// Start gRPC server.
 	go func() {

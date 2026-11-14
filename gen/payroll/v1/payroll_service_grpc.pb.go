@@ -48,6 +48,7 @@ const (
 	PayrollService_GetRun_FullMethodName                = "/payroll.v1.PayrollService/GetRun"
 	PayrollService_ListRuns_FullMethodName              = "/payroll.v1.PayrollService/ListRuns"
 	PayrollService_ListRunLines_FullMethodName          = "/payroll.v1.PayrollService/ListRunLines"
+	PayrollService_GetRunDiff_FullMethodName            = "/payroll.v1.PayrollService/GetRunDiff"
 	PayrollService_ListPeriods_FullMethodName           = "/payroll.v1.PayrollService/ListPeriods"
 	PayrollService_ApprovePeriod_FullMethodName         = "/payroll.v1.PayrollService/ApprovePeriod"
 	PayrollService_ClosePeriod_FullMethodName           = "/payroll.v1.PayrollService/ClosePeriod"
@@ -104,6 +105,8 @@ type PayrollServiceClient interface {
 	GetRun(ctx context.Context, in *GetRunRequest, opts ...grpc.CallOption) (*GetRunResponse, error)
 	ListRuns(ctx context.Context, in *ListRunsRequest, opts ...grpc.CallOption) (*ListRunsResponse, error)
 	ListRunLines(ctx context.Context, in *ListRunLinesRequest, opts ...grpc.CallOption) (*ListRunLinesResponse, error)
+	// Diff of a run against the ACTIVE run, another run of the period, or the LEGACY run (07§4, T030c, D-67).
+	GetRunDiff(ctx context.Context, in *GetRunDiffRequest, opts ...grpc.CallOption) (*GetRunDiffResponse, error)
 	ListPeriods(ctx context.Context, in *ListPeriodsRequest, opts ...grpc.CallOption) (*ListPeriodsResponse, error)
 	ApprovePeriod(ctx context.Context, in *ApprovePeriodRequest, opts ...grpc.CallOption) (*ApprovePeriodResponse, error)
 	ClosePeriod(ctx context.Context, in *ClosePeriodRequest, opts ...grpc.CallOption) (*ClosePeriodResponse, error)
@@ -408,6 +411,16 @@ func (c *payrollServiceClient) ListRunLines(ctx context.Context, in *ListRunLine
 	return out, nil
 }
 
+func (c *payrollServiceClient) GetRunDiff(ctx context.Context, in *GetRunDiffRequest, opts ...grpc.CallOption) (*GetRunDiffResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetRunDiffResponse)
+	err := c.cc.Invoke(ctx, PayrollService_GetRunDiff_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *payrollServiceClient) ListPeriods(ctx context.Context, in *ListPeriodsRequest, opts ...grpc.CallOption) (*ListPeriodsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListPeriodsResponse)
@@ -498,6 +511,8 @@ type PayrollServiceServer interface {
 	GetRun(context.Context, *GetRunRequest) (*GetRunResponse, error)
 	ListRuns(context.Context, *ListRunsRequest) (*ListRunsResponse, error)
 	ListRunLines(context.Context, *ListRunLinesRequest) (*ListRunLinesResponse, error)
+	// Diff of a run against the ACTIVE run, another run of the period, or the LEGACY run (07§4, T030c, D-67).
+	GetRunDiff(context.Context, *GetRunDiffRequest) (*GetRunDiffResponse, error)
 	ListPeriods(context.Context, *ListPeriodsRequest) (*ListPeriodsResponse, error)
 	ApprovePeriod(context.Context, *ApprovePeriodRequest) (*ApprovePeriodResponse, error)
 	ClosePeriod(context.Context, *ClosePeriodRequest) (*ClosePeriodResponse, error)
@@ -598,6 +613,9 @@ func (UnimplementedPayrollServiceServer) ListRuns(context.Context, *ListRunsRequ
 }
 func (UnimplementedPayrollServiceServer) ListRunLines(context.Context, *ListRunLinesRequest) (*ListRunLinesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListRunLines not implemented")
+}
+func (UnimplementedPayrollServiceServer) GetRunDiff(context.Context, *GetRunDiffRequest) (*GetRunDiffResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetRunDiff not implemented")
 }
 func (UnimplementedPayrollServiceServer) ListPeriods(context.Context, *ListPeriodsRequest) (*ListPeriodsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListPeriods not implemented")
@@ -1154,6 +1172,24 @@ func _PayrollService_ListRunLines_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PayrollService_GetRunDiff_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRunDiffRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).GetRunDiff(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_GetRunDiff_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).GetRunDiff(ctx, req.(*GetRunDiffRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _PayrollService_ListPeriods_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListPeriodsRequest)
 	if err := dec(in); err != nil {
@@ -1348,6 +1384,10 @@ var PayrollService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListRunLines",
 			Handler:    _PayrollService_ListRunLines_Handler,
+		},
+		{
+			MethodName: "GetRunDiff",
+			Handler:    _PayrollService_GetRunDiff_Handler,
 		},
 		{
 			MethodName: "ListPeriods",
