@@ -127,11 +127,11 @@ func create(ctx context.Context, args []string) error {
 		return err
 	}
 	fmt.Printf("batch=%d total=%d antre=%d tanpa_email=%d tanpa_tanggal_lahir=%d email_ganda_dikecualikan=%d\n",
-		res.BatchID, res.Total, res.Queued, res.NoEmail, res.NoPassword, res.Dup)
+		res.BatchID, res.Total, res.Queued, res.NoEmail, res.NoBirthDate, res.Dup)
 	for _, g := range []struct {
 		label string
 		niks  []string
-	}{{"TANPA_EMAIL", res.NoEmailNIK}, {"TANPA_TANGGAL_LAHIR", res.NoPasswordNIK}, {"EMAIL_GANDA", res.DuplicateEmailNIK}} {
+	}{{"TANPA_EMAIL", res.NoEmailNIK}, {"TANPA_TANGGAL_LAHIR", res.NoBirthDateNIK}, {"EMAIL_GANDA", res.DuplicateEmailNIK}} {
 		if len(g.niks) > 0 {
 			fmt.Printf("%s (tindak lanjut HR): %s\n", g.label, strings.Join(g.niks, " "))
 		}

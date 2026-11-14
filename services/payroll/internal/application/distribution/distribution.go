@@ -90,9 +90,9 @@ type CreateOptions struct {
 
 // CreateResult is the batch with its pre-check counts.
 type CreateResult struct {
-	BatchID                                      int64
-	Total, Queued, NoEmail, NoPassword, Dup      int
-	NoEmailNIK, NoPasswordNIK, DuplicateEmailNIK []string // for the HR follow-up list (stdout only, never audited)
+	BatchID                                       int64
+	Total, Queued, NoEmail, NoBirthDate, Dup      int
+	NoEmailNIK, NoBirthDateNIK, DuplicateEmailNIK []string // for the HR follow-up list (stdout only, never audited)
 }
 
 // Create builds a DRAFT-to-send batch for the ACTIVE run of q: one item per employee, pre-checked (no email, shared
@@ -163,12 +163,12 @@ VALUES ($1,$2,$3,NULLIF($4,''),$5::text,CASE WHEN $5::text='QUEUED' THEN $6::tim
 		}
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE payroll.pyr_distribution_batch SET pdb_blocked=$2 WHERE pdb_id=$1`,
-		id, res.NoEmail+res.NoPassword+res.Dup); err != nil {
+		id, res.NoEmail+res.NoBirthDate+res.Dup); err != nil {
 		return fmt.Errorf("update batch: %w", err)
 	}
 	return s.audit(ctx, tx, q.CompanyID, q.Division, "DISTRIBUTION_CREATE", id, map[string]any{
 		"yymm": q.YYMM, "total": res.Total, "queued": res.Queued, "tanpa_email": res.NoEmail,
-		"tanpa_password": res.NoPassword, "email_ganda": res.Dup, "allow_open": q.AllowOpen})
+		"tanpa_password": res.NoBirthDate, "email_ganda": res.Dup, "allow_open": q.AllowOpen})
 }
 
 // classify is the pre-check of one item and counts it into res.
@@ -179,8 +179,8 @@ func classify(src *report.SlipSource, e empRow, nik string, count map[string]int
 		res.NoEmailNIK = append(res.NoEmailNIK, nik)
 		return StNoEmail, ""
 	case !src.HasBirthDate(nik):
-		res.NoPassword++
-		res.NoPasswordNIK = append(res.NoPasswordNIK, nik)
+		res.NoBirthDate++
+		res.NoBirthDateNIK = append(res.NoBirthDateNIK, nik)
 		return StNoPass, ""
 	case count[strings.ToLower(e.email)] > 1 && !o.AllowDuplicateEmail:
 		res.Dup++
