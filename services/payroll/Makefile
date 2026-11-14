@@ -1,7 +1,7 @@
 # Payroll Service Makefile
 # Service-specific targets
 
-.PHONY: help run dev build test test-unit test-integration test-e2e test-coverage \
+.PHONY: help run dev build test test-unit test-integration test-e2e test-coverage grants \
         lint fmt vet tidy clean \
         migrate-up migrate-down migrate-create \
         docker-up docker-down docker-logs \
@@ -101,10 +101,16 @@ clean:
 # Database
 # =============================================================================
 
-DATABASE_URL ?= postgres://payroll_app:payroll_app123@localhost:5437/payroll?sslmode=disable
+# Migrasi & grant dijalankan sebagai owner (payroll_migrator, otomatis ROLE payroll_owner). D-66 C: DB payroll_db,
+# GRANT/REVOKE di deploy/grants.sql (bukan di migrasi) -> selalu dijalankan sesudah migrate.
+DATABASE_URL ?= postgres://payroll_migrator:payroll_mig123@localhost:5437/payroll_db?sslmode=disable
 
 migrate-up:
 	migrate -path migrations/postgres -database "$(DATABASE_URL)" up
+	$(MAKE) grants
+
+grants:
+	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -q -f deploy/grants.sql
 
 migrate-down:
 	migrate -path migrations/postgres -database "$(DATABASE_URL)" down 1

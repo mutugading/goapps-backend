@@ -6,7 +6,9 @@
 -- Variabel psql: pw_app, pw_etl, pw_ro, pw_mig (lihat init.sh).
 -- Migrasi aplikasi (T003+) berjalan sebagai payroll_migrator, otomatis ber-ROLE
 -- payroll_owner (ALTER ROLE ... IN DATABASE ... SET role), jadi golang-migrate
--- tidak perlu SET ROLE manual.
+-- tidak perlu SET ROLE manual. Hak objek (tabel/sequence/fungsi) TIDAK ada di migrasi
+-- (ADR 0001, D-66 C): jalankan deploy/grants.sql sebagai payroll_migrator sesudah setiap migrate.
+-- DB bernama payroll_db (ADR 0001, D-66 C(1)).
 -- =============================================================================
 \set ON_ERROR_STOP on
 
@@ -27,20 +29,20 @@ ALTER ROLE payroll_ro       SET default_transaction_read_only = on;
 ALTER ROLE payroll_app      SET idle_in_transaction_session_timeout = '2min';
 
 -- 1. DATABASE
-CREATE DATABASE payroll OWNER payroll_owner ENCODING 'UTF8' TEMPLATE template0
+CREATE DATABASE payroll_db OWNER payroll_owner ENCODING 'UTF8' TEMPLATE template0
        LC_COLLATE 'C' LC_CTYPE 'C';
-REVOKE ALL     ON DATABASE payroll FROM PUBLIC;
-GRANT  CONNECT ON DATABASE payroll TO payroll_app, payroll_etl, payroll_ro, payroll_migrator;
-GRANT  TEMP    ON DATABASE payroll TO payroll_app;
+REVOKE ALL     ON DATABASE payroll_db FROM PUBLIC;
+GRANT  CONNECT ON DATABASE payroll_db TO payroll_app, payroll_etl, payroll_ro, payroll_migrator;
+GRANT  TEMP    ON DATABASE payroll_db TO payroll_app, payroll_etl;  -- etl: TEMP lalu INSERT..SELECT (COPY ditolak di tabel ber-RLS)
 
 -- Role payroll tidak boleh connect ke DB lain (pengganti pg_hba §13 di dev).
 -- Eksplisit karena PUBLIC punya CONNECT secara default.
 REVOKE CONNECT ON DATABASE postgres  FROM PUBLIC;
 REVOKE CONNECT ON DATABASE template1 FROM PUBLIC;
 
-ALTER ROLE payroll_migrator IN DATABASE payroll SET role = 'payroll_owner';
+ALTER ROLE payroll_migrator IN DATABASE payroll_db SET role = 'payroll_owner';
 
-\connect payroll
+\connect payroll_db
 
 -- 2. SCHEMA & HARDENING
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
@@ -50,7 +52,7 @@ CREATE SCHEMA payroll     AUTHORIZATION payroll_owner;
 CREATE SCHEMA payroll_stg AUTHORIZATION payroll_owner;
 REVOKE ALL ON SCHEMA payroll, payroll_stg FROM PUBLIC;
 
-GRANT USAGE ON SCHEMA payroll     TO payroll_app, payroll_ro;
+GRANT USAGE ON SCHEMA payroll     TO payroll_app, payroll_ro, payroll_etl;  -- etl: hak objek dibatasi di grants.sql
 GRANT USAGE ON SCHEMA payroll_stg TO payroll_etl, payroll_app, payroll_ro;
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA payroll;

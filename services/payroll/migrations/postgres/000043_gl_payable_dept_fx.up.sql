@@ -15,4 +15,3 @@ CREATE UNIQUE INDEX IF NOT EXISTS uix_pggm_level_dept ON payroll.pyr_gl_group_ma
 -- numeric(20,8) memotongnya menjadi 0.00005556. Skala dinaikkan agar LC = ROUND(FC × rate, 2) sama dengan legacy.
 ALTER TABLE payroll.pyr_fx_rate ALTER COLUMN pfr_rate TYPE numeric(24,12);
 ALTER TABLE payroll.pyr_run_fx ALTER COLUMN prfx_rate TYPE numeric(24,12);
-GRANT SELECT, INSERT, UPDATE ON payroll.pyr_fx_rate TO payroll_etl;

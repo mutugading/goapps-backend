@@ -6,6 +6,3 @@ BEGIN
     EXECUTE format('DROP POLICY IF EXISTS p_etl ON payroll.%I', t);
   END LOOP;
 END $$;
-REVOKE ALL ON payroll.pyr_static_value, payroll.pyr_rule_set, payroll.pyr_rule_constant, payroll.pyr_attd_days,
-  payroll.pyr_subsidi_pph, payroll.pyr_tax_adj, payroll.pyr_holiday, payroll.pyr_addition,
-  payroll.pyr_abnormal_premi, payroll.pyr_batal_premi FROM payroll_etl;

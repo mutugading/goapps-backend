@@ -10,5 +10,3 @@ BEGIN
   GET DIAGNOSTICS v_n = ROW_COUNT;
   RETURN v_n;
 END $$;
-REVOKE ALL ON FUNCTION payroll.fn_purge_idempotency(interval) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION payroll.fn_purge_idempotency(interval) TO payroll_app;

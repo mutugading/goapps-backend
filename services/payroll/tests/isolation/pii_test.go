@@ -74,7 +74,7 @@ func TestI21_PIIEncryptedAndROCannotDecrypt(t *testing.T) {
 	}
 
 	// 3. payroll_ro sees only ciphertext, and nothing it can call reveals the plaintext without the key.
-	ro := openAs(t, "payroll_ro", "payroll_ro123", "payroll")
+	ro := openAs(t, "payroll_ro", "payroll_ro123", "payroll_db")
 	var npwp, ktp, bank []byte
 	if err := roQuery(t, ro, `SELECT pe_npwp_enc, pe_ktp_enc, pe_bank_acnt_enc FROM payroll.pyr_employee WHERE pe_nik=$1`,
 		[]any{i21NIK}, &npwp, &ktp, &bank); err != nil {

@@ -52,8 +52,6 @@ LANGUAGE sql STABLE PARALLEL SAFE SET search_path = pg_catalog AS $$
     ELSE (p_company::text || ':' || p_division) = ANY (string_to_array(current_setting('app.scopes', true), ','))
   END
 $$;
-REVOKE ALL ON FUNCTION payroll.fn_in_scope(smallint, varchar) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION payroll.fn_in_scope(smallint, varchar) TO payroll_app, payroll_ro;
 
 DO $$
 DECLARE t record;
@@ -93,7 +91,6 @@ END $$;
 ALTER TABLE payroll.pyr_user_scope ENABLE ROW LEVEL SECURITY;
 CREATE POLICY p_self ON payroll.pyr_user_scope TO payroll_app, payroll_ro
   USING (pus_user_id = current_setting('app.user_id', true));
-GRANT SELECT ON payroll.pyr_user_scope TO payroll_app, payroll_ro;
 
 ALTER VIEW payroll.v_pyr_mgt_payroll_main   SET (security_invoker = true);
 ALTER VIEW payroll.v_pyr_mgt_payroll_detail SET (security_invoker = true);

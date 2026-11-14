@@ -9,16 +9,8 @@ VALUES (0, 'Legacy (hasil Oracle MGT, dimigrasi)', 201712, true, 'RETIRED') ON C
 -- payroll_etl: hanya menulis ke run LEGACY dan periode yang belum punya run engine; tidak bisa SELECT gaji.
 -- INSERT saja di head/detail (tetap tidak bisa membaca gaji, I10). Periode dibuat OPEN, diisi, lalu di-CLOSE
 -- oleh ETL sendiri (fn_guard_closed menolak insert ke periode CLOSED); UPDATE periode hanya untuk yang belum CLOSED.
-GRANT INSERT ON payroll.pyr_run TO payroll_etl;
 -- SELECT per kolom, tanpa total gaji (pr_tot_*): cukup untuk cek keberadaan/jumlah run, termasuk run engine.
-GRANT SELECT (pr_id, pr_company_id, pr_yymm, pr_division, pr_kind, pr_status, pr_snapshot_id, pr_emp_count, pr_line_count)
-  ON payroll.pyr_run TO payroll_etl;
-GRANT INSERT ON payroll.pyr_period, payroll.pyr_salary_head, payroll.pyr_salary_detail TO payroll_etl;
-GRANT UPDATE (pp_status, pp_active_run_id, closed_by, closed_at) ON payroll.pyr_period TO payroll_etl;
-GRANT SELECT (pp_active_run_id) ON payroll.pyr_period TO payroll_etl;
-GRANT USAGE ON ALL SEQUENCES IN SCHEMA payroll TO payroll_etl;
 -- COPY ditolak di tabel ber-RLS: ETL memuat ke tabel TEMP lalu INSERT..SELECT (policy + guard tetap berlaku).
-DO $$ BEGIN EXECUTE format('GRANT TEMPORARY ON DATABASE %I TO payroll_etl', current_database()); END $$;
 
 DO $$
 DECLARE t text;

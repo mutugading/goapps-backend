@@ -225,7 +225,7 @@ func TestI25_LogsHoldNoNameOrSalary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dsn := fmt.Sprintf("host=%s port=%s user=payroll_etl password=payroll_etl123 dbname=payroll sslmode=disable", pgHost, pgPort)
+	dsn := fmt.Sprintf("host=%s port=%s user=payroll_etl password=payroll_etl123 dbname=payroll_db sslmode=disable", pgHost, pgPort)
 	env := []string{"PAYROLL_PII_KEY=" + i25Key, "PAYROLL_PII_HMAC_KEY=" + i25HMAC}
 	var syncOut strings.Builder
 	for _, a := range [][]string{

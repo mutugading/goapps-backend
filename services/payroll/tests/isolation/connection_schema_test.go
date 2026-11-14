@@ -116,7 +116,7 @@ func ping(db *sql.DB) error {
 
 func TestI1_OtherAppRoleCannotConnectPayroll(t *testing.T) {
 	prepareOtherDB(t)
-	expectConnDenied(t, "I1", ping(openAs(t, otherAppRole, otherAppPW, "payroll")))
+	expectConnDenied(t, "I1", ping(openAs(t, otherAppRole, otherAppPW, "payroll_db")))
 }
 
 func TestI2_PayrollAppCannotConnectOtherDB(t *testing.T) {
@@ -137,7 +137,7 @@ func TestI3_I4_Staging(t *testing.T) {
 
 func TestI5_RoleWithoutGrantCannotConnect(t *testing.T) {
 	prepareOtherDB(t)
-	expectConnDenied(t, "I5", ping(openAs(t, newRole, newRolePW, "payroll")))
+	expectConnDenied(t, "I5", ping(openAs(t, newRole, newRolePW, "payroll_db")))
 }
 
 func TestI6_NonSuperuserCannotCreateCrossDBExtension(t *testing.T) {
@@ -148,7 +148,7 @@ func TestI6_NonSuperuserCannotCreateCrossDBExtension(t *testing.T) {
 		expectDenied(t, "I6 "+ext, err)
 	}
 	// Even a superuser is stopped inside the payroll DB by the event trigger (04§2).
-	s := openAs(t, "postgres", "postgres", "payroll")
+	s := openAs(t, "postgres", "postgres", "payroll_db")
 	for _, ext := range []string{"dblink", "postgres_fdw"} {
 		var avail int
 		if err := s.QueryRow(`SELECT count(*) FROM pg_available_extensions WHERE name = $1`, ext).Scan(&avail); err != nil {
@@ -194,7 +194,7 @@ func payrollRoles(t *testing.T) map[string]*sql.DB {
 	return map[string]*sql.DB{
 		"payroll_app":      appDB.DB,
 		"payroll_etl":      etlDB,
-		"payroll_ro":       openAs(t, "payroll_ro", "payroll_ro123", "payroll"),
+		"payroll_ro":       openAs(t, "payroll_ro", "payroll_ro123", "payroll_db"),
 		"payroll_migrator": ownDB,
 	}
 }
@@ -267,7 +267,7 @@ func TestI11_EtlMayCheckPeriodLockOnly(t *testing.T) {
 }
 
 func TestI12_ReadOnlyRoleCannotWrite(t *testing.T) {
-	ro := openAs(t, "payroll_ro", "payroll_ro123", "payroll")
+	ro := openAs(t, "payroll_ro", "payroll_ro123", "payroll_db")
 	for _, q := range []string{
 		`INSERT INTO payroll.pyr_currency VALUES ('USD', 2, 2)`,
 		`UPDATE payroll.pyr_company SET pco_name = 'x'`,

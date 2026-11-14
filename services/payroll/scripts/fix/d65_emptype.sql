@@ -4,7 +4,7 @@
 -- Production diisi baru (T028i) dan TIDAK boleh disentuh; runbook T028i memeriksa 0 baris emp_type numerik.
 --
 -- Jalankan sebagai owner (payroll_migrator), mis.:
---   PGPASSWORD=... psql -h localhost -p 5437 -U payroll_migrator -d payroll -v CONFIRM_DEV=yes -f scripts/fix/d65_emptype.sql
+--   PGPASSWORD=... psql -h localhost -p 5437 -U payroll_migrator -d payroll_db -v CONFIRM_DEV=yes -f scripts/fix/d65_emptype.sql
 -- Satu transaksi; guard CLOSED (trg_guard_header) dimatikan hanya di dalamnya. Idempoten (run kedua = 0 baris).
 -- Hanya menyentuh: run LEGACY, psh_remarks = penanda sintetis, psh_emp_type numerik, pe_level terisi.
 -- Audit: satu baris pyr_audit_log per periode (jumlah baris), tanpa NIK.

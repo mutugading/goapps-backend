@@ -16,7 +16,7 @@ database:
   port: 5437
   user: payroll_app
   password: payroll_app123
-  name: payroll
+  name: payroll_db
   ssl_mode: disable
   max_open_conns: 25
   max_idle_conns: 5

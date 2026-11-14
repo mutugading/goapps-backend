@@ -129,8 +129,3 @@ CREATE POLICY p_parent ON payroll.pyr_distribution_item TO payroll_app, payroll_
   WITH CHECK (EXISTS (SELECT 1 FROM payroll.pyr_distribution_batch b WHERE b.pdb_id = pdi_batch_id));
 
 -- Grant: template/policy/account hanya SELECT untuk app (D-62); batch/item DML, item tanpa DELETE (jejak audit).
-GRANT SELECT ON payroll.pyr_doc_template, payroll.pyr_slip_password_policy, payroll.pyr_mail_account,
-  payroll.pyr_mail_template, payroll.pyr_distribution_batch, payroll.pyr_distribution_item TO payroll_app, payroll_ro;
-GRANT INSERT, UPDATE, DELETE ON payroll.pyr_distribution_batch TO payroll_app;
-GRANT INSERT, UPDATE ON payroll.pyr_distribution_item TO payroll_app;
-GRANT USAGE ON ALL SEQUENCES IN SCHEMA payroll TO payroll_app, payroll_etl;

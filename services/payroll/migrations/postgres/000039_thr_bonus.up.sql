@@ -173,25 +173,9 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- Grant
 -- ---------------------------------------------------------------------------
-GRANT SELECT ON payroll.pyr_thr_scheme, payroll.pyr_thr_scheme_component, payroll.pyr_thr_scheme_param,
-  payroll.pyr_thr_event, payroll.pyr_thr_input, payroll.pyr_thr_override, payroll.pyr_thr_run,
-  payroll.pyr_thr_head, payroll.pyr_thr_detail, payroll.v_pyr_thr_main, payroll.v_pyr_thr_detail
-  TO payroll_ro, payroll_app;
-GRANT INSERT, UPDATE, DELETE ON payroll.pyr_thr_scheme, payroll.pyr_thr_scheme_component, payroll.pyr_thr_scheme_param,
-  payroll.pyr_thr_event, payroll.pyr_thr_input, payroll.pyr_thr_override, payroll.pyr_thr_run,
-  payroll.pyr_thr_head, payroll.pyr_thr_detail TO payroll_app;
-GRANT USAGE ON ALL SEQUENCES IN SCHEMA payroll TO payroll_app, payroll_etl;
 
 -- payroll_etl (pola 000031): hanya event CLOSED + run LEGACY + anaknya. Head/detail INSERT saja (tidak bisa
 -- membaca nominal, I10). Event/run boleh dibaca untuk idempotensi; pte_active_run_id di-set sesudah run dibuat.
-GRANT SELECT, INSERT ON payroll.pyr_thr_event TO payroll_etl;
-GRANT INSERT ON payroll.pyr_thr_run TO payroll_etl;
-GRANT SELECT (ptr_id, ptr_event_id, ptr_kind, ptr_scheme_id, ptr_rule_set_id, ptr_status, ptr_input_hash, ptr_emp_count,
-  ptr_warnings, ptr_started_by, ptr_started_at, ptr_finished_at) ON payroll.pyr_thr_run TO payroll_etl;
-GRANT UPDATE (pte_active_run_id) ON payroll.pyr_thr_event TO payroll_etl;
-GRANT UPDATE (ptr_status, ptr_input_hash, ptr_emp_count, ptr_tot_tunjangan, ptr_tot_potongan, ptr_finished_at)
-  ON payroll.pyr_thr_run TO payroll_etl;
-GRANT INSERT ON payroll.pyr_thr_head, payroll.pyr_thr_detail TO payroll_etl;
 
 CREATE POLICY p_etl_sel ON payroll.pyr_thr_event FOR SELECT TO payroll_etl USING (true);
 CREATE POLICY p_etl_ins ON payroll.pyr_thr_event FOR INSERT TO payroll_etl
@@ -255,7 +239,6 @@ BEGIN
   END IF;
   RETURN COALESCE(NEW, OLD);
 END $$;
-REVOKE ALL ON FUNCTION payroll.fn_guard_thr_closed() FROM PUBLIC;
 
 CREATE TRIGGER trg_guard_thr_event    BEFORE UPDATE OR DELETE ON payroll.pyr_thr_event FOR EACH ROW EXECUTE FUNCTION payroll.fn_guard_thr_closed();
 CREATE TRIGGER trg_guard_thr_run      BEFORE INSERT OR UPDATE OR DELETE ON payroll.pyr_thr_run      FOR EACH ROW EXECUTE FUNCTION payroll.fn_guard_thr_closed();

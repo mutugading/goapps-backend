@@ -238,7 +238,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("database.port", 5437)
 	v.SetDefault("database.user", "payroll_app")
 	v.SetDefault("database.password", "payroll_app123")
-	v.SetDefault("database.name", "payroll")
+	v.SetDefault("database.name", "payroll_db") // ADR 0001, D-66 C(1)
 	v.SetDefault("database.ssl_mode", "disable")
 	v.SetDefault("database.max_open_conns", 25)
 	v.SetDefault("database.max_idle_conns", 5)

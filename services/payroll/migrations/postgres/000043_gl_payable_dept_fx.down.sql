@@ -1,5 +1,4 @@
 -- [T028p] rollback: baris yang tidak muat di skema lama dihapus dulu.
-REVOKE SELECT, INSERT, UPDATE ON payroll.pyr_fx_rate FROM payroll_etl;
 ALTER TABLE payroll.pyr_run_fx ALTER COLUMN prfx_rate TYPE numeric(20,8);
 ALTER TABLE payroll.pyr_fx_rate ALTER COLUMN pfr_rate TYPE numeric(20,8);
 

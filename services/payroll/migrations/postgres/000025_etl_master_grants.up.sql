@@ -12,13 +12,6 @@ CREATE TABLE payroll.pyr_migration_log (
   pml_ok        boolean NOT NULL
 );
 
-GRANT USAGE ON SCHEMA payroll TO payroll_etl;
-GRANT SELECT ON payroll.pyr_company, payroll.pyr_division_ref, payroll.pyr_currency TO payroll_etl;
-GRANT SELECT, INSERT, UPDATE ON payroll.pyr_component, payroll.pyr_component_legacy_map,
-  payroll.pyr_component_template, payroll.pyr_level_rule TO payroll_etl;
-GRANT SELECT, INSERT ON payroll.pyr_migration_log TO payroll_etl;
-GRANT USAGE ON ALL SEQUENCES IN SCHEMA payroll TO payroll_etl;
-GRANT SELECT ON payroll.pyr_migration_log TO payroll_ro, payroll_app;
 
 DO $$
 DECLARE t text;

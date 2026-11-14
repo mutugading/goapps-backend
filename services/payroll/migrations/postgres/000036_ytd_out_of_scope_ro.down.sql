@@ -1,1 +1,3 @@
-REVOKE EXECUTE ON FUNCTION payroll.fn_ytd_out_of_scope(smallint, varchar, int, int, text[], int) FROM payroll_ro;
+
+-- [T028n2] grant dipindah ke deploy/grants.sql (D-66 C(2)); tidak ada DDL tersisa.
+SELECT 1;

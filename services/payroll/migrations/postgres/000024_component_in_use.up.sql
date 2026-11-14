@@ -10,5 +10,3 @@ BEGIN
                    JOIN payroll.pyr_period p ON p.pp_company_id = r.pr_company_id AND p.pp_yymm = r.pr_yymm AND p.pp_division = r.pr_division
                   WHERE d.psd_component_sysid = p_sysid AND p.pp_status = 'CLOSED') INTO closed_run;
 END $$;
-REVOKE ALL ON FUNCTION payroll.fn_component_in_use(bigint) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION payroll.fn_component_in_use(bigint) TO payroll_app;

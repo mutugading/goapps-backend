@@ -61,7 +61,7 @@ func TestD65_EmptyTypeFix(t *testing.T) {
 			h = `"$(hostname -i | cut -d' ' -f1)"`
 		}
 		code, r, err := pgCtr.Exec(ctx, []string{"sh", "-c",
-			`PGPASSWORD=payroll_mig123 psql -h ` + h + ` -U payroll_migrator -d payroll -v ON_ERROR_STOP=1 ` + flags + ` -f /tmp/d65_emptype.sql 2>&1`})
+			`PGPASSWORD=payroll_mig123 psql -h ` + h + ` -U payroll_migrator -d payroll_db -v ON_ERROR_STOP=1 ` + flags + ` -f /tmp/d65_emptype.sql 2>&1`})
 		if err != nil {
 			t.Fatal(err)
 		}

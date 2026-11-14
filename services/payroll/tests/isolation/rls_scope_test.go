@@ -1,6 +1,6 @@
 // Package isolation holds DB isolation tests (09§6.4, I17–I20) against a real
 // PostgreSQL 18 started with testcontainers. The schema is built by running
-// deploy/bootstrap.sql (in-repo copy of goapps/deploy/payroll/bootstrap.sql) then every migrations/postgres/*.up.sql, and the
+// deploy/bootstrap.sql (in-repo copy of goapps/deploy/payroll/bootstrap.sql) then every migrations/postgres/*.up.sql (then deploy/grants.sql), and the
 // assertions connect as payroll_app, exactly like the service.
 //
 // Gated by INTEGRATION_TEST=true (needs Docker).
@@ -103,7 +103,7 @@ func setup() (func(), error) {
 	}
 	pgHost, pgPort = host, port.Port()
 	dsn := func(user, pw string) string {
-		return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=payroll sslmode=disable", host, port.Port(), user, pw)
+		return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=payroll_db sslmode=disable", host, port.Port(), user, pw)
 	}
 
 	ownDB, err = sql.Open("pgx", dsn("payroll_migrator", "payroll_mig123"))
@@ -166,6 +166,12 @@ func applyMigrations(ctx context.Context, db *sql.DB) error {
 		}
 		if _, err := db.ExecContext(ctx, string(body)); err != nil {
 			return fmt.Errorf("migration %s: %w", filepath.Base(f), err)
+		}
+	}
+	// D-66 C(2): grant di luar migrasi. Dua kali: grants.sql wajib idempoten (dijalankan sesudah setiap migrate).
+	for i := 0; i < 2; i++ {
+		if err := applyGrants(ctx, db); err != nil {
+			return fmt.Errorf("grants run %d: %w", i+1, err)
 		}
 	}
 	return nil

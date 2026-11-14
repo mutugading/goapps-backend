@@ -44,5 +44,3 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = payroll, pg_catalog AS $$
         AND a.pa_type = 'Potongan' AND a.pa_id = 7 AND a.pa_yymm BETWEEN p_from AND p_to))
   GROUP BY m.nik
 $$;
-REVOKE ALL ON FUNCTION payroll.fn_ytd_out_of_scope(smallint, varchar, int, int, text[], int) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION payroll.fn_ytd_out_of_scope(smallint, varchar, int, int, text[], int) TO payroll_app;

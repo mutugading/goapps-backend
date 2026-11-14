@@ -96,7 +96,7 @@ func setup() (func(), error) {
 		return fail(err)
 	}
 	dsn := func(u, pw string) string {
-		return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=payroll sslmode=disable", host, port.Port(), u, pw)
+		return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=payroll_db sslmode=disable", host, port.Port(), u, pw)
 	}
 	if ownDB, err = sql.Open("pgx", dsn("payroll_migrator", "payroll_mig123")); err != nil {
 		return fail(err)
@@ -111,6 +111,9 @@ func setup() (func(), error) {
 		if _, err := ownDB.ExecContext(ctx, string(body)); err != nil {
 			return fail(fmt.Errorf("migration %s: %w", filepath.Base(f), err))
 		}
+	}
+	if err := applyGrants(ctx, ownDB); err != nil { // D-66 C(2): grant di luar migrasi
+		return fail(err)
 	}
 	for _, s := range []string{
 		`INSERT INTO payroll.pyr_currency (pcy_code, pcy_minor_unit, pcy_takehome_round) VALUES ('IDR', 2, -2)`,

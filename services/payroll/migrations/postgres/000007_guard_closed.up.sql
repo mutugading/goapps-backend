@@ -22,5 +22,4 @@ END $$;
 CREATE TRIGGER trg_guard_line     BEFORE INSERT OR UPDATE OR DELETE ON payroll.pyr_salary_detail   FOR EACH ROW EXECUTE FUNCTION payroll.fn_guard_closed();
 CREATE TRIGGER trg_guard_header   BEFORE INSERT OR UPDATE OR DELETE ON payroll.pyr_salary_head FOR EACH ROW EXECUTE FUNCTION payroll.fn_guard_closed();
 CREATE TRIGGER trg_guard_addition BEFORE INSERT OR UPDATE OR DELETE ON payroll.pyr_addition       FOR EACH ROW EXECUTE FUNCTION payroll.fn_guard_closed();
-REVOKE ALL ON FUNCTION payroll.fn_guard_closed() FROM PUBLIC;
 

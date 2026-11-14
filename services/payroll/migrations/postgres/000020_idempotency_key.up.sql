@@ -20,5 +20,3 @@ ALTER TABLE payroll.pyr_idempotency_key ENABLE ROW LEVEL SECURITY;
 CREATE POLICY p_self ON payroll.pyr_idempotency_key TO payroll_app
   USING (pik_user_id = current_setting('app.user_id', true))
   WITH CHECK (pik_user_id = current_setting('app.user_id', true));
-GRANT SELECT, INSERT, UPDATE, DELETE ON payroll.pyr_idempotency_key TO payroll_app;
-GRANT SELECT ON payroll.pyr_idempotency_key TO payroll_ro;

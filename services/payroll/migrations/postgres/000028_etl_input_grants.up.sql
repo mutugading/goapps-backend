@@ -1,9 +1,5 @@
 -- [T009c] ETL rule & input (D-22): payroll_etl menulis static_value, rule_set/rule_constant, attd_days, subsidi_pph,
 -- tax_adj, holiday, addition, abnormal/batal_premi. Policy p_etl hanya dipasang di tabel ber-RLS (pola 000025).
-GRANT SELECT, INSERT, UPDATE ON payroll.pyr_static_value, payroll.pyr_rule_set, payroll.pyr_rule_constant,
-  payroll.pyr_attd_days, payroll.pyr_subsidi_pph, payroll.pyr_tax_adj, payroll.pyr_holiday, payroll.pyr_addition,
-  payroll.pyr_abnormal_premi, payroll.pyr_batal_premi TO payroll_etl;
-GRANT USAGE ON ALL SEQUENCES IN SCHEMA payroll TO payroll_etl;
 
 DO $$
 DECLARE t text;
