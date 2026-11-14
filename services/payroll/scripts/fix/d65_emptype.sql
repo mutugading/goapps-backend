@@ -1,7 +1,7 @@
 -- [T028r] D-65 (C): perbaikan SATU KALI khusus dev — psh_emp_type baris MAIN sintetis D-35.2 di run LEGACY CLOSED.
 -- MAIN sintetis lama menyimpan PE_STS_EMP ('2') di psh_emp_type; yang benar = nama level (pe_level, kunci
 -- pyr_gl_group_map). ETL sudah benar sejak T028q, jadi hanya DB yang dimuat sebelum T028q yang perlu skrip ini.
--- Production diisi baru (T028i) dan TIDAK boleh disentuh; runbook T028i memeriksa 0 baris emp_type numerik.
+-- Production diisi baru (T028i) dan TIDAK boleh disentuh; runbook T028i (`docs/runbook-golive.md` §3 (a)) memeriksa 0 baris emp_type numerik.
 --
 -- Jalankan sebagai owner (payroll_migrator), mis.:
 --   PGPASSWORD=... psql -h localhost -p 5437 -U payroll_migrator -d payroll_db -v CONFIRM_DEV=yes -f scripts/fix/d65_emptype.sql
@@ -52,7 +52,7 @@ SELECT pal_entity_key AS periode, rows AS baris_diperbaiki FROM ins ORDER BY 1;
 ALTER TABLE payroll.pyr_salary_head ENABLE TRIGGER trg_guard_header;
 
 -- Laporan sisa (tidak diubah). sisa_sintetis_numerik = baris ber-penanda sintetis D-35.2 yang tak bisa diperbaiki (tanpa
--- pe_level / NIK berubah): runbook T028i harus 0. sisa_lain_numerik = baris LEGACY lain ber-emp_type numerik (tanpa penanda,
+-- pe_level / NIK berubah): runbook T028i (`docs/runbook-golive.md` §3) harus 0. sisa_lain_numerik = baris LEGACY lain ber-emp_type numerik (tanpa penanda,
 -- mis. dimuat sebelum T009e10): di luar cakupan D-65, hanya diinformasikan.
 SELECT count(*) FILTER (WHERE h.psh_remarks = '[ETL:SYNTHETIC_MAIN D-35.2]') AS sisa_sintetis_numerik,
        count(*) FILTER (WHERE h.psh_remarks IS DISTINCT FROM '[ETL:SYNTHETIC_MAIN D-35.2]') AS sisa_lain_numerik
