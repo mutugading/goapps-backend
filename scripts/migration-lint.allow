@@ -1,3 +1,21 @@
 # Migration lint allow-list. Format (justification after '#' is REQUIRED):
 #   <rule-id> <path-relative-to-repo>[:<line>]  # why this is acceptable
 # Stale entries (matching nothing) fail the lint. Currently empty: the tree is clean.
+
+# payroll (D-66 C, ADR 0001 amendment): fungsi SECURITY DEFINER wajib mem-pin search_path (anti hijack,
+# diverifikasi tes isolasi I16 di services/payroll/tests/isolation/connection_schema_test.go).
+R2 services/payroll/migrations/postgres/000007_guard_closed.up.sql:6  # SECURITY DEFINER pin search_path = payroll, pg_catalog (D-66 C, tes I16)
+R2 services/payroll/migrations/postgres/000016_user_scope_rls.up.sql:47  # SECURITY DEFINER pin search_path = payroll, pg_catalog (D-66 C, tes I16)
+R2 services/payroll/migrations/postgres/000018_company_keys.down.sql:12  # SECURITY DEFINER pin search_path = payroll, pg_catalog (D-66 C, tes I16)
+R2 services/payroll/migrations/postgres/000018_company_keys.up.sql:47  # SECURITY DEFINER pin search_path = payroll, pg_catalog (D-66 C, tes I16)
+R2 services/payroll/migrations/postgres/000021_idempotency_purge.up.sql:6  # SECURITY DEFINER pin search_path = payroll, pg_catalog (D-66 C, tes I16)
+R2 services/payroll/migrations/postgres/000024_component_in_use.up.sql:5  # SECURITY DEFINER pin search_path = payroll, pg_catalog (D-66 C, tes I16)
+R2 services/payroll/migrations/postgres/000035_ytd_out_of_scope.up.sql:11  # SECURITY DEFINER pin search_path = payroll, pg_catalog (D-66 C, tes I16)
+R2 services/payroll/migrations/postgres/000038_guard_closed_inputs.down.sql:8  # SECURITY DEFINER pin search_path = payroll, pg_catalog (D-66 C, tes I16)
+R2 services/payroll/migrations/postgres/000038_guard_closed_inputs.up.sql:7  # SECURITY DEFINER pin search_path = payroll, pg_catalog (D-66 C, tes I16)
+R2 services/payroll/migrations/postgres/000039_thr_bonus.up.sql:205  # SECURITY DEFINER pin search_path = payroll, pg_catalog (D-66 C, tes I16)
+
+# payroll (D-66 C (5)): COMMENT ON COLUMN pada tabel payroll_stg. search_path migrator = payroll (bootstrap.sql),
+# jadi nama tanpa schema tidak bisa dipakai; nama schema-qualified di sini bukan lintas-database (positif palsu R6).
+R6 services/payroll/migrations/postgres/000040_att_daily_derived.up.sql:6  # COMMENT ON COLUMN payroll_stg.<t>.<c>: schema internal payroll_stg (D-66 C)
+R6 services/payroll/migrations/postgres/000040_att_daily_derived.up.sql:7  # COMMENT ON COLUMN payroll_stg.<t>.<c>: schema internal payroll_stg (D-66 C)

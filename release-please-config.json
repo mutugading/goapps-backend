@@ -18,6 +18,10 @@
         "services/ppc": {
             "component": "ppc-service",
             "changelog-path": "CHANGELOG.md"
+        },
+        "services/payroll": {
+            "component": "payroll-service",
+            "changelog-path": "CHANGELOG.md"
         }
     },
     "bump-minor-pre-major": true,

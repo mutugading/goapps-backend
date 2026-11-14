@@ -1,0 +1,134 @@
+{
+  "formula": "G04_T36_0_0127",
+  "yymm": 202608,
+  "rule_set_id": 1,
+  "features": [
+    "synthetic",
+    "G4"
+  ],
+  "input": {
+    "Period": {
+      "YYMM": 202608,
+      "Start": "2026-07-26T00:00:00Z",
+      "End": "2026-08-25T00:00:00Z"
+    },
+    "Division": "SOLO",
+    "Emp": {
+      "NIK": "E90004",
+      "Name": "",
+      "Level": "staff",
+      "TaxStatus": "",
+      "Dept": "",
+      "HasNPWP": false,
+      "BirthDate": null,
+      "JoinDate": null,
+      "GapokSts": "F"
+    },
+    "Components": [
+      {
+        "Key": {
+          "Type": "T",
+          "ID": 1
+        },
+        "Amount": "3000000",
+        "Sts": "F",
+        "Tax": false,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": false,
+        "SubsidyOT": false,
+        "Frozen": false
+      },
+      {
+        "Key": {
+          "Type": "T",
+          "ID": 36
+        },
+        "Amount": "0.0127",
+        "Sts": "D",
+        "Tax": false,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": false,
+        "SubsidyOT": false,
+        "Frozen": false
+      }
+    ],
+    "Att": {
+      "pay_tot": "26",
+      "otiw_decr": "1"
+    },
+    "AttAdd": null,
+    "Sch": null,
+    "Workdays": 26,
+    "Daily": {
+      "PremiFail": 0,
+      "BerasFail": 0
+    },
+    "YTD": {
+      "Gross": "0",
+      "Deduct": "0",
+      "TaxPaid": "0",
+      "Months": 0
+    },
+    "TaxAdj": {
+      "Earn": "0",
+      "Deduct": "0"
+    },
+    "Thr": {
+      "Gross": "0",
+      "PPhPaid": "0"
+    },
+    "YTDCompany": {
+      "Gross": "0",
+      "CompanyPaid": "0",
+      "Deduct": "0",
+      "ThrBonus": "0",
+      "P5Paid": "0"
+    },
+    "Subsidy": {
+      "Rules": null,
+      "Override": null,
+      "Basis": null,
+      "PrevBasis": null,
+      "Locked": null,
+      "LockedYYMM": 0
+    }
+  },
+  "expected": {
+    "lines": [
+      {
+        "type": "T",
+        "id": 1,
+        "amount": "3000000"
+      },
+      {
+        "type": "T",
+        "id": 36,
+        "amount": "29308"
+      }
+    ],
+    "head": {
+      "tot_tunjangan": "3029308",
+      "tot_potongan": "0",
+      "rounding": "8",
+      "take_home": "3029300"
+    }
+  },
+  "source": {
+    "kind": "SYNTHETIC",
+    "division": "SOLO"
+  },
+  "rules": {
+    "legacy": true,
+    "constants": {
+      "DAYS_MONTH": "30",
+      "HOURS_MONTH": "173",
+      "BERAS_DAYS": "25",
+      "NAKMIN": "2592154",
+      "KESMIN": "2592154",
+      "PENMIN": "2592154",
+      "KESMAX": "12000000",
+      "PENMAX": "11086300"
+    }
+  },
+  "note": "D9: T36 0.0127 variant, 38100 x 10/13 = 29307.69 -> 29308"
+}

@@ -1,0 +1,8 @@
+MPCE_NIK|MPCE_TYPE|MPCE_ID|MPCE_NAME|MPCE_STS|MPCE_TAX|MPCE_AMOUNT|MPCE_FRZ_FLAG|MPCE_LEVEL|MPCE_TAX_PAID_COMPANY|MPCE_DIVISION
+1001|Tunjangan|1|Gaji Pokok|F|2|0|2|Driver|N|SOLO
+1001|Tunjangan|6|OT In Work|D|2|1.5|1|Driver|N|SOLO
+1001|Tunjangan|999|Hantu|F|2|1|2|Driver|N|SOLO
+1002|Tunjangan|1|Gaji Pokok|F|2|0|2|Driver|N|SOLO
+2001|Potongan|32|Pinjaman Pokok|F|1|100|2|Driver|N|JAKARTA
+7777|Tunjangan|1|Gaji Pokok|F|2|0|2|Driver|N|SOLO
+9001|Tunjangan|1|Gaji Pokok|F|2|0|2|Driver|N|BEKASI

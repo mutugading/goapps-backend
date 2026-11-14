@@ -1,0 +1,134 @@
+{
+  "formula": "G08_pph_dec_negative",
+  "yymm": 202612,
+  "rule_set_id": 1,
+  "features": [
+    "synthetic",
+    "G8"
+  ],
+  "input": {
+    "Period": {
+      "YYMM": 202612,
+      "Start": "2026-11-26T00:00:00Z",
+      "End": "2026-12-25T00:00:00Z"
+    },
+    "Division": "SOLO",
+    "Emp": {
+      "NIK": "E90009",
+      "Name": "",
+      "Level": "staff",
+      "TaxStatus": "TK",
+      "Dept": "",
+      "HasNPWP": false,
+      "BirthDate": null,
+      "JoinDate": null,
+      "GapokSts": "F"
+    },
+    "Components": [
+      {
+        "Key": {
+          "Type": "T",
+          "ID": 1
+        },
+        "Amount": "6000000",
+        "Sts": "F",
+        "Tax": true,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": false,
+        "SubsidyOT": false,
+        "Frozen": false
+      },
+      {
+        "Key": {
+          "Type": "P",
+          "ID": 1
+        },
+        "Amount": "0",
+        "Sts": "F",
+        "Tax": false,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": false,
+        "SubsidyOT": false,
+        "Frozen": false
+      }
+    ],
+    "Att": {
+      "pay_tot": "26"
+    },
+    "AttAdd": null,
+    "Sch": null,
+    "Workdays": 26,
+    "Daily": {
+      "PremiFail": 0,
+      "BerasFail": 0
+    },
+    "YTD": {
+      "Gross": "66000000",
+      "Deduct": "2160000",
+      "TaxPaid": "700000",
+      "Months": 11
+    },
+    "TaxAdj": {
+      "Earn": "0",
+      "Deduct": "0"
+    },
+    "Thr": {
+      "Gross": "0",
+      "PPhPaid": "0"
+    },
+    "YTDCompany": {
+      "Gross": "0",
+      "CompanyPaid": "0",
+      "Deduct": "0",
+      "ThrBonus": "0",
+      "P5Paid": "0"
+    },
+    "Subsidy": {
+      "Rules": null,
+      "Override": null,
+      "Basis": null,
+      "PrevBasis": null,
+      "Locked": null,
+      "LockedYYMM": 0
+    }
+  },
+  "expected": {
+    "lines": [
+      {
+        "type": "T",
+        "id": 1,
+        "amount": "6000000"
+      },
+      {
+        "type": "P",
+        "id": 1,
+        "amount": "-88000"
+      }
+    ],
+    "head": {
+      "tot_tunjangan": "6000000",
+      "tot_potongan": "-88000",
+      "rounding": "0",
+      "take_home": "6088000"
+    }
+  },
+  "source": {
+    "kind": "SYNTHETIC",
+    "division": "SOLO"
+  },
+  "rules": {
+    "legacy": true,
+    "constants": {
+      "DAYS_MONTH": "30",
+      "HOURS_MONTH": "173",
+      "BERAS_DAYS": "25",
+      "NAKMIN": "2592154",
+      "KESMIN": "2592154",
+      "PENMIN": "2592154",
+      "KESMAX": "12000000",
+      "PENMAX": "11086300",
+      "ALLOW_NEGATIVE_PPH": "0"
+    }
+  },
+  "note": "[V] 06§6.2: December over-payment stays negative: 612000-700000"
+}

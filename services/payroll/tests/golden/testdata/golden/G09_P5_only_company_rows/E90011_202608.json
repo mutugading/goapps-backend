@@ -1,0 +1,151 @@
+{
+  "formula": "G09_P5_only_company_rows",
+  "yymm": 202608,
+  "rule_set_id": 1,
+  "features": [
+    "synthetic",
+    "G9"
+  ],
+  "input": {
+    "Period": {
+      "YYMM": 202608,
+      "Start": "2026-07-26T00:00:00Z",
+      "End": "2026-08-25T00:00:00Z"
+    },
+    "Division": "SOLO",
+    "Emp": {
+      "NIK": "E90011",
+      "Name": "",
+      "Level": "staff",
+      "TaxStatus": "TK",
+      "Dept": "",
+      "HasNPWP": false,
+      "BirthDate": null,
+      "JoinDate": null,
+      "GapokSts": "F"
+    },
+    "Components": [
+      {
+        "Key": {
+          "Type": "T",
+          "ID": 73
+        },
+        "Amount": "600000",
+        "Sts": "F",
+        "Tax": true,
+        "TaxPaidCompany": true,
+        "TaxSubsidy": false,
+        "SubsidyOT": false,
+        "Frozen": false
+      },
+      {
+        "Key": {
+          "Type": "P",
+          "ID": 1
+        },
+        "Amount": "0",
+        "Sts": "F",
+        "Tax": false,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": false,
+        "SubsidyOT": false,
+        "Frozen": false
+      },
+      {
+        "Key": {
+          "Type": "P",
+          "ID": 5
+        },
+        "Amount": "0",
+        "Sts": "F",
+        "Tax": false,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": false,
+        "SubsidyOT": false,
+        "Frozen": false
+      }
+    ],
+    "Att": {
+      "pay_tot": "26"
+    },
+    "AttAdd": null,
+    "Sch": null,
+    "Workdays": 26,
+    "Daily": {
+      "PremiFail": 0,
+      "BerasFail": 0
+    },
+    "YTD": {
+      "Gross": "0",
+      "Deduct": "0",
+      "TaxPaid": "0",
+      "Months": 0
+    },
+    "TaxAdj": {
+      "Earn": "0",
+      "Deduct": "0"
+    },
+    "Thr": {
+      "Gross": "0",
+      "PPhPaid": "0"
+    },
+    "YTDCompany": {
+      "Gross": "0",
+      "CompanyPaid": "0",
+      "Deduct": "0",
+      "ThrBonus": "0",
+      "P5Paid": "0"
+    },
+    "Subsidy": {
+      "Rules": null,
+      "Override": null,
+      "Basis": null,
+      "PrevBasis": null,
+      "Locked": null,
+      "LockedYYMM": 0
+    }
+  },
+  "expected": {
+    "lines": [
+      {
+        "type": "T",
+        "id": 73,
+        "amount": "600000"
+      },
+      {
+        "type": "P",
+        "id": 1,
+        "amount": "0"
+      },
+      {
+        "type": "P",
+        "id": 5,
+        "amount": null
+      }
+    ],
+    "head": {
+      "tot_tunjangan": "600000",
+      "tot_potongan": "0",
+      "rounding": "0",
+      "take_home": "600000"
+    }
+  },
+  "source": {
+    "kind": "SYNTHETIC",
+    "division": "SOLO"
+  },
+  "rules": {
+    "legacy": true,
+    "constants": {
+      "DAYS_MONTH": "30",
+      "HOURS_MONTH": "173",
+      "BERAS_DAYS": "25",
+      "NAKMIN": "2592154",
+      "KESMIN": "2592154",
+      "PENMIN": "2592154",
+      "KESMAX": "12000000",
+      "PENMAX": "11086300"
+    }
+  },
+  "note": "[V] 06§6.3: legacy SELECT INTO finds no N row -> P5 NULL"
+}
