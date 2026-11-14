@@ -28,6 +28,9 @@ import (
 
 var etlDB, ownDB *sql.DB
 
+// pgCtr is the Postgres container, for tests that run psql scripts inside it (T028r).
+var pgCtr *tcpostgres.PostgresContainer
+
 // appDSN connects as payroll_app (the service role), for loader tests.
 var appDSN string
 
@@ -62,6 +65,7 @@ func setup() (func(), error) {
 	if err != nil {
 		return nil, err
 	}
+	pgCtr = ctr
 	cleanup := func() { _ = testcontainers.TerminateContainer(ctr) }
 
 	code, _, err := ctr.Exec(ctx, []string{"psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1",
