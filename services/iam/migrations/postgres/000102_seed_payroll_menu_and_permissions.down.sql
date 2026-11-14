@@ -1,5 +1,5 @@
 -- IAM Service Database Migrations
--- 000098: Rollback Payroll menu and permissions seed
+-- 000102: Rollback Payroll menu and permissions seed
 
 DELETE FROM role_permissions
 WHERE permission_id IN (SELECT permission_id FROM mst_permission WHERE permission_code LIKE 'payroll.%');

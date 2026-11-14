@@ -1,5 +1,5 @@
 -- IAM Service Database Migrations
--- 000098: Seed Payroll menu (HR > Payroll) and payroll.* permissions (T004, D-05)
+-- 000102: Seed Payroll menu (HR > Payroll) and payroll.* permissions (T004, D-05)
 --
 -- Permission map comes from spec 07 (RBAC table) adapted to the IAM 4-segment
 -- format {service}.{module}.{entity}.{action} (D-05). Full map and rationale:

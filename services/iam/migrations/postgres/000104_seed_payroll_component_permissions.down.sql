@@ -1,5 +1,5 @@
 -- IAM Service Database Migrations
--- 000100: Rollback payroll component/template permissions
+-- 000104: Rollback payroll component/template permissions
 
 DELETE FROM role_permissions
 WHERE permission_id IN (SELECT permission_id FROM mst_permission
