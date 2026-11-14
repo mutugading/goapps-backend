@@ -46,7 +46,7 @@ type SalaryLegacyOptions struct {
 // legacySkipped reports D-35.1 out-of-scope periods: JAKARTA before 202601 is trial data. SOLO 202607 is in scope again
 // (D-43): its DETAIL without MAIN is handled by the synthetic MAIN of D-35.2.
 func legacySkipped(k snapKey) bool {
-	return k.division == "JAKARTA" && k.yymm < "202601"
+	return k.division == DivJakarta && k.yymm < "202601"
 }
 
 // noSnapshotOK reports D-35.3 periods that never had an attendance recap (201712-202003): loaded without a snapshot.
@@ -141,7 +141,7 @@ func RunSalaryLegacy(ctx context.Context, db *sql.DB, src Source, o SalaryLegacy
 	if err != nil {
 		return reps, err
 	}
-	dix, err := bindCols(dt, []string{"PD_YYMM", "PD_NIK", "PD_TYPE", "PD_NO", "PD_DIVISION"})
+	dix, err := bindCols(dt, []string{colPdYymm, "PD_NIK", "PD_TYPE", "PD_NO", "PD_DIVISION"})
 	if err != nil {
 		return reps, err
 	}
@@ -169,11 +169,11 @@ func RunSalaryLegacy(ctx context.Context, db *sql.DB, src Source, o SalaryLegacy
 		g.heads = append(g.heads, r)
 	}
 	for i, r := range dt.Rows {
-		if exc := badKey(r, dix, "PD_YYMM", "PD_DIVISION"); exc != "" {
+		if exc := badKey(r, dix, colPdYymm, "PD_DIVISION"); exc != "" {
 			repD.Exceptions = append(repD.Exceptions, fmt.Sprintf("%s baris %d: %s", dt.Name, i+2, exc))
 			continue
 		}
-		k := snapKey{r[dix["PD_YYMM"]], r[dix["PD_DIVISION"]]}
+		k := snapKey{r[dix[colPdYymm]], r[dix["PD_DIVISION"]]}
 		if legacySkipped(k) {
 			repD.SkippedRows++
 			skipNote(&repD, dt.Name, k)
@@ -247,7 +247,7 @@ func badKey(r []string, ix map[string]int, yymmCol, divCol string) string {
 	if exc := badYYMM(r, ix, []string{yymmCol}); exc != "" {
 		return exc
 	}
-	if d := r[ix[divCol]]; d != "SOLO" && d != "JAKARTA" {
+	if d := r[ix[divCol]]; d != DivSolo && d != DivJakarta {
 		return "division tidak dikenal: " + strconv.Quote(d)
 	}
 	return ""
@@ -517,11 +517,11 @@ func (l *lazyEmp) basicPay(nik, division string, out map[string]string) {
 	if l.ce == nil {
 		return
 	}
-	ix, err := bindCols(l.ce, []string{"MPCE_NIK", "MPCE_TYPE", "MPCE_ID", "MPCE_AMOUNT"})
+	ix, err := bindCols(l.ce, []string{colMpceNIK, colMpceType, colMpceID, colMpceAmount})
 	if err != nil {
 		return
 	}
-	ni, ti, ii, ai := ix["MPCE_NIK"], ix["MPCE_TYPE"], ix["MPCE_ID"], ix["MPCE_AMOUNT"]
+	ni, ti, ii, ai := ix[colMpceNIK], ix[colMpceType], ix[colMpceID], ix[colMpceAmount]
 	di, derr := l.ce.Col("MPCE_DIVISION")
 	if derr != nil {
 		di = -1

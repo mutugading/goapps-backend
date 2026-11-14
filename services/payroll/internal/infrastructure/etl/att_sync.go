@@ -70,32 +70,33 @@ type attTable struct {
 }
 
 func rekapTable(name, source string) attTable {
-	cols := []string{"psar_company_id", "psar_yymm", "psar_nik", "psar_division", "psar_nama"}
+	cols := make([]string, 0, 5+len(RekapNumCols)+2)
+	cols = append(cols, colPsarCompany, colPsarYymm, colPsarNIK, colPsarDivision, "psar_nama")
 	for _, c := range RekapNumCols {
 		cols = append(cols, "psar_"+c)
 	}
 	cols = append(cols, "psar_row_hash", "psar_batch_id")
 	return attTable{name: name, source: source, cols: cols,
-		pk:    []string{"psar_company_id", "psar_yymm", "psar_nik", "psar_division"},
-		match: []string{"psar_nik"}, changed: "t.psar_row_hash <> EXCLUDED.psar_row_hash",
-		sumExpr: "psar_row_hash", sumOrder: "psar_nik", company: "psar_company_id", division: "psar_division", yymm: "psar_yymm"}
+		pk:    []string{colPsarCompany, colPsarYymm, colPsarNIK, colPsarDivision},
+		match: []string{colPsarNIK}, changed: "t.psar_row_hash <> EXCLUDED.psar_row_hash",
+		sumExpr: "psar_row_hash", sumOrder: colPsarNIK, company: colPsarCompany, division: colPsarDivision, yymm: colPsarYymm}
 }
 
 var (
 	tblRekap = rekapTable("pyr_stg_att_rekap_hm", "MGTHRIS.VIEW_ATT_REKAP_HM")
 	tblAdd   = rekapTable("pyr_stg_att_rekap_add", "MGTDAT.MGT_PAYROLL_ATT_REKAP_ADD")
 	tblDaily = attTable{name: "pyr_stg_att_daily", source: "MGTHRIS.HM_ATT_DAILY",
-		cols: []string{"psad_company_id", "psad_work_date", "psad_nik", "psad_division", "psad_schedule_code",
+		cols: []string{colPsadCompany, colPsadWorkDate, colPsadNIK, colPsadDivision, "psad_schedule_code",
 			"psad_check_in", "psad_check_out", "psad_work_hours", "psad_sch_type", "psad_ot_inwork", "psad_row_hash", "psad_batch_id"},
-		pk:    []string{"psad_company_id", "psad_work_date", "psad_nik", "psad_division"},
-		match: []string{"psad_work_date", "psad_nik"}, changed: "t.psad_row_hash <> EXCLUDED.psad_row_hash",
-		sumExpr: "psad_row_hash", sumOrder: "psad_nik, psad_work_date", company: "psad_company_id", division: "psad_division", date: "psad_work_date"}
+		pk:    []string{colPsadCompany, colPsadWorkDate, colPsadNIK, colPsadDivision},
+		match: []string{colPsadWorkDate, colPsadNIK}, changed: "t.psad_row_hash <> EXCLUDED.psad_row_hash",
+		sumExpr: "psad_row_hash", sumOrder: "psad_nik, psad_work_date", company: colPsadCompany, division: colPsadDivision, date: colPsadWorkDate}
 	tblSch = attTable{name: "pyr_stg_sch_rekap", source: "MGTDAT.MGT_PAYROLL_SCH_REKAP",
-		cols:  []string{"pssr_company_id", "pssr_yymm", "pssr_nik", "pssr_schedule", "pssr_division", "pssr_no_sch", "pssr_batch_id"},
-		pk:    []string{"pssr_company_id", "pssr_yymm", "pssr_nik", "pssr_schedule", "pssr_division"},
-		match: []string{"pssr_nik", "pssr_schedule"}, changed: "t.pssr_no_sch IS DISTINCT FROM EXCLUDED.pssr_no_sch",
+		cols:  []string{colPssrCompany, colPssrYymm, colPssrNIK, colPssrSchedule, colPssrDivision, "pssr_no_sch", "pssr_batch_id"},
+		pk:    []string{colPssrCompany, colPssrYymm, colPssrNIK, colPssrSchedule, colPssrDivision},
+		match: []string{colPssrNIK, colPssrSchedule}, changed: "t.pssr_no_sch IS DISTINCT FROM EXCLUDED.pssr_no_sch",
 		sumExpr: "pssr_nik || ':' || pssr_schedule || '=' || coalesce(pssr_no_sch::text, '')", sumOrder: "pssr_nik, pssr_schedule",
-		company: "pssr_company_id", division: "pssr_division", yymm: "pssr_yymm"}
+		company: colPssrCompany, division: colPssrDivision, yymm: colPssrYymm}
 )
 
 // attPull is the mapped reader output: COPY rows without company/batch id.
@@ -333,8 +334,10 @@ func mapRekap(rows []RekapRow, yymm int, div string, add bool) attPull {
 			p.rejected = append(p.rejected, r.NIK)
 			continue
 		}
-		cells := []string{fmt.Sprint(r.Yymm), r.NIK, r.Division, r.Nama}
-		hashed := []string{r.NIK, r.Nama}
+		cells := make([]string, 0, 4+len(RekapNumCols)+1)
+		cells = append(cells, fmt.Sprint(r.Yymm), r.NIK, r.Division, r.Nama)
+		hashed := make([]string, 0, 2+len(RekapNumCols))
+		hashed = append(hashed, r.NIK, r.Nama)
 		for _, c := range RekapNumCols { // add tables keep the unused tail NULL (S3 only has day_work..shift)
 			v := sqlNull
 			if inCols(cols, c) {
@@ -392,8 +395,9 @@ func mapDaily(rows []DailyRow, start, end time.Time, div string) attPull {
 			p.rejected = append(p.rejected, r.NIK)
 			continue
 		}
-		cells := []string{d.Format("2006-01-02"), r.NIK, r.Division, r.ScheduleCode, tm(r.CheckIn), tm(r.CheckOut), nd(r.WorkHours),
-			nullStr(r.SchType), nullStr(r.OtInwork)}
+		cells := make([]string, 0, 10)
+		cells = append(cells, d.Format("2006-01-02"), r.NIK, r.Division, r.ScheduleCode, tm(r.CheckIn), tm(r.CheckOut), nd(r.WorkHours),
+			nullStr(r.SchType), nullStr(r.OtInwork))
 		p.rows = append(p.rows, append(cells, hashCells(cells)))
 	}
 	return p
@@ -418,13 +422,13 @@ func copyData(tb attTable, company int16, batch int64, p attPull) (*bytes.Buffer
 			return nil, fmt.Errorf("baris ganda di sumber: %s", strings.ReplaceAll(k, "\x1f", "/"))
 		}
 		seen[k] = true
-		buf.WriteString(fmt.Sprint(company))
+		fmt.Fprint(&buf, company)
 		for _, c := range r {
 			buf.WriteByte('\t')
 			buf.WriteString(copyEscape(c))
 		}
 		buf.WriteByte('\t')
-		buf.WriteString(fmt.Sprint(batch))
+		fmt.Fprint(&buf, batch)
 		buf.WriteByte('\n')
 	}
 	return &buf, nil
@@ -591,3 +595,23 @@ func lockAndCheckPeriod(ctx context.Context, tx pgx.Tx, q AttSyncQuery, div stri
 	}
 	return nil
 }
+
+// Staging company-id columns repeated in the sync table definitions.
+const (
+	colPsarCompany = "psar_company_id"
+	colPsadCompany = "psad_company_id"
+	colPssrCompany = "pssr_company_id"
+
+	colPsarDivision = "psar_division"
+	colPsadDivision = "psad_division"
+	colPssrDivision = "pssr_division"
+
+	colPsarYymm     = "psar_yymm"
+	colPssrYymm     = "pssr_yymm"
+	colPsadWorkDate = "psad_work_date"
+	colPssrSchedule = "pssr_schedule"
+
+	colPsarNIK = "psar_nik"
+	colPsadNIK = "psad_nik"
+	colPssrNIK = "pssr_nik"
+)

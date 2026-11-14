@@ -270,7 +270,8 @@ FROM (SELECT psb_source, coalesce(max(psb_id) FILTER (WHERE psb_status='OK'), 0)
 // recapJSON renders a staging recap row as the LEGACY pasr_data object: <prefix><COL> keys, numbers without trailing
 // zeros (staging numeric(6,2) 20.00 → 20, like the Oracle spool), NULL stays JSON null.
 func recapJSON(prefix string, cols []string) string {
-	parts := []string{"'" + prefix + "NAMA', psar_nama"}
+	parts := make([]string, 0, 1+len(cols))
+	parts = append(parts, "'"+prefix+"NAMA', psar_nama")
 	for _, c := range cols {
 		parts = append(parts, "'"+prefix+strings.ToUpper(c)+"', trim_scale(psar_"+c+")")
 	}

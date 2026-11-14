@@ -217,13 +217,13 @@ func canon(w canonWriter, v reflect.Value) {
 		return
 	}
 	if v.CanInterface() {
-		if s, ok := v.Interface().(fmt.Stringer); ok && v.Kind() != reflect.Ptr && v.Kind() != reflect.Interface {
+		if s, ok := v.Interface().(fmt.Stringer); ok && v.Kind() != reflect.Pointer && v.Kind() != reflect.Interface {
 			w.printf("%s;", s.String())
 			return
 		}
 	}
 	switch v.Kind() {
-	case reflect.Ptr, reflect.Interface:
+	case reflect.Pointer, reflect.Interface:
 		if v.IsNil() {
 			w.str("nil;")
 			return

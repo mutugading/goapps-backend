@@ -93,7 +93,7 @@ func writeReport(rep recon.DiffReport, path string, stdout io.Writer) error {
 		_, err = stdout.Write(b)
 		return err
 	}
-	return os.WriteFile(path, b, 0o600)
+	return os.WriteFile(path, b, 0o600) //nolint:gosec // path is an operator flag
 }
 
 func writeXLSXFile(rep recon.DiffReport, path string) error {

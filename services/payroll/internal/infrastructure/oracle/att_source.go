@@ -150,7 +150,8 @@ func scanRekap(sc scanner, cols []string) (etl.RekapRow, error) {
 		nik, nama, dv sql.NullString
 	)
 	nums := make([]sql.NullString, len(cols))
-	dest := []any{&yymm, &nik, &nama, &dv}
+	dest := make([]any, 0, 4+len(nums))
+	dest = append(dest, &yymm, &nik, &nama, &dv)
 	for i := range nums {
 		dest = append(dest, &nums[i])
 	}

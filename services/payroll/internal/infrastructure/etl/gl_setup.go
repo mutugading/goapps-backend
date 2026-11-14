@@ -52,7 +52,7 @@ type glRow struct {
 // SALARY001 subquery does not filter the Employee Balance row on division, so the marker applies to both divisions.
 type glBalanceKey struct{ journal, main string }
 
-var glCostGroups = map[string]string{"MGT": "MGT", "MB": "MB", "CONTRACT": "CONTRACT"}
+var glCostGroups = map[string]string{costGroupMGT: costGroupMGT, "MB": "MB", costGroupContract: costGroupContract}
 
 // glJournalType maps MPS_TYPE (GAJI/THR/Bonus) to pgs_journal_type; "" = unknown.
 func glJournalType(s string) string {
@@ -149,14 +149,14 @@ var glDeptGroups = []glDeptGroup{{DivSolo, "Driver", "HRMC", "Driver Contract"}}
 // glGroupMap is the legacy Level_Status CASE (SALARY001) as level → gl_group rows per division. The department
 // dependent case (Driver in HRMC) is seeded separately from glDeptGroups.
 func glGroupMap() map[string]map[string]string {
-	solo := map[string]string{"Executive": "Executive"}
+	solo := map[string]string{levelExecutive: levelExecutive}
 	jkt := map[string]string{
-		"Staff HO": "Staff HO", "Office Boy": "Staff HO", "Driver HO": "Driver HO",
-		"Staff Bandung": "Staff Bandung", "OB Bandung": "Staff Bandung", "Driver Bandung": "Staff Bandung",
+		levelStaffHO: levelStaffHO, "Office Boy": levelStaffHO, "Driver HO": "Driver HO",
+		levelStaffBandung: levelStaffBandung, "OB Bandung": levelStaffBandung, "Driver Bandung": levelStaffBandung,
 		"Solo Asmen": "Solo Asmen",
 	}
 	for _, r := range LevelRules() {
-		if _, isJkt := jkt[r.Level]; !isJkt && r.Level != "Executive" {
+		if _, isJkt := jkt[r.Level]; !isJkt && r.Level != levelExecutive {
 			solo[r.Level] = "Operator"
 		}
 	}

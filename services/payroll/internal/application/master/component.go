@@ -156,7 +156,7 @@ func (s *Service) CreateComponent(ctx context.Context, c component.Component, ip
 		if out, e = s.comp.Create(ctx, tx, c); e != nil {
 			return toAppErr(e, "komponen")
 		}
-		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: out.CompanyID, Action: "CREATE", Entity: "pyr_component",
+		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: out.CompanyID, Action: actCreate, Entity: entComponent,
 			EntityKey: strconv.FormatInt(out.Sysid, 10), After: out, IP: ip})
 	})
 	return out, err
@@ -236,7 +236,7 @@ func (s *Service) UpdateComponent(ctx context.Context, c component.Component, if
 		if out, e = s.comp.Update(ctx, tx, c, ifMatch); e != nil {
 			return toAppErr(e, "komponen")
 		}
-		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: out.CompanyID, Action: "UPDATE", Entity: "pyr_component",
+		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: out.CompanyID, Action: actUpdate, Entity: entComponent,
 			EntityKey: strconv.FormatInt(out.Sysid, 10), Before: before, After: out, IP: ip})
 	})
 	return out, err
@@ -261,7 +261,7 @@ func (s *Service) RetireComponent(ctx context.Context, sysid int64, ifMatch int,
 		if out, e = s.comp.SetStatus(ctx, tx, sysid, component.StatusRetired, ifMatch); e != nil {
 			return toAppErr(e, "komponen")
 		}
-		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: out.CompanyID, Action: "RETIRE", Entity: "pyr_component",
+		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: out.CompanyID, Action: "RETIRE", Entity: entComponent,
 			EntityKey: strconv.FormatInt(out.Sysid, 10), Before: before, After: out, IP: ip})
 	})
 	return out, err
@@ -349,7 +349,7 @@ func (s *Service) PutTemplate(ctx context.Context, level string, items []compone
 			return e
 		}
 		for co := range companies {
-			if e = s.audit.Write(ctx, tx, audit.Entry{CompanyID: co, Action: "UPDATE", Entity: "pyr_component_template",
+			if e = s.audit.Write(ctx, tx, audit.Entry{CompanyID: co, Action: actUpdate, Entity: "pyr_component_template",
 				EntityKey: level, Before: before, After: out, IP: ip}); e != nil {
 				return e
 			}

@@ -79,7 +79,7 @@ func (c *failCollector) get(k failKey) *failVal {
 }
 
 func (c *failCollector) loadAmounts(ce *Table) error {
-	ci, err := bindCols(ce, []string{"MPCE_NIK", "MPCE_TYPE", "MPCE_ID", "MPCE_AMOUNT", "MPCE_DIVISION"})
+	ci, err := bindCols(ce, []string{colMpceNIK, colMpceType, colMpceID, colMpceAmount, "MPCE_DIVISION"})
 	if err != nil {
 		return err
 	}
@@ -90,14 +90,14 @@ func (c *failCollector) loadAmounts(ce *Table) error {
 		}
 	}
 	for _, r := range ce.Rows {
-		id, aerr := strconv.Atoi(r[ci["MPCE_ID"]])
-		if aerr != nil || !strings.EqualFold(r[ci["MPCE_TYPE"]], "Tunjangan") {
+		id, aerr := strconv.Atoi(r[ci[colMpceID]])
+		if aerr != nil || !strings.EqualFold(r[ci[colMpceType]], "Tunjangan") {
 			continue
 		}
-		k := failKey{"", r[ci["MPCE_DIVISION"]], r[ci["MPCE_NIK"]]}
+		k := failKey{"", r[ci["MPCE_DIVISION"]], r[ci[colMpceNIK]]}
 		switch {
 		case id == legacyBeras:
-			c.amounts[k] = r[ci["MPCE_AMOUNT"]]
+			c.amounts[k] = r[ci[colMpceAmount]]
 		case id == legacyPremiHadir && frzIdx >= 0:
 			// empty = 2, as LoadEmployeeComponents; several T40 rows for one nik: any frz=2 row counts.
 			if frz := strings.TrimSpace(r[frzIdx]); frz == "2" || frz == "" {
@@ -131,16 +131,16 @@ func (c *failCollector) markMissingPremi(mn *Table, open map[string]bool) error 
 }
 
 func (c *failCollector) scanDetail(dt *Table) error {
-	di, err := bindCols(dt, []string{"PD_YYMM", "PD_NIK", "PD_NO", "PD_TYPE", "PD_AMOUNT", "PD_STATUS", "PD_DIVISION"})
+	di, err := bindCols(dt, []string{colPdYymm, "PD_NIK", "PD_NO", "PD_TYPE", "PD_AMOUNT", "PD_STATUS", "PD_DIVISION"})
 	if err != nil {
 		return err
 	}
 	for _, r := range dt.Rows {
 		id, aerr := strconv.Atoi(r[di["PD_NO"]])
-		if strings.ToLower(r[di["PD_TYPE"]]) != typeTunjangan || aerr != nil || badYYMM(r, di, []string{"PD_YYMM"}) != "" {
+		if strings.ToLower(r[di["PD_TYPE"]]) != typeTunjangan || aerr != nil || badYYMM(r, di, []string{colPdYymm}) != "" {
 			continue
 		}
-		k := failKey{r[di["PD_YYMM"]], r[di["PD_DIVISION"]], r[di["PD_NIK"]]}
+		k := failKey{r[di[colPdYymm]], r[di["PD_DIVISION"]], r[di["PD_NIK"]]}
 		amt := strings.TrimSpace(r[di["PD_AMOUNT"]])
 		switch id {
 		case legacyPremiHadir:

@@ -125,14 +125,16 @@ func nz(v decimal.Decimal) any {
 
 func (s *sheetWriter) detail(d RunData) {
 	s.start(SheetDetail)
-	hdr := []any{"NIK", "Nama", "Dept"}
+	hdr := make([]any, 0, 3+len(d.Comps)+4)
+	hdr = append(hdr, hdrNIK, hdrNama, hdrDept)
 	for _, c := range d.Comps {
 		hdr = append(hdr, c.Key()+" "+c.Name)
 	}
 	hdr = append(hdr, "Tot Tunjangan", "Tot Potongan", "Rounding", "Net Pay")
 	s.put(hdr...)
 	for _, e := range d.Emps {
-		row := []any{e.NIK, e.Nama, e.Dept}
+		row := make([]any, 0, 3+len(d.Comps)+4)
+		row = append(row, e.NIK, e.Nama, e.Dept)
 		for _, c := range d.Comps {
 			row = append(row, nz(e.Amounts[c.Key()]))
 		}
@@ -144,7 +146,7 @@ func (s *sheetWriter) detail(d RunData) {
 func (s *sheetWriter) summary(d RunData) {
 	sum := Summarize(d)
 	s.start(SheetSummary)
-	s.put("Komponen", "Nama", "Jumlah NIK", "Total")
+	s.put("Komponen", hdrNama, "Jumlah NIK", "Total")
 	for _, c := range d.Comps {
 		s.put(c.Key(), c.Name, sum.CountPerComp[c.Key()], sum.PerComp[c.Key()])
 	}

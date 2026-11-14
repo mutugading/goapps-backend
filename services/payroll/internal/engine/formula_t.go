@@ -411,7 +411,7 @@ func tFamilySpec(id int) (formulaSpec, bool) {
 	case id == 301:
 		return formulaSpec{Code: FormulaNotWorking, Params: Params{paramSchedule: "NWS"}}, true
 	case familyID(id, 401, 455):
-		return formulaSpec{Code: FormulaSakit, Params: Params{paramCol: "sakit_75", paramPct: "0.75"}}, true
+		return formulaSpec{Code: FormulaSakit, Params: Params{paramCol: "sakit_75", paramPct: pctSeventyFive}}, true
 	case familyID(id, 411, 456):
 		return formulaSpec{Code: FormulaSakit, Params: Params{paramCol: "sakit_50", paramPct: "0.5"}}, true
 	case familyID(id, 421, 457):
@@ -428,3 +428,6 @@ func isAdditionID(id int) bool {
 	}
 	return false
 }
+
+// pctSeventyFive is the 75% rate literal shared by the formula tables.
+const pctSeventyFive = "0.75"

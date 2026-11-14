@@ -40,10 +40,10 @@ var ruleConstants = []struct {
 	value         string
 }{
 	{"DAYS_MONTH", "", "30"}, {"HOURS_MONTH", "", "173"}, {"BERAS_DAYS", "", "25"},
-	{"KESMIN", "JAKARTA", "5729876"}, {"KESMAX", "JAKARTA", "12000000"}, {"NAKMIN", "JAKARTA", "5729876"},
-	{"PENMIN", "JAKARTA", "5729876"}, {"PENMAX", "JAKARTA", "11086300"},
-	{"KESMIN", "SOLO", "2592154"}, {"KESMAX", "SOLO", "12000000"}, {"NAKMIN", "SOLO", "2592154"},
-	{"PENMIN", "SOLO", "2592154"}, {"PENMAX", "SOLO", "11086300"},
+	{"KESMIN", DivJakarta, "5729876"}, {"KESMAX", DivJakarta, "12000000"}, {"NAKMIN", DivJakarta, "5729876"},
+	{"PENMIN", DivJakarta, "5729876"}, {"PENMAX", DivJakarta, "11086300"},
+	{"KESMIN", DivSolo, "2592154"}, {"KESMAX", DivSolo, "12000000"}, {"NAKMIN", DivSolo, "2592154"},
+	{"PENMIN", DivSolo, "2592154"}, {"PENMAX", DivSolo, "11086300"},
 }
 
 // reqDate parses a mandatory date cell with the shared parseDate (employee.go); empty is an error.

@@ -24,7 +24,7 @@ type EmployeeOptions struct {
 	ExpectCompE int      // 0 = tidak dicek; produksi 117.827
 }
 
-var defaultDivisions = []string{"SOLO", "JAKARTA"}
+var defaultDivisions = []string{DivSolo, DivJakarta}
 
 // parseDate accepts ISO (2006-01-02, optionally with time) and Oracle DD-MON-YY(YY); "" stays "" (NULL).
 func parseDate(s string) (string, error) {
@@ -269,7 +269,7 @@ func norm(s string) string {
 // Rows whose employee was not loaded or whose (type,id) has no sysid map are reported as exceptions.
 func LoadEmployeeComponents(ctx context.Context, tx *sql.Tx, src *Table, division string, emps map[EmpKey]bool, o EmployeeOptions) (TableReport, error) {
 	rep := TableReport{Table: fmt.Sprintf("%s[%s]", TableEmployeeComponent, division), SrcRows: len(src.Rows), Checksum: src.Checksum()}
-	idx, err := bindCols(src, []string{"MPCE_NIK", "MPCE_TYPE", "MPCE_ID", "MPCE_NAME", "MPCE_STS", "MPCE_TAX", "MPCE_AMOUNT",
+	idx, err := bindCols(src, []string{colMpceNIK, colMpceType, colMpceID, "MPCE_NAME", "MPCE_STS", "MPCE_TAX", colMpceAmount,
 		"MPCE_FRZ_FLAG", "MPCE_LEVEL", "MPCE_TAX_PAID_COMPANY"})
 	if err != nil {
 		return rep, err
@@ -290,13 +290,13 @@ func LoadEmployeeComponents(ctx context.Context, tx *sql.Tx, src *Table, divisio
 
 	for i, r := range src.Rows {
 		c := func(n string) string { return r[idx[n]] }
-		id, err := strconv.Atoi(c("MPCE_ID"))
+		id, err := strconv.Atoi(c(colMpceID))
 		if err != nil {
-			return rep, fmt.Errorf("%s baris %d: MPCE_ID %q", src.Name, i+2, c("MPCE_ID"))
+			return rep, fmt.Errorf("%s baris %d: MPCE_ID %q", src.Name, i+2, c(colMpceID))
 		}
-		typ := compType(c("MPCE_TYPE"))
-		where := fmt.Sprintf("%s/%s %s/%d (baris %d)", c("MPCE_NIK"), division, typ, id, i+2)
-		if !emps[EmpKey{c("MPCE_NIK"), division}] {
+		typ := compType(c(colMpceType))
+		where := fmt.Sprintf("%s/%s %s/%d (baris %d)", c(colMpceNIK), division, typ, id, i+2)
+		if !emps[EmpKey{c(colMpceNIK), division}] {
 			rep.Exceptions = append(rep.Exceptions, where+": karyawan tidak ada di pyr_employee")
 			continue
 		}
@@ -309,8 +309,8 @@ func LoadEmployeeComponents(ctx context.Context, tx *sql.Tx, src *Table, divisio
 		if frz == "" {
 			frz = "2"
 		}
-		if _, err = stmt.ExecContext(ctx, o.CompanyID, c("MPCE_NIK"), division, sysid, typ, id, nullable(c("MPCE_NAME")),
-			nullable(c("MPCE_STS")), nullable(c("MPCE_TAX")), nullable(c("MPCE_AMOUNT")), frz, nullable(c("MPCE_TAX_PAID_COMPANY")),
+		if _, err = stmt.ExecContext(ctx, o.CompanyID, c(colMpceNIK), division, sysid, typ, id, nullable(c("MPCE_NAME")),
+			nullable(c("MPCE_STS")), nullable(c("MPCE_TAX")), nullable(c(colMpceAmount)), frz, nullable(c("MPCE_TAX_PAID_COMPANY")),
 			attachmentSource(tmpl, sysid, c)); err != nil {
 			return rep, fmt.Errorf("%s: %w", where, err)
 		}
@@ -331,7 +331,7 @@ ON CONFLICT (pec_company_id, pec_nik, pec_division, pec_component_sysid) DO UPDA
 // attachmentSource labels a row TEMPLATE when it equals its level template, else MANUAL (D-22).
 func attachmentSource(tmpl map[tmplKey]tmplVal, sysid int64, c func(string) string) string {
 	t, ok := tmpl[tmplKey{c("MPCE_LEVEL"), sysid}]
-	if ok && t.sts == c("MPCE_STS") && t.tax == c("MPCE_TAX") && t.amount == norm(c("MPCE_AMOUNT")) && t.paid == c("MPCE_TAX_PAID_COMPANY") {
+	if ok && t.sts == c("MPCE_STS") && t.tax == c("MPCE_TAX") && t.amount == norm(c(colMpceAmount)) && t.paid == c("MPCE_TAX_PAID_COMPANY") {
 		return LegacySource
 	}
 	return "MANUAL"
@@ -520,3 +520,12 @@ func hrisMap(t *Table) (map[string]string, []string, error) {
 	}
 	return m, warns, nil
 }
+
+// Legacy column names shared by the employee, attendance-fail and salary readers.
+const (
+	colMpceAmount = "MPCE_AMOUNT"
+	colMpceID     = "MPCE_ID"
+	colMpceNIK    = "MPCE_NIK"
+	colMpceType   = "MPCE_TYPE"
+	colPdYymm     = "PD_YYMM"
+)

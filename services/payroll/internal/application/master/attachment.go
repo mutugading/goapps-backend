@@ -21,7 +21,7 @@ func (s *Service) WithAttachments(r component.AttachmentRepository) *Service {
 }
 
 // errLevelEmpty means a level has neither template rows nor a level rule.
-var errLevelEmpty = apperr.New(apperr.CodeValidation, "level tidak punya template maupun aturan", map[string]string{"field": "new_level"})
+var errLevelEmpty = apperr.New(apperr.CodeValidation, "level tidak punya template maupun aturan", map[string]string{fieldKey: "new_level"})
 
 // LevelChange is the diff of a level-change preview or apply.
 type LevelChange struct {
@@ -130,7 +130,7 @@ func (s *Service) PutEmployeeComponents(ctx context.Context, nik string, company
 		if out, e2 = s.att.List(ctx, tx, k); e2 != nil {
 			return e2
 		}
-		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: e.CompanyID, Division: e.Division, Action: "UPDATE",
+		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: e.CompanyID, Division: e.Division, Action: actUpdate,
 			Entity: "pyr_employee_component", EntityKey: strconv.FormatInt(e.ID, 10), Before: before, After: out, IP: ip})
 	})
 	return empID, out, err
@@ -342,7 +342,7 @@ func (s *Service) ApplyLevelChange(ctx context.Context, nik string, companyID in
 		}
 		lc = LevelChange{CurrentLevel: e.Level, NewLevel: newLevel, Changes: p.Changes, SkippedManual: p.SkippedManual}
 		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: e.CompanyID, Division: e.Division, Action: "LEVEL_CHANGE",
-			Entity: "pyr_employee", EntityKey: strconv.FormatInt(e.ID, 10), Before: e.Level, After: lc, IP: cl.IP})
+			Entity: entEmployee, EntityKey: strconv.FormatInt(e.ID, 10), Before: e.Level, After: lc, IP: cl.IP})
 	})
 	return emp, lc, err
 }

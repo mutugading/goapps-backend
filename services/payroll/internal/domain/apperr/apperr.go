@@ -54,19 +54,19 @@ func New(code Code, msg string, details map[string]string) *Error {
 // PeriodClosed is returned when mutating a CLOSED period.
 func PeriodClosed(yymm int, division string) *Error {
 	return New(CodePeriodClosed, "periode sudah CLOSED",
-		map[string]string{"yymm": fmt.Sprint(yymm), "division": division})
+		map[string]string{"yymm": fmt.Sprint(yymm), keyDivision: division})
 }
 
 // PeriodApproved is returned when mutating an APPROVED period.
 func PeriodApproved(yymm int, division string) *Error {
 	return New(CodePeriodApproved, "periode sudah APPROVED",
-		map[string]string{"yymm": fmt.Sprint(yymm), "division": division})
+		map[string]string{"yymm": fmt.Sprint(yymm), keyDivision: division})
 }
 
 // DivisionForbidden is returned when the caller has no scope for company:division.
 func DivisionForbidden(companyID int16, division string) *Error {
 	return New(CodeDivisionForbidden, "divisi di luar scope pengguna",
-		map[string]string{"company_id": fmt.Sprint(companyID), "division": division})
+		map[string]string{"company_id": fmt.Sprint(companyID), keyDivision: division})
 }
 
 // HTTPStatus maps a code to the HTTP status of 07 (400, 403, 404, 409, 422).
@@ -90,3 +90,6 @@ func (c Code) HTTPStatus() int {
 		return 500
 	}
 }
+
+// keyDivision is the detail key for a division value.
+const keyDivision = "division"

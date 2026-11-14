@@ -59,7 +59,7 @@ func ETag(version int) string { return strconv.Itoa(version) }
 func ParseIfMatch(v string) (int, error) {
 	n, err := strconv.Atoi(strings.Trim(strings.TrimSpace(v), `"`))
 	if err != nil || n < 1 {
-		return 0, apperr.New(apperr.CodeValidation, "If-Match tidak valid", map[string]string{"field": "if_match"})
+		return 0, apperr.New(apperr.CodeValidation, "If-Match tidak valid", map[string]string{fieldKey: "if_match"})
 	}
 	return n, nil
 }
@@ -82,7 +82,7 @@ func toAppErr(err error, what string) error {
 }
 
 func validation(field, msg string) error {
-	return apperr.New(apperr.CodeValidation, msg, map[string]string{"field": field})
+	return apperr.New(apperr.CodeValidation, msg, map[string]string{fieldKey: field})
 }
 
 // inScope rejects a (company, division) pair outside the caller's scope (D-06).
@@ -153,7 +153,7 @@ func (s *Service) CreateCurrency(ctx context.Context, c domain.Currency, ip stri
 		if out, e = s.repo.CreateCurrency(ctx, tx, c); e != nil {
 			return toAppErr(e, "mata uang")
 		}
-		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: auditCo, Action: "CREATE", Entity: "pyr_currency", EntityKey: out.Code, After: out, IP: ip})
+		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: auditCo, Action: actCreate, Entity: "pyr_currency", EntityKey: out.Code, After: out, IP: ip})
 	})
 	return out, err
 }
@@ -185,7 +185,7 @@ func (s *Service) UpdateCurrency(ctx context.Context, c domain.Currency, ifMatch
 		if out, e = s.repo.UpdateCurrency(ctx, tx, c, ifMatch); e != nil {
 			return toAppErr(e, "mata uang")
 		}
-		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: auditCo, Action: "UPDATE", Entity: "pyr_currency", EntityKey: out.Code, Before: before, After: out, IP: ip})
+		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: auditCo, Action: actUpdate, Entity: "pyr_currency", EntityKey: out.Code, Before: before, After: out, IP: ip})
 	})
 	return out, err
 }
@@ -211,7 +211,7 @@ func (s *Service) CreateCompany(ctx context.Context, c domain.Company, npwp stri
 		}
 		// The new company is not yet in app.scopes, so RLS would reject an audit row under
 		// its own id; record it under the caller's first scoped company instead.
-		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: auditCo, Action: "CREATE", Entity: "pyr_company", EntityKey: out.Code, After: out, IP: cl.IP})
+		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: auditCo, Action: actCreate, Entity: "pyr_company", EntityKey: out.Code, After: out, IP: cl.IP})
 	})
 	return out, err
 }
@@ -258,7 +258,7 @@ func (s *Service) UpdateCompany(ctx context.Context, c domain.Company, npwp stri
 		if out, e = s.repo.UpdateCompany(ctx, tx, c, npwp, ifMatch, s.pii(cl)); e != nil {
 			return toAppErr(e, "company")
 		}
-		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: out.ID, Action: "UPDATE", Entity: "pyr_company", EntityKey: out.Code, Before: before, After: out, IP: cl.IP})
+		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: out.ID, Action: actUpdate, Entity: "pyr_company", EntityKey: out.Code, Before: before, After: out, IP: cl.IP})
 	})
 	return out, err
 }
@@ -275,7 +275,7 @@ func (s *Service) CreateDivision(ctx context.Context, d domain.Division, ip stri
 		if out, e = s.repo.CreateDivision(ctx, tx, d); e != nil {
 			return toAppErr(e, "divisi")
 		}
-		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: out.CompanyID, Action: "CREATE", Entity: "pyr_division_ref", EntityKey: out.Code, After: out, IP: ip}) // company-level: the new division is not yet in app.scopes (RLS WITH CHECK)
+		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: out.CompanyID, Action: actCreate, Entity: "pyr_division_ref", EntityKey: out.Code, After: out, IP: ip}) // company-level: the new division is not yet in app.scopes (RLS WITH CHECK)
 	})
 	return out, err
 }
@@ -309,7 +309,7 @@ func (s *Service) UpdateDivision(ctx context.Context, d domain.Division, ifMatch
 		if out, e = s.repo.UpdateDivision(ctx, tx, d, ifMatch); e != nil {
 			return toAppErr(e, "divisi")
 		}
-		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: out.CompanyID, Action: "UPDATE", Entity: "pyr_division_ref", EntityKey: out.Code, Before: before, After: out, IP: ip})
+		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: out.CompanyID, Action: actUpdate, Entity: "pyr_division_ref", EntityKey: out.Code, Before: before, After: out, IP: ip})
 	})
 	return out, err
 }
@@ -392,8 +392,8 @@ func (s *Service) CreateEmployee(ctx context.Context, e domain.Employee, sec Emp
 		if e2 = s.attachFromLevel(ctx, tx, out, actor); e2 != nil {
 			return e2
 		}
-		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: out.CompanyID, Division: out.Division, Action: "CREATE",
-			Entity: "pyr_employee", EntityKey: strconv.FormatInt(out.ID, 10), After: out, IP: cl.IP})
+		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: out.CompanyID, Division: out.Division, Action: actCreate,
+			Entity: entEmployee, EntityKey: strconv.FormatInt(out.ID, 10), After: out, IP: cl.IP})
 	})
 	return out, err
 }
@@ -473,8 +473,8 @@ func (s *Service) UpdateEmployee(ctx context.Context, id int64, e domain.Employe
 		if out, e2 = s.repo.UpdateEmployee(ctx, tx, id, e, sec.NPWP, sec.KTP, sec.BankAcnt, actor, ifMatch, s.pii(cl)); e2 != nil {
 			return toAppErr(e2, "karyawan")
 		}
-		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: out.CompanyID, Division: out.Division, Action: "UPDATE",
-			Entity: "pyr_employee", EntityKey: strconv.FormatInt(id, 10), Before: before, After: out, IP: cl.IP})
+		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: out.CompanyID, Division: out.Division, Action: actUpdate,
+			Entity: entEmployee, EntityKey: strconv.FormatInt(id, 10), Before: before, After: out, IP: cl.IP})
 	})
 	return out, err
 }
@@ -485,3 +485,12 @@ func actorOf(ctx context.Context) string {
 	}
 	return ""
 }
+
+// Audit action/entity names and the validation-detail key shared by the master services.
+const (
+	actCreate    = "CREATE"
+	actUpdate    = "UPDATE"
+	entEmployee  = "pyr_employee"
+	entComponent = "pyr_component"
+	fieldKey     = "field"
+)

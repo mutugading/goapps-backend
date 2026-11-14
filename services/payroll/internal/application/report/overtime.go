@@ -113,7 +113,8 @@ func (s *sheetWriter) overtime(d RecoData) {
 	s.put("Employee Overtime Report")
 	s.put("Processing Month " + fmt.Sprint(d.YYMM))
 	s.put()
-	h := []any{"No.", "NIK", "Nama", "Dept", "Rate / Jam"}
+	h := make([]any, 0, 5+2*len(otTypes)+2+len(otTypes)+1)
+	h = append(h, "No.", hdrNIK, hdrNama, hdrDept, "Rate / Jam")
 	for _, t := range otTypes {
 		h = append(h, "Jam Actual "+t.Label, "Jam Paid "+t.Label)
 	}
@@ -124,7 +125,8 @@ func (s *sheetWriter) overtime(d RecoData) {
 	h = append(h, "Total Rp")
 	s.put(h...)
 	for i, r := range d.Overtime {
-		v := []any{i + 1, r.NIK, r.Nama, optStr(r.Dept), r.Rate}
+		v := make([]any, 0, 5+2*len(otTypes)+2+len(otTypes)+1)
+		v = append(v, i+1, r.NIK, r.Nama, optStr(r.Dept), r.Rate)
 		for j := range otTypes {
 			v = append(v, nz(r.Actual[j]), nz(r.Paid[j]))
 		}

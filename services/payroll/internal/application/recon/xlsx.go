@@ -142,7 +142,8 @@ func (s *sheetWriter) summary(rep DiffReport) {
 	}
 	sort.Strings(comps)
 	for _, c := range comps {
-		row := []any{c}
+		row := make([]any, 0, 1+len(Categories)-1)
+		row = append(row, c)
 		for _, cat := range Categories[1:] {
 			row = append(row, sm.PerComponent[c][cat])
 		}

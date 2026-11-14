@@ -31,7 +31,7 @@ func (r RegRow) Total() decimal.Decimal {
 	return t
 }
 
-var regHeader = []any{"Processing Month", "NIK", "Nama", "Dept", "Grade", "Employee Type", "Date Of Join", "Tax Code", "Gaji Pokok",
+var regHeader = []any{"Processing Month", hdrNIK, hdrNama, hdrDept, "Grade", "Employee Type", "Date Of Join", "Tax Code", "Gaji Pokok",
 	"Tunjangan Jabatan", "Tunjangan Rumah", "Tunjangan Transport", "Tunjangan Kesejahteraan", "Tunjangan Khusus 1", "Total",
 	"OT In Work", "Shift Adjustment"}
 
@@ -84,3 +84,10 @@ func (s *sheetWriter) reg(d RecoData) {
 			r.Amt[0], r.Amt[1], r.Amt[2], r.Amt[3], r.Amt[4], r.Amt[5], r.Total(), r.Amt[6], r.Amt[7])
 	}
 }
+
+// Column headers shared by the report sheets.
+const (
+	hdrDept = "Dept"
+	hdrNIK  = "NIK"
+	hdrNama = "Nama"
+)

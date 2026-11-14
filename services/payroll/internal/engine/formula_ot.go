@@ -171,11 +171,11 @@ type inworkRule struct {
 // inworkRules returns the variants per formula: T6 knows 0.0877/0.075/0.9017, T36 only 0.0127.
 func inworkRules(code string) []inworkRule {
 	if code == FormulaOTInworkAdj {
-		return []inworkRule{{amount: "0.0127", hours: "0.75", weeks: 4, perFail: 4, maxFail: 4}}
+		return []inworkRule{{amount: "0.0127", hours: pctSeventyFive, weeks: 4, perFail: 4, maxFail: 4}}
 	}
 	return []inworkRule{
 		{amount: "0.0877", hours: "3.5", weeks: 1, perFail: 1, maxFail: 4},
-		{amount: "0.075", hours: "0.75", weeks: 4, perFail: 4, maxFail: 4},
+		{amount: "0.075", hours: pctSeventyFive, weeks: 4, perFail: 4, maxFail: 4},
 		{amount: "0.9017", hours: "6", weeks: 6, perFail: 1, maxFail: 26},
 	}
 }

@@ -18,7 +18,7 @@ type CostGroupOptions struct {
 	ExpectRows int
 }
 
-var validCostGroups = map[string]bool{"MGT": true, "MB": true, "CONTRACT": true}
+var validCostGroups = map[string]bool{costGroupMGT: true, "MB": true, costGroupContract: true}
 
 // RunCostGroup loads FM_DEPARTMENT.DEPT_FIELD_01 (MGT|MB|CONTRACT) into pyr_employee.pe_cost_group per employee dept
 // (pe_dept_id = DEPT_CODE) in ONE transaction. DEPT_FIELD_01 values outside the three groups and dept codes that
@@ -108,3 +108,12 @@ func parseCostGroups(t *Table, ix map[string]int, rep *TableReport) (map[string]
 	}
 	return groups, selected
 }
+
+// Cost-group and GL level names repeated across the ETL setup tables.
+const (
+	costGroupMGT      = "MGT"
+	costGroupContract = "CONTRACT"
+	levelExecutive    = "Executive"
+	levelStaffHO      = "Staff HO"
+	levelStaffBandung = "Staff Bandung"
+)

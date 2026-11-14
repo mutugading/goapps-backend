@@ -178,14 +178,14 @@ func BuildMessage(m Mail) ([]byte, error) {
 	h("Message-ID", m.MessageID)
 	h("MIME-Version", "1.0")
 	mixed := multipart.NewWriter(&b)
-	h("Content-Type", "multipart/mixed; boundary="+mixed.Boundary())
+	h(hdrContentType, "multipart/mixed; boundary="+mixed.Boundary())
 	b.WriteString("\r\n")
 
 	altBody, altBoundary, err := alternative(m)
 	if err != nil {
 		return nil, err
 	}
-	part, err := mixed.CreatePart(textproto.MIMEHeader{"Content-Type": {"multipart/alternative; boundary=" + altBoundary}})
+	part, err := mixed.CreatePart(textproto.MIMEHeader{hdrContentType: {"multipart/alternative; boundary=" + altBoundary}})
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +194,7 @@ func BuildMessage(m Mail) ([]byte, error) {
 	}
 	if len(m.Attach) > 0 {
 		ap, err := mixed.CreatePart(textproto.MIMEHeader{
-			"Content-Type":              {"application/pdf; name=\"" + m.AttachName + "\""},
+			hdrContentType:              {"application/pdf; name=\"" + m.AttachName + "\""},
 			"Content-Disposition":       {"attachment; filename=\"" + m.AttachName + "\""},
 			"Content-Transfer-Encoding": {"base64"},
 		})
@@ -222,7 +222,7 @@ func alternative(m Mail) (body []byte, boundary string, err error) {
 		if p.body == "" {
 			continue
 		}
-		pw, err := aw.CreatePart(textproto.MIMEHeader{"Content-Type": {p.ct + "; charset=utf-8"}, "Content-Transfer-Encoding": {"quoted-printable"}})
+		pw, err := aw.CreatePart(textproto.MIMEHeader{hdrContentType: {p.ct + "; charset=utf-8"}, "Content-Transfer-Encoding": {"quoted-printable"}})
 		if err != nil {
 			return nil, "", err
 		}
@@ -239,3 +239,6 @@ func alternative(m Mail) (body []byte, boundary string, err error) {
 	}
 	return alt.Bytes(), aw.Boundary(), nil
 }
+
+// hdrContentType is the MIME Content-Type header name.
+const hdrContentType = "Content-Type"

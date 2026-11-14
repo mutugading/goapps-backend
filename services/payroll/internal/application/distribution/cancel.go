@@ -42,7 +42,7 @@ pdb_finished_at=COALESCE(pdb_finished_at,$2) WHERE pdb_id=$1`, batchID, s.Now().
 			return fmt.Errorf("cancel batch: %w", err)
 		}
 		return s.auditChange(ctx, tx, q.CompanyID, q.Division, "DISTRIBUTION_CANCEL", batchID,
-			map[string]any{"status": status}, map[string]any{"status": StCancelled, "alasan": reason, "terkirim": sent, "tertunda": pending})
+			map[string]any{keyStatus: status}, map[string]any{keyStatus: StCancelled, "alasan": reason, "terkirim": sent, "tertunda": pending})
 	})
 }
 
@@ -74,7 +74,7 @@ RETURNING pdb_id, pdb_run_id`, q.CompanyID, q.Division, DocType, q.YYMM, s.Now()
 	var newest int64
 	for _, o := range olds {
 		if err := s.auditChange(ctx, tx, q.CompanyID, q.Division, "DISTRIBUTION_SUPERSEDE", o.id,
-			map[string]any{"run": o.run}, map[string]any{"status": StSuperseded, "run_aktif": activeRun}); err != nil {
+			map[string]any{"run": o.run}, map[string]any{keyStatus: StSuperseded, "run_aktif": activeRun}); err != nil {
 			return 0, err
 		}
 		newest = max(newest, o.id)
@@ -86,3 +86,6 @@ func (s *Service) auditChange(ctx context.Context, tx *sql.Tx, company int16, di
 	return s.Audit.Write(ctx, tx, audit.Entry{CompanyID: company, Division: division, Action: action,
 		Entity: auditEntity, EntityKey: fmt.Sprint(batchID), Before: before, After: after})
 }
+
+// keyStatus is the audit before/after map key for a distribution status.
+const keyStatus = "status"

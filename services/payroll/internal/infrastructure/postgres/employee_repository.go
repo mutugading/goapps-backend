@@ -134,7 +134,8 @@ func (MasterRepository) ResolveEmployeeIDs(ctx context.Context, tx *sql.Tx, nik 
 }
 
 // listEmployeesSQL is built only from the package-level column list; all values are bind parameters.
-var listEmployeesSQL = `SELECT ` + employeeCols + ` FROM payroll.pyr_employee
+var listEmployeesSQL = `SELECT ` + //nolint:gosec // employeeCols is a fixed package-level column list, no user input
+	employeeCols + ` FROM payroll.pyr_employee
 		WHERE pe_id > $3
 		  AND ($4::smallint = 0 OR pe_company_id = $4)
 		  AND ($5::text = '' OR pe_division = $5)
