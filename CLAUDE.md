@@ -159,6 +159,8 @@ goapps-backend/
 | Finance | 50051 | 8080 | 5434 | `finance_db` |
 | IAM | 50052 | 8081 | 5435 | `iam_db` |
 
+> Database ports above are the classic (legacy) defaults; with v2 env on (`make v2-env-on`) services use Postgres :5440 / PgBouncer :6440.
+
 Redis is shared on port 6379 (DB 0: app cache, DB 1: token blacklist).
 
 ---
@@ -206,6 +208,8 @@ make seed                          # Run data seeders
 
 Finance default DATABASE_URL: `postgres://finance:finance123@localhost:5434/finance_db?sslmode=disable`
 IAM default DATABASE_URL: `postgres://iam:iam123@localhost:5435/iam_db?sslmode=disable`
+
+> These are classic defaults. With v2 env on, `make migrate-up` targets :5440 as `<svc>_owner` (`DATABASE_URL` from `.env.local`); run `make v2-grants` after new tables.
 
 > Note (ADR 0001): these are legacy single-service dev DSNs. Staging/prod (VPS) use one DB per service with `<svc>_owner` / `<svc>_app` roles, never a superuser; the local stack mirroring the VPS is `docker-compose.v2.yaml` (`make v2-up`, env in `deploy/local-v2/env/<svc>.env`).
 
@@ -898,7 +902,7 @@ Full ADR: `docs/adr/0001-one-database-per-service.md` (this repo). Roles referen
 - **Extensions** (`pg_trgm`, `uuid-ossp`) are pre-created by the DBA scripts (`10-create-databases.sql`); `<svc>_owner` is not a superuser, so a migration may only `CREATE EXTENSION IF NOT EXISTS` an already-provisioned one. A new extension goes into the DBA script first.
 - **Migrations must NOT contain**: `CREATE/ALTER SCHEMA`, `SET search_path`, `OWNER TO`, `GRANT/REVOKE`, `ALTER DEFAULT PRIVILEGES`, `dblink`/FDW/`CREATE DATABASE`/`CREATE ROLE`, or references to other schemas.
 - **Lint**: `make migration-lint` (`scripts/migration-lint.sh`), enforced by CI `.github/workflows/migration-lint.yml`. Exceptions go in `scripts/migration-lint.allow`; every entry needs a `# reason`.
-- **Local stack (mirrors VPS)**: `docker-compose.v2.yaml` + `make v2-up / v2-migrate / v2-seed / v2-verify`; `make v2-env-on` / `v2-env-off` switches services via `services/<svc>/.env.local` (source `deploy/local-v2/env/<svc>.env`).
+- **Local stack (mirrors VPS)**: `docker-compose.v2.yaml` + `make v2-up / v2-migrate / v2-seed / v2-verify`; `make v2-env-on` / `v2-env-off` switches services via `services/<svc>/.env.local` (source `deploy/local-v2/env/<svc>.env`; re-run `v2-env-on` after changes). `make v2-sync` loads the sanitized staging snapshot (`docs/local-db-sync.md`). Credentials and daily workflow: `deploy/local-v2/README.md`.
 - **After migrations**: a new materialized view in finance -> re-run `25-finance-runtime.sql`; IAM columns added to restricted tables -> re-run `30-restricted-iam.sql`.
 - **Migrate** as `<svc>_owner` (direct) with `x-migrations-table=schema_migrations_<svc>`; run the service as `<svc>_app` via PgBouncer. Data from another service comes via gRPC, never SQL.
 

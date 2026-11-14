@@ -2,6 +2,8 @@
 
 Panduan lengkap untuk menjalankan seluruh backend microservices (IAM + Finance) di local development.
 
+> **Note (legacy):** the classic per-service setup below still works (`make v2-env-off`), but the recommended local path is now the v2 stack that mirrors staging/prod: see [`deploy/local-v2/README.md`](deploy/local-v2/README.md) and [`docs/local-db-sync.md`](docs/local-db-sync.md).
+
 ---
 
 ## Daftar Isi
@@ -162,7 +164,7 @@ make seed
 
 Seeder IAM akan membuat:
 - Default company, division, department, section
-- Admin user (`admin` / `admin123`)
+- Admin user (`admin` / `admin123`) (after `make v2-sync` the shared staging password applies instead, see `deploy/local-v2/README.md`)
 - Default roles & permissions
 - Menu structure
 - Role-menu assignments

@@ -339,6 +339,7 @@ docker compose -f deployments/docker-compose.yaml up -d postgres redis
 # 4. Run migrations
 export DATABASE_URL="postgres://finance:finance123@localhost:5434/finance_db?sslmode=disable"
 make finance-migrate
+# Note: classic (legacy) setup. Recommended local setup mirroring staging/prod: deploy/local-v2/README.md
 
 # 5. Run service
 make finance-run
@@ -659,6 +660,7 @@ docker ps | grep postgres
 
 # Test connection
 psql -h localhost -p 5434 -U finance -d finance_db
+# (classic DB; for the recommended v2 stack use port 5440, see deploy/local-v2/README.md)
 
 # Check logs
 docker logs <postgres-container-id>
