@@ -1,0 +1,8 @@
+# Konfigurasi actionlint (https://github.com/rhysd/actionlint)
+# Daftarkan label runner self-hosted yang dipakai workflow deploy supaya
+# `actionlint` tidak melaporkan "label ... is unknown".
+self-hosted-runner:
+  labels:
+    - staging
+    - production
+    - goapps-runner
