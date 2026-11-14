@@ -10,12 +10,13 @@
 Claude Code skills installed at user level (`~/.claude/skills/`). Invoke the matching skill automatically when the task fits; the user should not have to name it. **Missing skill → recommend installing it.** Other devs may not have these skills yet. At the start of a task, if a skill listed below is not in the session's skill list, do not silently skip it:
 1. Tell the user which skill is missing and why it helps this task (one line).
 2. Give the exact install command from "Setting up a new machine" below (public skills: `npx skills add <owner/repo@skill> -g -y`; they load on the next session start). If the skill is not in that list, run `find-skills` / `npx skills find <topic>` and recommend only well-known sources.
-3. Offer to run the install for them; run it only if they agree. Internal skills (`review-pr`, `triage-issue`, `feature-flow`, `backend`, `frontend`, `proto`, `infra`) can't be installed via npx — ask the user to copy them from a teammate's `~/.claude/skills/`.
+3. Offer to run the install for them; run it only if they agree. Internal skills (`review-pr`, `review-branch`, `triage-issue`, `feature-flow`, `backend`, `frontend`, `proto`, `infra`) can't be installed via npx — ask the user to copy them from a teammate's `~/.claude/skills/`.
 4. Meanwhile, continue the task using this CLAUDE.md as the baseline.
 
 | When | Skill |
 |------|-------|
 | Review a PR (any goapps repo, incl. paired cross-repo PRs) | `review-pr` — draft first in `../docs/pr-review-drafts/`, post only after user approval |
+| Large WIP branch or brand-new service (before/instead of a huge PR; resumable across sessions, incremental on new commits) | `review-branch` — `/review-branch <repo> <branch>`, ledger in `../docs/branch-reviews/`, human guide `~/.claude/skills/review-branch/README.md`; nothing sent/posted without approval |
 | Triage an issue / fill labels, assignee, project fields (Status, Prio, Size, Estimate, Iteration, Start, Due) | `triage-issue` — draft first, apply only after approval |
 | Non-trivial feature / bug / refactor end-to-end | `feature-flow` (resume-check first) |
 | Can't find a skill for a task | `find-skills` |
@@ -27,7 +28,7 @@ Claude Code skills installed at user level (`~/.claude/skills/`). Invoke the mat
 | Dockerfile | `multi-stage-dockerfile` |
 | Proto / gRPC contract touched | `protobuf`, `public-grpc-api-design`, team skill `proto` |
 
-Setting up a new machine (public skills; `review-pr`, `triage-issue`, `feature-flow` and the team skills `backend`/`frontend`/`proto`/`infra` are internal, so copy them from a teammate's `~/.claude/skills/`):
+Setting up a new machine (public skills; `review-pr`, `review-branch`, `triage-issue`, `feature-flow` and the team skills `backend`/`frontend`/`proto`/`infra` are internal, so copy them from a teammate's `~/.claude/skills/`):
 ```bash
 npx skills add samber/cc-skills-golang vercel-labs/skills@find-skills obra/superpowers@receiving-code-review obra/superpowers@requesting-code-review getsentry/skills@security-review getsentry/skills@gha-security-review trailofbits/skills@differential-review trailofbits/skills@supply-chain-risk-auditor github/awesome-copilot@github-actions-hardening github/awesome-copilot@multi-stage-dockerfile -g -y
 npx skills add supabase/agent-skills@supabase-postgres-best-practices bufbuild/claude-plugins@protobuf samber/developer-platform-skills@public-grpc-api-design -g -y
