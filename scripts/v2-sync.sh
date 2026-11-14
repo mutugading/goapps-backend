@@ -161,8 +161,10 @@ CDATA="$(docker exec "$CONTAINER" psql -X -U postgres -Atc 'SHOW data_directory'
 CFREE_KB=""
 if [ -n "$CDATA" ]; then CFREE_KB="$(docker exec "$CONTAINER" df -Pk "$CDATA" 2>/dev/null | awk 'NR==2{print $4}' || true)"; fi
 if [ -n "$CFREE_KB" ]; then
-  CNEED_KB=$((TOTAL_BYTES * 5 / 1024))
-  [ "$CFREE_KB" -ge "$CNEED_KB" ] || die "not enough disk inside $CONTAINER: free $((CFREE_KB / 1024)) MiB, need ~$((CNEED_KB / 1024)) MiB (5x snapshot). Colima: 'colima stop && colima start --disk <GB>'; Docker Desktop: Settings > Resources > Disk image size."
+  # measured 2026-11-14: slim 1.5 GB zstd dump -> ~17 GB restored (indexes included), i.e. ~12x; +5 GB headroom.
+  # The old databases stay until the swap commits, so this is on top of what is already used.
+  CNEED_KB=$((TOTAL_BYTES * 12 / 1024 + 5 * 1024 * 1024))
+  [ "$CFREE_KB" -ge "$CNEED_KB" ] || die "not enough disk inside $CONTAINER: free $((CFREE_KB / 1024)) MiB, need ~$((CNEED_KB / 1024)) MiB (12x snapshot + 5 GB). Colima: 'colima stop && colima start --disk <GB>' (grow only); Docker Desktop: Settings > Resources > Disk image size; or 'docker system prune' unused images."
 fi
 
 # ---------------------------------------------------------------- 3. download

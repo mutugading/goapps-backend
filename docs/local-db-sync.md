@@ -63,7 +63,7 @@ Timing: the download is bound by your link/VPN speed (slim is a fraction of full
 | `REFUSING ... not 'sanitized p9'` | Do NOT work around it. Tell the admin; the snapshot is unsafe |
 | not enough disk | Need ~3x the snapshot size free; use `slim`, free space, or set `DEVSNAP_CACHE` |
 | `pg_restore ... errors` | All-or-nothing: all three databases are restored as `*_refresh` first and swapped in one transaction, so on any error ALL local databases stay untouched. Check the message (version mismatch, disk) and re-run |
-| `not enough disk inside container` | Colima: `colima stop && colima start --disk <GB>`; Docker Desktop: Settings > Resources |
+| `not enough disk inside container` | A restore needs ~12x the compressed snapshot (slim 1.5 GB → ~17 GB) free inside Docker, on top of the current databases. Colima: `colima stop && colima start --disk 100` (can only grow); Docker Desktop: Settings > Resources > Disk image size; `docker system prune` frees unused images |
 | snapshot missing / rsync error | Snapshot is built Sunday ~09:30 WIB; during build or refresh it may be briefly unavailable, retry |
 | `v2-migrate` fails | Install `migrate` CLI; then run `make v2-migrate` manually |
 
