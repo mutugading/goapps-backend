@@ -69,6 +69,9 @@ COPY services/payroll/migrations/postgres/ /app/migrations/
 # emptyDir for its psql container (postgres image); psql is deliberately NOT installed in this runtime image.
 COPY services/payroll/deploy/grants.sql /app/deploy/grants.sql
 
+# Read-only post-deploy readiness check (T028t): run with psql from a postgres image, same pattern as grants.sql.
+COPY services/payroll/deploy/check_ready.sql /app/deploy/check_ready.sql
+
 # Set ownership. /out is where the CLIs write generated files (salary data: mount an emptyDir, never bake in).
 RUN mkdir -p /out && chown -R appuser:appgroup /app /out
 

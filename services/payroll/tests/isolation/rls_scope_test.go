@@ -40,7 +40,8 @@ var (
 	ownDB *sql.DB // payroll_migrator (role payroll_owner): fixtures only
 	etlDB *sql.DB // payroll_etl: staging writer
 
-	pgHost, pgPort string // container endpoint, for connections as other roles/DBs (I1–I5)
+	pgHost, pgPort string                        // container endpoint, for connections as other roles/DBs (I1–I5)
+	pgCtr          *tcpostgres.PostgresContainer // for psql-based checks (deploy/check_ready.sql)
 )
 
 func TestMain(m *testing.M) {
@@ -86,6 +87,7 @@ func setup() (func(), error) {
 		}
 	}
 
+	pgCtr = ctr
 	if err := runBootstrap(ctx, ctr); err != nil {
 		cleanup()
 		return nil, err

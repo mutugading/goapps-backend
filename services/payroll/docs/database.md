@@ -43,12 +43,24 @@ Job CLI (sync/recon/report/mailer) konek langsung ke `payroll_db` (bukan lewat P
 Dev lokal: service `payroll` di `goapps/docker-compose.yml` menjalankan langkah 2 dan 3 saat start; `make migrate-up`
 juga menjalankan `make grants`. Testcontainers (`tests/{e2e,etl,isolation}`) menjalankan bootstrap → migrasi → grants.
 
+4. **Setiap deploy, sesudah langkah 3 (read-only)**: `deploy/check_ready.sql` sebagai `payroll_ro` atau owner (image membawa
+   `/app/deploy/check_ready.sql`):
+   ```sh
+   psql "postgres://payroll_ro:...@<host>:5432/payroll_db?sslmode=require" -v ON_ERROR_STOP=1 \
+        -v expect_version=<migrasi terakhir di image> [-v expect_policies=<jumlah policy>] -f deploy/check_ready.sql | grep -v '^OK'
+   ```
+   Keluaran satu baris `OK|FAIL <cek> <detail>` per cek (versi `schema_migrations_payroll` + `dirty=false`, role, ACL
+   tabel/kolom/sequence/fungsi lewat `has_*_privilege`, tabel non-global ber-RLS + policy, `SECURITY DEFINER` ber-`search_path`),
+   tanpa nama/nominal (I25). psql keluar 0 walau ada FAIL: gagalkan langkah deploy kalau `grep -c '^FAIL'` > 0. Matriks hak
+   di berkas ini harus sejalan dengan `grants.sql`; ubah `grants.sql` = ubah `check_ready.sql` (tes `TestCheckReady`).
+
 ## Menambah objek baru
 
 - Tabel baru di `payroll`: `payroll_ro` mendapat SELECT dan `payroll_app` mendapat DML otomatis. Kalau hak app harus lebih
   sempit, tambahkan REVOKE di bagian 3 `grants.sql`. `payroll_etl` tidak mendapat apa pun kecuali didaftarkan di bagian 4.
 - Fungsi baru: REVOKE dari PUBLIC dan GRANT EXECUTE di bagian 5.
-- Perubahan grant = ubah `grants.sql` (bukan migrasi baru), lalu cek tes isolasi.
+- Perubahan grant = ubah `grants.sql` (bukan migrasi baru) **dan** matriks di `check_ready.sql`, lalu cek tes isolasi.
+  Tabel global tanpa RLS didaftarkan di `check_ready.sql` (`global_tables`) dan `globalTables` di tes I20.
 - Rollback (`migrate down`): down migrasi tidak lagi mencabut grant, dan `grants.sql` merujuk objek sampai migrasi
   terakhir. Sesudah down, jalankan `grants.sql` dari versi kode yang sama dengan skema (kalau tidak, skrip gagal utuh
   karena satu transaksi; tidak ada grant parsial).
