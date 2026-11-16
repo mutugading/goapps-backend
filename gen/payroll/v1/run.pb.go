@@ -582,7 +582,7 @@ type CreateRunRequest struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	Yymm        int32                  `protobuf:"varint,1,opt,name=yymm,proto3" json:"yymm,omitempty"`
 	Division    string                 `protobuf:"bytes,2,opt,name=division,proto3" json:"division,omitempty"`
-	CompanyId   int32                  `protobuf:"varint,3,opt,name=company_id,json=companyId,proto3" json:"company_id,omitempty"`
+	CompanyId   int32                  `protobuf:"varint,3,opt,name=company_id,json=companyId,proto3" json:"company_id,omitempty"`      // 0 = derived from the caller scope (dry only, D-71)
 	ProcessDate string                 `protobuf:"bytes,4,opt,name=process_date,json=processDate,proto3" json:"process_date,omitempty"` // YYYY-MM-DD
 	Mode        RunMode                `protobuf:"varint,5,opt,name=mode,proto3,enum=payroll.v1.RunMode" json:"mode,omitempty"`
 	// Optional: limit the run to these NIKs (single-employee reprocess).
@@ -2222,7 +2222,7 @@ const file_payroll_v1_run_proto_rawDesc = "" +
 	"\x1a\b\x18\xe8\x83=(\xb1\xcc\vR\x04yymm\x12%\n" +
 	"\bdivision\x18\x02 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18\x1eR\bdivision\x12&\n" +
 	"\n" +
-	"company_id\x18\x03 \x01(\x05B\a\xbaH\x04\x1a\x02 \x00R\tcompanyId\x12=\n" +
+	"company_id\x18\x03 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\tcompanyId\x12=\n" +
 	"\fprocess_date\x18\x04 \x01(\tB\x1a\xbaH\x17r\x152\x13^\\d{4}-\\d{2}-\\d{2}$R\vprocessDate\x123\n" +
 	"\x04mode\x18\x05 \x01(\x0e2\x13.payroll.v1.RunModeB\n" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x04mode\x12#\n" +

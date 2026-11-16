@@ -2033,7 +2033,8 @@
         },
         "companyId": {
           "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "title": "0 = derived from the caller scope (dry only, D-71)"
         },
         "processDate": {
           "type": "string",

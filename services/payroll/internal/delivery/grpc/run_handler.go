@@ -166,8 +166,9 @@ func periodPB(p run.PeriodInfo) *payrollv1.Period {
 
 // CreateRun runs the division synchronously: dry returns the totals per employee, commit persists the run.
 func (h *RunHandler) CreateRun(ctx context.Context, r *payrollv1.CreateRunRequest) (*payrollv1.CreateRunResponse, error) {
-	company, division, yymm := i16(r.GetCompanyId()), r.GetDivision(), int(r.GetYymm())
-	if err := requireDivision(ctx, company, division); err != nil {
+	division, yymm := r.GetDivision(), int(r.GetYymm())
+	company, err := resolveCreateCompany(ctx, r)
+	if err != nil {
 		return nil, fail(ctx, err)
 	}
 	payDate, err := validateCreateRun(ctx, r)
@@ -199,6 +200,46 @@ func (h *RunHandler) CreateRun(ctx context.Context, r *payrollv1.CreateRunReques
 	}
 	info.Warnings = cm.Warnings
 	return &payrollv1.CreateRunResponse{Base: ok("Run committed"), Data: runPB(info, see)}, nil
+}
+
+// resolveCreateCompany returns the company of the run and refuses a division outside the caller scope (I22).
+// company_id=0 is allowed in dry mode only (D-71 (3)): the company is the one of the caller scope that has the
+// division; more than one company is ambiguous (400), none is 403. Commit always needs company_id > 0.
+func resolveCreateCompany(ctx context.Context, r *payrollv1.CreateRunRequest) (int16, error) {
+	division := r.GetDivision()
+	byCompany := map[string]string{keyField: "company_id"}
+	if r.GetCompanyId() < 0 {
+		return 0, apperr.New(apperr.CodeValidation, "company_id tidak valid", byCompany)
+	}
+	if r.GetCompanyId() > 0 {
+		company := i16(r.GetCompanyId())
+		return company, requireDivision(ctx, company, division)
+	}
+	switch r.GetMode() {
+	case payrollv1.RunMode_RUN_MODE_DRY:
+	case payrollv1.RunMode_RUN_MODE_COMMIT:
+		return 0, apperr.New(apperr.CodeValidation, "company_id wajib untuk commit", byCompany)
+	default:
+		return 0, apperr.New(apperr.CodeValidation, "mode wajib dry atau commit", map[string]string{keyField: "mode"})
+	}
+	scopes, found := scopeOf(ctx)
+	if !found {
+		return 0, run.InScope(ctx, 0, division)
+	}
+	var company int16
+	for _, sc := range scopes {
+		if sc.Division() != division || sc.CompanyID() == company {
+			continue
+		}
+		if company != 0 {
+			return 0, apperr.New(apperr.CodeValidation, "divisi ada di lebih dari satu company; company_id wajib diisi (ambigu)", byCompany)
+		}
+		company = sc.CompanyID()
+	}
+	if company == 0 {
+		return 0, apperr.DivisionForbidden(0, division)
+	}
+	return company, nil
 }
 
 // validateCreateRun checks the request before the rule set is resolved (400 on failure) and returns the pay date.
