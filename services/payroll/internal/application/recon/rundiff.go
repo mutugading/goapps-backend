@@ -104,6 +104,11 @@ func (s RunDiffSource) loadTx(ctx context.Context, tx *sql.Tx, runID int64, agai
 	}
 	switch against {
 	case AgainstLegacy:
+		// A LEGACY run has no rule set (rule_set 0), so the engine recompute would fail with an unclear
+		// "PPh TER table missing"; against=legacy is only for ENGINE runs (T030f).
+		if self.kind != "ENGINE" {
+			return DiffInput{}, fmt.Errorf("%w: run %d", ErrTargetRun, self.id)
+		}
 		if s.Rules == nil {
 			return DiffInput{}, ErrDiffNotReady
 		}

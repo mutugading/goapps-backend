@@ -19,7 +19,9 @@ const diffYYMM = 203505
 
 func diffHandler(t *testing.T) *grpcdelivery.RunHandler {
 	t.Helper()
-	rules := func(context.Context, *sql.Tx, run.Query, int) (run.Rules, error) { return run.Rules{Set: stubRules{}}, nil }
+	rules := func(context.Context, *sql.Tx, run.Query, int) (run.Rules, error) {
+		return run.Rules{Set: stubRules{}}, nil
+	}
 	return runHandler(t).WithDiff(recon.RunDiffSource{DB: appDB, Rules: rules})
 }
 
@@ -121,4 +123,30 @@ func TestRunDiff(t *testing.T) {
 	// against=legacy without a LEGACY run of the period: NOT_FOUND (the recon path itself is covered by tests/etl).
 	_, err = h.GetRunDiff(solo, &payrollv1.GetRunDiffRequest{RunId: active, Against: "legacy"})
 	wantCode(t, "no legacy run", err, apperr.CodeNotFound)
+
+	// T030f: a LEGACY run has no snapshot (NULL) and rule_set 0. ListRuns without filter must not fail on the
+	// NULL snapshot (snapshotId 0), and against=legacy on a LEGACY run is VALIDATION, not "PPh TER table missing".
+	var legacy int64
+	if err := ownDB.QueryRow(`INSERT INTO payroll.pyr_run (pr_company_id, pr_yymm, pr_division, pr_pay_date, pr_rule_set_id,
+  pr_snapshot_id, pr_status, pr_kind) VALUES (1,203505,'SOLO','2035-05-25',0,NULL,'SUPERSEDED','LEGACY') RETURNING pr_id`).Scan(&legacy); err != nil {
+		t.Fatalf("seed legacy run: %v", err)
+	}
+	lr, err := h.ListRuns(solo, &payrollv1.ListRunsRequest{})
+	if err != nil {
+		t.Fatalf("ListRuns with a LEGACY run (NULL snapshot): %v", err)
+	}
+	found := false
+	for _, r := range lr.GetData() {
+		if r.GetRunId() == legacy {
+			found = true
+			if r.GetSnapshotId() != 0 {
+				t.Errorf("legacy run snapshotId = %d, want 0", r.GetSnapshotId())
+			}
+		}
+	}
+	if !found {
+		t.Errorf("legacy run %d missing from ListRuns", legacy)
+	}
+	_, err = h.GetRunDiff(solo, &payrollv1.GetRunDiffRequest{RunId: legacy, Against: "legacy"})
+	wantCode(t, "against=legacy on a LEGACY run", err, apperr.CodeValidation)
 }

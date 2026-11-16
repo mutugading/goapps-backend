@@ -30,7 +30,7 @@ func NewRunQuery(db *DB) *RunQuery { return &RunQuery{db: db} }
 var _ run.Reader = (*RunQuery)(nil)
 
 const runCols = `pr_id, pr_yymm, pr_division, to_char(pr_pay_date, 'YYYY-MM-DD'), pr_status::text, COALESCE(pr_emp_count, 0),
-  COALESCE(pr_line_count, 0), COALESCE(pr_tot_tunjangan, 0)::text, COALESCE(pr_tot_potongan, 0)::text, pr_rule_set_id, pr_snapshot_id,
+  COALESCE(pr_line_count, 0), COALESCE(pr_tot_tunjangan, 0)::text, COALESCE(pr_tot_potongan, 0)::text, pr_rule_set_id, COALESCE(pr_snapshot_id, 0),
   COALESCE(array_to_string(pr_nik_filter, ','), ''), COALESCE(pr_warnings, '[]'::jsonb)::text, COALESCE(pr_started_by, ''),
   pr_started_at, pr_finished_at`
 
