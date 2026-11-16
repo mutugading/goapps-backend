@@ -22,11 +22,12 @@ done
 [ -n "$dump" ] && [ -n "$out" ] || { echo "-dump dan -out wajib" >&2; exit 2; }
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)   # services/payroll
 SYNC="go run ./cmd/sync"; RECON="go run ./cmd/recon"
+# [T027b] att-legacy sebelum salary-legacy: salary-legacy menolak periode tanpa snapshot LEGACY.
 steps=(
   "employees|$SYNC employees -dir $dump -dsn \$PAYROLL_ETL_DSN -company $company"
   "inputs|$SYNC inputs -dir $dump -dsn \$PAYROLL_ETL_DSN -company $company"
-  "salary-legacy|$SYNC salary-legacy -dir $dump -dsn \$PAYROLL_ETL_DSN -company $company"
   "att-legacy|$SYNC att-legacy -dir $dump -dsn \$PAYROLL_ETL_DSN -company $company"
+  "salary-legacy|$SYNC salary-legacy -dir $dump -dsn \$PAYROLL_ETL_DSN -company $company"
   "att-legacy-fail|$SYNC att-legacy-fail -dir $dump -dsn \$PAYROLL_ETL_DSN -open-periods $yymm"
   "thr-legacy|$SYNC thr-legacy -dir $dump -dsn \$PAYROLL_ETL_DSN -company $company"
 )
