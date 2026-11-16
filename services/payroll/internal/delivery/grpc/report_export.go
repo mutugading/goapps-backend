@@ -80,7 +80,7 @@ func reportErr(err error) error {
 		return apperr.New(apperr.CodeBusinessRule, err.Error(), nil)
 	case errors.Is(err, report.ErrNoRun):
 		return apperr.New(apperr.CodeNotFound, err.Error(), nil)
-	case errors.Is(err, report.ErrNoPayableRows), errors.Is(err, report.ErrDetailWithoutHead), errors.Is(err, report.ErrBankConfig):
+	case errors.Is(err, report.ErrNoPayableRows), errors.Is(err, report.ErrBankConfig):
 		return apperr.New(apperr.CodeBusinessRule, err.Error(), nil)
 	default:
 		return err
