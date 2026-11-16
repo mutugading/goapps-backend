@@ -31,6 +31,14 @@ var ErrPeriodNotApproved = errors.New("report: periode belum APPROVED/CLOSED")
 // ErrNoRun is returned when the period has no ACTIVE engine run.
 var ErrNoRun = errors.New("report: tidak ada run ACTIVE untuk periode ini")
 
+// ErrDetailWithoutHead is returned when the run holds lines of NIKs without a head row: employees without an attendance
+// recap (MISSING_ATTENDANCE, D2; D-55 keeps v1 legacy parity) get lines but no pyr_salary_head. The reports are keyed
+// on the head, so they refuse the run instead of dropping those lines silently (T030h2).
+var ErrDetailWithoutHead = errors.New("report: run punya baris detail untuk NIK tanpa head (karyawan tanpa rekap absensi, MISSING_ATTENDANCE/D2)")
+
+// ErrBankConfig is returned when the bank file text (PAYROLL_REPORT_*) is not configured (T030h2).
+var ErrBankConfig = errors.New("report: konfigurasi teks file bank belum lengkap")
+
 // Query selects the run to report on.
 type Query struct {
 	CompanyID int16
@@ -188,6 +196,7 @@ WHERE d.psd_run_id = $1 ORDER BY d.psd_nik`, runID, unknownSerial)
 		idx[e.NIK] = i
 	}
 	seen := map[string]Comp{}
+	orphans := map[string]struct{}{}
 	for rows.Next() {
 		var nik, typ, amt string
 		var c Comp
@@ -204,7 +213,8 @@ WHERE d.psd_run_id = $1 ORDER BY d.psd_nik`, runID, unknownSerial)
 		}
 		i, ok := idx[nik]
 		if !ok {
-			return errors.New("detail tanpa head")
+			orphans[nik] = struct{}{} // NIKs are counted, never put in the message (PII)
+			continue
 		}
 		if _, ok := seen[c.Key()]; !ok {
 			seen[c.Key()] = c
@@ -215,6 +225,9 @@ WHERE d.psd_run_id = $1 ORDER BY d.psd_nik`, runID, unknownSerial)
 	}
 	if err := rows.Err(); err != nil {
 		return err
+	}
+	if len(orphans) > 0 {
+		return fmt.Errorf("%w: %d NIK pada run %d", ErrDetailWithoutHead, len(orphans), runID)
 	}
 	for _, c := range seen {
 		d.Comps = append(d.Comps, c)

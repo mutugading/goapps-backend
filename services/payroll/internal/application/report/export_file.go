@@ -59,7 +59,7 @@ func (s *Service) BankFile(ctx context.Context, q Query, key, bank string, trans
 		f.Skipped = len(d.Issues)
 		text, err := load(transferDate)
 		if err != nil {
-			return 0, fmt.Errorf("bank text config: %w", err)
+			return 0, fmt.Errorf("%w: %w", ErrBankConfig, err)
 		}
 		n, err := WriteBank(d, text, &buf)
 		f.Rows = n

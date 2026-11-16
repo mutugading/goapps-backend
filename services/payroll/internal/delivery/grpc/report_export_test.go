@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -72,6 +73,8 @@ func TestReportErr(t *testing.T) {
 		{report.ErrPeriodNotApproved, apperr.CodeBusinessRule},
 		{report.ErrNoPayableRows, apperr.CodeBusinessRule},
 		{report.ErrNoRun, apperr.CodeNotFound},
+		{fmt.Errorf("%w: 9 NIK", report.ErrDetailWithoutHead), apperr.CodeBusinessRule},
+		{fmt.Errorf("%w: %w", report.ErrBankConfig, errors.New("config: wajib diisi: X")), apperr.CodeBusinessRule},
 	} {
 		var ae *apperr.Error
 		if got := reportErr(c.in); !errors.As(got, &ae) || ae.Code != c.want {
