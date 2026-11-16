@@ -64,9 +64,8 @@ dengan absensi dummy (D-64); recon 202701 di **DB salinan** production. `sync du
 Dump **staging** (gladi) memakai dump yang sudah ada s.d. 202610, sehingga 202611/202612 tetap OPEN untuk engine. Dari folder `<DUMP>`
 berisi `spool_one.sql`:
 ```sh
-sqlplus -s <oracle_ro>@<ezconnect> @scripts/oracle-spool/spool_recon_open.sql   # EMP, COMPNT_*, input, MAIN/DETAIL, rekap, THR, DONE
+sqlplus -s <oracle_ro>@<ezconnect> @scripts/oracle-spool/spool_recon_open.sql   # EMP, COMPNT_*, input, IM_VS_STATIC_VALUE (PAYROLLSETUP/EMPTAX), MAIN/DETAIL, rekap, THR, DONE
 sqlplus -s <oracle_ro>@<ezconnect> @scripts/oracle-spool/spool_t009d2_e2.sql    # + MGT_PAYROLL_SETUP, FM_EXCHANGE_RATE, FM_DEPARTMENT
-# IM_VS_STATIC_VALUE (dibaca `inputs`): spool_one.sql IM_VS_STATIC_VALUE (filter VS_CODE PAYROLLSETUP, EMPTAX)
 scripts/oracle-spool/check_spool.sh <DUMP> open             # semua OK, tanpa KOLOM-RUSAK; catat baris=<N_*>
 for t in MGT_PAYROLL_SETUP FM_EXCHANGE_RATE FM_DEPARTMENT IM_VS_STATIC_VALUE; do echo "$t $(( $(wc -l < <DUMP>/$t.psv) - 1 ))"; done
 ```
@@ -99,7 +98,7 @@ berhenti pada error pertama):
 ```sh
 cat > /tmp/initial-load.sh <<'EOF'
 set -eu
-until [ -f /out/dump/DONE ]; do sleep 5; done
+until [ -f /out/dump/DONE.LST ]; do sleep 5; done
 S=/app/payroll-sync; D=/out/dump; C=<CID>
 $S migrate         -dir $D -dsn "$PAYROLL_ETL_DSN" -company $C -expect-master <N_MASTER> -expect-template <N_TEMPLATE>
 $S employees       -dir $D -dsn "$PAYROLL_ETL_DSN" -company $C -expect-emp <N_EMP> -expect-compe <N_COMPE>
@@ -119,11 +118,11 @@ kustomize build services/payroll-service/overlays/<ENV>/jobs | sed "s|IMAGE_TAG|
         | .spec.template.spec.containers[0].args = [load_str("/tmp/initial-load.sh")]' | kubectl apply -f -
 POD=$(kubectl get pod -n <NS> -l job-name=payroll-sync -o name | head -1)
 kubectl exec -n <NS> $POD -- mkdir -p /out/dump
-kubectl cp <DUMP>/. <NS>/${POD#pod/}:/out/dump      # salin semua .psv; DONE ikut, jadi load mulai sesudah cp selesai
+kubectl cp <DUMP>/. <NS>/${POD#pod/}:/out/dump      # salin semua .psv; DONE.LST ikut, jadi load mulai sesudah cp selesai
 kubectl logs -n <NS> -f job/payroll-sync > /tmp/initial-load.log  # simpan lokal; log berisi jumlah & checksum, tanpa NIK
 kubectl delete job -n <NS> payroll-sync              # emptyDir (berisi dump gaji) ikut terhapus
 ```
-`DONE` harus tersalin **terakhir**: kalau ragu, salin dulu tanpa DONE lalu `kubectl exec ... touch /out/dump/DONE`.
+`DONE.LST` (ditulis spool paling akhir) harus tersalin **terakhir**: kalau ragu, salin dulu tanpa DONE.LST lalu `kubectl exec ... touch /out/dump/DONE.LST`.
 Kalau ada `EXCEPTION`: jangan pakai `-allow-exceptions` tanpa keputusan user; catat jumlah per tabel dan berhenti.
 Langkah gagal → perbaiki penyebab, ulangi seluruh skrip (langkah yang sudah sukses jadi no-op).
 
