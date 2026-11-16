@@ -21,8 +21,9 @@ const ActionExport = "REPORT_EXPORT"
 
 // Audit key and period statuses shared by the exports.
 const (
-	keyPeriodStatus = "period_status"
-	statusApproved  = "APPROVED"
+	keyPeriodStatus  = "period_status"
+	keySkippedNoHead = "skipped_no_head"
+	statusApproved   = "APPROVED"
 )
 
 // ErrPeriodNotApproved is returned for a period that is not APPROVED/CLOSED without AllowOpen.

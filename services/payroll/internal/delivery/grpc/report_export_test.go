@@ -29,13 +29,13 @@ type fakeExporter struct {
 func (f *fakeExporter) RecoFile(_ context.Context, q report.Query, _ string) (report.File, error) {
 	f.calls++
 	f.q = q
-	return report.File{Name: "reco.xlsx", Content: []byte("x"), Rows: 3}, f.err
+	return report.File{Name: "reco.xlsx", Content: []byte("x"), Rows: 3, Skipped: 2, SkippedNoHead: 9}, f.err
 }
 
 func (f *fakeExporter) BankFile(_ context.Context, q report.Query, _, _ string, _ time.Time, _ report.TextLoader) (report.File, error) {
 	f.calls++
 	f.q = q
-	return report.File{Name: "bank.xlsx", Content: []byte("x"), Rows: 2, Skipped: 1}, f.err
+	return report.File{Name: "bank.xlsx", Content: []byte("x"), Rows: 2, Skipped: 1, SkippedNoHead: 9}, f.err
 }
 
 func TestExportReport_RejectsBeforeBuilding(t *testing.T) {
@@ -115,6 +115,28 @@ func TestExportReport_ErrorYieldsNoFile(t *testing.T) {
 		}
 		if ex.q.IP != "10.1.2.3" || ex.q.CompanyID != 1 {
 			t.Fatalf("kind %v: query = %+v, want IP and company passed on", kind, ex.q)
+		}
+	}
+}
+
+// The count of NIKs without a head (D-70) travels in its own field, apart from skipped_count (BANK: pre-check, RECO:
+// components without GL).
+func TestExportReport_SkippedNoHeadCount(t *testing.T) {
+	sc, err := scope.New(1, "SOLO")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := scope.WithIdentity(context.Background(), scope.Identity{UserID: "u", Scopes: []scope.Scope{sc}})
+	ctx = context.WithValue(ctx, AuthPermissionsKey, []string{permReportView, permSalaryAmount})
+	text := func(time.Time) (report.BankText, error) { return report.BankText{}, nil }
+	for kind, wantSkipped := range map[payrollv1.ReportKind]int32{payrollv1.ReportKind_REPORT_KIND_RECO: 2, payrollv1.ReportKind_REPORT_KIND_BANK: 1} {
+		h := (&RunHandler{reader: stubReader{}}).WithReports(&fakeExporter{}, "k", text)
+		resp, err := h.ExportReport(ctx, &payrollv1.ExportReportRequest{Yymm: 202701, Division: "SOLO", Kind: kind, TransferDate: "2027-01-26"})
+		if err != nil {
+			t.Fatalf("kind %v: %v", kind, err)
+		}
+		if resp.GetSkippedNoHeadCount() != 9 || resp.GetSkippedCount() != wantSkipped {
+			t.Errorf("kind %v: no_head=%d skipped=%d, want 9 and %d", kind, resp.GetSkippedNoHeadCount(), resp.GetSkippedCount(), wantSkipped)
 		}
 	}
 }

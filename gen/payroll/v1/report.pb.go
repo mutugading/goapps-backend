@@ -160,9 +160,12 @@ type ExportReportResponse struct {
 	RowCount int32 `protobuf:"varint,4,opt,name=row_count,json=rowCount,proto3" json:"row_count,omitempty"`
 	// BANK: employees left out by the pre-check (the CLI lists them in a separate
 	// workbook). RECO: components without a GL setup.
-	SkippedCount  int32 `protobuf:"varint,5,opt,name=skipped_count,json=skippedCount,proto3" json:"skipped_count,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	SkippedCount int32 `protobuf:"varint,5,opt,name=skipped_count,json=skippedCount,proto3" json:"skipped_count,omitempty"`
+	// Employees with detail lines but no head row (no attendance recap) left out of the file (D-70). A count only,
+	// kept apart from skipped_count, which means something else per kind.
+	SkippedNoHeadCount int32 `protobuf:"varint,6,opt,name=skipped_no_head_count,json=skippedNoHeadCount,proto3" json:"skipped_no_head_count,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *ExportReportResponse) Reset() {
@@ -230,6 +233,13 @@ func (x *ExportReportResponse) GetSkippedCount() int32 {
 	return 0
 }
 
+func (x *ExportReportResponse) GetSkippedNoHeadCount() int32 {
+	if x != nil {
+		return x.SkippedNoHeadCount
+	}
+	return 0
+}
+
 var File_payroll_v1_report_proto protoreflect.FileDescriptor
 
 const file_payroll_v1_report_proto_rawDesc = "" +
@@ -242,13 +252,14 @@ const file_payroll_v1_report_proto_rawDesc = "" +
 	"\bdivision\x18\x02 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18\x1eR\bdivision\x126\n" +
 	"\x04kind\x18\x03 \x01(\x0e2\x16.payroll.v1.ReportKindB\n" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x04kind\x12B\n" +
-	"\rtransfer_date\x18\x04 \x01(\tB\x1d\xbaH\x1ar\x182\x16^(|\\d{4}-\\d{2}-\\d{2})$R\ftransferDate\"\xc5\x01\n" +
+	"\rtransfer_date\x18\x04 \x01(\tB\x1d\xbaH\x1ar\x182\x16^(|\\d{4}-\\d{2}-\\d{2})$R\ftransferDate\"\xf8\x01\n" +
 	"\x14ExportReportResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12!\n" +
 	"\ffile_content\x18\x02 \x01(\fR\vfileContent\x12\x1b\n" +
 	"\tfile_name\x18\x03 \x01(\tR\bfileName\x12\x1b\n" +
 	"\trow_count\x18\x04 \x01(\x05R\browCount\x12#\n" +
-	"\rskipped_count\x18\x05 \x01(\x05R\fskippedCount*U\n" +
+	"\rskipped_count\x18\x05 \x01(\x05R\fskippedCount\x121\n" +
+	"\x15skipped_no_head_count\x18\x06 \x01(\x05R\x12skippedNoHeadCount*U\n" +
 	"\n" +
 	"ReportKind\x12\x1b\n" +
 	"\x17REPORT_KIND_UNSPECIFIED\x10\x00\x12\x14\n" +

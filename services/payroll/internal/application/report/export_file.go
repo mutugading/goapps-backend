@@ -18,6 +18,9 @@ type File struct {
 	// Skipped is the number of rows left out of the file (BANK: employees failing the pre-check) or flagged
 	// (RECO: components without a GL setup); the CLI lists them in a separate workbook.
 	Skipped int
+	// SkippedNoHead is the number of NIKs left out because they have detail lines but no head row (D-70); a count
+	// only, kept apart from Skipped because that one means something else per kind.
+	SkippedNoHead int
 }
 
 // NewBankText builds the cover/title text of the bank file from the report configuration and the transfer date; the
@@ -34,7 +37,7 @@ func (s *Service) RecoFile(ctx context.Context, q Query, key string) (File, erro
 	f := File{Name: fileName("reco", q)}
 	err := s.ExportReco(ctx, q, key, func(d RecoData) (int, error) {
 		n, err := WriteReco(d, &buf)
-		f.Rows, f.Skipped = n, len(PreChecks(d.Rows))
+		f.Rows, f.Skipped, f.SkippedNoHead = n, len(PreChecks(d.Rows)), d.SkippedNoHead
 		return n, err
 	})
 	if err != nil {
@@ -56,7 +59,7 @@ func (s *Service) BankFile(ctx context.Context, q Query, key, bank string, trans
 	f := File{Name: fileName("bank", q)}
 	q.Extra = map[string]any{"transfer_date": transferDate.Format("2006-01-02")}
 	err := s.ExportBank(ctx, q, key, bank, func(d BankData) (int, error) {
-		f.Skipped = len(d.Issues)
+		f.Skipped, f.SkippedNoHead = len(d.Issues), d.SkippedNoHead
 		text, err := load(transferDate)
 		if err != nil {
 			return 0, fmt.Errorf("%w: %w", ErrBankConfig, err)

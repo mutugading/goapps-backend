@@ -2481,6 +2481,11 @@
           "type": "integer",
           "format": "int32",
           "description": "BANK: employees left out by the pre-check (the CLI lists them in a separate\nworkbook). RECO: components without a GL setup."
+        },
+        "skippedNoHeadCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Employees with detail lines but no head row (no attendance recap) left out of the file (D-70). A count only,\nkept apart from skipped_count, which means something else per kind."
         }
       },
       "description": "ExportReportResponse contains the xlsx file."

@@ -70,7 +70,8 @@ func (h *RunHandler) ExportReport(ctx context.Context, r *payrollv1.ExportReport
 		return nil, fail(ctx, reportErr(err))
 	}
 	return &payrollv1.ExportReportResponse{Base: ok("OK"), FileContent: f.Content, FileName: f.Name,
-		RowCount: int32(f.Rows), SkippedCount: int32(f.Skipped)}, nil //nolint:gosec // bounded by employees
+		RowCount: int32(f.Rows), SkippedCount: int32(f.Skipped), //nolint:gosec // bounded by employees
+		SkippedNoHeadCount: int32(f.SkippedNoHead)}, nil //nolint:gosec // bounded by employees
 }
 
 // reportErr maps the report errors to the API codes (07§1.3). Unknown errors stay internal (logged by fail).

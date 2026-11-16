@@ -52,6 +52,8 @@ type BankData struct {
 	YYMM   int
 	Rows   []BankRow
 	Issues []BankIssue
+	// SkippedNoHead is RunData.SkippedNoHead (D-70), carried so the bank file can report it; not part of Issues.
+	SkippedNoHead int
 }
 
 // Total is Σ net of the rows (the cover letter total, without the transfer fee).
@@ -178,11 +180,12 @@ func (s *Service) ExportBank(ctx context.Context, q Query, key, bank string, bui
 			return err
 		}
 		bd := SplitBank(q.YYMM, all, bank)
+		bd.SkippedNoHead = d.SkippedNoHead
 		rows, err := build(bd)
 		if err != nil {
 			return err
 		}
-		return s.writeAudit(ctx, tx, q, "bank", rows, map[string]any{"pra_cek": len(bd.Issues), "bank": bank, keyPeriodStatus: d.Status})
+		return s.writeAudit(ctx, tx, q, "bank", rows, map[string]any{"pra_cek": len(bd.Issues), "bank": bank, keyPeriodStatus: d.Status, keySkippedNoHead: d.SkippedNoHead})
 	})
 }
 
