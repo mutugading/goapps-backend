@@ -1,4 +1,4 @@
-// Package main is the payroll reconciliation entry point (D-01, D-41). Subcommands: extract-golden, diff.
+// Package main is the payroll reconciliation entry point (D-01, D-41). Subcommands: extract-golden, diff, validate.
 // It reads the LEGACY run in Postgres (role payroll_ro); there is no Oracle connection.
 package main
 
@@ -22,7 +22,8 @@ import (
 
 const usage = `usage:
   recon extract-golden -yymm 202608 [-per-formula 20] [-company 1] [-divisions SOLO,JAKARTA] [-rule-set 1] [-out tests/golden/out] [-rules-out rules.json] -dsn <payroll_ro dsn>
-  recon diff -yymm 202608 -division SOLO [-company 1] [-target dry|run:<id>] [-rule-set 1] [-out report.json] -dsn <payroll_ro dsn>`
+  recon diff -yymm 202608 -division SOLO [-company 1] [-target dry|run:<id>] [-rule-set 1] [-out report.json] -dsn <payroll_ro dsn>
+  recon validate -yymm-from 201801 -yymm-to 202612 [-company 1] [-out validate.json] -dsn <payroll_ro dsn>`
 
 func main() {
 	if len(os.Args) < 2 {
@@ -37,6 +38,8 @@ func main() {
 		}
 	case "diff":
 		os.Exit(diffCmd(os.Args[2:], os.Stdout, os.Stderr))
+	case "validate":
+		os.Exit(validateCmd(os.Args[2:], os.Stdout, os.Stderr))
 	default:
 		fmt.Fprintln(os.Stderr, usage)
 		os.Exit(2)

@@ -157,6 +157,18 @@ SQL
 Kriteria: (a) = 0; (b) setiap tabel `pml_ok = t` dan `pml_src_rows` = `<N_*>` (tabel yang di-skip D-35.1 tercatat sebagai
 SkippedRows di log Job, bukan selisih); (c) `bukan_closed` = 0 dan `max` = 202612. Hasil (agregat) → ACCEPTANCE L.3.
 
+Validator agregat (T032a, D-72, 08§6 sisi Postgres; read-only, hanya agregat, tanpa NIK/nama/nominal per orang):
+
+```sh
+recon validate -company <CID> -yymm-from 201712 -yymm-to 202612 -out validate.json -dsn "postgres://payroll_ro@<HOST>:5432/payroll_db?sslmode=require"
+```
+
+JSON memuat Σ detail per (yymm, divisi, T/P) dan Σ tot_tunjangan/tot_potongan/net head per (yymm, divisi), NIK aktif per level,
+baris detail LEGACY tanpa `pyr_component_legacy_map`, karyawan tanpa `birth_date`, dan kolom PII non-ciphertext di
+`information_schema`. Exit 0 = `unmapped_legacy_lines` = 0 dan `plaintext_pii_columns` kosong; exit 1 = salah satunya dilanggar
+(lihat `failures`); exit 2 = salah pakai/koneksi. Id alias D-36 (100/200/101/201 → T70/T71/P70/P71) dihitung terpetakan bila
+targetnya punya baris map, dan dilaporkan terpisah di `aliased_d36_components`. Bandingkan dengan dump lewat T032b (`-dump`).
+
 ## 4. Gladi end-to-end 202612 (staging, ACCEPTANCE L.2)
 
 **Staging saja, bukan production (D-68 (2))**: initial load 2.3 menutup setiap periode di dump sebagai LEGACY CLOSED,
