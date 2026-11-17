@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"buf.build/go/protovalidate"
 	payrollv1 "github.com/mutugading/goapps-backend/gen/payroll/v1"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/run"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/apperr"
@@ -91,6 +92,30 @@ func TestRunPBCompany(t *testing.T) {
 	for _, see := range []bool{false, true} {
 		if got := dryRunPB(context.Background(), req, 2, 7, out, see).GetCompanyId(); got != 2 {
 			t.Fatalf("dryRunPB(see=%v) company_id = %d, want 2", see, got)
+		}
+	}
+}
+
+// company_id is bounded to the int16 range of pyr_*.company_id (D-71 (3)): 65537 must not wrap to 1.
+func TestCreateRunRequestCompanyIDValidation(t *testing.T) {
+	v, err := protovalidate.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := func(company int32) *payrollv1.CreateRunRequest {
+		return &payrollv1.CreateRunRequest{Yymm: 202611, Division: "SOLO", CompanyId: company, ProcessDate: "2026-11-25", Mode: payrollv1.RunMode_RUN_MODE_DRY}
+	}
+	for _, c := range []int32{0, 1, 32767} {
+		if err := v.Validate(req(c)); err != nil {
+			t.Errorf("company_id %d refused: %v", c, err)
+		}
+	}
+	for _, c := range []int32{-1, 32768, 65537} {
+		err := v.Validate(req(c))
+		if err == nil {
+			t.Errorf("company_id %d accepted", c)
+		} else if !strings.Contains(err.Error(), "company_id") {
+			t.Errorf("company_id %d refused for another reason: %v", c, err)
 		}
 	}
 }

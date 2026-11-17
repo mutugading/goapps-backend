@@ -166,12 +166,34 @@ func TestRunAPI_DryCommitApproveClose(t *testing.T) {
 		t.Fatalf("commit: %v", err)
 	}
 	id := cm.GetData().GetRunId()
+	if cm.GetData().GetCompanyId() != 1 {
+		t.Fatalf("commit company_id = %d, want 1", cm.GetData().GetCompanyId())
+	}
 	if id == 0 || cm.GetData().GetStatus() != "ACTIVE" || cm.GetData().GetTotalTunjangan() != "3000000.00" || cm.GetData().GetProcessDate() != "2035-01-25" {
 		t.Fatalf("commit data = %v", cm.GetData())
 	}
 	got, err := h.GetRun(ctx, &payrollv1.GetRunRequest{RunId: id})
 	if err != nil || got.GetData().GetRuleSetId() != 1 {
 		t.Fatalf("GetRun: %v %v", got, err)
+	}
+	if got.GetData().GetCompanyId() != 1 {
+		t.Fatalf("GetRun company_id = %d, want 1", got.GetData().GetCompanyId())
+	}
+	listed, err := h.ListRuns(ctx, &payrollv1.ListRunsRequest{Yymm: runYYMM, Division: "SOLO"})
+	if err != nil {
+		t.Fatalf("ListRuns: %v", err)
+	}
+	found := false
+	for _, r := range listed.GetData() {
+		if r.GetRunId() == id {
+			found = true
+			if r.GetCompanyId() != 1 {
+				t.Fatalf("ListRuns company_id = %d, want 1", r.GetCompanyId())
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("ListRuns does not contain run %d", id)
 	}
 	lines, err := h.ListRunLines(ctx, &payrollv1.ListRunLinesRequest{RunId: id, PageSize: 2})
 	if err != nil || len(lines.GetData()) != 2 || lines.GetPagination().GetTotalItems() != 3 || lines.GetPagination().GetTotalPages() != 2 {
