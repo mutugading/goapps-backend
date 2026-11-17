@@ -2959,6 +2959,11 @@
         "durationMs": {
           "type": "string",
           "format": "int64"
+        },
+        "companyId": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Company of the run (D-71 (3)); not a nominal, shown without the amount permission."
         }
       },
       "description": "Run is the summary of one payroll run (≈ pyr_run)."

@@ -144,6 +144,7 @@ func runPB(r run.Info, see bool) *payrollv1.Run {
 		RunId: r.ID, Yymm: int32(r.YYMM), Division: r.Division, ProcessDate: r.PayDate, Status: r.Status, //nolint:gosec // validated yymm
 		EmployeeCount: int32(r.EmpCount), LineCount: int32(r.LineCount), //nolint:gosec // bounded by employees
 		TotalTunjangan: mask(see, r.TotT), TotalPotongan: mask(see, r.TotP), RuleSetId: int32(r.RuleSetID), //nolint:gosec // small id
+		CompanyId:  int32(r.CompanyID), //nolint:gosec // smallint
 		SnapshotId: r.SnapshotID, NikFilter: r.NIKFilter, Warnings: warningsPB(r.Warnings, see), StartedBy: r.StartedBy,
 		StartedAt: r.StartedAt.UTC().Format(time.RFC3339), DurationMs: r.DurationMs,
 	}
@@ -186,7 +187,7 @@ func (h *RunHandler) CreateRun(ctx context.Context, r *payrollv1.CreateRunReques
 		if err != nil {
 			return nil, fail(ctx, err)
 		}
-		return &payrollv1.CreateRunResponse{Base: ok("Dry run completed"), Data: dryRunPB(ctx, r, ruleSet, out, see),
+		return &payrollv1.CreateRunResponse{Base: ok("Dry run completed"), Data: dryRunPB(ctx, r, company, ruleSet, out, see),
 			Employees: employeesPB(out.Employees, see)}, nil
 	}
 	cm, err := h.runs.Commit(ctx, run.CommitCommand{CompanyID: company, Division: division, YYMM: yymm, RuleSetID: ruleSet,
@@ -269,12 +270,12 @@ func validateCreateRun(ctx context.Context, r *payrollv1.CreateRunRequest) (time
 	return payDate, nil
 }
 
-func dryRunPB(ctx context.Context, r *payrollv1.CreateRunRequest, ruleSet int, out run.DryResult, see bool) *payrollv1.Run {
+func dryRunPB(ctx context.Context, r *payrollv1.CreateRunRequest, company int16, ruleSet int, out run.DryResult, see bool) *payrollv1.Run {
 	actor := ""
 	if id, found := identityOf(ctx); found {
 		actor = id
 	}
-	return runPB(run.Info{YYMM: int(r.GetYymm()), Division: r.GetDivision(), PayDate: r.GetProcessDate(), Status: "DRY",
+	return runPB(run.Info{CompanyID: company, YYMM: int(r.GetYymm()), Division: r.GetDivision(), PayDate: r.GetProcessDate(), Status: "DRY",
 		EmpCount: out.Summary.EmpCount, LineCount: out.Summary.LineCount, TotT: out.Summary.TotalT.StringFixed(2),
 		TotP: out.Summary.TotalP.StringFixed(2), RuleSetID: ruleSet, SnapshotID: out.SnapshotID, NIKFilter: r.GetNik(),
 		Warnings: out.Warnings, StartedBy: actor, StartedAt: time.Now().Add(-out.Duration), FinishedAt: time.Now(),

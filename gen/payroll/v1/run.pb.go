@@ -92,11 +92,13 @@ type Run struct {
 	SnapshotId    int64    `protobuf:"varint,11,opt,name=snapshot_id,json=snapshotId,proto3" json:"snapshot_id,omitempty"`
 	NikFilter     []string `protobuf:"bytes,12,rep,name=nik_filter,json=nikFilter,proto3" json:"nik_filter,omitempty"`
 	// Warnings stay visible when nominals are masked.
-	Warnings      []string `protobuf:"bytes,13,rep,name=warnings,proto3" json:"warnings,omitempty"`
-	StartedBy     string   `protobuf:"bytes,14,opt,name=started_by,json=startedBy,proto3" json:"started_by,omitempty"`
-	StartedAt     string   `protobuf:"bytes,15,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`    // RFC3339
-	FinishedAt    string   `protobuf:"bytes,16,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"` // RFC3339, empty while running.
-	DurationMs    int64    `protobuf:"varint,17,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
+	Warnings   []string `protobuf:"bytes,13,rep,name=warnings,proto3" json:"warnings,omitempty"`
+	StartedBy  string   `protobuf:"bytes,14,opt,name=started_by,json=startedBy,proto3" json:"started_by,omitempty"`
+	StartedAt  string   `protobuf:"bytes,15,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`    // RFC3339
+	FinishedAt string   `protobuf:"bytes,16,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"` // RFC3339, empty while running.
+	DurationMs int64    `protobuf:"varint,17,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
+	// Company of the run (D-71 (3)); not a nominal, shown without the amount permission.
+	CompanyId     int32 `protobuf:"varint,18,opt,name=company_id,json=companyId,proto3" json:"company_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -246,6 +248,13 @@ func (x *Run) GetFinishedAt() string {
 func (x *Run) GetDurationMs() int64 {
 	if x != nil {
 		return x.DurationMs
+	}
+	return 0
+}
+
+func (x *Run) GetCompanyId() int32 {
+	if x != nil {
+		return x.CompanyId
 	}
 	return 0
 }
@@ -2157,7 +2166,7 @@ var File_payroll_v1_run_proto protoreflect.FileDescriptor
 const file_payroll_v1_run_proto_rawDesc = "" +
 	"\n" +
 	"\x14payroll/v1/run.proto\x12\n" +
-	"payroll.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16common/v1/common.proto\"\x99\x04\n" +
+	"payroll.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16common/v1/common.proto\"\xb8\x04\n" +
 	"\x03Run\x12\x15\n" +
 	"\x06run_id\x18\x01 \x01(\x03R\x05runId\x12\x12\n" +
 	"\x04yymm\x18\x02 \x01(\x05R\x04yymm\x12\x1a\n" +
@@ -2183,7 +2192,9 @@ const file_payroll_v1_run_proto_rawDesc = "" +
 	"\vfinished_at\x18\x10 \x01(\tR\n" +
 	"finishedAt\x12\x1f\n" +
 	"\vduration_ms\x18\x11 \x01(\x03R\n" +
-	"durationMs\"\xf9\x01\n" +
+	"durationMs\x12\x1d\n" +
+	"\n" +
+	"company_id\x18\x12 \x01(\x05R\tcompanyId\"\xf9\x01\n" +
 	"\aRunLine\x12\x10\n" +
 	"\x03nik\x18\x01 \x01(\tR\x03nik\x12\x1b\n" +
 	"\tcomp_type\x18\x02 \x01(\tR\bcompType\x12\x17\n" +
@@ -2216,13 +2227,13 @@ const file_payroll_v1_run_proto_rawDesc = "" +
 	"\tclosed_by\x18\t \x01(\tR\bclosedBy\x12\x1b\n" +
 	"\tclosed_at\x18\n" +
 	" \x01(\tR\bclosedAt\x12#\n" +
-	"\rreopen_reason\x18\v \x01(\tR\freopenReason\"\x9d\x02\n" +
+	"\rreopen_reason\x18\v \x01(\tR\freopenReason\"\xa1\x02\n" +
 	"\x10CreateRunRequest\x12!\n" +
 	"\x04yymm\x18\x01 \x01(\x05B\r\xbaH\n" +
 	"\x1a\b\x18\xe8\x83=(\xb1\xcc\vR\x04yymm\x12%\n" +
-	"\bdivision\x18\x02 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18\x1eR\bdivision\x12&\n" +
+	"\bdivision\x18\x02 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18\x1eR\bdivision\x12*\n" +
 	"\n" +
-	"company_id\x18\x03 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\tcompanyId\x12=\n" +
+	"company_id\x18\x03 \x01(\x05B\v\xbaH\b\x1a\x06\x18\xff\xff\x01(\x00R\tcompanyId\x12=\n" +
 	"\fprocess_date\x18\x04 \x01(\tB\x1a\xbaH\x17r\x152\x13^\\d{4}-\\d{2}-\\d{2}$R\vprocessDate\x123\n" +
 	"\x04mode\x18\x05 \x01(\x0e2\x13.payroll.v1.RunModeB\n" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x04mode\x12#\n" +
