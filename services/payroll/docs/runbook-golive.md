@@ -83,6 +83,8 @@ for t in MGT_PAYROLL_SETUP FM_EXCHANGE_RATE FM_DEPARTMENT IM_VS_STATIC_VALUE; do
 ```
 `fx-rate`/`cost-group` membandingkan `-expect-rows` dengan baris **terpilih** (IDR→USD BOOK; ber-`DEPT_FIELD_01`),
 bukan seluruh berkas: hitung dulu (`awk -F'|'` pada kolom itu) atau jalankan tanpa flag, lalu cocokkan keluaran.
+Spool SQL*Plus Windows ber-CRLF: buang `\r` dulu (`awk -F'|' '{sub(/\r$/,"")} ...'`), kalau tidak kolom terakhir (`DEPT_FIELD_01`)
+tidak cocok dan hitungan salah. Cara hitung yang teruji: `infra/scripts/local/payroll-initload-gladi.sh` (`N_FX_BOOK`, `N_DEPT`).
 
 ### 2.2 Urutan load (dependensi di kode, diuji `tests/etl`)
 
@@ -126,6 +128,7 @@ echo INITIAL-LOAD-OK
 EOF
 kustomize build services/payroll-service/overlays/<ENV>/jobs | sed "s|IMAGE_TAG|<TAG>|" \
   | yq 'select(.metadata.name == "payroll-sync") | .spec.activeDeadlineSeconds = 14400
+        | .spec.template.spec.containers[0].resources.limits.memory = "4Gi"
         | .spec.template.spec.containers[0].command = ["/bin/sh","-c"]
         | .spec.template.spec.containers[0].args = [load_str("/tmp/initial-load.sh")]' | kubectl apply -f -
 POD=$(kubectl get pod -n <NS> -l job-name=payroll-sync -o name | head -1)
@@ -134,6 +137,7 @@ kubectl cp <DUMP>/. <NS>/${POD#pod/}:/out/dump      # salin semua .psv; DONE.LST
 kubectl logs -n <NS> -f job/payroll-sync > /tmp/initial-load.log  # simpan lokal; log berisi jumlah & checksum, tanpa NIK
 kubectl delete job -n <NS> payroll-sync              # emptyDir (berisi dump gaji) ikut terhapus
 ```
+Limit memori 4Gi khusus initial load: `salary-legacy` memuat seluruh MAIN/DETAIL (±2,4 jt baris) dan kena OOMKilled pada limit template 1Gi (gladi T028i2a).
 `DONE.LST` (ditulis spool paling akhir) harus tersalin **terakhir**: kalau ragu, salin dulu tanpa DONE.LST lalu `kubectl exec ... touch /out/dump/DONE.LST`.
 Kalau ada `EXCEPTION`: jangan pakai `-allow-exceptions` tanpa keputusan user; catat jumlah per tabel dan berhenti.
 Langkah gagal → perbaiki penyebab, ulangi seluruh skrip (langkah yang sudah sukses jadi no-op).
@@ -175,6 +179,8 @@ Pembanding dump (T032b, D-72; langkah sesudah query (c)): tambah `-dump <DUMP>` 
 ```sh
 recon validate -company <CID> -yymm-from 201712 -yymm-to 202612 -dump <DUMP> -out validate.json -dsn "postgres://payroll_ro@<HOST>:5432/payroll_db?sslmode=require"
 ```
+Dijalankan sebagai Job `payroll-recon` (dump disalin ke `/out/dump` seperti §2.3): naikkan `resources.limits.memory` ke `4Gi`
+(template 1Gi mati tanpa keluaran saat membaca MAIN/DETAIL penuh; gladi T028i2a, ±1 menit).
 
 Dump dibaca dengan parser, filter skip D-35.1, dan MAIN sintetis D-35.2 yang sama dengan loader, lalu dibandingkan per (yymm, divisi)
 pada Σ detail T/P, jumlah baris detail, Σ head tunjangan/potongan/net (net = tunj - pot - rounding), dan jumlah baris head.
