@@ -54,6 +54,18 @@ dengan absensi dummy (D-64); recon 202701 di **DB salinan** production. `sync du
 7. **Data referensi** (sekali, API `payroll.*` admin): `POST /api/v1/payroll/currencies` (IDR),
    `POST /api/v1/payroll/companies` (MGT → catat `<CID>`), `POST /api/v1/payroll/companies/<CID>/divisions` (SOLO, JAKARTA).
    Scope user IT/HR di `pyr_user_scope` diisi admin payroll (D-05/T006a), minimal `<CID>:SOLO`, `<CID>:JAKARTA`.
+8. **Akun email + Reply-To HR per divisi** (T028g4, D-69; sesudah langkah 7 karena butuh `<CID>`; sebelum email slip/uji).
+   Sebagai `payroll_migrator` (`payroll_app` hanya SELECT pada `pyr_mail_account`, D-62). Alamat nyata dari HR/IT
+   lewat variabel, tidak ada di repo. `secret_ref` = NAMA secret SMTP, bukan kredensialnya. Idempoten: ulang = update
+   (satu baris aktif per company+divisi). Variabel wajib kosong/hilang = skrip berhenti (exit non-nol, tidak ada perubahan).
+   ```sh
+   psql "postgres://payroll_migrator@<HOST>:5432/payroll_db?sslmode=require" \
+        -v company_id=<CID> -v host=<SMTP_HOST> -v from_address=<FROM> -v secret_ref=<NAMA_SECRET> \
+        -v reply_to_solo=<HR_SOLO> -v reply_to_jakarta=<HR_JAKARTA> \
+        [-v port=587] [-v from_name='HR MGT'] -f services/payroll/deploy/seed_mail_account.sql
+   ```
+   Tanpa langkah ini email tetap jalan: Reply-To jatuh ke env `PAYROLL_SMTP_REPLY_TO` (D-69 (3)), jadi langkah ini
+   tidak memblokir go-live. Cek: Job `payroll-mailer` dengan `-test-to` (§4.5) → Reply-To di email uji SOLO ≠ JAKARTA.
 
 ## 2. Initial load histori (Job `payroll-sync`)
 
