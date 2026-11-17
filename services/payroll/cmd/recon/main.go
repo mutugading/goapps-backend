@@ -23,7 +23,7 @@ import (
 const usage = `usage:
   recon extract-golden -yymm 202608 [-per-formula 20] [-company 1] [-divisions SOLO,JAKARTA] [-rule-set 1] [-out tests/golden/out] [-rules-out rules.json] -dsn <payroll_ro dsn>
   recon diff -yymm 202608 -division SOLO [-company 1] [-target dry|run:<id>] [-rule-set 1] [-out report.json] -dsn <payroll_ro dsn>
-  recon validate -yymm-from 201801 -yymm-to 202612 [-company 1] [-out validate.json] -dsn <payroll_ro dsn>`
+  recon validate -yymm-from 201801 -yymm-to 202612 [-company 1] [-out validate.json] [-dump <dir PSV>] -dsn <payroll_ro dsn>`
 
 func main() {
 	if len(os.Args) < 2 {

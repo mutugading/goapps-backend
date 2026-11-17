@@ -9,11 +9,12 @@ import (
 	"io"
 	"os"
 
+	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/etl"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/recon"
 )
 
-// Exit codes of recon validate: 0 every hard rule holds, 1 a rule failed (unmapped legacy lines or plaintext PII
-// column), 2 usage/run error. The JSON is aggregate only (D-72 (3)): no NIK, name, or per-person amount.
+// Exit codes of recon validate: 0 every hard rule holds, 1 a rule failed (unmapped legacy lines, plaintext PII
+// column, or with -dump a DB-vs-dump difference), 2 usage/run error. The JSON is aggregate only (D-72 (3)): no NIK, name, or per-person amount.
 func validateCmd(args []string, stdout, stderr io.Writer) int {
 	fail := func(err error) int {
 		_, _ = fmt.Fprintln(stderr, "validate:", err) //nolint:errcheck // nothing to do if stderr fails
@@ -25,6 +26,7 @@ func validateCmd(args []string, stdout, stderr io.Writer) int {
 	from := fs.Int("yymm-from", 0, "periode awal yymm (wajib)")
 	to := fs.Int("yymm-to", 0, "periode akhir yymm (wajib)")
 	out := fs.String("out", "", "berkas laporan JSON agregat (kosong = stdout)")
+	dump := fs.String("dump", "", "folder PSV dump (MGT_PAYROLL_MAIN/DETAIL.psv): bandingkan agregat DB dengan dump (T032b)")
 	dsn := fs.String("dsn", os.Getenv("PAYROLL_RO_DSN"), "DSN role payroll_ro (read-only)")
 	if err := fs.Parse(args); err != nil {
 		return exitError
@@ -42,11 +44,20 @@ func validateCmd(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		return fail(err)
 	}
+	if *dump != "" {
+		if err := recon.CompareDump(&rep, etl.PSVDir{Dir: *dump}); err != nil {
+			return fail(err)
+		}
+	}
 	if err := writeValidate(rep, *out, stdout); err != nil {
 		return fail(err)
 	}
 	for _, f := range rep.Failures {
 		_, _ = fmt.Fprintln(stderr, "GAGAL:", f) //nolint:errcheck // informational
+	}
+	if c := rep.DumpCompare; c != nil {
+		_, _ = fmt.Fprintf(stderr, "dump periode=%d cocok=%d selisih=%d skip_d35_1=%d sintetis_d35_2=%d\n", //nolint:errcheck // informational
+			c.DumpPeriods, c.MatchedPeriods, len(c.Diffs), len(c.SkippedD351), len(c.SyntheticD352))
 	}
 	_, _ = fmt.Fprintf(stderr, "validate company=%d %d..%d periode=%d unmapped=%d plaintext_pii=%d ok=%t\n", //nolint:errcheck // informational
 		rep.CompanyID, rep.YYMMFrom, rep.YYMMTo, len(rep.Periods), rep.UnmappedLegacyLines, len(rep.PlaintextPII), rep.OK())

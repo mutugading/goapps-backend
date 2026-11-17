@@ -94,9 +94,11 @@ type Report struct {
 	BirthDate           []BirthDateGap      `json:"birth_date"`
 	PlaintextPII        []PlainPIIColumn    `json:"plaintext_pii_columns"` // must be empty
 	Failures            []string            `json:"failures"`              // violated "must" rules; empty = OK
+	// DumpCompare is set by CompareDump (`-dump`, T032b): DB aggregates against the PSV dump; any diff is a failure.
+	DumpCompare *Comparison `json:"dump_compare,omitempty"`
 }
 
-// OK reports whether every hard rule holds (unmapped = 0, no plaintext PII column).
+// OK reports whether every hard rule holds (unmapped = 0, no plaintext PII column, no DB-vs-dump diff).
 func (r Report) OK() bool { return len(r.Failures) == 0 }
 
 // raw is what the SQL layer returns; Build turns it into the report without I/O (unit-testable).

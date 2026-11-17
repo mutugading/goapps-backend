@@ -167,7 +167,20 @@ JSON memuat Σ detail per (yymm, divisi, T/P) dan Σ tot_tunjangan/tot_potongan/
 baris detail LEGACY tanpa `pyr_component_legacy_map`, karyawan tanpa `birth_date`, dan kolom PII non-ciphertext di
 `information_schema`. Exit 0 = `unmapped_legacy_lines` = 0 dan `plaintext_pii_columns` kosong; exit 1 = salah satunya dilanggar
 (lihat `failures`); exit 2 = salah pakai/koneksi. Id alias D-36 (100/200/101/201 → T70/T71/P70/P71) dihitung terpetakan bila
-targetnya punya baris map, dan dilaporkan terpisah di `aliased_d36_components`. Bandingkan dengan dump lewat T032b (`-dump`).
+targetnya punya baris map, dan dilaporkan terpisah di `aliased_d36_components`.
+
+Pembanding dump (T032b, D-72; langkah sesudah query (c)): tambah `-dump <DUMP>` (folder berisi `MGT_PAYROLL_MAIN.psv` dan
+`MGT_PAYROLL_DETAIL.psv`, **dump yang sama** dengan yang dimuat `salary-legacy`, bukan dump yang lebih lama/baru):
+
+```sh
+recon validate -company <CID> -yymm-from 201712 -yymm-to 202612 -dump <DUMP> -out validate.json -dsn "postgres://payroll_ro@<HOST>:5432/payroll_db?sslmode=require"
+```
+
+Dump dibaca dengan parser, filter skip D-35.1, dan MAIN sintetis D-35.2 yang sama dengan loader, lalu dibandingkan per (yymm, divisi)
+pada Σ detail T/P, jumlah baris detail, Σ head tunjangan/potongan/net (net = tunj - pot - rounding), dan jumlah baris head.
+`dump_compare` di JSON: `diffs` (HARUS kosong; satu entri per angka yang beda, `where` = `db_only`/`dump_only` bila periode hanya di satu sisi),
+`skipped_d35_1` (periode di luar cakupan D-35.1, dilaporkan sendiri, bukan selisih), `synthetic_main_d35_2` (jumlah MAIN sintetis per periode).
+Selisih apa pun membuat exit 1. Keluaran tetap agregat (tanpa NIK/nama/nominal per orang).
 
 ## 4. Gladi end-to-end 202612 (staging, ACCEPTANCE L.2)
 
