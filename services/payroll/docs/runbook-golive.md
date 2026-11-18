@@ -196,6 +196,15 @@ dan periode 202611 (bila belum riil) + 202612 dibuat sebagai **dummy** klon 2026
 membuktikan alur dan Σ bank = Σ net_pay, **bukan** nominal (D-64 (6)). `sync dummy-*` ditolak di `APP_ENV=production`.
 Langkah (staging, namespace `<NS>` staging, `APP_ENV` bukan production):
 
+0. **Guard fail-closed (T033a).** `dummy-period`, `dummy-janbase`, dan purge menolak (di fungsi `etl.RunDummy*`, bukan hanya CLI)
+   kecuali `current_database()` ada di allowlist **dan** `APP_ENV` bukan production. Isi env Job staging/salinan
+   `PAYROLL_DUMMY_DB_ALLOW=<nama DB staging>` (koma untuk lebih dari satu); kosong/tidak diset = semua DB ditolak. Jangan pernah
+   mengisinya di Job production. **Awas:** nama DB staging dan production sama (`payroll_db`), jadi allowlist saja tidak
+   membedakan keduanya; pembeda kedua adalah `APP_ENV`, yang harus salah satu `development|local|test|staging` (whitelist,
+   huruf besar/spasi dinormalisasi; `production`, `prod`, atau nilai lain ditolak). `sync-job.yaml` belum mengeset `APP_ENV`
+   (jatuh ke `development`), jadi **set `APP_ENV` Job dari namespace dulu (T028i2c)**. Tambahkan juga
+   `PAYROLL_DUMMY_DB_ALLOW=<nama DB staging>` hanya pada Job/overlay **staging** (env container Job `payroll-sync`). Purge default **dry-run** (cetak jumlah snapshot/rows/addition/attd_days, tidak menghapus
+   dan tidak menulis audit); hapus sungguhan hanya dengan `-apply`.
 1. Absensi dummy dari 202610, berurutan 202611 lalu 202612, per divisi (SOLO dan JAKARTA; `-workdays-delta` bila hari kerja beda):
    ```sh
    # args Job payroll-sync (pola header sync-job.yaml); DSN payroll_etl
@@ -204,7 +213,8 @@ Langkah (staging, namespace `<NS>` staging, `APP_ENV` bukan production):
    ["dummy-janbase","-dsn","$(PAYROLL_ETL_DSN)","-company","<CID>","-yymm","202701"]   # hanya bila gladi menjangkau Januari (D-64 (4))
    ```
    Klon snapshot + attd_days + addition (tanpa THR); tanpa konek HRIS, jadi tidak ada `att`/`snapshot` di gladi. Ulangi untuk `JAKARTA`.
-   Bersihkan dummy sesudah gladi: `dummy-period -purge -owner-dsn "$(PAYROLL_OWNER_DSN)" -to <YYMM> -division <DIV>`.
+   Bersihkan dummy sesudah gladi: jalankan dulu dry-run `dummy-period -purge -owner-dsn "$(PAYROLL_OWNER_DSN)" -to <YYMM> -division <DIV>`,
+   periksa jumlahnya, lalu ulangi dengan `-apply` untuk menghapus.
 2. Input periode (addition dsb.) tidak perlu diulang: sudah ikut terklon pada langkah 1.
 3. Run lewat API (user ber-permission `payroll.run.dryrun.execute`, `payroll.run.salary.commit`, `payroll.period.salary.approve`):
    ```sh

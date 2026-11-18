@@ -39,6 +39,11 @@ func TestMain(m *testing.M) {
 		fmt.Println("skip etl tests: INTEGRATION_TEST != true")
 		os.Exit(0)
 	}
+	// T033a: the dummy tools refuse every DB outside PAYROLL_DUMMY_DB_ALLOW; the throwaway testcontainer DB is allowed here.
+	if err := os.Setenv("PAYROLL_DUMMY_DB_ALLOW", "payroll_db"); err != nil {
+		fmt.Fprintln(os.Stderr, "setenv:", err)
+		os.Exit(1)
+	}
 	cleanup, err := setup()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "setup:", err)

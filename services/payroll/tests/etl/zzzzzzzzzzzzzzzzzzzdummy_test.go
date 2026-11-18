@@ -2,6 +2,7 @@ package etl
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -127,18 +128,38 @@ func TestDummyPeriod(t *testing.T) {
 		}
 	})
 
+	t.Run("dry-run purge counts but deletes nothing (T033a)", func(t *testing.T) {
+		const left = `SELECT (SELECT count(*) FROM payroll.pyr_att_snapshot WHERE pas_yymm=204011)||'/'||(SELECT count(*) FROM payroll.pyr_attd_days WHERE pad_yymm=204011)||'/'||
+		  (SELECT count(*) FROM payroll.pyr_addition WHERE pa_yymm=204011)||'/'||(SELECT count(*) FROM payroll.pyr_att_snapshot_row r JOIN payroll.pyr_att_snapshot s ON s.pas_snapshot_id=r.pasr_snapshot_id WHERE s.pas_yymm=204011)`
+		const auditN = `SELECT count(*)::text FROM payroll.pyr_audit_log WHERE pal_action='ETL_DUMMY_PURGE'`
+		before, auditBefore := scalar(t, left), scalar(t, auditN)
+		rep, err := etl.RunDummyPurge(ctx, ownDB, 1, 204011, "SOLO", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rep.Rows != 2 || rep.Additions != 2 || rep.AttdDays != 1 || rep.SnapshotID == 0 {
+			t.Fatalf("dry-run rep = %+v", rep)
+		}
+		if after := scalar(t, left); after != before {
+			t.Fatalf("dry-run mengubah data: %s -> %s", before, after)
+		}
+		if got := scalar(t, auditN); got != auditBefore {
+			t.Errorf("dry-run menulis audit: %s -> %s", auditBefore, got)
+		}
+	})
+
 	t.Run("etl role has no DELETE; purge needs owner and touches dummy only", func(t *testing.T) {
-		if _, err := etl.RunDummyPurge(ctx, etlDB, 1, 204011, "SOLO"); err == nil {
+		if _, err := etl.RunDummyPurge(ctx, etlDB, 1, 204011, "SOLO", true); err == nil {
 			t.Fatal("payroll_etl tidak boleh bisa purge")
 		}
-		if _, err := etl.RunDummyPurge(ctx, ownDB, 1, 204010, "SOLO"); err == nil || !strings.Contains(err.Error(), "non-dummy") {
+		if _, err := etl.RunDummyPurge(ctx, ownDB, 1, 204010, "SOLO", true); err == nil || !strings.Contains(err.Error(), "non-dummy") {
 			t.Fatalf("purge periode riil harus ditolak: %v", err)
 		}
 		// real addition in the dummy period stays (marker differs)
 		if _, err := ownDB.Exec(`INSERT INTO payroll.pyr_addition (pa_company_id, pa_yymm, pa_nik, pa_division, pa_type, pa_id, pa_amount, created_by) VALUES (1,204011,'DM-B','SOLO','Tunjangan',6,1,'user')`); err != nil {
 			t.Fatal(err)
 		}
-		rep, err := etl.RunDummyPurge(ctx, ownDB, 1, 204011, "SOLO")
+		rep, err := etl.RunDummyPurge(ctx, ownDB, 1, 204011, "SOLO", true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -150,7 +171,7 @@ func TestDummyPeriod(t *testing.T) {
 		  (SELECT count(*) FROM payroll.pyr_addition WHERE pa_yymm=204010)`); got != "0/0/1/1/5" {
 			t.Errorf("sisa snapshot/attd/add(204011)/snapshot/add(riil) = %s", got)
 		}
-		if rep2, err := etl.RunDummyPurge(ctx, ownDB, 1, 204011, "SOLO"); err != nil || rep2.SnapshotID != 0 {
+		if rep2, err := etl.RunDummyPurge(ctx, ownDB, 1, 204011, "SOLO", true); err != nil || rep2.SnapshotID != 0 {
 			t.Errorf("purge ulang harus no-op: %+v %v", rep2, err)
 		}
 		if got := scalar(t, `SELECT pad_days::text FROM payroll.pyr_attd_days WHERE pad_yymm=204008`); got != "20" {
@@ -243,4 +264,73 @@ func TestDummyJanBase(t *testing.T) {
 	if _, err := etl.RunDummyJanBase(ctx, etlDB, 1, 99); err == nil {
 		t.Fatal("yymm tidak valid harus ditolak")
 	}
+}
+
+// T033a: the guard is fail-closed inside Run* (not only in the CLI): a DB outside PAYROLL_DUMMY_DB_ALLOW and APP_ENV=production are refused for clone, purge and janbase, and nothing is written.
+func TestDummyGuard(t *testing.T) {
+	ctx := context.Background()
+	seedDummySource(t)
+	q := etl.DummyPeriodQuery{Company: 1, From: 204010, To: 204106, Division: "SOLO"}
+	// 204105 is a live dummy period (cloned while the guard is open): a refused purge must leave it untouched.
+	t.Setenv(etl.DummyDBAllowEnv, "payroll_db")
+	t.Setenv("APP_ENV", "staging")
+	if _, err := etl.RunDummyPeriod(ctx, etlDB, etl.DummyPeriodQuery{Company: 1, From: 204010, To: 204105, Division: "SOLO"}); err != nil {
+		t.Fatalf("setup dummy 204105: %v", err)
+	}
+	// every table the three operations could touch: purge target 204105 and clone target 204106 (snapshot, rows, additions, attd_days), T901 (janbase), audit.
+	const state = `SELECT (SELECT count(*) FROM payroll.pyr_att_snapshot WHERE pas_yymm IN (204105,204106))||'/'||
+	  (SELECT count(*) FROM payroll.pyr_att_snapshot_row r JOIN payroll.pyr_att_snapshot s ON s.pas_snapshot_id=r.pasr_snapshot_id WHERE s.pas_yymm IN (204105,204106))||'/'||
+	  (SELECT count(*) FROM payroll.pyr_addition WHERE pa_yymm IN (204105,204106))||'/'||(SELECT count(*) FROM payroll.pyr_attd_days WHERE pad_yymm IN (204105,204106))||'/'||
+	  (SELECT count(*) FROM payroll.pyr_employee_component ec JOIN payroll.pyr_component c ON c.pc_sysid=ec.pec_component_sysid WHERE c.pc_code='T901')||'/'||
+	  (SELECT count(*) FROM payroll.pyr_audit_log)`
+
+	refused := func(t *testing.T, what string) {
+		t.Helper()
+		before := scalar(t, state)
+		if _, err := etl.RunDummyPeriod(ctx, etlDB, q); !errors.Is(err, etl.ErrDummyRefused) {
+			t.Errorf("%s: RunDummyPeriod err = %v", what, err)
+		}
+		if _, err := etl.RunDummyPurge(ctx, ownDB, 1, 204105, "SOLO", true); !errors.Is(err, etl.ErrDummyRefused) {
+			t.Errorf("%s: RunDummyPurge err = %v", what, err)
+		}
+		if _, err := etl.RunDummyJanBase(ctx, etlDB, 1, 204101); !errors.Is(err, etl.ErrDummyRefused) {
+			t.Errorf("%s: RunDummyJanBase err = %v", what, err)
+		}
+		if after := scalar(t, state); after != before {
+			t.Errorf("%s: data berubah walau ditolak: %s -> %s", what, before, after)
+		}
+	}
+
+	t.Run("allowlist empty = refuse", func(t *testing.T) {
+		t.Setenv(etl.DummyDBAllowEnv, "")
+		refused(t, "kosong")
+	})
+	t.Run("db not in allowlist", func(t *testing.T) {
+		t.Setenv(etl.DummyDBAllowEnv, "payroll_other, payroll_d64")
+		refused(t, "tidak terdaftar")
+	})
+	t.Run("production refused even when allowlisted", func(t *testing.T) {
+		t.Setenv(etl.DummyDBAllowEnv, "payroll_db")
+		t.Setenv("APP_ENV", "production")
+		refused(t, "production")
+	})
+	t.Run("env spelling variants of production refused", func(t *testing.T) {
+		t.Setenv(etl.DummyDBAllowEnv, "payroll_db")
+		for _, env := range []string{"Production", "PRODUCTION", "prod", " production", "live"} {
+			t.Setenv("APP_ENV", env)
+			refused(t, env)
+		}
+	})
+	t.Run("allowlisted non-production passes", func(t *testing.T) {
+		t.Setenv(etl.DummyDBAllowEnv, "payroll_other, payroll_db")
+		t.Setenv("APP_ENV", "staging")
+		if _, err := etl.RunDummyPeriod(ctx, etlDB, q); err != nil {
+			t.Fatalf("allowlisted: %v", err)
+		}
+		for _, to := range []int{204105, 204106} {
+			if rep, err := etl.RunDummyPurge(ctx, ownDB, 1, to, "SOLO", true); err != nil || rep.SnapshotID == 0 {
+				t.Fatalf("purge allowlisted %d: %+v %v", to, rep, err)
+			}
+		}
+	})
 }

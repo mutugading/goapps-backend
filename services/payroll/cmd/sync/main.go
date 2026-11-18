@@ -50,8 +50,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, "       sync gl-setup -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-rows 1338] [-allow-exceptions]  (MGT_PAYROLL_SETUP → pyr_gl_setup + pyr_gl_group_map; sesudah migrate, 11§4.5)")
 		fmt.Fprintln(os.Stderr, "       sync cost-group -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-rows 41] [-allow-exceptions]  (FM_DEPARTMENT.DEPT_FIELD_01 → pyr_employee.pe_cost_group per dept; sesudah employees, D-63/T028q)")
 		fmt.Fprintln(os.Stderr, "       sync fx-rate -dir <psv dir> -dsn <payroll_etl dsn> [-expect-rows 297] [-allow-exceptions]  (FM_EXCHANGE_RATE IDR→USD BOOK → pyr_fx_rate; spool dengan SET NUMWIDTH 40, D-63)")
-		fmt.Fprintln(os.Stderr, "       sync dummy-period -dsn <payroll_etl dsn> -from 202610 -to 202611 -division SOLO|JAKARTA [-company 1] [-workdays-delta N] [-purge -owner-dsn <payroll_owner/migrator dsn>]  (klon snapshot+attd_days+addition tanpa THR sebagai data uji D-64; HANYA DB salinan/staging, ditolak di production D-68)")
-		fmt.Fprintln(os.Stderr, "       sync dummy-janbase -dsn <payroll_etl dsn> -yymm 202701 [-company 1]  (T901 = Σ TETAP bulan sebelumnya, valid yymm saja; D-64 (4); HANYA DB salinan/staging, ditolak di production D-68)")
+		fmt.Fprintln(os.Stderr, "       sync dummy-period -dsn <payroll_etl dsn> -from 202610 -to 202611 -division SOLO|JAKARTA [-company 1] [-workdays-delta N] [-purge [-apply] -owner-dsn <payroll_owner/migrator dsn>]  (klon snapshot+attd_days+addition tanpa THR sebagai data uji D-64; purge default dry-run, hapus hanya dengan -apply; wajib PAYROLL_DUMMY_DB_ALLOW=<nama DB>, kosong = tolak; ditolak di production D-68)")
+		fmt.Fprintln(os.Stderr, "       sync dummy-janbase -dsn <payroll_etl dsn> -yymm 202701 [-company 1]  (T901 = Σ TETAP bulan sebelumnya, valid yymm saja; D-64 (4); wajib PAYROLL_DUMMY_DB_ALLOW=<nama DB>, kosong = tolak; ditolak di production D-68)")
 		fmt.Fprintln(os.Stderr, "       sync inputs -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-addition 28464 -expect-abnormal 28550]")
 		fmt.Fprintln(os.Stderr, "       sync salary-legacy -dir <psv dir> -dsn <payroll_etl dsn> [-company 1] [-expect-main 91916 -expect-detail 2274418] [-allow-exceptions]")
 		fmt.Fprintln(os.Stderr, "       sync prune-excluded -owner-dsn <payroll_owner/migrator dsn> [-company 1] [-apply]  (hapus run LEGACY di luar cakupan D-35.1; default dry-run)")
@@ -589,13 +589,10 @@ func snapshot(args []string) error {
 	return err
 }
 
-// rejectProduction refuses synthetic-data subcommands when APP_ENV=production. It runs before any DB connection:
+// rejectProduction refuses synthetic-data subcommands unless APP_ENV is dummy-safe (whitelist, etl.CheckDummyEnv). It runs before any DB connection:
 // production holds real data only (D-68 (1)); dummy periods belong to a copy or staging DB (D-64, D-68 (2)).
 func rejectProduction(cmd string) error {
-	if config.EnvFromOS() == "production" {
-		return fmt.Errorf("%s ditolak di APP_ENV=production: data dummy dilarang di production (D-68); pakai DB salinan/staging", cmd)
-	}
-	return nil
+	return etl.CheckDummyEnv(cmd)
 }
 
 // dummyPeriod clones a real period into a synthetic one (D-64), or purges it with -purge (owner DSN, user decision batch T029a).
@@ -611,7 +608,8 @@ func dummyPeriod(args []string) error {
 	to := fs.Int("to", 0, "periode dummy YYYYMM (wajib)")
 	division := fs.String("division", "", "SOLO atau JAKARTA (wajib)")
 	delta := fs.Int("workdays-delta", 0, "tambahan pyr_attd_days dari periode sumber (mis. -1 untuk bulan 30 hari)")
-	purge := fs.Bool("purge", false, "hapus baris dummy periode -to (butuh -owner-dsn)")
+	purge := fs.Bool("purge", false, "purge baris dummy periode -to (butuh -owner-dsn); default dry-run (cetak jumlah per tabel)")
+	apply := fs.Bool("apply", false, "dengan -purge: benar-benar hapus (tanpa -apply hanya dry-run)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -632,9 +630,13 @@ func dummyPeriod(args []string) error {
 			return oerr
 		}
 		defer closeDB(db)
-		rep, err = etl.RunDummyPurge(context.Background(), db, int16(*company), *to, *division) //nolint:gosec // -company checked to 1..MaxInt16 above
+		rep, err = etl.RunDummyPurge(context.Background(), db, int16(*company), *to, *division, *apply) //nolint:gosec // -company checked to 1..MaxInt16 above
 		if err == nil {
-			fmt.Printf("%-8s %d purge: snapshot=%d rows=%d addition=%d attd_days=%d\n", rep.Division, rep.YYMM, rep.SnapshotID, rep.Rows, rep.Additions, rep.AttdDays)
+			mode := "DRY-RUN (tidak ada yang dihapus; ulangi dengan -apply)"
+			if *apply {
+				mode = "APPLY"
+			}
+			fmt.Printf("%-8s %d purge %s: snapshot=%d rows=%d addition=%d attd_days=%d\n", rep.Division, rep.YYMM, mode, rep.SnapshotID, rep.Rows, rep.Additions, rep.AttdDays)
 		}
 		return err
 	}
