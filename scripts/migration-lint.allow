@@ -14,6 +14,10 @@ R2 services/payroll/migrations/postgres/000035_ytd_out_of_scope.up.sql:11  # SEC
 R2 services/payroll/migrations/postgres/000038_guard_closed_inputs.down.sql:8  # SECURITY DEFINER pin search_path = payroll, pg_catalog (D-66 C, tes I16)
 R2 services/payroll/migrations/postgres/000038_guard_closed_inputs.up.sql:7  # SECURITY DEFINER pin search_path = payroll, pg_catalog (D-66 C, tes I16)
 R2 services/payroll/migrations/postgres/000039_thr_bonus.up.sql:205  # SECURITY DEFINER pin search_path = payroll, pg_catalog (D-66 C, tes I16)
+R2 services/payroll/migrations/postgres/000046_guard_closed_old_new.down.sql:3  # SECURITY DEFINER pin search_path = payroll, pg_catalog (D-66 C, tes I16)
+R2 services/payroll/migrations/postgres/000046_guard_closed_old_new.down.sql:43  # SECURITY DEFINER pin search_path = payroll, pg_catalog (D-66 C, tes I16)
+R2 services/payroll/migrations/postgres/000046_guard_closed_old_new.up.sql:6  # SECURITY DEFINER pin search_path = payroll, pg_catalog (D-66 C, tes I16)
+R2 services/payroll/migrations/postgres/000046_guard_closed_old_new.up.sql:50  # SECURITY DEFINER pin search_path = payroll, pg_catalog (D-66 C, tes I16)
 
 # payroll (D-66 C (5)): COMMENT ON COLUMN pada tabel payroll_stg. search_path migrator = payroll (bootstrap.sql),
 # jadi nama tanpa schema tidak bisa dipakai; nama schema-qualified di sini bukan lintas-database (positif palsu R6).

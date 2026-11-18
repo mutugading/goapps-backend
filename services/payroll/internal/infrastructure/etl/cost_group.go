@@ -50,7 +50,7 @@ func RunCostGroup(ctx context.Context, db *sql.DB, src Source, o CostGroupOption
 	}
 	sort.Strings(codes)
 	for _, code := range codes {
-		res, uerr := tx.ExecContext(ctx, `UPDATE payroll.pyr_employee SET pe_cost_group=$3, updated_by='ETL', updated_at=now()
+		res, uerr := tx.ExecContext(ctx, `UPDATE payroll.pyr_employee SET pe_cost_group=$3, pe_version=pe_version+1, updated_by='ETL', updated_at=now()
 WHERE pe_company_id=$1 AND pe_dept_id=$2 AND pe_cost_group IS DISTINCT FROM $3`, o.CompanyID, code, groups[code])
 		if uerr != nil {
 			return rep, fmt.Errorf("dept %s: %w", code, scrub(uerr))

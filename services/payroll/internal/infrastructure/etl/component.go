@@ -152,7 +152,12 @@ INSERT INTO payroll.pyr_component (pc_company_id, pc_code, pc_type, pc_name, pc_
   pc_subsidy_eligible, pc_fix_income, pc_serial, pc_status, pc_valid_from)
 VALUES ($1,$2,$3::payroll.comp_type,$4,$5,$6,$7,$8,$9,'ACTIVE',$10)
 ON CONFLICT (pc_company_id, pc_code) DO UPDATE SET pc_name=EXCLUDED.pc_name, pc_default_sts=EXCLUDED.pc_default_sts,
-  pc_subsidy_eligible=EXCLUDED.pc_subsidy_eligible, pc_fix_income=EXCLUDED.pc_fix_income, pc_serial=EXCLUDED.pc_serial
+  pc_subsidy_eligible=EXCLUDED.pc_subsidy_eligible, pc_fix_income=EXCLUDED.pc_fix_income, pc_serial=EXCLUDED.pc_serial,
+  pc_version=payroll.pyr_component.pc_version + CASE WHEN
+    (payroll.pyr_component.pc_name, payroll.pyr_component.pc_default_sts, payroll.pyr_component.pc_subsidy_eligible,
+     payroll.pyr_component.pc_fix_income, payroll.pyr_component.pc_serial)
+    IS DISTINCT FROM (EXCLUDED.pc_name, EXCLUDED.pc_default_sts, EXCLUDED.pc_subsidy_eligible, EXCLUDED.pc_fix_income, EXCLUDED.pc_serial)
+  THEN 1 ELSE 0 END
 RETURNING pc_sysid`,
 			o.CompanyID, m.code, m.typ, m.name, m.sts, m.taxClass, m.subsidy, m.fix, m.serial, o.ValidFrom).Scan(&sysid)
 		if err != nil {

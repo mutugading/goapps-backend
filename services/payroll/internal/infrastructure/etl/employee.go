@@ -236,7 +236,32 @@ ON CONFLICT (pe_company_id, pe_nik, pe_division) DO UPDATE SET
   pe_bank_acnt_enc=EXCLUDED.pe_bank_acnt_enc, pe_npwp_hash=EXCLUDED.pe_npwp_hash, pe_bank=EXCLUDED.pe_bank,
   pe_bank_branch=EXCLUDED.pe_bank_branch, pe_bank_acnt_name=EXCLUDED.pe_bank_acnt_name,
   pe_id_mesin=EXCLUDED.pe_id_mesin, pe_cuti_tahunan=EXCLUDED.pe_cuti_tahunan,
-  pe_hris_sys_id=COALESCE(EXCLUDED.pe_hris_sys_id, payroll.pyr_employee.pe_hris_sys_id), updated_by='ETL', updated_at=now()
+  pe_hris_sys_id=COALESCE(EXCLUDED.pe_hris_sys_id, payroll.pyr_employee.pe_hris_sys_id),
+  -- T033e (#3b): ETag (pe_version) naik hanya bila nilai berubah. Kolom PII terenkripsi memakai salt acak, jadi
+  -- dibandingkan lewat plaintext ($26-$28), bukan ciphertext.
+  pe_version=payroll.pyr_employee.pe_version + CASE WHEN
+    (payroll.pyr_employee.pe_nama, payroll.pyr_employee.pe_email, payroll.pyr_employee.pe_dept_id, payroll.pyr_employee.pe_dept,
+     payroll.pyr_employee.pe_section_id, payroll.pyr_employee.pe_section, payroll.pyr_employee.pe_designation_id,
+     payroll.pyr_employee.pe_designation, payroll.pyr_employee.pe_grade, payroll.pyr_employee.pe_level, payroll.pyr_employee.pe_tax_id,
+     payroll.pyr_employee.pe_sts_emp, payroll.pyr_employee.pe_sts_payroll, payroll.pyr_employee.pe_sts_bonus,
+     payroll.pyr_employee.pe_date_join, payroll.pyr_employee.pe_resign_date, payroll.pyr_employee.pe_birth_date,
+     payroll.pyr_employee.pe_birth_place, payroll.pyr_employee.pe_sex, payroll.pyr_employee.pe_married_sts,
+     payroll.pyr_employee.pe_religion, payroll.pyr_employee.pe_npwp_hash, payroll.pyr_employee.pe_bank,
+     payroll.pyr_employee.pe_bank_branch, payroll.pyr_employee.pe_bank_acnt_name, payroll.pyr_employee.pe_id_mesin,
+     payroll.pyr_employee.pe_cuti_tahunan, payroll.pyr_employee.pe_hris_sys_id,
+     CASE WHEN payroll.pyr_employee.pe_npwp_enc IS NULL THEN NULL ELSE payroll.pgp_sym_decrypt(payroll.pyr_employee.pe_npwp_enc,$1::text) END,
+     CASE WHEN payroll.pyr_employee.pe_ktp_enc IS NULL THEN NULL ELSE payroll.pgp_sym_decrypt(payroll.pyr_employee.pe_ktp_enc,$1::text) END,
+     CASE WHEN payroll.pyr_employee.pe_bank_acnt_enc IS NULL THEN NULL ELSE payroll.pgp_sym_decrypt(payroll.pyr_employee.pe_bank_acnt_enc,$1::text) END)
+    IS DISTINCT FROM
+    (EXCLUDED.pe_nama, EXCLUDED.pe_email, EXCLUDED.pe_dept_id, EXCLUDED.pe_dept, EXCLUDED.pe_section_id, EXCLUDED.pe_section,
+     EXCLUDED.pe_designation_id, EXCLUDED.pe_designation, EXCLUDED.pe_grade, EXCLUDED.pe_level, EXCLUDED.pe_tax_id,
+     EXCLUDED.pe_sts_emp, EXCLUDED.pe_sts_payroll, EXCLUDED.pe_sts_bonus, EXCLUDED.pe_date_join, EXCLUDED.pe_resign_date,
+     EXCLUDED.pe_birth_date, EXCLUDED.pe_birth_place, EXCLUDED.pe_sex, EXCLUDED.pe_married_sts, EXCLUDED.pe_religion,
+     EXCLUDED.pe_npwp_hash, EXCLUDED.pe_bank, EXCLUDED.pe_bank_branch, EXCLUDED.pe_bank_acnt_name, EXCLUDED.pe_id_mesin,
+     EXCLUDED.pe_cuti_tahunan, COALESCE(EXCLUDED.pe_hris_sys_id, payroll.pyr_employee.pe_hris_sys_id),
+     $26::text, $27::text, $28::text)
+  THEN 1 ELSE 0 END,
+  updated_by='ETL', updated_at=now()
 RETURNING pe_id`
 
 // scrub drops driver detail that could echo a PII value (D-17); the SQLSTATE and message stay.
