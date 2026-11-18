@@ -11,6 +11,8 @@ import (
 // T033e (#3a): guard CLOSED memeriksa kunci OLD dan NEW; memindahkan baris keluar dari periode CLOSED ditolak.
 func TestGuardClosed_KeyMoveRejected(t *testing.T) {
 	ctx := context.Background()
+	dropKeyMove(t) // T033e2: bersihkan sisa run sebelumnya (periode 209801/209802, baris KM-*) sebelum dan sesudah test
+	t.Cleanup(func() { dropKeyMove(t) })
 	for _, q := range []string{
 		`INSERT INTO payroll.pyr_period (pp_company_id, pp_yymm, pp_division, pp_date_from, pp_date_to, pp_status)
 		 VALUES (1,209801,'SOLO','2097-12-26','2098-01-25','OPEN'),(1,209802,'SOLO','2098-01-26','2098-02-25','OPEN')
