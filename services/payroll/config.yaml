@@ -25,6 +25,12 @@ database:
 jwt:
   access_token_secret: "change-this-in-production"  # Override via JWT_ACCESS_SECRET (must match IAM)
 
+auth_redis:  # IAM Redis DB 1: token blacklist + permission cache (D-73 (3)); AUTH_REDIS_* env
+  host: localhost
+  port: 6379
+  password: ""
+  db: 1
+
 cors:
   allowed_origins:
     - "http://localhost:3000"

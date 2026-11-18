@@ -62,7 +62,7 @@ func TestCanSeeAmounts(t *testing.T) {
 	if !canSeeAmounts(context.WithValue(base, AuthPermissionsKey, []string{permSalaryAmount})) {
 		t.Fatal("permission holder must see amounts")
 	}
-	if !canSeeAmounts(context.WithValue(base, AuthRolesKey, []string{"SUPER_ADMIN"})) {
-		t.Fatal("SUPER_ADMIN bypass")
+	if canSeeAmounts(context.WithValue(base, AuthRolesKey, []string{"SUPER_ADMIN"})) {
+		t.Fatal("SUPER_ADMIN without amount.view must be masked (D-73 (3))")
 	}
 }

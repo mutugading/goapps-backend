@@ -22,6 +22,7 @@ import (
 	auditinfra "github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/audit"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/config"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/postgres"
+	redisinfra "github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/redis"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/tracing"
 )
 
@@ -101,6 +102,22 @@ func rulesFunc(ctx context.Context, tx *sql.Tx, q runapp.Query, ruleSetID int) (
 	return runapp.Rules{Set: rr.Rules, Tax: rr.Tax, Subsidy: rr.Subsidy}, nil
 }
 
+// setupAuthRedis connects to IAM's Redis (token blacklist + permission cache); nil when unreachable.
+func setupAuthRedis(cfg *config.Config) *redisinfra.TokenBlacklist {
+	bl, err := redisinfra.NewTokenBlacklist(&cfg.AuthRedis)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to connect to auth Redis, continuing without token blacklist and permission cache")
+		return nil
+	}
+	return bl
+}
+
+func closeAuthRedis(bl *redisinfra.TokenBlacklist) {
+	if err := bl.Close(); err != nil {
+		log.Warn().Err(err).Msg("Failed to close auth Redis connection")
+	}
+}
+
 // startServers starts the gRPC and HTTP servers and handles graceful shutdown.
 func startServers(ctx context.Context, cfg *config.Config) error {
 	db, err := postgres.NewConnection(&cfg.Database)
@@ -116,7 +133,16 @@ func startServers(ctx context.Context, cfg *config.Config) error {
 	idemStore := postgres.NewIdempotencyStore(db)
 	go idemStore.RunPurgeLoop(ctx, time.Hour, 24*time.Hour) // expired Idempotency-Keys (D-19, T007f)
 
-	grpcServer, err := grpcdelivery.NewServer(&cfg.Server, &cfg.JWT, postgres.NewScopeResolver(db), idemStore)
+	// Auth Redis is optional (graceful degradation, same as finance): without it no blacklist check and
+	// permissions come from the JWT claims only (D-73 (3)).
+	var blacklist grpcdelivery.TokenBlacklistChecker
+	var permsReader grpcdelivery.PermissionsReader
+	if bl := setupAuthRedis(cfg); bl != nil {
+		defer closeAuthRedis(bl)
+		blacklist, permsReader = bl, bl
+	}
+
+	grpcServer, err := grpcdelivery.NewServer(&cfg.Server, &cfg.JWT, postgres.NewScopeResolver(db), idemStore, blacklist, permsReader)
 	if err != nil {
 		return err
 	}

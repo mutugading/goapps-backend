@@ -18,10 +18,12 @@ type Config struct {
 	Server   ServerConfig   `mapstructure:"server"`
 	Database DatabaseConfig `mapstructure:"database"`
 	JWT      JWTConfig      `mapstructure:"jwt"`
-	PII      PIIConfig      `mapstructure:"pii"`
-	CORS     CORSConfig     `mapstructure:"cors"`
-	Tracing  TracingConfig  `mapstructure:"tracing"`
-	Logger   LoggerConfig   `mapstructure:"logger"`
+	// AuthRedis is IAM's Redis (DB 1): token blacklist + permission cache (D-73 (3), same as finance).
+	AuthRedis AuthRedisConfig `mapstructure:"auth_redis"`
+	PII       PIIConfig       `mapstructure:"pii"`
+	CORS      CORSConfig      `mapstructure:"cors"`
+	Tracing   TracingConfig   `mapstructure:"tracing"`
+	Logger    LoggerConfig    `mapstructure:"logger"`
 	// OracleSync is the read-only HRIS Oracle account for `cmd/sync att` (D-58 (3)).
 	// Empty ⇒ not Configured(); the server is unaffected, only the sync command fails.
 	OracleSync OracleSyncConfig `mapstructure:"oracle_sync"`
@@ -39,6 +41,19 @@ type OracleSyncConfig struct {
 // Configured reports whether enough settings are present to attempt a connection.
 func (c OracleSyncConfig) Configured() bool {
 	return c.Host != "" && c.Port > 0 && c.Service != "" && c.User != "" && c.Password != ""
+}
+
+// AuthRedisConfig holds the IAM Redis used for the token blacklist and the permission cache.
+type AuthRedisConfig struct {
+	Host     string `mapstructure:"host"`
+	Port     int    `mapstructure:"port"`
+	Password string `mapstructure:"password"`
+	DB       int    `mapstructure:"db"`
+}
+
+// Address returns the auth Redis address.
+func (c *AuthRedisConfig) Address() string {
+	return fmt.Sprintf("%s:%d", c.Host, c.Port)
 }
 
 // AppConfig holds application-level configuration.
@@ -247,6 +262,11 @@ func setDefaults(v *viper.Viper) {
 	// JWT defaults (must match IAM access token secret).
 	v.SetDefault("jwt.access_token_secret", "change-this-in-production")
 	// Development-only sample keys; Validate requires real keys outside development.
+	v.SetDefault("auth_redis.host", "localhost")
+	v.SetDefault("auth_redis.port", 6379)
+	v.SetDefault("auth_redis.password", "")
+	v.SetDefault("auth_redis.db", 1)
+
 	v.SetDefault("pii.enc_key", "dev-pii-enc-key-change-in-production")
 	v.SetDefault("pii.hmac_key", "dev-pii-hmac-key-change-in-production")
 
@@ -288,6 +308,11 @@ func bindEnvVars(v *viper.Viper) {
 		// JWT.
 		{"jwt.access_token_secret", "JWT_ACCESS_SECRET"},
 		// PII (D-17).
+		{"auth_redis.host", "AUTH_REDIS_HOST"},
+		{"auth_redis.port", "AUTH_REDIS_PORT"},
+		{"auth_redis.password", "AUTH_REDIS_PASSWORD"},
+		{"auth_redis.db", "AUTH_REDIS_DB"},
+
 		{"pii.enc_key", "PAYROLL_PII_KEY"},
 		{"pii.hmac_key", "PAYROLL_PII_HMAC_KEY"},
 		// Oracle sync (D-58 (3)).

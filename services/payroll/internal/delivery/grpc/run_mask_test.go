@@ -1,6 +1,7 @@
 package grpc
 
 import (
+	"context"
 	"regexp"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 
 	payrollv1 "github.com/mutugading/goapps-backend/gen/payroll/v1"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/run"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/component"
 )
 
 var nominalField = regexp.MustCompile(`amount|total|take_home|^base$|^rate$|remarks`)
@@ -90,5 +92,58 @@ func TestMaskRunResponses(t *testing.T) {
 func TestMaskRemarksEmptyStaysEmpty(t *testing.T) {
 	if got := linePB(run.LineInfo{NIK: "N1"}, false).GetRemarks(); got != "" {
 		t.Fatalf("empty remarks = %q", got)
+	}
+}
+
+// TestMaskComponentResponses covers GetEmployeeComponents, PreviewLevelChange and GetComponentTemplate (and the
+// Put/Apply responses that share the builders): Amount is masked without payroll.salary.amount.view (D-73 (3)).
+func TestMaskComponentResponses(t *testing.T) {
+	att := component.Attachment{Sysid: 1, Code: "GAPOK", Sts: "F", Amount: "5000000.00", Source: "TEMPLATE"}
+	tpl := component.TemplateItem{Sysid: 1, Code: "GAPOK", Sts: "F", Amount: "5000000.00"}
+	chg := []component.Change{{Action: "UPDATE", Sysid: 1, Code: "GAPOK", Before: &att, After: &att}}
+	resps := map[string]func(see bool) proto.Message{
+		"GetEmployeeComponents": func(see bool) proto.Message {
+			return &payrollv1.GetEmployeeComponentsResponse{Items: attachmentsPB([]component.Attachment{att}, see)}
+		},
+		"PreviewLevelChange": func(see bool) proto.Message {
+			return &payrollv1.PreviewLevelChangeResponse{Changes: changesPB(chg, see)}
+		},
+		"GetComponentTemplate": func(see bool) proto.Message {
+			return &payrollv1.GetComponentTemplateResponse{Items: templateItemsPB([]component.TemplateItem{tpl}, see)}
+		},
+	}
+	for name, build := range resps {
+		for _, see := range []bool{false, true} {
+			want := masked
+			if see {
+				want = "5000000.00"
+			}
+			seen := 0
+			walkNominals(build(see).ProtoReflect(), name, func(path, v string, _ bool) {
+				seen++
+				if v != want {
+					t.Errorf("%s (see=%v) = %q, want %q", path, see, v, want)
+				}
+			})
+			if seen == 0 {
+				t.Errorf("%s: no nominal field found", name)
+			}
+		}
+	}
+}
+
+// TestPutComponentsRequireAmountView: writing nominals needs payroll.salary.amount.view, SUPER_ADMIN included;
+// the check runs before the service, so a nil service is never reached.
+func TestPutComponentsRequireAmountView(t *testing.T) {
+	h := &MasterHandler{}
+	admin := context.WithValue(context.Background(), AuthRolesKey, []string{"SUPER_ADMIN"})
+	if _, err := h.PutEmployeeComponents(admin, &payrollv1.PutEmployeeComponentsRequest{}); err == nil {
+		t.Fatal("PutEmployeeComponents without amount.view must be denied")
+	}
+	if _, err := h.PutComponentTemplate(admin, &payrollv1.PutComponentTemplateRequest{}); err == nil {
+		t.Fatal("PutComponentTemplate without amount.view must be denied")
+	}
+	if err := requireAmounts(context.WithValue(context.Background(), AuthPermissionsKey, []string{permSalaryAmount})); err != nil {
+		t.Fatalf("holder denied: %v", err)
 	}
 }

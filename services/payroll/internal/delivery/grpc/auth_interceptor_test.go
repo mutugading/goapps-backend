@@ -69,7 +69,7 @@ func TestAuthInterceptor_Scenarios(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			icp := AuthInterceptor(&config.JWTConfig{AccessTokenSecret: testSecret}, tt.resolver)
+			icp := AuthInterceptor(&config.JWTConfig{AccessTokenSecret: testSecret}, tt.resolver, nil, nil)
 			var gotScope string
 			_, err := icp(tt.ctx, nil, info, func(ctx context.Context, _ any) (any, error) {
 				id, ok := scope.FromContext(ctx)
@@ -89,8 +89,86 @@ func TestAuthInterceptor_Scenarios(t *testing.T) {
 	}
 }
 
+type fakeBlacklist struct {
+	revoked map[string]bool
+	err     error
+}
+
+func (f fakeBlacklist) IsBlacklisted(_ context.Context, jti string) (bool, error) {
+	return f.revoked[jti], f.err
+}
+
+type fakePerms struct {
+	perms map[string][]string
+	err   error
+}
+
+func (f fakePerms) GetUserPermissions(_ context.Context, userID string) ([]string, error) {
+	return f.perms[userID], f.err
+}
+
+func signTokenJTI(t *testing.T, jti, userID string, roles []string) string {
+	t.Helper()
+	claims := JWTClaims{
+		RegisteredClaims: jwt.RegisteredClaims{ID: jti, ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour))},
+		TokenType:        "access", UserID: userID, Roles: roles, Permissions: []string{"payroll.run.run.view"},
+	}
+	s, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(testSecret))
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	return s
+}
+
+// TestAuthInterceptor_RedisBlacklistAndPerms covers D-73 (3): revoked JTI → 401, permissions from the IAM
+// Redis cache (fallback to JWT claims on miss/error), and SUPER_ADMIN without amount.view stays masked.
+func TestAuthInterceptor_RedisBlacklistAndPerms(t *testing.T) {
+	info := &grpc.UnaryServerInfo{FullMethod: "/payroll.v1.PayrollService/X"}
+	bl := fakeBlacklist{revoked: map[string]bool{"jti-out": true}}
+	pr := fakePerms{perms: map[string][]string{
+		"hr":    {"payroll.master.employee.view", permSalaryAmount},
+		"admin": {"payroll.master.employee.view"},
+	}}
+	tests := []struct {
+		name      string
+		token     string
+		bl        TokenBlacklistChecker
+		pr        PermissionsReader
+		wantCode  codes.Code
+		wantPerms []string
+		wantSee   bool
+	}{
+		{"blacklisted token", signTokenJTI(t, "jti-out", "hr", nil), bl, pr, codes.Unauthenticated, nil, false},
+		{"HR with amount.view via Redis", signTokenJTI(t, "jti-1", "hr", nil), bl, pr, codes.OK,
+			[]string{"payroll.master.employee.view", permSalaryAmount}, true},
+		{"SUPER_ADMIN without amount.view is masked", signTokenJTI(t, "jti-2", "admin", []string{"SUPER_ADMIN"}), bl, pr, codes.OK,
+			[]string{"payroll.master.employee.view"}, false},
+		{"cache miss falls back to JWT", signTokenJTI(t, "jti-3", "other", nil), bl, pr, codes.OK, []string{"payroll.run.run.view"}, false},
+		{"Redis error fails open to JWT", signTokenJTI(t, "jti-4", "hr", nil), fakeBlacklist{err: errors.New("down")},
+			fakePerms{err: errors.New("down")}, codes.OK, []string{"payroll.run.run.view"}, false},
+		{"no Redis configured", signTokenJTI(t, "jti-out", "hr", nil), nil, nil, codes.OK, []string{"payroll.run.run.view"}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			icp := AuthInterceptor(&config.JWTConfig{AccessTokenSecret: testSecret}, fakeResolver{}, tt.bl, tt.pr)
+			var perms []string
+			var see bool
+			_, err := icp(ctxWithToken(tt.token), nil, info, func(ctx context.Context, _ any) (any, error) {
+				perms, see = GetPermissionsFromCtx(ctx), canSeeAmounts(ctx)
+				return nil, nil
+			})
+			if status.Code(err) != tt.wantCode {
+				t.Fatalf("code = %v, want %v (err=%v)", status.Code(err), tt.wantCode, err)
+			}
+			if strings.Join(perms, ",") != strings.Join(tt.wantPerms, ",") || see != tt.wantSee {
+				t.Fatalf("perms = %v see = %v, want %v see = %v", perms, see, tt.wantPerms, tt.wantSee)
+			}
+		})
+	}
+}
+
 func TestAuthInterceptor_HealthIsPublic(t *testing.T) {
-	icp := AuthInterceptor(&config.JWTConfig{AccessTokenSecret: testSecret}, fakeResolver{})
+	icp := AuthInterceptor(&config.JWTConfig{AccessTokenSecret: testSecret}, fakeResolver{}, nil, nil)
 	info := &grpc.UnaryServerInfo{FullMethod: "/grpc.health.v1.Health/Check"}
 	if _, err := icp(context.Background(), nil, info, func(context.Context, any) (any, error) { return nil, nil }); err != nil {
 		t.Fatalf("health must be public: %v", err)
