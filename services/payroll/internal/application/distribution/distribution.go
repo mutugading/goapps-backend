@@ -21,10 +21,29 @@ import (
 
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/report"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/run"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/apperr"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/audit"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/config"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/postgres"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/smtp"
 )
+
+// ErrBatchExists is returned when a live (not CANCELLED/SUPERSEDED) batch of the same document and period exists,
+// including the loser of two concurrent creates (unique index uix_pdb_active, 23505). It is wrapped together with an
+// apperr CONFLICT (gRPC ALREADY_EXISTS / HTTP 409), see batchExists.
+var ErrBatchExists = errors.New("distribution: batch aktif untuk periode ini sudah ada")
+
+// batchExists is ErrBatchExists as a domain error: errors.Is finds the sentinel and errors.As finds the apperr.
+func batchExists(q report.Query, hint string) error {
+	return fmt.Errorf("%w: %w", ErrBatchExists, apperr.New(apperr.CodeConflict,
+		fmt.Sprintf("batch %s %d %s sudah ada%s", DocType, q.YYMM, q.Division, hint), nil))
+}
+
+// createLockNS is the advisory lock namespace serializing batch creation per (company, period, division).
+const createLockNS = "payroll.dist_create"
+
+// uniqueActiveBatch is the partial unique index behind ErrBatchExists (migration 000045).
+const uniqueActiveBatch = "uix_pdb_active"
 
 // DocType is the only document distributed in this task.
 const DocType = "SLIP_GAJI"
@@ -99,7 +118,10 @@ type CreateResult struct {
 // email, no birth date). Creating twice for the same run is refused; use resend for individual NIKs.
 func (s *Service) Create(ctx context.Context, q report.Query, o CreateOptions) (CreateResult, error) {
 	var res CreateResult
-	err := s.DB.ScopedTxOpts(ctx, run.SnapshotTx, func(tx *sql.Tx) error {
+	// Lock before the snapshot: a waiting create then sees (and supersedes against) what the previous one committed,
+	// instead of failing with 40001 (RUN_IN_PROGRESS). The unique index uix_pdb_active stays the last guard.
+	lockKey := fmt.Sprintf("%d:%d:%s", q.CompanyID, q.YYMM, q.Division)
+	err := s.DB.ScopedTxOptsLocked(ctx, run.SnapshotTx, createLockNS, lockKey, func(tx *sql.Tx) error {
 		res = CreateResult{}
 		return s.createInTx(ctx, tx, q, o, &res)
 	})
@@ -127,7 +149,7 @@ WHERE pdb_company_id=$1 AND pdb_division=$2 AND pdb_doc_type=$3 AND pdb_yymm=$4 
 		return fmt.Errorf("check batch: %w", err)
 	}
 	if existing > 0 {
-		return fmt.Errorf("batch %s %d %s sudah ada; gunakan resend untuk NIK tertentu atau batalkan batch lama", DocType, q.YYMM, q.Division)
+		return batchExists(q, "; gunakan resend untuk NIK tertentu atau batalkan batch lama")
 	}
 	tmplID, _, err := loadMailTemplate(ctx, tx, q.CompanyID)
 	if err != nil {
@@ -204,6 +226,9 @@ func insertBatch(ctx context.Context, tx *sql.Tx, q report.Query, runID, tmplID 
  pdb_is_revision, pdb_supersedes_batch_id)
 VALUES ($1,$2,$3,$4,$5,'DRAFT',$6,$7,$8,$9::bigint IS NOT NULL,$9) RETURNING pdb_id`,
 		q.CompanyID, q.Division, DocType, q.YYMM, runID, total, tmplID, actor, sql.NullInt64{Int64: supersedes, Valid: supersedes > 0}).Scan(&id)
+	if postgres.IsUniqueViolation(err, uniqueActiveBatch) {
+		return 0, batchExists(q, "")
+	}
 	if err != nil {
 		return 0, fmt.Errorf("insert batch: %w", err)
 	}

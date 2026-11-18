@@ -121,6 +121,30 @@ func TestReport_GL(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// T033d: concurrent FINAL exports of the same period: the lock is taken before the snapshot, so exactly one wins
+	// and the rest get ErrGLFinalExists (never a raw 23505 or a second FINAL).
+	const racers = 4
+	errs := make(chan error, racers)
+	for range racers {
+		go func() { _, err := svc.ExportGL(ctx, q, write); errs <- err }()
+	}
+	won := 0
+	for range racers {
+		switch err := <-errs; {
+		case err == nil:
+			won++
+		case !errors.Is(err, report.ErrGLFinalExists):
+			t.Errorf("concurrent final: %v", err)
+		}
+	}
+	if won != 1 {
+		t.Fatalf("concurrent FINAL winners = %d, want 1", won)
+	}
+	if _, err := ownDB.Exec(`UPDATE payroll.pyr_gl_export x SET pge_status = 'VOID' FROM payroll.pyr_run r
+	  WHERE r.pr_id = x.pge_run_id AND r.pr_yymm = ` + y + ` AND pge_status = 'FINAL'`); err != nil {
+		t.Fatal(err)
+	}
+
 	// A line without setup fails hard (GL_UNMAPPED), nothing recorded.
 	if _, err := ownDB.Exec(`DELETE FROM payroll.pyr_gl_setup WHERE pgs_gl_group = 'ZGL Group' AND pgs_description = 'Hutang BPJS'`); err != nil {
 		t.Fatal(err)
@@ -128,7 +152,7 @@ func TestReport_GL(t *testing.T) {
 	if _, err := svc.ExportGL(ctx, q, write); !errors.Is(err, report.ErrGL) {
 		t.Fatalf("unmapped: %v", err)
 	}
-	if got := scalar(t, `SELECT count(*)::text FROM payroll.pyr_gl_export x JOIN payroll.pyr_run r ON r.pr_id = x.pge_run_id WHERE r.pr_yymm = `+y); got != "3" {
+	if got := scalar(t, `SELECT count(*)::text FROM payroll.pyr_gl_export x JOIN payroll.pyr_run r ON r.pr_id = x.pge_run_id WHERE r.pr_yymm = `+y); got != "4" {
 		t.Fatalf("gl export rows = %s", got)
 	}
 }

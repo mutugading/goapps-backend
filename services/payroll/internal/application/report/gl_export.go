@@ -14,7 +14,9 @@ import (
 	"github.com/xuri/excelize/v2"
 
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/run"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/apperr"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/scope"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/postgres"
 )
 
 // Sheet names of the GL workbook: F-2 `upload` (SALARY001 layout, 11§4.4) and the control sheet.
@@ -28,11 +30,24 @@ const (
 var ErrNoBookRate = errors.New("report: kurs BOOK IDR→USD periode wajib tepat satu di pyr_fx_rate")
 
 // ErrGLFinalExists is returned when a FINAL export already exists for the run and journal: a FINAL file is uploaded
-// to Orion once; void the earlier one first (PREVIEW exports may repeat).
+// to Orion once; void the earlier one first (PREVIEW exports may repeat). It is wrapped together with an apperr
+// CONFLICT (gRPC ALREADY_EXISTS / HTTP 409), see glFinalExists.
 var ErrGLFinalExists = errors.New("report: ekspor GL FINAL untuk run ini sudah ada")
+
+// glFinalExists is ErrGLFinalExists as a domain error: errors.Is finds the sentinel and errors.As finds the apperr.
+func glFinalExists(runID int64) error {
+	return fmt.Errorf("%w: %w", ErrGLFinalExists, apperr.New(apperr.CodeConflict,
+		fmt.Sprintf("ekspor GL FINAL untuk run %d %s sudah ada", runID, journalGaji), nil))
+}
 
 // ErrNoActor is returned when the context carries no actor for pge_generated_by / audit.
 var ErrNoActor = errors.New("report: aktor wajib untuk ekspor GL")
+
+// uniqueFinalGL is the partial unique index (run, journal) WHERE FINAL behind ErrGLFinalExists (migration 000045).
+const uniqueFinalGL = "uix_pge_final"
+
+// glLockNS is the advisory lock namespace serializing GL exports per (company, period, division).
+const glLockNS = "payroll.gl_export"
 
 const (
 	journalGaji  = "GAJI"
@@ -48,7 +63,10 @@ func (s *Service) ExportGL(ctx context.Context, q Query, write func(GLJournal) (
 	if !ok || id.UserID == "" {
 		return j, ErrNoActor
 	}
-	err := s.DB.ScopedTxOpts(ctx, run.SnapshotTx, func(tx *sql.Tx) error {
+	// The lock is taken before the snapshot: a waiting export then sees the FINAL the previous one committed (T033d).
+	// The unique index uix_pge_final stays the last guard.
+	lockKey := fmt.Sprintf("%d:%d:%s", q.CompanyID, q.YYMM, q.Division)
+	err := s.DB.ScopedTxOptsLocked(ctx, run.SnapshotTx, glLockNS, lockKey, func(tx *sql.Tx) error {
 		st, runID, err := glRun(ctx, tx, q)
 		if err != nil {
 			return err
@@ -75,6 +93,9 @@ func (s *Service) ExportGL(ctx context.Context, q Query, write func(GLJournal) (
 		if _, err := tx.ExecContext(ctx, `INSERT INTO payroll.pyr_gl_export (pge_run_id, pge_journal_type, pge_status, pge_row_count,
   pge_total_debit, pge_total_credit, pge_file_sha256, pge_generated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
 			runID, journalGaji, status, len(j.Rows), j.Debit.String(), j.Credit.String(), hex.EncodeToString(sum[:]), id.UserID); err != nil {
+			if postgres.IsUniqueViolation(err, uniqueFinalGL) { // lost the race with a concurrent FINAL the snapshot did not see
+				return glFinalExists(runID)
+			}
 			return fmt.Errorf("write gl export: %w", err)
 		}
 		return s.writeAudit(ctx, tx, q, "gl", len(j.Rows), map[string]any{"status": status, "nik": j.NIKCount})
@@ -82,18 +103,15 @@ func (s *Service) ExportGL(ctx context.Context, q Query, write func(GLJournal) (
 	return j, err
 }
 
-// checkNoFinal serializes FINAL exports of a run (transaction advisory lock) and rejects a second FINAL.
+// checkNoFinal rejects a second FINAL of the run (exports of the period are serialized by ExportGL's lock).
 func checkNoFinal(ctx context.Context, tx *sql.Tx, runID int64) error {
-	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext('payroll.gl_export'), hashtext($1))`, strconv.FormatInt(runID, 10)); err != nil {
-		return fmt.Errorf("gl export lock: %w", err)
-	}
 	var n int
 	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM payroll.pyr_gl_export
 WHERE pge_run_id = $1 AND pge_journal_type = $2 AND pge_status = 'FINAL'`, runID, journalGaji).Scan(&n); err != nil {
 		return fmt.Errorf("read gl export: %w", err)
 	}
 	if n > 0 {
-		return fmt.Errorf("%w (run %d %s)", ErrGLFinalExists, runID, journalGaji)
+		return glFinalExists(runID)
 	}
 	return nil
 }
