@@ -41,7 +41,7 @@ func TestOTFormulas(t *testing.T) {
 		// T36 (G4, D9): only A = 0.0127 has a variant; TOT = 0.75×4×52/12 = 13
 		{"G4 T36 0.0127 fail 0", 36, nil, tc(36, "0.0127", "D"), "44450"},       // 3500000×0.0127
 		{"G4 T36 0.0127 fail 2", 36, otiw("2"), tc(36, "0.0127", "D"), "23935"}, // 44450×7/13 = 23934.62
-		{"G4 T36 other amount → NULL", 36, nil, tc(36, "0.0877", "D"), ""},
+		{"G4 T36 amount 0 → NULL", 36, nil, tc(36, "0", "D"), ""},
 		// T8: A/WD × (WD − otiw_decr)
 		{"T8 D fail 0 → A", 8, func(in *Input) { in.Workdays = intp(26) }, tc(8, "520000", "D"), "520000"},
 		{"T8 D fail 2", 8, func(in *Input) { in.Workdays = intp(26); in.Att["otiw_decr"] = d("2") }, tc(8, "520000", "D"), "480000"},

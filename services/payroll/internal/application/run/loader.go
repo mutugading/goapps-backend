@@ -29,7 +29,8 @@ var (
 // Issue codes reported as warnings.
 const (
 	CodeMissingAttendance = "MISSING_ATTENDANCE"
-	CodeOutOfPeriod       = "OUT_OF_PERIOD" // D-55: v2 skips employees who joined after / resigned before the period
+	CodeOutOfPeriod       = "OUT_OF_PERIOD"      // D-55: v2 skips employees who joined after / resigned before the period
+	CodeTaxClassMismatch  = "TAX_CLASS_MISMATCH" // T033f: pec_tax disagrees with pc_tax_class (informational)
 
 	// Legacy COMPNT_EMP subqueries of PPh ignore FRZ_FLAG for P4/P8 and P14/P18/P22/P23 (D-28d),
 	// so a frozen row still reduces the gross / annual deduction (loadComponents).
@@ -104,7 +105,7 @@ func (l Loader) Load(ctx context.Context, tx *sql.Tx, q Query, rules Rules) (Res
 	if len(emps) == 0 {
 		return oop, nil
 	}
-	comps, err := loadComponents(ctx, tx, q)
+	comps, compIssues, err := loadComponents(ctx, tx, q)
 	if err != nil {
 		return Result{}, err
 	}
@@ -128,7 +129,7 @@ func (l Loader) Load(ctx context.Context, tx *sql.Tx, q Query, rules Rules) (Res
 		}
 	}
 
-	res := Result{Warnings: append(taxIssues, oop.Warnings...), SnapshotID: snapID}
+	res := Result{Warnings: append(append(taxIssues, compIssues...), oop.Warnings...), SnapshotID: snapID}
 	for _, er := range emps {
 		e := er.Employee
 		in := engine.Input{

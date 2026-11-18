@@ -85,10 +85,18 @@ func TestPFormulas(t *testing.T) {
 	}
 }
 
-func TestPAllMapped(t *testing.T) {
-	for id := 0; id <= 999; id++ {
+func TestPLegacyMapped(t *testing.T) {
+	// Every P id of spec/dump/MGT_PAYROLL_COMPNT_EMP.psv plus P10 (D-27) is mapped; others are not (T033f).
+	used := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 24, 31, 32, 33,
+		34, 38, 49, 62, 70, 71, 73, 75, 76, 77, 78}
+	for _, id := range used {
 		if _, ok := specFor(CompKey{CompP, id}); !ok {
-			t.Fatalf("P%03d unmapped", id)
+			t.Errorf("P%03d unmapped", id)
+		}
+	}
+	for _, id := range []int{20, 25, 80, 999} {
+		if s, ok := specFor(CompKey{CompP, id}); ok {
+			t.Errorf("P%03d mapped to %s, want unmapped", id, s.Code)
 		}
 	}
 }

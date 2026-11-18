@@ -199,7 +199,7 @@ func (ComponentRepository) ReplaceTemplate(ctx context.Context, tx *sql.Tx, leve
 	for _, it := range items {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO payroll.pyr_component_template
 		  (pct_template, pct_component_sysid, pct_sts, pct_tax, pct_amount, pct_tax_paid_company)
-		  VALUES ($1,$2,NULLIF($3,''),$4,NULLIF($5,'')::numeric,NULLIF($6,''))`,
+		  VALUES ($1,$2,NULLIF($3,''),NULLIF($4,0),NULLIF($5,'')::numeric,NULLIF($6,''))`, // tax 0 → NULL = follow pc_tax_class (T033f)
 			level, it.Sysid, it.Sts, it.Tax, it.Amount, it.TaxPaidCompany); err != nil {
 			return mapErr(err)
 		}

@@ -1,7 +1,9 @@
 package engine
 
 import (
+	"errors"
 	"maps"
+	"strings"
 	"testing"
 
 	"github.com/shopspring/decimal"
@@ -177,19 +179,68 @@ func TestTSpecMapping(t *testing.T) {
 			t.Errorf("T%03d = %s (mapped %v), want %s", id, s.Code, ok, code)
 		}
 	}
-	for id, code := range map[int]string{106: FormulaLegacyNull, 206: FormulaLegacyNull, 406: FormulaLegacyNull,
-		465: FormulaLegacyNull, 105: FormulaDirumahkan, 255: FormulaNotWorking, 425: FormulaSakit, 901: FormulaLegacyNull} {
+	for id, code := range map[int]string{37: FormulaLegacyNull, 105: FormulaDirumahkan, 255: FormulaNotWorking,
+		425: FormulaSakit, 901: FormulaLegacyNull} {
 		if s, _ := specFor(CompKey{CompT, id}); s.Code != code {
 			t.Errorf("T%03d = %s, want %s", id, s.Code, code)
+		}
+	}
+	// Ids outside the legacy data are unmapped, not LEGACY_NULL (T033f).
+	for _, id := range []int{14, 80, 106, 206, 406, 465, 999} {
+		if s, ok := specFor(CompKey{CompT, id}); ok {
+			t.Errorf("T%03d mapped to %s, want unmapped", id, s.Code)
+		}
+	}
+}
+
+func TestUnmappedAndUnsupportedIncomplete(t *testing.T) {
+	cases := []struct {
+		name string
+		comp EmpComponent
+		want string
+	}{
+		{"new T id", tc(80, "100000", "F"), "T080: komponen belum dipetakan"},
+		{"new P id", EmpComponent{Key: CompKey{CompP, 80}, Amount: d("1000"), Sts: "F"}, "P080: komponen belum dipetakan"},
+		{"T6 new rate", tc(6, "0.05", "D"), "T006: input di luar varian legacy"},
+		{"T36 new rate", tc(36, "0.0877", "D"), "T036: input di luar varian legacy"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			res, err := Calculate(tInput(AttRekap{"pay_tot": d("30")}, c.comp))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !res.Incomplete || len(res.Warnings) == 0 || !strings.HasPrefix(res.Warnings[0], c.want) {
+				t.Errorf("incomplete = %v warnings = %v, want %q", res.Incomplete, res.Warnings, c.want)
+			}
+			for _, l := range res.Lines {
+				if l.Key == c.comp.Key {
+					t.Errorf("line %s written, want skipped", l.Key)
+				}
+			}
+		})
+	}
+}
+
+func TestBPJSMissingMax(t *testing.T) {
+	for _, id := range []int{15, 17} {
+		in := tInput(AttRekap{"pay_tot": d("30")}, tc(id, "0.04", "F"))
+		in.Rules = rules{legacy: true}
+		if _, err := Calculate(in); !errors.Is(err, ErrMissingConstant) {
+			t.Errorf("T%03d err = %v, want ErrMissingConstant", id, err)
 		}
 	}
 }
 
 func TestTNeverIncomplete(t *testing.T) {
-	ids := []int{1, 6, 8, 20, 21, 26, 31, 34, 36, 37, 134, 136, 999}
+	ids := []int{1, 6, 8, 20, 21, 26, 31, 34, 36, 37, 134, 136, 901}
 	comps := make([]EmpComponent, 0, len(ids))
 	for _, id := range ids[1:] {
-		comps = append(comps, tc(id, "0.0877", "D"))
+		amt := "0.0877"
+		if id == 36 {
+			amt = "0.0127"
+		}
+		comps = append(comps, tc(id, amt, "D"))
 	}
 	res, err := Calculate(tInput(AttRekap{"pay_tot": d("30")}, comps...))
 	if err != nil {

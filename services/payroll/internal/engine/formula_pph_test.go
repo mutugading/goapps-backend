@@ -18,6 +18,9 @@ func (r pphRules) Constant(k string) (decimal.Decimal, bool) {
 	if k == ConstAllowNegativePPh && r.allowNeg != nil {
 		return decimal.NewFromInt(*r.allowNeg), true
 	}
+	if k == ConstKesMax || k == ConstPenMax { // required by BPJS P15–18 (T033f); high enough not to clamp
+		return d("1000000000"), true
+	}
 	return r.rules.Constant(k)
 }
 

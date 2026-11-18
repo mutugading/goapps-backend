@@ -47,7 +47,9 @@ func (AttachmentRepository) List(ctx context.Context, tx *sql.Tx, k component.Em
 // TemplateFor returns the level template restricted to the employee's company and division.
 func (AttachmentRepository) TemplateFor(ctx context.Context, tx *sql.Tx, level string, companyID int16, division string) ([]component.Attachment, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT t.pct_component_sysid, c.pc_code, c.pc_name, COALESCE(t.pct_sts, c.pc_default_sts),
-	    COALESCE(t.pct_tax,0), COALESCE(trim_scale(t.pct_amount)::text,''), COALESCE(t.pct_tax_paid_company,'')
+	    COALESCE(NULLIF(t.pct_tax,0), CASE WHEN c.pc_tax_class IN ('TAXABLE','TAX_PAID_COMPANY') THEN 2 ELSE 1 END),
+	    COALESCE(trim_scale(t.pct_amount)::text,''),
+	    COALESCE(t.pct_tax_paid_company, CASE WHEN c.pc_tax_class = 'TAX_PAID_COMPANY' THEN 'Y' ELSE '' END)
 	  FROM payroll.pyr_component_template t
 	  JOIN payroll.pyr_component c ON c.pc_sysid = t.pct_component_sysid
 	  WHERE t.pct_template=$1 AND c.pc_company_id=$2 AND c.pc_status='ACTIVE'
@@ -85,7 +87,7 @@ func (AttachmentRepository) LevelRule(ctx context.Context, tx *sql.Tx, level str
 
 // CatalogByCode maps code to the ACTIVE component of the company that applies to the division.
 func (AttachmentRepository) CatalogByCode(ctx context.Context, tx *sql.Tx, companyID int16, division string, codes []string) (map[string]component.CatalogEntry, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT pc_sysid, pc_code, pc_name, pc_default_sts FROM payroll.pyr_component
+	rows, err := tx.QueryContext(ctx, `SELECT pc_sysid, pc_code, pc_name, pc_default_sts, pc_tax_class FROM payroll.pyr_component
 	  WHERE pc_company_id=$1 AND pc_code = ANY(string_to_array($2::text, ',')) AND pc_status='ACTIVE'
 	    AND (pc_scope_divisions IS NULL OR cardinality(pc_scope_divisions)=0 OR $3 = ANY(pc_scope_divisions))`,
 		companyID, strings.Join(codes, ","), division)
@@ -96,7 +98,7 @@ func (AttachmentRepository) CatalogByCode(ctx context.Context, tx *sql.Tx, compa
 	out := map[string]component.CatalogEntry{}
 	for rows.Next() {
 		var c component.CatalogEntry
-		if err := rows.Scan(&c.Sysid, &c.Code, &c.Name, &c.DefaultSts); err != nil {
+		if err := rows.Scan(&c.Sysid, &c.Code, &c.Name, &c.DefaultSts, &c.TaxClass); err != nil {
 			return nil, err
 		}
 		out[c.Code] = c
@@ -156,7 +158,7 @@ func (AttachmentRepository) CatalogBySysid(ctx context.Context, tx *sql.Tx, comp
 	for i, id := range sysids {
 		ids[i] = strconv.FormatInt(id, 10)
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT pc_sysid, pc_code, pc_name, pc_default_sts FROM payroll.pyr_component
+	rows, err := tx.QueryContext(ctx, `SELECT pc_sysid, pc_code, pc_name, pc_default_sts, pc_tax_class FROM payroll.pyr_component
 	  WHERE pc_company_id=$1 AND pc_sysid = ANY(string_to_array($2::text, ',')::bigint[]) AND pc_status='ACTIVE'
 	    AND (pc_scope_divisions IS NULL OR cardinality(pc_scope_divisions)=0 OR $3 = ANY(pc_scope_divisions))`,
 		companyID, strings.Join(ids, ","), division)
@@ -167,7 +169,7 @@ func (AttachmentRepository) CatalogBySysid(ctx context.Context, tx *sql.Tx, comp
 	out := map[int64]component.CatalogEntry{}
 	for rows.Next() {
 		var c component.CatalogEntry
-		if err := rows.Scan(&c.Sysid, &c.Code, &c.Name, &c.DefaultSts); err != nil {
+		if err := rows.Scan(&c.Sysid, &c.Code, &c.Name, &c.DefaultSts, &c.TaxClass); err != nil {
 			return nil, err
 		}
 		out[c.Sysid] = c

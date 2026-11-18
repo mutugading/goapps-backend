@@ -58,6 +58,36 @@ type CatalogEntry struct {
 	Sysid      int64
 	Code, Name string
 	DefaultSts string
+	TaxClass   string // pc_tax_class; DefaultTax derives the default of a new UI attachment from it (T033f)
+}
+
+// Attachment tax flags (legacy MPCE_TAX): 2 = taxable, 1 = not taxable, 0 = not set (use the class).
+const (
+	TaxNone    = 1
+	TaxTaxable = 2
+)
+
+// Component tax classes (pc_tax_class).
+const (
+	TaxClassTaxable     = "TAXABLE"
+	TaxClassPaidCompany = "TAX_PAID_COMPANY"
+)
+
+// DefaultTax is the pec_tax a new attachment gets from the component tax class: TAXABLE and
+// TAX_PAID_COMPANY are taxable (the legacy ETL maps tax=2 to them, 12§2); any other class is not.
+func DefaultTax(taxClass string) int {
+	if taxClass == TaxClassTaxable || taxClass == TaxClassPaidCompany {
+		return TaxTaxable
+	}
+	return TaxNone
+}
+
+// DefaultTaxPaidCompany is the pec_tax_paid_company default of the class ("" = not set).
+func DefaultTaxPaidCompany(taxClass string) string {
+	if taxClass == TaxClassPaidCompany {
+		return "Y"
+	}
+	return ""
 }
 
 // EmployeeKey identifies the attachment set of one employee.

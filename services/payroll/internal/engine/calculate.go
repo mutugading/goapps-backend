@@ -15,6 +15,9 @@ import (
 var (
 	ErrNoFormula = errors.New("engine: no formula registered")
 	ErrNoRekap   = errors.New("engine: employee has no attendance recap (rule v2)")
+	// errUnsupported marks an input the legacy formula has no branch for and that is not in the
+	// legacy data (e.g. a new T6 rate): Calculate skips the line and flags the result incomplete.
+	errUnsupported = errors.New("input di luar varian legacy")
 )
 
 // Calculate computes one employee's payroll. It is pure and deterministic (06§9):
@@ -105,7 +108,8 @@ func evalLine(reg Registry, ctx *EvalCtx, res *Result, c EmpComponent, pph bool)
 	spec, mapped := specFor(c.Key)
 	if !mapped {
 		res.Incomplete = true
-		res.Warnings = append(res.Warnings, fmt.Sprintf("%s: belum dipetakan ke formula, dihitung sebagai nominal tetap", c.Key))
+		res.Warnings = append(res.Warnings, fmt.Sprintf("%s: komponen belum dipetakan ke formula, dilewati", c.Key))
+		return nil
 	}
 	f, ok := reg.Get(spec.Code)
 	if !ok {
@@ -121,6 +125,11 @@ func evalLine(reg Registry, ctx *EvalCtx, res *Result, c EmpComponent, pph bool)
 	if pph && errors.Is(err, errPending) {
 		res.Incomplete = true
 		res.Warnings = append(res.Warnings, fmt.Sprintf("%s: formula %s untuk periode %d belum tersedia, dilewati", c.Key, spec.Code, ctx.In.Period.YYMM))
+		return nil
+	}
+	if errors.Is(err, errUnsupported) {
+		res.Incomplete = true
+		res.Warnings = append(res.Warnings, fmt.Sprintf("%s: %v, dilewati", c.Key, err))
 		return nil
 	}
 	if err != nil {

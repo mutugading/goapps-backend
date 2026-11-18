@@ -288,6 +288,9 @@ func normalizeTemplate(items []component.TemplateItem) ([]component.TemplateItem
 			return nil, validation("items", "komponen dobel di template: "+strconv.FormatInt(it.Sysid, 10))
 		}
 		seen[it.Sysid] = true
+		if it.Tax < 0 || it.Tax > component.TaxTaxable {
+			return nil, validation("items.tax", "tax harus 0 (ikut kelas pajak komponen), 1, atau 2")
+		}
 		if it.Amount == "" {
 			continue
 		}

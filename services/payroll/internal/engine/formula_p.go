@@ -138,33 +138,36 @@ func (loan) Eval(ctx *EvalCtx, c EmpComponent, p Params) (*decimal.Decimal, stri
 func pFormulas() []Formula { return []Formula{absen{}, loan{}} }
 
 // pSpecFor maps a P component id to its formula (legacy FNC_MGT_PAYROLL_COMPNT_CALC, D-27).
-// Every id is mapped: ids without a legacy branch (e.g. P8, P10) get LEGACY_NULL.
-func pSpecFor(id int) formulaSpec {
+// Legacy ids without a branch (P8, P10, P78) get LEGACY_NULL; ok is false for any other id.
+func pSpecFor(id int) (formulaSpec, bool) {
 	switch id {
 	case 0:
-		return formulaSpec{Code: FormulaPPhSubsidy}
+		return formulaSpec{Code: FormulaPPhSubsidy}, true
 	case 1:
-		return formulaSpec{Code: FormulaPPh21}
+		return formulaSpec{Code: FormulaPPh21}, true
 	case 5:
-		return formulaSpec{Code: FormulaPPhCompany}
+		return formulaSpec{Code: FormulaPPhCompany}, true
 	case 2, 3, 6, 7, 9, 19, 21, 22, 23, 31, 38, 70, 71, 75, 76, 77:
-		return formulaSpec{Code: FormulaAddition}
+		return formulaSpec{Code: FormulaAddition}, true
 	case idLoanPrincipal:
-		return formulaSpec{Code: FormulaLoan, Params: Params{paramLoanPart: loanPrincipal}}
+		return formulaSpec{Code: FormulaLoan, Params: Params{paramLoanPart: loanPrincipal}}, true
 	case idLoanInterest:
-		return formulaSpec{Code: FormulaLoan, Params: Params{paramLoanPart: loanInterest}}
+		return formulaSpec{Code: FormulaLoan, Params: Params{paramLoanPart: loanInterest}}, true
 	case 4:
-		return formulaSpec{Code: FormulaAbsen}
+		return formulaSpec{Code: FormulaAbsen}, true
 	case 24, 34, 49, 62, 73: // legacy prorates the component amount, not an addition
-		return formulaSpec{Code: FormulaFixedOrProrate}
+		return formulaSpec{Code: FormulaFixedOrProrate}, true
 	case 11, 12, 13, 14:
-		return formulaSpec{Code: FormulaBPJSNaker}
+		return formulaSpec{Code: FormulaBPJSNaker}, true
 	case 15, 16:
-		return formulaSpec{Code: FormulaBPJSKes}
+		return formulaSpec{Code: FormulaBPJSKes}, true
 	case 17, 18:
-		return formulaSpec{Code: FormulaBPJSPensiun}
+		return formulaSpec{Code: FormulaBPJSPensiun}, true
 	}
-	return formulaSpec{Code: FormulaLegacyNull}
+	if legacyNullP[id] {
+		return formulaSpec{Code: FormulaLegacyNull}, true
+	}
+	return formulaSpec{}, false
 }
 
 // withLoanComponents adds P32/P33 when LOAN_DUE exists but the employee has no such

@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/shopspring/decimal"
@@ -72,13 +73,26 @@ type formulaSpec struct {
 }
 
 // specFor resolves the formula of a component. T ids follow the legacy branches (tSpecFor,
-// D-25), P ids pSpecFor (D-27). ok is false only for an unmapped component, which then
-// evaluates with FIXED_OR_PRORATE and Calculate flags the result incomplete.
+// D-25), P ids pSpecFor (D-27). ok is false for an unmapped component: Calculate skips its line
+// and flags the result incomplete (T033f).
 func specFor(k CompKey) (spec formulaSpec, ok bool) {
 	if k.Type == CompP {
-		return pSpecFor(k.ID), true
+		return pSpecFor(k.ID)
 	}
 	return tSpecFor(k.ID)
+}
+
+// SpecOf returns the code-only formula and parameters of a component (D-76): formulas are not
+// configured per rule set, so pyr_rule_component rows may only restate this. ok is false for an
+// unmapped component. Params is a copy.
+func SpecOf(k CompKey) (code string, params Params, ok bool) {
+	s, ok := specFor(k)
+	if !ok {
+		return "", nil, false
+	}
+	p := make(Params, len(s.Params))
+	maps.Copy(p, s.Params)
+	return s.Code, p, true
 }
 
 // isPPh reports whether k is evaluated in the PPh phase (P1, P5, P0, in that order).

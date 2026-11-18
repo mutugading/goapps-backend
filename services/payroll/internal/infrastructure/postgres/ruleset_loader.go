@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 
 	"github.com/shopspring/decimal"
 
@@ -23,13 +24,21 @@ var (
 	ErrStaticValueParse = errors.New("pyr_static_value is not a number")
 	ErrStaticValueDup   = errors.New("pyr_static_value row duplicated")
 	ErrRuleCompType     = errors.New("unknown pyr_rule_component type")
+	// ErrRuleCompMismatch rejects a pyr_rule_component row the engine would ignore (D-76): formulas
+	// are code-only, so a row may only restate the code mapping (same formula and params, no remark).
+	ErrRuleCompMismatch = errors.New("pyr_rule_component differs from the code-only formula (D-76)")
+	ErrRuleConstMissing = errors.New("required rule constant missing or not positive")
 )
+
+// requiredConstants must resolve to a positive value for every division (T033f): the BPJS caps are checked
+// once here instead of failing per NIK, and only for employees whose base happens to exceed them.
+var requiredConstants = []string{engine.ConstKesMax, engine.ConstPenMax}
 
 // IsRuleError reports whether err means the rule set itself is unusable for the run (a caller
 // maps it to RULE_INCOMPLETE), as opposed to a database or scope failure.
 func IsRuleError(err error) bool {
 	for _, e := range []error{ErrRuleSetNotFound, ErrRuleSetStatus, ErrSubsidyNoLimit, ErrSubsidyNoAmount,
-		ErrStaticValueParse, ErrStaticValueDup, ErrRuleCompType, engine.ErrNoTaxTable, engine.ErrNoAnnualTaxTable} {
+		ErrStaticValueParse, ErrStaticValueDup, ErrRuleCompType, ErrRuleCompMismatch, ErrRuleConstMissing, engine.ErrNoTaxTable, engine.ErrNoAnnualTaxTable} {
 		if errors.Is(err, e) {
 			return true
 		}
@@ -45,7 +54,8 @@ type RuleQuery struct {
 	YYMM      int
 }
 
-// ComponentRule is one pyr_rule_component row: the registry formula of a component (03§2.2).
+// ComponentRule is one pyr_rule_component row: the registry formula of a component (03§2.2). Formulas are
+// code-only (D-76): the loader accepts a row only when it equals engine.SpecOf.
 type ComponentRule struct {
 	Formula   string
 	Params    engine.Params
@@ -172,6 +182,9 @@ func loadRuleSet(ctx context.Context, tx *sql.Tx, q RuleQuery) (*RuleSet, error)
 	if err := loadConstants(ctx, tx, q, rs.constants); err != nil {
 		return nil, err
 	}
+	if err := checkRequiredConstants(rs.constants); err != nil {
+		return nil, err
+	}
 	if err := loadComponentRules(ctx, tx, q, rs.components); err != nil {
 		return nil, err
 	}
@@ -233,9 +246,39 @@ ORDER BY prcp_division NULLS FIRST, prcp_type, prcp_id`, q.RuleSetID, q.CompanyI
 		if c.Params, err = decodeParams(params); err != nil {
 			return fmt.Errorf("rule component %s params: %w", k, err)
 		}
+		if err := matchCodeFormula(k, c); err != nil {
+			return err
+		}
 		out[k] = c
 	}
 	return rows.Err()
+}
+
+func checkRequiredConstants(c map[string]decimal.Decimal) error {
+	for _, k := range requiredConstants {
+		if v, ok := c[k]; !ok || v.Sign() <= 0 {
+			return fmt.Errorf("%w: %s", ErrRuleConstMissing, k)
+		}
+	}
+	return nil
+}
+
+// matchCodeFormula checks a pyr_rule_component row against engine.SpecOf (D-76). Until the engine reads
+// formulas per rule set, a row that changes the formula, its params or the remark would be silently
+// ignored, so the rule set is refused instead (RULE_INCOMPLETE).
+func matchCodeFormula(k engine.CompKey, c ComponentRule) error {
+	code, params, ok := engine.SpecOf(k)
+	switch {
+	case !ok:
+		return fmt.Errorf("%w: %s has no code formula", ErrRuleCompMismatch, k)
+	case c.Formula != code:
+		return fmt.Errorf("%w: %s formula %s, code %s", ErrRuleCompMismatch, k, c.Formula, code)
+	case !maps.Equal(c.Params, params):
+		return fmt.Errorf("%w: %s params %v, code %v", ErrRuleCompMismatch, k, c.Params, params)
+	case c.RemarkTpl != "":
+		return fmt.Errorf("%w: %s remark template is not supported", ErrRuleCompMismatch, k)
+	}
+	return nil
 }
 
 // decodeParams turns the jsonb object into engine.Params: strings unquoted, other values as JSON text.

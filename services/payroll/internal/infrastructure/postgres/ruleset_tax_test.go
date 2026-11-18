@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/shopspring/decimal"
+
 	"github.com/mutugading/goapps-backend/services/payroll/internal/engine"
 )
 
@@ -119,6 +121,48 @@ func TestBuildTaxTables_PTKPCompanyExcludesTK123(t *testing.T) {
 	for _, c := range []string{"TK1", "TK2", "TK3"} {
 		if _, ok := tt.PTKPCompany[c]; ok {
 			t.Errorf("%s must not be in PTKPCompany", c)
+		}
+	}
+}
+
+func TestMatchCodeFormula(t *testing.T) {
+	t21 := engine.CompKey{Type: engine.CompT, ID: 21}
+	cases := []struct {
+		name string
+		k    engine.CompKey
+		c    ComponentRule
+		ok   bool
+	}{
+		{"restates code", t21, ComponentRule{Formula: engine.FormulaOTHours, Params: engine.Params{"col": "lembur_1", "mult": "1.5"}}, true},
+		{"other params", t21, ComponentRule{Formula: engine.FormulaOTHours, Params: engine.Params{"col": "lembur_1", "mult": "2"}}, false},
+		{"other formula", t21, ComponentRule{Formula: engine.FormulaAddition, Params: engine.Params{}}, false},
+		{"remark", engine.CompKey{Type: engine.CompT, ID: 1}, ComponentRule{Formula: engine.FormulaFixedOrProrate, Params: engine.Params{}, RemarkTpl: "x"}, false},
+		{"unmapped id", engine.CompKey{Type: engine.CompT, ID: 80}, ComponentRule{Formula: engine.FormulaLegacyNull, Params: engine.Params{}}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := matchCodeFormula(c.k, c.c)
+			if (err == nil) != c.ok || (err != nil && !IsRuleError(err)) {
+				t.Fatalf("err = %v, want ok=%v and a rule error", err, c.ok)
+			}
+		})
+	}
+}
+
+func TestCheckRequiredConstants(t *testing.T) {
+	ok := map[string]decimal.Decimal{engine.ConstKesMax: decimal.NewFromInt(12000000), engine.ConstPenMax: decimal.NewFromInt(11086300)}
+	if err := checkRequiredConstants(ok); err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{engine.ConstKesMax, engine.ConstPenMax} {
+		m := map[string]decimal.Decimal{engine.ConstKesMax: decimal.NewFromInt(1), engine.ConstPenMax: decimal.NewFromInt(1)}
+		delete(m, k)
+		if err := checkRequiredConstants(m); !errors.Is(err, ErrRuleConstMissing) || !IsRuleError(err) {
+			t.Errorf("without %s: err = %v", k, err)
+		}
+		m[k] = decimal.Zero
+		if err := checkRequiredConstants(m); !errors.Is(err, ErrRuleConstMissing) {
+			t.Errorf("%s = 0: err = %v", k, err)
 		}
 	}
 }
