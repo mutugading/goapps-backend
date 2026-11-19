@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 
 	"github.com/shopspring/decimal"
 
@@ -273,12 +272,35 @@ func matchCodeFormula(k engine.CompKey, c ComponentRule) error {
 		return fmt.Errorf("%w: %s has no code formula", ErrRuleCompMismatch, k)
 	case c.Formula != code:
 		return fmt.Errorf("%w: %s formula %s, code %s", ErrRuleCompMismatch, k, c.Formula, code)
-	case !maps.Equal(c.Params, params):
+	case !sameParams(c.Params, params):
 		return fmt.Errorf("%w: %s params %v, code %v", ErrRuleCompMismatch, k, c.Params, params)
 	case c.RemarkTpl != "":
 		return fmt.Errorf("%w: %s remark template is not supported", ErrRuleCompMismatch, k)
 	}
 	return nil
+}
+
+// sameParams compares params key by key; values that both parse as decimals compare numerically, so
+// 0.50 and 0.5 (jsonb numbers) are the same (T033f2). Other values compare as text.
+func sameParams(a, b engine.Params) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, av := range a {
+		bv, ok := b[k]
+		if !ok {
+			return false
+		}
+		if av == bv {
+			continue
+		}
+		da, errA := decimal.NewFromString(av)
+		db, errB := decimal.NewFromString(bv)
+		if errA != nil || errB != nil || !da.Equal(db) {
+			return false
+		}
+	}
+	return true
 }
 
 // decodeParams turns the jsonb object into engine.Params: strings unquoted, other values as JSON text.

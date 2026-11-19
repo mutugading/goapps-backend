@@ -145,6 +145,9 @@ func (s *Service) PutEmployeeComponents(ctx context.Context, nik string, company
 func resolvePut(it component.Attachment, cur component.Attachment, isHeld bool, c component.CatalogEntry, inCatalog bool) (component.Attachment, error) {
 	switch {
 	case inCatalog:
+		if err := guardNewAttachment(isHeld, c.Code); err != nil {
+			return it, err
+		}
 		it.Name = c.Name
 		if it.Sts == "" {
 			it.Sts = c.DefaultSts
@@ -294,7 +297,7 @@ func (s *Service) buildLevelPlan(ctx context.Context, tx *sql.Tx, e domain.Emplo
 	}
 	p := planLevel(current, want, yymm)
 	p.Missing = missing
-	return p, nil
+	return guardPlanAdds(p, newLevel, lenient)
 }
 
 // PreviewLevelChange returns the diff without writing anything.

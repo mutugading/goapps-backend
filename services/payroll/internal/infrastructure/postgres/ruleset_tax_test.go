@@ -134,6 +134,9 @@ func TestMatchCodeFormula(t *testing.T) {
 		ok   bool
 	}{
 		{"restates code", t21, ComponentRule{Formula: engine.FormulaOTHours, Params: engine.Params{"col": "lembur_1", "mult": "1.5"}}, true},
+		{"numeric params compare as decimal", t21, ComponentRule{Formula: engine.FormulaOTHours, Params: engine.Params{"col": "lembur_1", "mult": "1.50"}}, true},
+		{"numeric params differ", t21, ComponentRule{Formula: engine.FormulaOTHours, Params: engine.Params{"col": "lembur_1", "mult": "1.51"}}, false},
+		{"text params differ", t21, ComponentRule{Formula: engine.FormulaOTHours, Params: engine.Params{"col": "lembur_2", "mult": "1.5"}}, false},
 		{"other params", t21, ComponentRule{Formula: engine.FormulaOTHours, Params: engine.Params{"col": "lembur_1", "mult": "2"}}, false},
 		{"other formula", t21, ComponentRule{Formula: engine.FormulaAddition, Params: engine.Params{}}, false},
 		{"remark", engine.CompKey{Type: engine.CompT, ID: 1}, ComponentRule{Formula: engine.FormulaFixedOrProrate, Params: engine.Params{}, RemarkTpl: "x"}, false},

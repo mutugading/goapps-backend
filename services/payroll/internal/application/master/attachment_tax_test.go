@@ -9,9 +9,9 @@ import (
 // T033f: tax 0 on PUT takes the pc_tax_class default for a new attachment and keeps the stored flag otherwise.
 func TestResolvePut_TaxDefault(t *testing.T) {
 	cat := func(class string) component.CatalogEntry {
-		return component.CatalogEntry{Sysid: 80, Code: "T080", Name: "Baru", DefaultSts: "F", TaxClass: class}
+		return component.CatalogEntry{Sysid: 57, Code: "T057", Name: "Baru", DefaultSts: "F", TaxClass: class}
 	}
-	held := component.Attachment{Sysid: 80, Code: "T080", Name: "Baru", Sts: "F", Tax: component.TaxNone, Frz: 2, Source: component.SourceManual}
+	held := component.Attachment{Sysid: 57, Code: "T057", Name: "Baru", Sts: "F", Tax: component.TaxNone, Frz: 2, Source: component.SourceManual}
 	cases := []struct {
 		name     string
 		in       component.Attachment
@@ -20,12 +20,12 @@ func TestResolvePut_TaxDefault(t *testing.T) {
 		wantTax  int
 		wantPaid string
 	}{
-		{"new TAXABLE", component.Attachment{Sysid: 80, Frz: 2}, false, component.TaxClassTaxable, component.TaxTaxable, ""},
-		{"new TAX_PAID_COMPANY", component.Attachment{Sysid: 80, Frz: 2}, false, component.TaxClassPaidCompany, component.TaxTaxable, "Y"},
-		{"new NONE", component.Attachment{Sysid: 80, Frz: 2}, false, "NONE", component.TaxNone, ""},
-		{"new explicit 1 wins", component.Attachment{Sysid: 80, Frz: 2, Tax: component.TaxNone}, false, component.TaxClassTaxable, component.TaxNone, ""},
-		{"held keeps stored flag", component.Attachment{Sysid: 80, Frz: 2}, true, component.TaxClassTaxable, component.TaxNone, ""},
-		{"held 1 → 2 explicit", component.Attachment{Sysid: 80, Frz: 2, Tax: component.TaxTaxable}, true, component.TaxClassTaxable, component.TaxTaxable, ""},
+		{"new TAXABLE", component.Attachment{Sysid: 57, Frz: 2}, false, component.TaxClassTaxable, component.TaxTaxable, ""},
+		{"new TAX_PAID_COMPANY", component.Attachment{Sysid: 57, Frz: 2}, false, component.TaxClassPaidCompany, component.TaxTaxable, "Y"},
+		{"new NONE", component.Attachment{Sysid: 57, Frz: 2}, false, "NONE", component.TaxNone, ""},
+		{"new explicit 1 wins", component.Attachment{Sysid: 57, Frz: 2, Tax: component.TaxNone}, false, component.TaxClassTaxable, component.TaxNone, ""},
+		{"held keeps stored flag", component.Attachment{Sysid: 57, Frz: 2}, true, component.TaxClassTaxable, component.TaxNone, ""},
+		{"held 1 → 2 explicit", component.Attachment{Sysid: 57, Frz: 2, Tax: component.TaxTaxable}, true, component.TaxClassTaxable, component.TaxTaxable, ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

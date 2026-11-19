@@ -69,7 +69,11 @@ func (h *MasterHandler) CreateComponent(ctx context.Context, r *payrollv1.Create
 	if err != nil {
 		return nil, fail(ctx, err)
 	}
-	return &payrollv1.CreateComponentResponse{Base: ok("Component created"), Data: componentPB(out)}, nil
+	msg := "Component created"
+	if w := app.FormulaWarning(out); w != "" {
+		msg += "; " + w
+	}
+	return &payrollv1.CreateComponentResponse{Base: ok(msg), Data: componentPB(out)}, nil
 }
 
 // GetComponent reads a component.
