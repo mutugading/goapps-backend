@@ -74,7 +74,7 @@ func TestValidateDump_CompareAndDetectDiff(t *testing.T) {
 		}
 	}
 
-	raw, err := sql.Open("pgx", strings.Replace(appDSN, "user=payroll_app password=payroll_app123", "user=payroll_ro password=payroll_ro123", 1))
+	raw, err := sql.Open("pgx", strings.Replace(appDSN, "user=payroll_app password=payroll_app123", "user=payroll_recon password=payroll_recon123", 1))
 	if err != nil {
 		t.Fatal(err)
 	}

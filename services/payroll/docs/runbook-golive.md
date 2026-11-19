@@ -32,7 +32,13 @@ dengan absensi dummy (D-64); recon 202701 di **DB salinan** production. `sync du
    ```sh
    psql "postgres://<superuser>@<HOST>:5432/postgres?sslmode=require" -v ON_ERROR_STOP=1 -f services/payroll/deploy/bootstrap.sql
    ```
-   Lalu set password login role (`payroll_migrator`, `payroll_app`, `payroll_etl`, `payroll_ro`) dari password manager.
+   Lalu set password login role (`payroll_migrator`, `payroll_app`, `payroll_etl`, `payroll_recon`) dari password manager.
+   `payroll_ro` adalah grup NOLOGIN (T033g2). Cluster yang di-bootstrap sebelum T033g2 (staging) perlu diubah sekali sebagai DBA:
+   `ALTER ROLE payroll_ro NOLOGIN; CREATE ROLE payroll_recon LOGIN INHERIT PASSWORD '<pw>' CONNECTION LIMIT 5 IN ROLE payroll_ro;`
+   `ALTER ROLE payroll_recon SET search_path = payroll, pg_catalog; ALTER ROLE payroll_recon SET default_transaction_read_only = on;`
+   `GRANT CONNECT ON DATABASE payroll_db TO payroll_recon; REVOKE CONNECT ON DATABASE payroll_db FROM payroll_ro;`, lalu
+   sekali `scripts/fix/t033g2_audit_scrub.sql` sebagai `payroll_migrator` sesudah langkah 3 (D-77 (2b), idempoten, tidak bisa
+   dibatalkan: `pg_dump -t payroll.pyr_audit_log` dulu). Rilis bersama T033g3 (secret/Job recon & skrip gladi masih `payroll_ro`).
 3. **Job `payroll-migrate`** (migrate up + grants.sql, satu Job):
    ```sh
    kustomize build services/payroll-service/overlays/<ENV>/jobs | sed "s|IMAGE_TAG|<TAG>|" \
@@ -45,7 +51,7 @@ dengan absensi dummy (D-64); recon 202701 di **DB salinan** production. `sync du
    `kubectl rollout restart deploy/pgbouncer-vps -n database && kubectl rollout status deploy/pgbouncer-vps -n database`
 5. **check_ready** (read-only, image membawa `/app/deploy/check_ready.sql`):
    ```sh
-   psql "postgres://payroll_ro@<HOST>:5432/payroll_db?sslmode=require" -v ON_ERROR_STOP=1 \
+   psql "postgres://payroll_recon@<HOST>:5432/payroll_db?sslmode=require" -v ON_ERROR_STOP=1 \
         -v expect_version=<N> -f services/payroll/deploy/check_ready.sql > /tmp/check_ready.txt
    grep -c '^FAIL' /tmp/check_ready.txt    # harus 0; selain 0 = berhenti
    ```
@@ -142,10 +148,10 @@ Limit memori 4Gi khusus initial load: `salary-legacy` memuat seluruh MAIN/DETAIL
 Kalau ada `EXCEPTION`: jangan pakai `-allow-exceptions` tanpa keputusan user; catat jumlah per tabel dan berhenti.
 Langkah gagal → perbaiki penyebab, ulangi seluruh skrip (langkah yang sudah sukses jadi no-op).
 
-## 3. Cek pasca-load (read-only, `payroll_ro`)
+## 3. Cek pasca-load (read-only, `payroll_recon`)
 
 ```sh
-psql "postgres://payroll_ro@<HOST>:5432/payroll_db?sslmode=require" -v ON_ERROR_STOP=1 <<'SQL'
+psql "postgres://payroll_recon@<HOST>:5432/payroll_db?sslmode=require" -v ON_ERROR_STOP=1 <<'SQL'
 SELECT set_config('app.scopes', '<CID>:SOLO,<CID>:JAKARTA', false);
 -- (a) D-65: baris MAIN sintetis D-35.2 ber-psh_emp_type numerik. HARUS 0. Skrip d65_emptype.sql TIDAK dijalankan di sini.
 SELECT count(*) AS d65_numerik FROM payroll.pyr_salary_head
@@ -164,7 +170,7 @@ SkippedRows di log Job, bukan selisih); (c) `bukan_closed` = 0 dan `max` = 20261
 Validator agregat (T032a, D-72, 08§6 sisi Postgres; read-only, hanya agregat, tanpa NIK/nama/nominal per orang):
 
 ```sh
-recon validate -company <CID> -yymm-from 201712 -yymm-to 202612 -out validate.json -dsn "postgres://payroll_ro@<HOST>:5432/payroll_db?sslmode=require"
+recon validate -company <CID> -yymm-from 201712 -yymm-to 202612 -out validate.json -dsn "postgres://payroll_recon@<HOST>:5432/payroll_db?sslmode=require"
 ```
 
 JSON memuat Σ detail per (yymm, divisi, T/P) dan Σ tot_tunjangan/tot_potongan/net head per (yymm, divisi), NIK aktif per level,
@@ -177,7 +183,7 @@ Pembanding dump (T032b, D-72; langkah sesudah query (c)): tambah `-dump <DUMP>` 
 `MGT_PAYROLL_DETAIL.psv`, **dump yang sama** dengan yang dimuat `salary-legacy`, bukan dump yang lebih lama/baru):
 
 ```sh
-recon validate -company <CID> -yymm-from 201712 -yymm-to 202612 -dump <DUMP> -out validate.json -dsn "postgres://payroll_ro@<HOST>:5432/payroll_db?sslmode=require"
+recon validate -company <CID> -yymm-from 201712 -yymm-to 202612 -dump <DUMP> -out validate.json -dsn "postgres://payroll_recon@<HOST>:5432/payroll_db?sslmode=require"
 ```
 Dijalankan sebagai Job `payroll-recon` (dump disalin ke `/out/dump` seperti §2.3): naikkan `resources.limits.memory` ke `4Gi`
 (template 1Gi mati tanpa keluaran saat membaca MAIN/DETAIL penuh; gladi T028i2a, ±1 menit).
@@ -258,12 +264,12 @@ Langkah (staging, namespace `<NS>` staging, `APP_ENV` bukan production):
    `salary-legacy` menolak periode yang sudah dibuat engine. Alur: (a) `pg_dump` production → DB recon terpisah (mis.
    `payroll_recon`); (b) di salinan: `att` + `snapshot` + `inputs` 202701 (absensi **riil**, HRIS), run engine dry → commit
    (`<RUN_ID>`); (c) sesudah Oracle menghitung 202701: dump `salary-legacy` 202701 dimuat sebagai LEGACY di salinan;
-   (d) `recon diff` di bawah, `PAYROLL_RO_DSN` menunjuk salinan; (e) `DROP DATABASE` salinan sesudah keputusan bayar.
+   (d) `recon diff` di bawah, `PAYROLL_RECON_DSN` menunjuk salinan; (e) `DROP DATABASE` salinan sesudah keputusan bayar.
    Production tidak diubah oleh langkah ini. Perintahnya:
    ```sh
    ["diff","-yymm","202701","-division","SOLO","-company","<CID>","-target","run:<RUN_ID>","-out","/out/recon_202701_SOLO.json","-xlsx","/out/recon_202701_SOLO.xlsx"]
    ```
-   (Job `payroll-recon`, `PAYROLL_RO_DSN`.) Kriteria: selisih 0 per komponen di luar D-47/D-50, Σ net_pay sama.
+   (Job `payroll-recon`, `PAYROLL_RECON_DSN`; Job infra beralih di T033g3.) Kriteria: selisih 0 per komponen di luar D-47/D-50, Σ net_pay sama.
 3. **Lulus** → laporan + email (pola 4.4–4.5 tanpa `-test-to`):
    ```sh
    ["send","-batch","<BATCH>","-yymm","202701","-division","SOLO","-company","<CID>","-wait"]

@@ -62,7 +62,7 @@ func TestValidate_Aggregates(t *testing.T) {
 	line(solo2, "V00001", "Tunjangan", 1, "0.01")
 	head(solo2, "V00001", "204402", "SOLO", "0.01", "0")
 
-	raw, err := sql.Open("pgx", strings.Replace(appDSN, "user=payroll_app password=payroll_app123", "user=payroll_ro password=payroll_ro123", 1))
+	raw, err := sql.Open("pgx", strings.Replace(appDSN, "user=payroll_app password=payroll_app123", "user=payroll_recon password=payroll_recon123", 1))
 	if err != nil {
 		t.Fatal(err)
 	}

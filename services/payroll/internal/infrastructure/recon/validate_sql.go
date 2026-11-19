@@ -8,8 +8,8 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// Every query is bound to the ACTIVE LEGACY run of a period (the run the ETL loads, 08§2); RLS (app.scopes) still
-// limits the rows to the divisions of the company. Sums are cast to text and parsed as decimal: no float.
+// Every query is bound to the ACTIVE LEGACY run of a period (the run the ETL loads, 08§2) and filters the company
+// explicitly: payroll_ro reads across companies and divisions (p_ro, T033g2), app.scopes is not a filter here. Sums are cast to text and parsed as decimal: no float.
 const (
 	detailSQL = `SELECT r.pr_yymm, r.pr_division::text, CASE d.psd_type WHEN 'Tunjangan' THEN 'T' ELSE 'P' END,
   COALESCE(sum(d.psd_amount), 0)::text, count(*)

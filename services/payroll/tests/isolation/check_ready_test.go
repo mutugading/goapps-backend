@@ -39,7 +39,7 @@ func runCheckReady(t *testing.T, expectVersion int) []string {
 	if err := pgCtr.CopyFileToContainer(ctx, "../../deploy/check_ready.sql", checkReadyPath, 0o644); err != nil {
 		t.Fatalf("copy check_ready.sql: %v", err)
 	}
-	cmd := fmt.Sprintf("PGPASSWORD=payroll_ro123 psql -h 127.0.0.1 -U payroll_ro -d payroll_db -v ON_ERROR_STOP=1 -v expect_version=%d -f %s",
+	cmd := fmt.Sprintf("PGPASSWORD=payroll_recon123 psql -h 127.0.0.1 -U payroll_recon -d payroll_db -v ON_ERROR_STOP=1 -v expect_version=%d -f %s",
 		expectVersion, checkReadyPath)
 	code, out, err := pgCtr.Exec(ctx, []string{"sh", "-c", cmd}, tcexec.Multiplexed())
 	if err != nil {

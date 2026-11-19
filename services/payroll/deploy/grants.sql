@@ -3,7 +3,7 @@
 -- payroll_owner) SESUDAH SETIAP `migrate up`. Migrasi tidak memuat GRANT/REVOKE (ADR 0001, lint R4).
 --
 -- Deklaratif & idempoten: hak tabel/sequence role payroll_app/_etl/_ro di schema payroll + payroll_stg
--- di-reset lalu diberikan ulang ke keadaan akhir (setara hasil migrasi s.d. 000043, bukan urutan sejarahnya).
+-- di-reset lalu diberikan ulang ke keadaan akhir (setara hasil migrasi s.d. 000049, bukan urutan sejarahnya).
 -- Satu transaksi: aplikasi yang sedang jalan tidak pernah melihat keadaan tanpa grant.
 --
 -- Hak tingkat cluster/DB/schema (CONNECT, TEMP, USAGE schema, default privileges) ada di bootstrap.sql.
@@ -31,7 +31,7 @@ END $$;
 REVOKE ALL ON ALL TABLES    IN SCHEMA payroll, payroll_stg FROM payroll_app, payroll_etl, payroll_ro;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA payroll, payroll_stg FROM payroll_app, payroll_etl, payroll_ro;
 
--- 2. payroll_ro: baca semua (RLS tetap membatasi baris).
+-- 2. payroll_ro (grup NOLOGIN; login payroll_recon): baca semua, lintas divisi lewat policy p_ro (000049, T033g2).
 GRANT SELECT ON ALL TABLES IN SCHEMA payroll, payroll_stg TO payroll_ro;
 
 -- 3. payroll_app: DML penuh di payroll (04§11), staging hanya baca, lalu dipersempit.
@@ -47,6 +47,10 @@ REVOKE INSERT, UPDATE, DELETE ON payroll.pyr_rule_set, payroll.pyr_rule_constant
 REVOKE INSERT, UPDATE, DELETE ON payroll.pyr_doc_template, payroll.pyr_slip_password_policy,
   payroll.pyr_mail_account, payroll.pyr_mail_template FROM payroll_app;
 REVOKE DELETE ON payroll.pyr_distribution_item FROM payroll_app;
+-- rumus & aturan subsidi (K8, 4-eyes): app belum menulisnya; aktivasi lewat fn_activate_formula/_subsidy SECURITY DEFINER
+-- bersama UI formula Fase 2 (D-77 (3), T033g2). Sampai itu, tulis hanya lewat ETL (subsidy_rule baris 'etl') / owner.
+REVOKE INSERT, UPDATE, DELETE ON payroll.pyr_formula_version, payroll.pyr_subsidy_rule, payroll.pyr_subsidy_override
+  FROM payroll_app;
 -- view THR hanya baca (000039)
 REVOKE INSERT, UPDATE, DELETE ON payroll.v_pyr_thr_main, payroll.v_pyr_thr_detail FROM payroll_app;
 

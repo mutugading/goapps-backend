@@ -138,7 +138,7 @@ func setup() (func(), error) {
 
 func runBootstrap(ctx context.Context, ctr *tcpostgres.PostgresContainer) error {
 	code, out, err := ctr.Exec(ctx, []string{"psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1",
-		"-v", "pw_app=payroll_app123", "-v", "pw_etl=payroll_etl123", "-v", "pw_ro=payroll_ro123",
+		"-v", "pw_app=payroll_app123", "-v", "pw_etl=payroll_etl123", "-v", "pw_recon=payroll_recon123",
 		"-v", "pw_mig=payroll_mig123", "-f", "/bootstrap/bootstrap.sql"})
 	if err != nil {
 		return fmt.Errorf("bootstrap exec: %w", err)

@@ -7,6 +7,7 @@ import (
 
 func TestValidateCmd_UsageErrors(t *testing.T) {
 	t.Setenv("PAYROLL_RO_DSN", "")
+	t.Setenv("PAYROLL_RECON_DSN", "")
 	for _, args := range [][]string{
 		{},
 		{"-yymm-from", "202601", "-yymm-to", "202612"},

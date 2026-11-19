@@ -14,6 +14,7 @@ import (
 
 func TestDiffCmd_UsageErrors(t *testing.T) {
 	t.Setenv("PAYROLL_RO_DSN", "")
+	t.Setenv("PAYROLL_RECON_DSN", "")
 	for _, args := range [][]string{
 		{},
 		{"-yymm", "202608", "-division", "SOLO"},

@@ -27,12 +27,12 @@ func validateCmd(args []string, stdout, stderr io.Writer) int {
 	to := fs.Int("yymm-to", 0, "periode akhir yymm (wajib)")
 	out := fs.String("out", "", "berkas laporan JSON agregat (kosong = stdout)")
 	dump := fs.String("dump", "", "folder PSV dump (MGT_PAYROLL_MAIN/DETAIL.psv): bandingkan agregat DB dengan dump (T032b)")
-	dsn := fs.String("dsn", os.Getenv("PAYROLL_RO_DSN"), "DSN role payroll_ro (read-only)")
+	dsn := fs.String("dsn", reconDSN(), "DSN login payroll_recon (read-only, anggota payroll_ro)")
 	if err := fs.Parse(args); err != nil {
 		return exitError
 	}
 	if *from == 0 || *to == 0 || *dsn == "" {
-		return fail(fmt.Errorf("-yymm-from, -yymm-to dan -dsn (atau PAYROLL_RO_DSN) wajib"))
+		return fail(fmt.Errorf("-yymm-from, -yymm-to dan -dsn (atau PAYROLL_RECON_DSN) wajib"))
 	}
 	raw, err := sql.Open("pgx", *dsn)
 	if err != nil {

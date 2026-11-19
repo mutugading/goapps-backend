@@ -1,8 +1,8 @@
 -- =============================================================================
--- Payroll — cek kesiapan DB sesudah deploy (READ-ONLY, T028t, D-66 C). Dijalankan sebagai payroll_ro atau owner:
+-- Payroll — cek kesiapan DB sesudah deploy (READ-ONLY, T028t, D-66 C). Dijalankan sebagai payroll_recon atau owner:
 --
---   psql "postgres://payroll_ro:...@host:5432/payroll_db?sslmode=require" -v ON_ERROR_STOP=1 \
---        -v expect_version=43 [-v expect_policies=97] -f deploy/check_ready.sql | grep -v '^OK'
+--   psql "postgres://payroll_recon:...@host:5432/payroll_db?sslmode=require" -v ON_ERROR_STOP=1 \
+--        -v expect_version=49 [-v expect_policies=248] -f deploy/check_ready.sql | grep -v '^OK'
 --
 -- Keluaran: satu baris `OK|FAIL <cek> <detail>` per cek, tanpa nama karyawan/nominal (I25; hanya nama objek DB).
 -- psql keluar 0 walau ada FAIL: pemanggil membaca baris FAIL (mis. `grep -c '^FAIL'`).
@@ -11,7 +11,7 @@
 --
 -- Hak efektif dibandingkan lewat has_*_privilege (bukan teks ACL) dengan matriks yang SAMA dengan deploy/grants.sql
 -- (bagian 2-5). Mengubah grants.sql = ubah matriks di sini (tes TestCheckReady menjaga keduanya sejalan).
--- Tanpa tabel sementara/DDL: payroll_ro (read-only, tanpa TEMP) cukup.
+-- Tanpa tabel sementara/DDL: payroll_recon (read-only, tanpa TEMP) cukup.
 -- =============================================================================
 \set QUIET on
 \pset format unaligned
@@ -51,6 +51,7 @@ app_deny(rel, privs) AS (VALUES
   ('pyr_migration_log', 'IUD'), ('pyr_user_scope', 'IUD'),
   ('pyr_doc_template', 'IUD'), ('pyr_slip_password_policy', 'IUD'), ('pyr_mail_account', 'IUD'), ('pyr_mail_template', 'IUD'),
   ('pyr_distribution_item', 'D'),
+  ('pyr_formula_version', 'IUD'), ('pyr_subsidy_rule', 'IUD'), ('pyr_subsidy_override', 'IUD'),
   ('v_pyr_thr_main', 'IUD'), ('v_pyr_thr_detail', 'IUD'),
   ('schema_migrations_payroll', 'IUD'), ('schema_migrations', 'IUD')
 ),
@@ -171,8 +172,11 @@ secdef AS (
 rl AS (
   SELECT v.role, r.oid IS NOT NULL AS ok_exists,
          coalesce(r.rolsuper OR r.rolbypassrls, false) AS risky,
-         v.role = 'payroll_owner' AND coalesce(r.rolcanlogin, false) AS owner_login
-  FROM (VALUES ('payroll_owner'), ('payroll_app'), ('payroll_etl'), ('payroll_ro')) v(role)
+         v.role IN ('payroll_owner', 'payroll_ro') AND coalesce(r.rolcanlogin, false) AS owner_login,
+         -- payroll_recon (login baca, T033g2) wajib anggota payroll_ro dan tidak memegang role lain
+         coalesce(v.role = 'payroll_recon' AND r.oid IS NOT NULL AND (NOT pg_has_role(r.oid, 'payroll_ro', 'USAGE')
+           OR EXISTS (SELECT 1 FROM pg_auth_members m WHERE m.member = r.oid AND m.roleid <> 'payroll_ro'::regrole)), false) AS bad_member
+  FROM (VALUES ('payroll_owner'), ('payroll_app'), ('payroll_etl'), ('payroll_ro'), ('payroll_recon')) v(role)
   LEFT JOIN pg_roles r ON r.rolname = v.role
 ),
 results(ord, status, name, detail) AS (
@@ -190,8 +194,9 @@ results(ord, status, name, detail) AS (
   SELECT 11, CASE WHEN dirty = 'false' THEN 'OK' ELSE 'FAIL' END, 'dirty', 'dirty=' || coalesce(dirty, '?') FROM ver
   UNION ALL
   -- role
-  SELECT 20, CASE WHEN ok_exists AND NOT risky AND NOT owner_login THEN 'OK' ELSE 'FAIL' END, 'role ' || role,
-         CASE WHEN NOT ok_exists THEN 'tidak ada' WHEN risky THEN 'superuser/bypassrls' WHEN owner_login THEN 'owner bisa login'
+  SELECT 20, CASE WHEN ok_exists AND NOT risky AND NOT owner_login AND NOT bad_member THEN 'OK' ELSE 'FAIL' END, 'role ' || role,
+         CASE WHEN NOT ok_exists THEN 'tidak ada' WHEN risky THEN 'superuser/bypassrls' WHEN owner_login THEN 'role grup bisa login'
+              WHEN bad_member THEN 'keanggotaan bukan tepat payroll_ro'
               ELSE 'ada' END
   FROM rl
   UNION ALL

@@ -74,7 +74,7 @@ func setup() (func(), error) {
 	cleanup := func() { _ = testcontainers.TerminateContainer(ctr) }
 
 	code, _, err := ctr.Exec(ctx, []string{"psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1",
-		"-v", "pw_app=payroll_app123", "-v", "pw_etl=payroll_etl123", "-v", "pw_ro=payroll_ro123",
+		"-v", "pw_app=payroll_app123", "-v", "pw_etl=payroll_etl123", "-v", "pw_recon=payroll_recon123",
 		"-v", "pw_mig=payroll_mig123", "-f", "/bootstrap/bootstrap.sql"})
 	if err != nil || code != 0 {
 		return cleanup, fmt.Errorf("bootstrap exit %d: %v", code, err)

@@ -7,7 +7,7 @@ Keputusan: D-66 opsi C (hibrida terhadap ADR 0001 *one database per service*).
 | Database | `payroll_db` (dulu `payroll`) |
 | Tabel versi golang-migrate | `schema_migrations_payroll` (staging/production, overlay infra) |
 | Schema | `payroll`, `payroll_stg` (dibuat `deploy/bootstrap.sql`, bukan migrasi) |
-| Role | `payroll_owner` (NOLOGIN, pemilik objek), `payroll_migrator` (login migrasi, otomatis `ROLE payroll_owner`), `payroll_app`, `payroll_etl`, `payroll_ro` |
+| Role | `payroll_owner` (NOLOGIN, pemilik objek), `payroll_migrator` (login migrasi, otomatis `ROLE payroll_owner`), `payroll_app`, `payroll_etl`, `payroll_ro` (NOLOGIN, grup baca), `payroll_recon` (login baca, anggota `payroll_ro`) |
 
 ## Urutan
 
@@ -19,7 +19,7 @@ Keputusan: D-66 opsi C (hibrida terhadap ADR 0001 *one database per service*).
    psql "postgres://payroll_migrator:...@<host>:5432/payroll_db?sslmode=require" -v ON_ERROR_STOP=1 -q -f deploy/grants.sql
    ```
    Migrasi tidak memuat GRANT/REVOKE (ADR 0001, Migration Lint R4). Tanpa langkah ini tabel baru tidak bisa
-   diakses `payroll_app`/`payroll_ro`, dan hak `payroll_etl` tidak terpasang. Skrip idempoten, berjalan dalam satu transaksi,
+   diakses `payroll_app`/`payroll_ro` (grup login `payroll_recon`), dan hak `payroll_etl` tidak terpasang. Skrip idempoten, berjalan dalam satu transaksi,
    dan mengembalikan hak akses ke keadaan yang dideklarasikan (hak tambahan yang diberikan manual akan dicabut).
 
 Staging/production: langkah 2 dan 3 dijalankan **satu Job** `payroll-migrate` (goapps-infra
@@ -43,10 +43,10 @@ Job CLI (sync/recon/report/mailer) konek langsung ke `payroll_db` (bukan lewat P
 Dev lokal: service `payroll` di `goapps/docker-compose.yml` menjalankan langkah 2 dan 3 saat start; `make migrate-up`
 juga menjalankan `make grants`. Testcontainers (`tests/{e2e,etl,isolation}`) menjalankan bootstrap → migrasi → grants.
 
-4. **Setiap deploy, sesudah langkah 3 (read-only)**: `deploy/check_ready.sql` sebagai `payroll_ro` atau owner (image membawa
+4. **Setiap deploy, sesudah langkah 3 (read-only)**: `deploy/check_ready.sql` sebagai `payroll_recon` atau owner (image membawa
    `/app/deploy/check_ready.sql`):
    ```sh
-   psql "postgres://payroll_ro:...@<host>:5432/payroll_db?sslmode=require" -v ON_ERROR_STOP=1 \
+   psql "postgres://payroll_recon:...@<host>:5432/payroll_db?sslmode=require" -v ON_ERROR_STOP=1 \
         -v expect_version=<migrasi terakhir di image> [-v expect_policies=<jumlah policy>] -f deploy/check_ready.sql | grep -v '^OK'
    ```
    Keluaran satu baris `OK|FAIL <cek> <detail>` per cek (versi `schema_migrations_payroll` + `dirty=false`, role, ACL
@@ -54,8 +54,28 @@ juga menjalankan `make grants`. Testcontainers (`tests/{e2e,etl,isolation}`) men
    tanpa nama/nominal (I25). psql keluar 0 walau ada FAIL: gagalkan langkah deploy kalau `grep -c '^FAIL'` > 0. Matriks hak
    di berkas ini harus sejalan dengan `grants.sql`; ubah `grants.sql` = ubah `check_ready.sql` (tes `TestCheckReady`).
 
+## Role baca & RLS (T033g2, D-77 (3))
+
+- `payroll_ro` = grup baca **lintas divisi dan company** (termasuk `pyr_user_scope` & `pyr_audit_log` semua company) untuk recon/cek IT (`cmd/recon`, `check_ready.sql`, runbook). Login-nya
+  `payroll_recon` (INHERIT, `default_transaction_read_only`, CONNECTION LIMIT 5); DSN `PAYROLL_RECON_DSN`
+  (`PAYROLL_RO_DSN` masih dibaca sebagai fallback sampai secret infra pindah, T033g3).
+- Policy ro = `p_ro FOR SELECT USING (true)` di setiap tabel ber-RLS yang dibaca ro. `app.scopes` **bukan** batas keamanan
+  bagi ro (sesi bisa men-SET sendiri), jadi tidak dipakai di policy ro; `cmd/recon` tetap men-SET-nya sebagai filter, dan
+  setiap query ro wajib memfilter company/divisi eksplisit (loader YTD: `fn_in_scope`). Tabel tanpa `p_ro`
+  (mis. `pyr_idempotency_key`) tertutup bagi ro.
+- Policy `p_scope`/`p_parent`/`p_self` khusus `payroll_app`: bagi app, scope tetap batas keamanan (diset server dari
+  `pyr_user_scope`, bukan dari klien).
+- `payroll_etl` di tabel rule/input/subsidi/GL: `p_etl_sel` (baca), `p_etl_ins`/`p_etl_upd` hanya baris sumber ETL
+  (`pa_source='LEGACY'`, `psr created_by='etl'`, `prc_rule_set_id=1`, `pgs_legacy_row` terisi), tanpa DELETE.
+- `payroll_app` tidak menulis `pyr_formula_version`, `pyr_subsidy_rule`, `pyr_subsidy_override` (grants.sql bagian 3)
+  sampai `fn_activate_formula/_subsidy` SECURITY DEFINER (4-eyes) dibuat bersama UI formula Fase 2.
+- Baris `pyr_audit_log` sebelum allowlist (T033g1): jalankan sekali `scripts/fix/t033g2_audit_scrub.sql` sebagai
+  `payroll_migrator` di tiap DB (idempoten, TIDAK bisa dibatalkan: ambil dulu
+  `pg_dump -t payroll.pyr_audit_log` sebagai cadangan; allowlist dijaga sama dengan `mask.go` oleh tes).
+
 ## Menambah objek baru
 
+- Tabel baru ber-RLS yang dibaca recon: tambahkan `p_ro` (migrasi) bersama policy app-nya.
 - Tabel baru di `payroll`: `payroll_ro` mendapat SELECT dan `payroll_app` mendapat DML otomatis. Kalau hak app harus lebih
   sempit, tambahkan REVOKE di bagian 3 `grants.sql`. `payroll_etl` tidak mendapat apa pun kecuali didaftarkan di bagian 4.
 - Fungsi baru: REVOKE dari PUBLIC dan GRANT EXECUTE di bagian 5.

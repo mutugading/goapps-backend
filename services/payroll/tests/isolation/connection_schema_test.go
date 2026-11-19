@@ -122,7 +122,7 @@ func TestI1_OtherAppRoleCannotConnectPayroll(t *testing.T) {
 func TestI2_PayrollAppCannotConnectOtherDB(t *testing.T) {
 	prepareOtherDB(t)
 	for _, role := range [][2]string{{"payroll_app", "payroll_app123"}, {"payroll_etl", "payroll_etl123"},
-		{"payroll_ro", "payroll_ro123"}, {"payroll_migrator", "payroll_mig123"}} {
+		{"payroll_recon", "payroll_recon123"}, {"payroll_migrator", "payroll_mig123"}} {
 		for _, db := range []string{otherDB, "postgres", "template1"} {
 			expectConnDenied(t, "I2 "+role[0]+"@"+db, ping(openAs(t, role[0], role[1], db)))
 		}
@@ -194,7 +194,7 @@ func payrollRoles(t *testing.T) map[string]*sql.DB {
 	return map[string]*sql.DB{
 		"payroll_app":      appDB.DB,
 		"payroll_etl":      etlDB,
-		"payroll_ro":       openAs(t, "payroll_ro", "payroll_ro123", "payroll_db"),
+		"payroll_ro":       openAs(t, "payroll_recon", "payroll_recon123", "payroll_db"),
 		"payroll_migrator": ownDB,
 	}
 }
@@ -267,7 +267,7 @@ func TestI11_EtlMayCheckPeriodLockOnly(t *testing.T) {
 }
 
 func TestI12_ReadOnlyRoleCannotWrite(t *testing.T) {
-	ro := openAs(t, "payroll_ro", "payroll_ro123", "payroll_db")
+	ro := openAs(t, "payroll_recon", "payroll_recon123", "payroll_db")
 	for _, q := range []string{
 		`INSERT INTO payroll.pyr_currency VALUES ('USD', 2, 2)`,
 		`UPDATE payroll.pyr_company SET pco_name = 'x'`,

@@ -1,5 +1,5 @@
 // Package main is the payroll reconciliation entry point (D-01, D-41). Subcommands: extract-golden, diff, validate.
-// It reads the LEGACY run in Postgres (role payroll_ro); there is no Oracle connection.
+// It reads the LEGACY run in Postgres (login payroll_recon, member of payroll_ro); there is no Oracle connection.
 package main
 
 import (
@@ -21,9 +21,9 @@ import (
 )
 
 const usage = `usage:
-  recon extract-golden -yymm 202608 [-per-formula 20] [-company 1] [-divisions SOLO,JAKARTA] [-rule-set 1] [-out tests/golden/out] [-rules-out rules.json] -dsn <payroll_ro dsn>
-  recon diff -yymm 202608 -division SOLO [-company 1] [-target dry|run:<id>] [-rule-set 1] [-out report.json] -dsn <payroll_ro dsn>
-  recon validate -yymm-from 201801 -yymm-to 202612 [-company 1] [-out validate.json] [-dump <dir PSV>] -dsn <payroll_ro dsn>`
+  recon extract-golden -yymm 202608 [-per-formula 20] [-company 1] [-divisions SOLO,JAKARTA] [-rule-set 1] [-out tests/golden/out] [-rules-out rules.json] -dsn <payroll_recon dsn>
+  recon diff -yymm 202608 -division SOLO [-company 1] [-target dry|run:<id>] [-rule-set 1] [-out report.json] -dsn <payroll_recon dsn>
+  recon validate -yymm-from 201801 -yymm-to 202612 [-company 1] [-out validate.json] [-dump <dir PSV>] -dsn <payroll_recon dsn>`
 
 func main() {
 	if len(os.Args) < 2 {
@@ -44,6 +44,15 @@ func main() {
 		fmt.Fprintln(os.Stderr, usage)
 		os.Exit(2)
 	}
+}
+
+// reconDSN is the default -dsn: PAYROLL_RECON_DSN (login payroll_recon, member of NOLOGIN payroll_ro, T033g2), falling
+// back to PAYROLL_RO_DSN until the infra secrets move (T033g3).
+func reconDSN() string {
+	if v := os.Getenv("PAYROLL_RECON_DSN"); v != "" {
+		return v
+	}
+	return os.Getenv("PAYROLL_RO_DSN")
 }
 
 // openRO opens the read-only connection and returns a context carrying the recon identity for scopes.
@@ -70,12 +79,12 @@ func extractGolden(args []string) error {
 	ruleSet := fs.Int("rule-set", 1, "rule set untuk memuat input (v1 = 1)")
 	out := fs.String("out", "tests/golden/out", "folder keluaran (gitignored; berisi gaji nyata)")
 	rulesOut := fs.String("rules-out", "", "berkas GOLDEN_RULES (rule set + tabel pajak periode itu) untuk TestGoldenReal")
-	dsn := fs.String("dsn", os.Getenv("PAYROLL_RO_DSN"), "DSN role payroll_ro (read-only)")
+	dsn := fs.String("dsn", reconDSN(), "DSN login payroll_recon (read-only, anggota payroll_ro)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *yymm == 0 || *dsn == "" {
-		return fmt.Errorf("-yymm dan -dsn (atau PAYROLL_RO_DSN) wajib")
+		return fmt.Errorf("-yymm dan -dsn (atau PAYROLL_RECON_DSN) wajib")
 	}
 	scopes, names := make([]scope.Scope, 0, 2), make([]string, 0, 2)
 	for _, d := range strings.Split(*divs, ",") {

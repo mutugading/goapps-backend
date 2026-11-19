@@ -2,7 +2,7 @@
 # [T027a] Runbook recon periode OPEN: dump -> ETL -> recon diff (D-44 C, D-46, D-47, D-52).
 # Pemakaian (dari container tools, folder services/payroll):
 #   scripts/recon/recon_open.sh -yymm 202611 -dump <dir> -out /tmp/<tag> [-company 3] [-print]
-# Env: PAYROLL_ETL_DSN (role payroll_etl), PAYROLL_RO_DSN (payroll_ro), PAYROLL_PII_KEY, PAYROLL_PII_HMAC_KEY.
+# Env: PAYROLL_ETL_DSN (role payroll_etl), PAYROLL_RECON_DSN (login payroll_recon ∈ payroll_ro), PAYROLL_PII_KEY, PAYROLL_PII_HMAC_KEY.
 # TIDAK menjalankan sync att/snapshot (menggeser snapshot LEGACY, D-39); langkah D-61 ada di T027b.
 # Berhenti pada error pertama; log per langkah di <out>/run.log; stdout tanpa NIK/nominal.
 # recon diff keluar 1 = tidak paritas (hasil, bukan error): dilanjutkan ke divisi berikut, exit akhir 1.
@@ -32,7 +32,7 @@ steps=(
   "thr-legacy|$SYNC thr-legacy -dir $dump -dsn \$PAYROLL_ETL_DSN -company $company"
 )
 for d in SOLO JAKARTA; do
-  steps+=("recon-$d|$RECON diff -yymm $yymm -division $d -company $company -target dry -rule-set 1 -out $out/recon_$d.json -xlsx $out/recon_$d.xlsx -dsn \$PAYROLL_RO_DSN")
+  steps+=("recon-$d|$RECON diff -yymm $yymm -division $d -company $company -target dry -rule-set 1 -out $out/recon_$d.json -xlsx $out/recon_$d.xlsx -dsn \$PAYROLL_RECON_DSN")
 done
 if [ "$print" = 1 ]; then
   echo "# cd $here; check_spool.sh $dump open"
@@ -42,7 +42,7 @@ fi
 cd "$here"
 mkdir -p "$out"; : > "$out/run.log"
 bash "$here/../../scripts/oracle-spool/check_spool.sh" "$dump" open >>"$out/run.log" 2>&1 || { echo "check_spool gagal; lihat $out/run.log" >&2; exit 1; }
-: "${PAYROLL_ETL_DSN:?}" "${PAYROLL_RO_DSN:?}"
+: "${PAYROLL_ETL_DSN:?}" "${PAYROLL_RECON_DSN:?}"
 rc_final=0
 for s in "${steps[@]}"; do
   name=${s%%|*}; cmd=${s#*|}
