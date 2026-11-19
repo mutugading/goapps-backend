@@ -3,7 +3,7 @@
 -- payroll_owner) SESUDAH SETIAP `migrate up`. Migrasi tidak memuat GRANT/REVOKE (ADR 0001, lint R4).
 --
 -- Deklaratif & idempoten: hak tabel/sequence role payroll_app/_etl/_ro di schema payroll + payroll_stg
--- di-reset lalu diberikan ulang ke keadaan akhir (setara hasil migrasi s.d. 000050, bukan urutan sejarahnya).
+-- di-reset lalu diberikan ulang ke keadaan akhir (setara hasil migrasi s.d. 000051, bukan urutan sejarahnya).
 -- Satu transaksi: aplikasi yang sedang jalan tidak pernah melihat keadaan tanpa grant.
 --
 -- Hak tingkat cluster/DB/schema (CONNECT, TEMP, USAGE schema, default privileges) ada di bootstrap.sql.

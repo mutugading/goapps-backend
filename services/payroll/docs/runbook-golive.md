@@ -107,6 +107,21 @@ tidak cocok dan hitungan salah. Cara hitung yang teruji: `infra/scripts/local/pa
 | 9 | `fx-rate` | — | `TestETL_FxRate` |
 | 10 | `cost-group` | 2 | UPDATE `pyr_employee.pe_cost_group`; `TestETL_CostGroup` |
 
+Catatan T033h/T033h3:
+- **`grants.sql` wajib di-apply (Job `migrate`) sebelum** `salary-legacy`/`thr-legacy` versi ini: ETL membaca
+  `pr_input_hash`/`ptr_input_hash` (checksum sumber per periode/event). Re-run dengan sumber berbeda = exception per periode.
+- `att-legacy-fail` wajib `-company`. BF dibalik dengan nominal beras **periode itu** (`PD_BASIS_AMOUNT`), bukan
+  COMPNT_EMP saat dump; baris tanpa basis memakai COMPNT_EMP dan dihitung di "A dari COMPNT_EMP" (harus 0 pada dump produksi).
+- `gl-setup`: baris Salary/THR Payables tidak lagi dikunci per `MPS_DEPT` (legacy join hanya jabatan+divisi). Beda akun
+  antar dept dalam satu grup = exception. Migrasi 000051 menghapus baris PAYABLE ETL lama yang ber-cost group, dan ekspor GL
+  hanya membaca PAYABLE tanpa cost group. Jadi di DB yang sudah pernah dimuat: deploy, lalu **jalankan ulang `gl-setup`**
+  sebelum ekspor GL (kalau tidak, hasilnya `GL_PAYABLE_UNMAPPED`).
+- Selama `sync att`/`att-snapshot`/`dummy-*` berjalan pada satu periode, approve/close/reopen/Commit periode itu
+  gagal cepat `RUN_IN_PROGRESS` (run lock): ulangi sesudah sync selesai.
+- `att-snapshot` menolak jendela harian yang tanggal terakhirnya < 25. Untuk divisi yang memang tanpa jadwal tanggal 25,
+  operator boleh menambah `-allow-no-day25`. Override ini hanya lolos kalau batch daily OK terakhir dimulai sesudah
+  26 00:00 WIB. Itu bukti waktu sync, bukan bukti isi HRIS, jadi cek dulu dengan HRIS bahwa tanggal 25 memang kosong.
+
 `prune-excluded` tidak dipakai (cakupan D-35.1/D-43 sudah di `salary-legacy`). `dummy-*` **dilarang** di staging/production.
 Semua langkah idempoten (ulang = no-op/sumber harus sama); setiap langkah satu transaksi, gagal = rollback langkah itu saja.
 
@@ -125,7 +140,7 @@ $S employees       -dir $D -dsn "$PAYROLL_ETL_DSN" -company $C -expect-emp <N_EM
 $S inputs          -dir $D -dsn "$PAYROLL_ETL_DSN" -company $C -expect-addition <N_ADDITION> -expect-abnormal <N_ABNORMAL>
 $S att-legacy      -dir $D -dsn "$PAYROLL_ETL_DSN" -company $C -expect-rekap <N_REKAP> -expect-add <N_REKAP_ADD> -expect-sch <N_SCH>
 $S salary-legacy   -dir $D -dsn "$PAYROLL_ETL_DSN" -company $C -expect-main <N_MAIN> -expect-detail <N_DETAIL>
-$S att-legacy-fail -dir $D -dsn "$PAYROLL_ETL_DSN"
+$S att-legacy-fail -dir $D -dsn "$PAYROLL_ETL_DSN" -company $C
 $S thr-legacy      -dir $D -dsn "$PAYROLL_ETL_DSN" -company $C -expect-main <N_THR_MAIN> -expect-detail <N_THR_DETAIL>
 $S gl-setup        -dir $D -dsn "$PAYROLL_ETL_DSN" -company $C -expect-rows <N_SETUP>
 $S fx-rate         -dir $D -dsn "$PAYROLL_ETL_DSN" -expect-rows <N_FX_BOOK>

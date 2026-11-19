@@ -19,6 +19,10 @@ type AttSnapshotQuery struct {
 	Company  int16
 	YYMM     int
 	Division string
+	// AllowNoDay25 (T033h3, operator decision per run) accepts a daily window whose last row is before the 25th when the
+	// newest OK daily batch started after the window closed (26th 00:00 WIB): for a division with nobody scheduled on
+	// the 25th. It proves when the sync ran, not that HRIS was complete, so it is never the default.
+	AllowNoDay25 bool
 }
 
 // AttSnapshotReport is the outcome of one division. Counts only, no names (I25).
@@ -169,15 +173,30 @@ func checkStagingFilled(ctx context.Context, tx pgx.Tx, q AttSnapshotQuery, div 
 			q.YYMM, div, start.Format("2006-01-02"), end.Format("2006-01-02"))
 	}
 	// T033h: a window synced before its last day counts the missing days as absent (premi_fail inflated).
-	if last == nil || last.Format(dateISO) < end.Format(dateISO) {
-		got := "-"
-		if last != nil {
-			got = last.Format(dateISO)
-		}
-		return fmt.Errorf("staging harian %d %s belum lengkap: tanggal terakhir %s < akhir jendela %s; sync daily sesudah jendela selesai",
+	// T033h3: with AllowNoDay25 a division without a row on the 25th passes when the newest OK DAILY batch started after
+	// the window closed (26th 00:00 WIB). Proof of sync time only, so only on explicit request.
+	if last != nil && last.Format(dateISO) >= end.Format(dateISO) {
+		return nil
+	}
+	got := "-"
+	if last != nil {
+		got = last.Format(dateISO)
+	}
+	if !q.AllowNoDay25 {
+		return fmt.Errorf("staging harian %d %s belum lengkap: tanggal terakhir %s < akhir jendela %s; sync daily sesudah jendela selesai (divisi tanpa jadwal tgl 25: -allow-no-day25)",
 			q.YYMM, div, got, end.Format(dateISO))
 	}
-	return nil
+	var after bool
+	if err := tx.QueryRow(ctx, `SELECT coalesce((SELECT psb_started_at >= (($4::date + 1)::timestamp AT TIME ZONE 'Asia/Jakarta')
+  FROM payroll_stg.pyr_stg_sync_batch WHERE psb_company_id=$1 AND psb_division=$2 AND psb_yymm=$3 AND psb_source=$5 AND psb_status='OK'
+  ORDER BY psb_id DESC LIMIT 1), false)`, q.Company, div, q.YYMM, end.Format(dateISO), tblDaily.source).Scan(&after); err != nil {
+		return fmt.Errorf("cek batch harian: %w", err)
+	}
+	if after {
+		return nil
+	}
+	return fmt.Errorf("staging harian %d %s belum lengkap: tanggal terakhir %s < akhir jendela %s dan batch daily terakhir dimulai sebelum jendela selesai; sync daily lagi sesudah tanggal 25",
+		q.YYMM, div, got, end.Format(dateISO))
 }
 
 const dateISO = "2006-01-02"

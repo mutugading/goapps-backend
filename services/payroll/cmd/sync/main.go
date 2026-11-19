@@ -438,7 +438,7 @@ func attLegacyFail(args []string) error {
 	r, err := etl.RunAttLegacyFail(context.Background(), db, etl.PSVDir{Dir: *dir}, o)
 	fmt.Printf("T40 detail=%d premi_fail set=%d (gagal=%d, tanpa baris DETAIL=%d) | T74 detail=%d beras_fail set=%d | baris snapshot diubah=%d\n",
 		r.PremiDetail, r.PremiSet, r.PremiFailed, r.PremiNoRow, r.BerasDetail, r.BerasSet, r.Updated)
-	fmt.Printf("residu BF (NULL)=%d, tanpa baris REKAP=%d\n", len(r.BerasResidue), len(r.NoSnapshotRow))
+	fmt.Printf("residu BF (NULL)=%d, tanpa baris REKAP=%d, A dari COMPNT_EMP (tanpa PD_BASIS_AMOUNT)=%d\n", len(r.BerasResidue), len(r.NoSnapshotRow), r.BerasAFallback)
 	periods := make([]string, 0, len(r.PremiNoRowBy))
 	for p := range r.PremiNoRowBy {
 		periods = append(periods, p)
@@ -558,6 +558,7 @@ func snapshot(args []string) error {
 	company := fs.Int("company", 1, "pyr_company.pco_company_id")
 	yymm := fs.Int("yymm", 0, "periode YYYYMM (wajib)")
 	division := fs.String("division", "", "SOLO atau JAKARTA (kosong = keduanya)")
+	noDay25 := fs.Bool("allow-no-day25", false, "terima jendela harian tanpa baris tgl 25 bila batch daily OK terakhir dimulai sesudah 26 00:00 WIB (divisi tanpa jadwal tgl 25; keputusan operator)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -577,7 +578,7 @@ func snapshot(args []string) error {
 		}
 	}()
 	reps, err := etl.RunAttSnapshot(context.Background(), db, etl.AttSnapshotQuery{
-		Company: int16(*company), YYMM: *yymm, Division: *division, //nolint:gosec // -company checked to 1..MaxInt16 above
+		Company: int16(*company), YYMM: *yymm, Division: *division, AllowNoDay25: *noDay25, //nolint:gosec // -company checked to 1..MaxInt16 above
 	})
 	for _, r := range reps { // counts only (I25)
 		if r.Unchanged {

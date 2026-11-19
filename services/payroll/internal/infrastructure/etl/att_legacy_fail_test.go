@@ -100,3 +100,46 @@ A|Tunjangan|40|100|SOLO`)
 		t.Fatal("periode OPEN tanpa MPCE_FRZ_FLAG harus gagal")
 	}
 }
+
+// T033h3: A is the period's own PD_BASIS_AMOUNT, not the COMPNT_EMP amount at dump time; COMPNT_EMP is only the
+// fallback for a row without basis (counted).
+func TestBerasUsesHistoricalBasis(t *testing.T) {
+	ce := psvTable(TableEmployeeComponent, `MPCE_NIK|MPCE_TYPE|MPCE_ID|MPCE_AMOUNT|MPCE_DIVISION
+A|Tunjangan|74|200000|SOLO
+B|Tunjangan|74|200000|SOLO`)
+	dt := psvTable(TableSalaryDetail, `PD_YYMM|PD_NIK|PD_NO|PD_TYPE|PD_AMOUNT|PD_STATUS|PD_BASIS_AMOUNT|PD_DIVISION
+202401|A|74|Tunjangan|147200|D|160000|SOLO
+202401|B|74|Tunjangan|192000|D||SOLO
+202401|C|74|Tunjangan|150000|D|0|SOLO
+202401|A|74|Tunjangan|80000|F|160000|JAKARTA`)
+	var rep AttLegacyFailReport
+	c := &failCollector{rep: &rep, amounts: map[failKey]string{}, vals: map[failKey]*failVal{}}
+	if err := c.loadAmounts(ce); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.scanDetail(dt); err != nil {
+		t.Fatal(err)
+	}
+	bf := func(nik string) int {
+		v := c.vals[failKey{"202401", "SOLO", nik}]
+		if v == nil || v.beras == nil {
+			t.Fatalf("%s: BF NULL (residu %v)", nik, rep.BerasResidue)
+		}
+		return *v.beras
+	}
+	if got := bf("A"); got != 2 { // 160000 historis: (160000-147200)*25/160000 = 2; nominal dump 200000 akan residu
+		t.Errorf("A: BF %d, mau 2", got)
+	}
+	if got := bf("B"); got != 1 { // tanpa basis: A = COMPNT_EMP 200000
+		t.Errorf("B: BF %d, mau 1", got)
+	}
+	if v := c.vals[failKey{"202401", "SOLO", "C"}]; v == nil || v.beras != nil { // basis 0: residue, column NULL
+		t.Errorf("C: basis 0 harus residu")
+	}
+	if v := c.vals[failKey{"202401", "JAKARTA", "A"}]; v == nil || v.beras == nil || *v.beras != 0 { // tipe F = 0
+		t.Errorf("A JAKARTA tipe F: BF harus 0")
+	}
+	if rep.BerasAFallback != 1 || len(rep.BerasResidue) != 1 {
+		t.Errorf("fallback=%d residu=%v", rep.BerasAFallback, rep.BerasResidue)
+	}
+}

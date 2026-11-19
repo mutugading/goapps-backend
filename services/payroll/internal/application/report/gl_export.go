@@ -180,7 +180,7 @@ ORDER BY d.psd_nik, d.psd_type, d.psd_id`
 
 const glPayableSQL = `SELECT pgs_gl_group, pgs_account_main, COALESCE(pgs_account_sub,''), pgs_drcr::text, COALESCE(pgs_description,'')
 FROM payroll.pyr_gl_setup
-WHERE pgs_company_id = $1 AND pgs_division = $2 AND pgs_journal_type = 'GAJI' AND pgs_line_kind = 'PAYABLE'
+WHERE pgs_company_id = $1 AND pgs_division = $2 AND pgs_journal_type = 'GAJI' AND pgs_line_kind = 'PAYABLE' AND pgs_cost_group IS NULL
   AND pgs_valid_from <= $3 AND (pgs_valid_to IS NULL OR pgs_valid_to >= $3)
 ORDER BY pgs_gl_group, pgs_valid_from DESC`
 

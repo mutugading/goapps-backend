@@ -49,7 +49,8 @@ func TestReport_GL(t *testing.T) {
 		   CASE lm.pclm_legacy_id WHEN 911 THEN 'D' ELSE 'C' END, CASE lm.pclm_legacy_id WHEN 911 THEN 'Gaji Solo' ELSE 'Hutang BPJS' END, 200001
 		 FROM payroll.pyr_component_legacy_map lm WHERE lm.pclm_company_id = 1 AND lm.pclm_legacy_division = 'SOLO'
 		   AND (lm.pclm_legacy_type, lm.pclm_legacy_id) IN (('Tunjangan',911),('Potongan',912))
-		 UNION ALL SELECT 1,'SOLO','GAJI','ZGL Group',NULL,NULL,'PAYABLE','205012',NULL,'C','Salary Payables',200001`,
+		 UNION ALL SELECT 1,'SOLO','GAJI','ZGL Group',NULL,NULL,'PAYABLE','205012',NULL,'C','Salary Payables',200001
+		 UNION ALL SELECT 1,'SOLO','GAJI','ZGL Group','MB',NULL,'PAYABLE','205099',NULL,'C','PAYABLE lama ber-cost group (T033h3: diabaikan)',200002`,
 		`UPDATE payroll.pyr_period SET pp_status = 'APPROVED' WHERE pp_yymm = ` + y + ` AND pp_division = 'SOLO'`,
 	} {
 		if _, err := ownDB.Exec(q); err != nil {

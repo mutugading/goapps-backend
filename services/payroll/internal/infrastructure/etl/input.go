@@ -129,16 +129,21 @@ VALUES ($1,'Legacy v1 (paritas Oracle)',201712,true,'ACTIVE') ON CONFLICT (prs_i
 		if c.division != "" {
 			div = c.division
 		}
-		if _, err := tx.ExecContext(ctx, `
+		res, err := tx.ExecContext(ctx, `
 INSERT INTO payroll.pyr_rule_constant (prc_rule_set_id, prc_company_id, prc_key, prc_value, prc_division)
 VALUES ($1,$2,$3,$4::numeric,$5)
 ON CONFLICT (prc_rule_set_id, prc_company_id, prc_key, COALESCE(prc_division,'*')) DO UPDATE SET prc_value=EXCLUDED.prc_value`,
-			legacyRuleSetID, company, c.key, c.value, div); err != nil {
+			legacyRuleSetID, company, c.key, c.value, div)
+		if err != nil {
 			return rep, fmt.Errorf("rule_constant %s: %w", c.key, err)
 		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return rep, fmt.Errorf("rule_constant %s: %w", c.key, err)
+		}
+		rep.DstRows += int(n) // T033h3: rows reported by the statement (an upsert counts 1), not len(ruleConstants)
 	}
 	rep.SrcRows = len(ruleConstants)
-	rep.DstRows = len(ruleConstants) // T033h: rows written by this run
 	return rep, nil
 }
 
