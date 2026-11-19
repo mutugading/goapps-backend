@@ -51,7 +51,7 @@ app_deny(rel, privs) AS (VALUES
   ('pyr_migration_log', 'IUD'), ('pyr_user_scope', 'IUD'),
   ('pyr_doc_template', 'IUD'), ('pyr_slip_password_policy', 'IUD'), ('pyr_mail_account', 'IUD'), ('pyr_mail_template', 'IUD'),
   ('pyr_distribution_item', 'D'),
-  ('pyr_formula_version', 'IUD'), ('pyr_subsidy_rule', 'IUD'), ('pyr_subsidy_override', 'IUD'),
+  ('pyr_formula_version', 'IUD'), ('pyr_formula_dependency', 'IUD'), ('pyr_formula_test_case', 'IUD'), ('pyr_subsidy_rule', 'IUD'), ('pyr_subsidy_override', 'IUD'),
   ('v_pyr_thr_main', 'IUD'), ('v_pyr_thr_detail', 'IUD'),
   ('schema_migrations_payroll', 'IUD'), ('schema_migrations', 'IUD')
 ),

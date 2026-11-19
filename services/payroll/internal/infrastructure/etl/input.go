@@ -251,31 +251,40 @@ func subsidyLimit(g *subsidyGroup, fallback sql.NullString) (limit any, exc stri
 
 func subsidyRuleName(g *subsidyGroup) string { return fmt.Sprintf("ETL subsidi %s %s", g.div, g.yymm) }
 
-// upsertSubsidyRule writes the ACTIVE v1 rule of g; the rule name is the idempotency key.
-func upsertSubsidyRule(ctx context.Context, tx *sql.Tx, company int16, g *subsidyGroup, limit any, target int64) error {
+// upsertSubsidyRule writes the ACTIVE v1 rule of g; (company, name, created_by='etl') is the idempotency key. A rule of the
+// same name made by the app (created_by<>'etl') is never touched (p_etl, 000049) and no twin is created: exception text.
+func upsertSubsidyRule(ctx context.Context, tx *sql.Tx, company int16, g *subsidyGroup, limit any, target int64) (string, error) {
 	name := subsidyRuleName(g)
 	res, err := tx.ExecContext(ctx, `
 UPDATE payroll.pyr_subsidy_rule SET psr_limit_amount=$3::numeric, psr_target_component_sysid=$4, psr_basis_period_yymm=$5,
   psr_valid_from=$6, psr_valid_to=$6, psr_divisions=ARRAY[$7]::varchar[], psr_status='ACTIVE'
-WHERE psr_company_id=$1 AND psr_name=$2`, company, name, limit, target, subsidyBasisPeriod, g.yymm, g.div)
+WHERE psr_company_id=$1 AND psr_name=$2 AND created_by='etl'`, company, name, limit, target, subsidyBasisPeriod, g.yymm, g.div)
 	if err != nil {
-		return fmt.Errorf("%s: %w", name, err)
+		return "", fmt.Errorf("%s: %w", name, err)
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("%s: %w", name, err)
+		return "", fmt.Errorf("%s: %w", name, err)
 	}
 	if n > 0 {
-		return nil
+		return "", nil
+	}
+	var foreign bool
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM payroll.pyr_subsidy_rule WHERE psr_company_id=$1 AND psr_name=$2)`,
+		company, name).Scan(&foreign); err != nil {
+		return "", fmt.Errorf("%s: %w", name, err)
+	}
+	if foreign {
+		return fmt.Sprintf("%s %s: rule %q sudah ada milik app (bukan ETL), tidak ditimpa dan tidak dibuat ganda", g.yymm, g.div, name), nil
 	}
 	if _, err := tx.ExecContext(ctx, `
 INSERT INTO payroll.pyr_subsidy_rule (psr_company_id, psr_name, psr_valid_from, psr_valid_to, psr_divisions, psr_basis_kind,
   psr_basis_period_yymm, psr_limit_amount, psr_subsidy_kind, psr_target_component_sysid, psr_status, psr_change_reason, created_by, approved_by)
 VALUES ($1,$2,$3,$3,ARRAY[$4]::varchar[],'COMPONENTS_PERIOD',$5,$6::numeric,'FULL_PPH',$7,'ACTIVE','ETL legacy MPSP (D-30)','etl','etl-checker')`,
 		company, name, g.yymm, g.div, subsidyBasisPeriod, limit, target); err != nil {
-		return fmt.Errorf("%s: %w", name, err)
+		return "", fmt.Errorf("%s: %w", name, err)
 	}
-	return nil
+	return "", nil
 }
 
 // LoadSubsidyRules derives the v1 pyr_subsidy_rule rows from the legacy MPSP table (D-30, D-31): one ACTIVE FULL_PPH
@@ -311,8 +320,13 @@ WHERE psv_rule_set_id=$1 AND psv_vs_code='PAYROLLSETUP' AND psv_code='SUBSIDIPPH
 				return rep, fmt.Errorf("komponen P000 (target subsidi) belum ada, jalankan ETL komponen dulu: %w", err)
 			}
 		}
-		if err := upsertSubsidyRule(ctx, tx, company, g, limit, target); err != nil {
+		exc, err = upsertSubsidyRule(ctx, tx, company, g, limit, target)
+		if err != nil {
 			return rep, err
+		}
+		if exc != "" {
+			rep.Exceptions = append(rep.Exceptions, exc)
+			continue
 		}
 		kept = append(kept, subsidyRuleName(g))
 		rep.DstRows++
@@ -465,6 +479,18 @@ WHERE pa_company_id=$1 AND pa_yymm=$2 AND pa_nik=$3 AND pa_division=$4 AND pa_ty
 				company, yymm, r[ix["MPA_NIK"]], div, compType(r[ix["MPA_COMPNT_TYPE"]]), id,
 				nullable(r[ix["MPA_NAMA"]]), nullable(r[ix["MPA_COMPNT_NAME"]]), nullable(r[ix["MPA_COMPNT_STS"]]), tax, amount,
 				nullable(r[ix["MPA_REMARKS"]]), LegacyAdditionLabel)
+		}
+		// Since 000049 p_etl may only write LEGACY (or D-64 dummy) rows: a row of the same key owned by the app (MANUAL/UPLOAD/LOAN)
+		// is an exception, not an RLS error that would roll back the whole load (T033g5).
+		var curSrc, curBy sql.NullString
+		switch err := tx.QueryRowContext(ctx, `SELECT pa_source, created_by FROM payroll.pyr_addition
+WHERE pa_company_id=$1 AND pa_yymm=$2 AND pa_nik=$3 AND pa_division=$4 AND pa_type=$5::payroll.comp_type AND pa_id=$6`,
+			company, yymm, r[ix["MPA_NIK"]], div, compType(r[ix["MPA_COMPNT_TYPE"]]), id).Scan(&curSrc, &curBy); {
+		case errors.Is(err, sql.ErrNoRows):
+		case err != nil:
+			return "", err
+		case curSrc.String != LegacyAdditionLabel && curBy.String != DummyMarker:
+			return fmt.Sprintf("periode %s/%s baris milik app (source %s), tidak ditimpa ETL: nik %s id %d", yymm, div, curSrc.String, r[ix["MPA_NIK"]], id), nil
 		}
 		_, err = tx.ExecContext(ctx, `
 INSERT INTO payroll.pyr_addition (pa_company_id, pa_yymm, pa_nik, pa_division, pa_type, pa_id, pa_nama, pa_compnt_name, pa_compnt_sts,

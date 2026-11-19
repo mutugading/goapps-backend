@@ -66,8 +66,10 @@ juga menjalankan `make grants`. Testcontainers (`tests/{e2e,etl,isolation}`) men
 - Policy `p_scope`/`p_parent`/`p_self` khusus `payroll_app`: bagi app, scope tetap batas keamanan (diset server dari
   `pyr_user_scope`, bukan dari klien).
 - `payroll_etl` di tabel rule/input/subsidi/GL: `p_etl_sel` (baca), `p_etl_ins`/`p_etl_upd` hanya baris sumber ETL
-  (`pa_source='LEGACY'`, `psr created_by='etl'`, `prc_rule_set_id=1`, `pgs_legacy_row` terisi), tanpa DELETE.
-- `payroll_app` tidak menulis `pyr_formula_version`, `pyr_subsidy_rule`, `pyr_subsidy_override` (grants.sql bagian 3)
+  (`pa_source='LEGACY'`, `psr created_by='etl'`, `prc_rule_set_id=1`, `pgs_legacy_row` terisi), tanpa DELETE. Sumber yang
+  bentrok dengan baris milik app (addition MANUAL/UPLOAD/LOAN, rule subsidi bernama sama bukan `etl`, setup GL tanpa
+  `pgs_legacy_row`) dicatat sebagai Exception per baris, tidak menimpa dan tidak menggagalkan load (T033g5).
+- `payroll_app` tidak menulis `pyr_formula_version`, `pyr_formula_dependency`, `pyr_formula_test_case`, `pyr_subsidy_rule`, `pyr_subsidy_override` (grants.sql bagian 3)
   sampai `fn_activate_formula/_subsidy` SECURITY DEFINER (4-eyes) dibuat bersama UI formula Fase 2.
 - Baris `pyr_audit_log` sebelum allowlist (T033g1): jalankan sekali `scripts/fix/t033g2_audit_scrub.sql` sebagai
   `payroll_migrator` di tiap DB (idempoten, TIDAK bisa dibatalkan: ambil dulu

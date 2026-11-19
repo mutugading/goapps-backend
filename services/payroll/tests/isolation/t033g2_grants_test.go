@@ -3,6 +3,7 @@ package isolation
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"testing"
 )
 
@@ -164,8 +165,8 @@ func TestT033g2_EtlWritesOnlyOwnRows(t *testing.T) {
 		"ins app subsidy": `INSERT INTO payroll.pyr_subsidy_rule (psr_company_id, psr_name, psr_valid_from, psr_basis_kind, psr_limit_amount,
 		   psr_subsidy_kind, psr_target_component_sysid, psr_status, created_by)
 		 SELECT 1, 'g2 forged', 209901, 'COMPONENTS_PERIOD', 1, 'FULL_PPH', min(pc_sysid), 'ACTIVE', 'maker' FROM payroll.pyr_component WHERE pc_code = 'P977'`,
-		"ins v2 constant":    `INSERT INTO payroll.pyr_rule_constant (prc_company_id, prc_rule_set_id, prc_key, prc_value) VALUES (1, 92, 'G2_X', 1)`,
-		"del addition":       `DELETE FROM payroll.pyr_addition WHERE pa_nik = 'G2A'`,
+		"ins v2 constant": `INSERT INTO payroll.pyr_rule_constant (prc_company_id, prc_rule_set_id, prc_key, prc_value) VALUES (1, 92, 'G2_X', 1)`,
+		"del addition":    `DELETE FROM payroll.pyr_addition WHERE pa_nik = 'G2A'`,
 		// USING matches the ETL row, WITH CHECK rejects handing it to another owner.
 		"retag etl row": `UPDATE payroll.pyr_subsidy_rule SET created_by = 'maker' WHERE psr_name = 'g2 etl'`,
 	} {
@@ -177,4 +178,37 @@ func TestT033g2_EtlWritesOnlyOwnRows(t *testing.T) {
 		 VALUES (1, 209901, 'G2B', 'SOLO', 'Tunjangan', 1, 1, 'LEGACY')`, 1)
 	mustRows("upd legacy addition", `UPDATE payroll.pyr_addition SET pa_amount = 2 WHERE pa_nik = 'G2B'`, 1)
 	mustRows("retire etl subsidy", `UPDATE payroll.pyr_subsidy_rule SET psr_status = 'RETIRED' WHERE psr_name = 'g2 etl'`, 1)
+}
+
+// T033g5: the child tables of a formula version (dependencies, test cases) are config too: p_parent only checks that the
+// version exists, so without REVOKE the app could attach rows to a version it cannot write.
+func TestT033g5_AppCannotWriteFormulaChildren(t *testing.T) {
+	var vid, sysid int64
+	if err := ownDB.QueryRow(`INSERT INTO payroll.pyr_formula_version (pfv_company_id, pfv_component_sysid, pfv_division, pfv_valid_from, pfv_expression, created_by)
+	  SELECT 1, pc_sysid, 'SOLO', 209801, '1', 'x' FROM payroll.pyr_component WHERE pc_company_id = 1 ORDER BY pc_sysid LIMIT 1
+	  RETURNING pfv_id, pfv_component_sysid`).Scan(&vid, &sysid); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if _, err := ownDB.Exec(`DELETE FROM payroll.pyr_formula_version WHERE pfv_id = $1`, vid); err != nil {
+			t.Errorf("cleanup: %v", err)
+		}
+	})
+	ctx := ctxFor(t, userTwo)
+	for name, q := range map[string]string{
+		"insert dependency": `INSERT INTO payroll.pyr_formula_dependency (pfd_formula_version_id, pfd_depends_on_sysid) VALUES ($1, $2)`,
+		"insert test case":  `INSERT INTO payroll.pyr_formula_test_case (pftc_formula_version_id, pftc_input) VALUES ($1, '{}'::jsonb)`,
+		"update test case":  `UPDATE payroll.pyr_formula_test_case SET pftc_expected = 1 WHERE pftc_formula_version_id = $1`,
+		"delete dependency": `DELETE FROM payroll.pyr_formula_dependency WHERE pfd_formula_version_id = $1`,
+	} {
+		args := []any{vid}
+		if strings.Contains(q, "$2") {
+			args = append(args, sysid)
+		}
+		err := appDB.ScopedTx(ctx, func(tx *sql.Tx) error {
+			_, e := tx.ExecContext(ctx, q, args...)
+			return e
+		})
+		expectDenied(t, "app "+name, err)
+	}
 }

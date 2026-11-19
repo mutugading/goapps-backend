@@ -49,8 +49,10 @@ REVOKE INSERT, UPDATE, DELETE ON payroll.pyr_doc_template, payroll.pyr_slip_pass
 REVOKE DELETE ON payroll.pyr_distribution_item FROM payroll_app;
 -- rumus & aturan subsidi (K8, 4-eyes): app belum menulisnya; aktivasi lewat fn_activate_formula/_subsidy SECURITY DEFINER
 -- bersama UI formula Fase 2 (D-77 (3), T033g2). Sampai itu, tulis hanya lewat ETL (subsidy_rule baris 'etl') / owner.
-REVOKE INSERT, UPDATE, DELETE ON payroll.pyr_formula_version, payroll.pyr_subsidy_rule, payroll.pyr_subsidy_override
-  FROM payroll_app;
+-- Tabel anak rumus (hasil parser dependensi, test case aktivasi) ikut dikunci (T033g5): policy p_parent hanya EXISTS versi,
+-- jadi tanpa REVOKE app bisa menulis dependensi/test case ke versi rumus yang dilihatnya.
+REVOKE INSERT, UPDATE, DELETE ON payroll.pyr_formula_version, payroll.pyr_formula_dependency, payroll.pyr_formula_test_case,
+  payroll.pyr_subsidy_rule, payroll.pyr_subsidy_override FROM payroll_app;
 -- view THR hanya baca (000039)
 REVOKE INSERT, UPDATE, DELETE ON payroll.v_pyr_thr_main, payroll.v_pyr_thr_detail FROM payroll_app;
 
