@@ -130,7 +130,7 @@ func startServers(ctx context.Context, cfg *config.Config) error {
 		}
 	}()
 
-	idemStore := postgres.NewIdempotencyStore(db)
+	idemStore := postgres.NewIdempotencyStore(db, cfg.PII.EncKey)
 	go idemStore.RunPurgeLoop(ctx, time.Hour, 24*time.Hour) // expired Idempotency-Keys (D-19, T007f)
 
 	// Auth Redis is optional (graceful degradation, same as finance): without it no blacklist check and

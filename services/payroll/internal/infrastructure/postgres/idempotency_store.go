@@ -18,20 +18,30 @@ const staleInProgress = "2 minutes"
 
 // IdempotencyStore persists Idempotency-Key results in pyr_idempotency_key
 // (D-19). Rows are per user (RLS p_self), so app.user_id is set on every call.
+// The stored response may hold decrypted PII (RevealPII, D-17), so pik_response is
+// encrypted with the PII key (pgp_sym_encrypt_bytea, T033g1) and never kept in plaintext.
 type IdempotencyStore struct {
-	db *DB
+	db     *DB
+	encKey string
 }
 
 var _ idempotency.Store = (*IdempotencyStore)(nil)
 
-// NewIdempotencyStore creates an IdempotencyStore.
-func NewIdempotencyStore(db *DB) *IdempotencyStore {
-	return &IdempotencyStore{db: db}
+// errNoPIIKey: without the key a response cannot be stored or read encrypted.
+var errNoPIIKey = errors.New("idempotency: PII key is empty")
+
+// NewIdempotencyStore creates an IdempotencyStore. encKey is PAYROLL_PII_KEY (pii.enc_key); it is
+// passed as a bind parameter only.
+func NewIdempotencyStore(db *DB, encKey string) *IdempotencyStore {
+	return &IdempotencyStore{db: db, encKey: encKey}
 }
 
 // Begin claims the key or reports what already exists for it. Expired rows
 // and stale IN_PROGRESS rows are taken over.
 func (s *IdempotencyStore) Begin(ctx context.Context, k idempotency.Key, requestHash, scopeHash string) (idempotency.State, string, []byte, error) {
+	if s.encKey == "" {
+		return 0, "", nil, errNoPIIKey
+	}
 	state := idempotency.Started
 	var claimID string
 	var resp []byte
@@ -60,11 +70,14 @@ RETURNING pik_claim_id::text`
 			return fmt.Errorf("failed to claim idempotency key: %w", err)
 		}
 
+		// Decrypt only for a replay: a conflict or an in-progress row never needs the response.
 		var reqHash, scHash, status string
 		err = tx.QueryRowContext(ctx, `
-SELECT pik_request_hash, pik_scope_hash, pik_status, pik_response
+SELECT pik_request_hash, pik_scope_hash, pik_status,
+       CASE WHEN pik_response IS NOT NULL AND pik_status = 'DONE' AND pik_request_hash = $5 AND pik_scope_hash = $6
+            THEN payroll.pgp_sym_decrypt_bytea(pik_response, $4::text) END
 FROM payroll.pyr_idempotency_key WHERE pik_user_id = $1 AND pik_method = $2 AND pik_key = $3`,
-			k.UserID, k.Method, k.Key).Scan(&reqHash, &scHash, &status, &resp)
+			k.UserID, k.Method, k.Key, s.encKey, requestHash, scopeHash).Scan(&reqHash, &scHash, &status, &resp)
 		if err != nil {
 			return fmt.Errorf("failed to read idempotency key: %w", err)
 		}
@@ -89,14 +102,17 @@ FROM payroll.pyr_idempotency_key WHERE pik_user_id = $1 AND pik_method = $2 AND 
 
 // Complete stores the successful response of a claimed key.
 func (s *IdempotencyStore) Complete(ctx context.Context, k idempotency.Key, claim string, response []byte) error {
+	if s.encKey == "" {
+		return errNoPIIKey
+	}
 	return s.db.Transaction(ctx, func(tx *sql.Tx) error {
 		if err := setSession(ctx, tx, k.UserID, ""); err != nil {
 			return err
 		}
 		_, err := tx.ExecContext(ctx, `
-UPDATE payroll.pyr_idempotency_key SET pik_status = 'DONE', pik_response = $5
+UPDATE payroll.pyr_idempotency_key SET pik_status = 'DONE', pik_response = payroll.pgp_sym_encrypt_bytea($5::bytea, $6::text)
 WHERE pik_user_id = $1 AND pik_method = $2 AND pik_key = $3 AND pik_claim_id = $4::uuid`,
-			k.UserID, k.Method, k.Key, claim, response)
+			k.UserID, k.Method, k.Key, claim, response, s.encKey)
 		if err != nil {
 			return fmt.Errorf("failed to complete idempotency key: %w", err)
 		}
