@@ -90,3 +90,26 @@ func TestGuardPlanAdds(t *testing.T) {
 		t.Errorf("mapped add / unmapped remove: %v %+v", err, got)
 	}
 }
+
+func TestValidateComponentCodeVsType(t *testing.T) {
+	base := component.Component{ValidFrom: 202601}
+	cases := []struct {
+		typ, code string
+		ok        bool
+	}{
+		{"T", "T001", true},
+		{"P", "P032", true},
+		{"P", "T001", false}, // type P with a T code
+		{"T", "P001", false},
+		{"T", "Txyz", false},
+		{"T", "T", false},
+		{"T", "", false},
+	}
+	for _, c := range cases {
+		comp := base
+		comp.Type, comp.Code = c.typ, c.code
+		if err := validateComponent(comp); (err == nil) != c.ok {
+			t.Errorf("validateComponent(%q,%q) err = %v, want ok=%v", c.typ, c.code, err, c.ok)
+		}
+	}
+}

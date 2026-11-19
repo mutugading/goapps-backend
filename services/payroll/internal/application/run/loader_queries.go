@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -139,7 +138,7 @@ ORDER BY e.pec_nik, c.pc_type, c.pc_code`, q.CompanyID, q.Division, q.YYMM, nikA
 			return nil, nil, fmt.Errorf("scan component: %w", err)
 		}
 		var err error
-		if c.Key, err = parseCode(typ, code); err != nil {
+		if c.Key, err = parseComponentKey(typ, code); err != nil {
 			return nil, nil, err
 		}
 		if c.Amount, err = decimal.NewFromString(amount); err != nil {
@@ -172,19 +171,6 @@ func taxClassIssues(mismatch map[string]int) []Issue {
 			Message: fmt.Sprintf("%s: %d karyawan dengan flag pajak (pec_tax) berbeda dari kelas pajak komponen", code, mismatch[code])})
 	}
 	return out
-}
-
-// parseCode maps (pc_type, pc_code 'T001') to the legacy key.
-func parseCode(typ, code string) (engine.CompKey, error) {
-	t, err := typeOf(typ)
-	if err != nil {
-		return engine.CompKey{}, err
-	}
-	n, err := strconv.Atoi(strings.TrimLeft(code, "TPtp"))
-	if err != nil || len(code) < 2 {
-		return engine.CompKey{}, fmt.Errorf("%w: %q", ErrBadComponentCode, code)
-	}
-	return engine.CompKey{Type: t, ID: n}, nil
 }
 
 // loadAdditions reads pyr_addition (1 query).

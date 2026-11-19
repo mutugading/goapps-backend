@@ -13,6 +13,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/apperr"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/audit"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/component"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/engine"
 )
 
 // WithComponents enables the component master and template use cases (T008).
@@ -29,6 +30,12 @@ func validYYMM(v int) bool { return v >= 200001 && v <= 209912 && v%100 >= 1 && 
 
 // validateComponent checks the rules the proto constraints cannot express.
 func validateComponent(c component.Component) error {
+	if _, err := engine.ParseCompKey(c.Type, c.Code); err != nil {
+		return validation("code", "kode komponen harus berformat huruf tipe + angka, mis. T001 / P032: "+c.Code)
+	}
+	if !engine.CodeMatchesType(c.Type, c.Code) {
+		return validation("code", "huruf pertama kode "+c.Code+" harus sama dengan tipe komponen ("+c.Type+")")
+	}
 	if !validYYMM(c.ValidFrom) {
 		return validation("valid_from", "valid_from harus yymm yang valid (mis. 202610)")
 	}

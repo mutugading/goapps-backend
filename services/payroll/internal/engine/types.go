@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -36,6 +38,65 @@ func (k CompKey) Less(o CompKey) bool {
 		return k.Type == CompT
 	}
 	return k.ID < o.ID
+}
+
+// Errors of ParseCompKey.
+var (
+	ErrBadCompCode = errors.New("engine: component code is not T/P + number")
+	ErrBadCompType = errors.New("engine: unknown component type")
+)
+
+// CompTypeOf maps pc_type ("Tunjangan"/"Potongan" or "T"/"P", any case) to the engine type.
+func CompTypeOf(s string) (CompType, error) {
+	switch strings.ToLower(s) {
+	case "tunjangan", "t":
+		return CompT, nil
+	case "potongan", "p":
+		return CompP, nil
+	}
+	return "", fmt.Errorf("%w: %q", ErrBadCompType, s)
+}
+
+// CodeLetter returns the type letter a pc_code must start with, as an engine type.
+func CodeLetter(code string) (CompType, bool) {
+	if code == "" {
+		return "", false
+	}
+	t, err := CompTypeOf(code[:1])
+	return t, err == nil
+}
+
+// ParseCompKey is the single parser of (pc_type, pc_code 'T001') into the legacy key (T033f3). The type
+// comes from typ; the code must be one letter T/P followed by digits only. Whether the letter agrees
+// with typ is a separate check (CodeMatchesType), enforced when a component is written.
+func ParseCompKey(typ, code string) (CompKey, error) {
+	t, err := CompTypeOf(typ)
+	if err != nil {
+		return CompKey{}, err
+	}
+	if _, ok := CodeLetter(code); !ok || len(code) < 2 {
+		return CompKey{}, fmt.Errorf("%w: %q", ErrBadCompCode, code)
+	}
+	for _, r := range code[1:] {
+		if r < '0' || r > '9' {
+			return CompKey{}, fmt.Errorf("%w: %q", ErrBadCompCode, code)
+		}
+	}
+	n, err := strconv.Atoi(code[1:])
+	if err != nil {
+		return CompKey{}, fmt.Errorf("%w: %q", ErrBadCompCode, code)
+	}
+	return CompKey{Type: t, ID: n}, nil
+}
+
+// CodeMatchesType reports whether the first letter of code is the type typ.
+func CodeMatchesType(typ, code string) bool {
+	t, err := CompTypeOf(typ)
+	if err != nil {
+		return false
+	}
+	l, ok := CodeLetter(code)
+	return ok && l == t
 }
 
 // Period is a payroll period. Start is the 26th of the previous month, End the 25th.

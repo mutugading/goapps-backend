@@ -1,9 +1,6 @@
 package master
 
 import (
-	"strconv"
-	"strings"
-
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/component"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/engine"
 )
@@ -14,14 +11,11 @@ import (
 // formulaMapped reports whether the engine has a formula for the component. typ is "T" or "P"; code is
 // the pc_code ("T080"). A code that does not parse is treated as unmapped.
 func formulaMapped(typ, code string) bool {
-	if len(code) < 2 {
-		return false
-	}
-	n, err := strconv.Atoi(strings.TrimLeft(code, "TPtp"))
+	k, err := engine.ParseCompKey(typ, code)
 	if err != nil {
 		return false
 	}
-	_, _, ok := engine.SpecOf(engine.CompKey{Type: engine.CompType(strings.ToUpper(typ)), ID: n})
+	_, _, ok := engine.SpecOf(k)
 	return ok
 }
 
