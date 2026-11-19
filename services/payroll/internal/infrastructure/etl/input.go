@@ -225,6 +225,24 @@ func groupSubsidy(src *Table, rep *TableReport) ([]*subsidyGroup, error) {
 	return out, nil
 }
 
+// subsidyFailClosed rejects an MPSP spool without valid rows while ETL rules are ACTIVE (T033h2): an empty spool is far
+// more likely a failed export than "no subsidy anywhere", and retiring every ETL rule would silently stop the subsidy of
+// every open period.
+func subsidyFailClosed(ctx context.Context, tx *sql.Tx, table string, company int16, groups int) error {
+	if groups > 0 {
+		return nil
+	}
+	var active int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM payroll.pyr_subsidy_rule
+WHERE psr_company_id=$1 AND created_by='etl' AND psr_status='ACTIVE'`, company).Scan(&active); err != nil {
+		return fmt.Errorf("hitung rule subsidi ETL: %w", err)
+	}
+	if active > 0 {
+		return fmt.Errorf("%s: sumber tanpa baris valid, %d rule subsidi ETL ACTIVE tidak di-retire (spool gagal?)", table, active)
+	}
+	return nil
+}
+
 // subsidyLimit resolves the limit of g, or the exception text when the group cannot become a rule (D-31).
 func subsidyLimit(g *subsidyGroup, fallback sql.NullString) (limit any, exc string) {
 	switch {
@@ -300,6 +318,9 @@ func LoadSubsidyRules(ctx context.Context, tx *sql.Tx, src *Table, company int16
 	if err := tx.QueryRowContext(ctx, `SELECT psv_name FROM payroll.pyr_static_value
 WHERE psv_rule_set_id=$1 AND psv_vs_code='PAYROLLSETUP' AND psv_code='SUBSIDIPPH'`, legacyRuleSetID).Scan(&fallback); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return rep, fmt.Errorf("baca SUBSIDIPPH: %w", err)
+	}
+	if err := subsidyFailClosed(ctx, tx, src.Name, company, len(groups)); err != nil {
+		return rep, err
 	}
 	var target int64
 	kept := make([]string, 0, len(groups))

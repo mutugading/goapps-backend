@@ -187,10 +187,26 @@ func (ComponentRepository) GetTemplate(ctx context.Context, tx *sql.Tx, level st
 
 // ReplaceTemplate deletes the visible rows of a level and inserts items. Rows of
 // components in other companies stay untouched (D-20).
-func (ComponentRepository) ReplaceTemplate(ctx context.Context, tx *sql.Tx, level string, items []component.TemplateItem) error {
+func (ComponentRepository) ReplaceTemplate(ctx context.Context, tx *sql.Tx, level string, items []component.TemplateItem, actor string) error {
 	// Serialize concurrent PUTs of one level; the lock is released at commit.
 	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext('pyr_component_template:' || $1))`, level); err != nil {
 		return err
+	}
+	// Mark the level as managed by the app for every company whose rows this PUT removes or writes, so the legacy ETL
+	// does not bring back (or overwrite) what HR changed, even when the level ends up empty (T033h2, 000050).
+	sysids := make([]int64, len(items))
+	for i, it := range items {
+		sysids[i] = it.Sysid
+	}
+	if _, err := tx.ExecContext(ctx, `
+INSERT INTO payroll.pyr_component_template_owner (pcto_company_id, pcto_template, pcto_managed_by)
+SELECT c.pc_company_id, $1::varchar, COALESCE(NULLIF($2::varchar, ''), 'app') FROM payroll.pyr_component c
+WHERE c.pc_sysid = ANY($3::bigint[])
+   OR c.pc_sysid IN (SELECT t.pct_component_sysid FROM payroll.pyr_component_template t WHERE t.pct_template=$1::varchar)
+GROUP BY c.pc_company_id
+ON CONFLICT (pcto_company_id, pcto_template) DO UPDATE SET pcto_managed_by=EXCLUDED.pcto_managed_by, pcto_managed_at=now()`,
+		level, actor, sysids); err != nil {
+		return mapErr(err)
 	}
 	// RLS (p_parent) limits the DELETE to rows of components in the caller's scope (D-20).
 	if _, err := tx.ExecContext(ctx, `DELETE FROM payroll.pyr_component_template WHERE pct_template=$1`, level); err != nil {

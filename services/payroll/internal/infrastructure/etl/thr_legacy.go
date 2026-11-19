@@ -109,9 +109,11 @@ func RunThrLegacy(ctx context.Context, db *sql.DB, src Source, o ThrLegacyOption
 		g := grp(thrKey{r[mix["TM_DIVISION"]], thrKind(r[mix["TM_TYPE"]]), r[mix["TM_YYMM"]]})
 		g.heads = append(g.heads, r)
 	}
+	var brokenD []thrBroken
 	for i, r := range dt.Rows {
 		if exc := thrBadKey(r, dix, "TD_YYMM", "TD_TYPE", "TD_DIVISION"); exc != "" {
 			repD.Exceptions = append(repD.Exceptions, fmt.Sprintf("%s baris %d: %s", dt.Name, i+2, exc))
+			brokenD = append(brokenD, thrBrokenRow(r, dix, i+2, exc))
 			continue
 		}
 		g := grp(thrKey{r[dix["TD_DIVISION"]], thrKind(r[dix["TD_TYPE"]]), r[dix["TD_YYMM"]]})
@@ -151,7 +153,7 @@ func RunThrLegacy(ctx context.Context, db *sql.DB, src Source, o ThrLegacyOption
 				log.Warn().Err(rbErr).Msg("etl: rollback failed")
 			}
 		}()
-		l := &thrLoader{tx: tx, o: o, mn: mn, dt: dt, repM: &repM, repD: &repD, emps: map[string]*thrEmps{}}
+		l := &thrLoader{tx: tx, o: o, mn: mn, dt: dt, repM: &repM, repD: &repD, emps: map[string]*thrEmps{}, brokenD: brokenD}
 		for _, k := range keys {
 			if err := l.loadGroup(ctx, groups[k]); err != nil {
 				return fmt.Errorf("%s/%s/%s: %w", k.yymm, k.division, k.kind, err)
@@ -200,6 +202,41 @@ type thrLoader struct {
 	mn, dt     *Table
 	repM, repD *TableReport
 	emps       map[string]*thrEmps
+	brokenD    []thrBroken
+}
+
+// thrBroken is a DETAIL row whose event key is unusable (bad yymm, type or division). Its line cannot be placed, so
+// every event it may belong to (a MAIN of the same NIK whose valid key parts match) is held back: loading that event
+// without the line would CLOSE it with a wrong total (T033h2). "" = that key part is the broken one (matches any).
+type thrBroken struct {
+	nik, yymm, kind, division string
+	line                      int
+	why                       string
+}
+
+func thrBrokenRow(r []string, ix map[string]int, line int, why string) thrBroken {
+	b := thrBroken{nik: r[ix["TD_NIK"]], kind: thrKind(r[ix["TD_TYPE"]]), line: line, why: why}
+	if badYYMM(r, ix, []string{"TD_YYMM"}) == "" {
+		b.yymm = r[ix["TD_YYMM"]]
+	}
+	if d := r[ix["TD_DIVISION"]]; d == DivSolo || d == DivJakarta {
+		b.division = d
+	}
+	return b
+}
+
+// brokenFor lists the broken DETAIL rows that may belong to event k for one of the NIKs in heads.
+func (l *thrLoader) brokenFor(k thrKey, heads map[string]int64) []string {
+	var out []string
+	for _, b := range l.brokenD {
+		if _, ok := heads[b.nik]; !ok {
+			continue
+		}
+		if (b.yymm == "" || b.yymm == k.yymm) && (b.kind == "" || b.kind == k.kind) && (b.division == "" || b.division == k.division) {
+			out = append(out, fmt.Sprintf("DETAIL nik %s baris %d berkey rusak (%s)", b.nik, b.line, b.why))
+		}
+	}
+	return out
 }
 
 func (l *thrLoader) employees(ctx context.Context, division string) (*thrEmps, error) {
@@ -331,6 +368,13 @@ func (l *thrLoader) loadGroup(ctx context.Context, g *thrGroup) error {
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return err
+	}
+	// A new event is held while a broken-key DETAIL row may belong to it (T033h2); an event already loaded is CLOSED and
+	// was checked above against its own checksum, the broken row stays an exception of its own.
+	if b := l.brokenFor(k, headID); len(b) > 0 {
+		sort.Strings(b)
+		l.hold(g, fmt.Sprintf("event ditahan, %d masalah (pertama: %s)", len(b), b[0]))
+		return nil
 	}
 
 	// ---- insert

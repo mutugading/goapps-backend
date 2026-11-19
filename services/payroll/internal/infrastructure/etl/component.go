@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -209,8 +211,18 @@ func LoadTemplate(ctx context.Context, tx *sql.Tx, src *Table, o Options) (Table
 		}
 		idx[n] = i
 	}
+	managed, err := appManagedLevels(ctx, tx, o.CompanyID)
+	if err != nil {
+		return rep, err
+	}
+	skippedLv := map[string]int{}
 	seenT := map[tmplKey]bool{}
 	for i, r := range src.Rows {
+		if _, ok := managed[r[idx["MPCT_TEMPLATE"]]]; ok {
+			// T033h2: HR edited this level in the app (possibly removing rows); the spool must not resurrect them.
+			skippedLv[r[idx["MPCT_TEMPLATE"]]]++
+			continue
+		}
 		id, err := strconv.Atoi(r[idx["MPCT_ID"]])
 		if err != nil {
 			return rep, fmt.Errorf("%s baris %d: MPCT_ID %q", src.Name, i+2, r[idx["MPCT_ID"]])
@@ -248,10 +260,37 @@ ON CONFLICT (pct_template, pct_component_sysid) DO UPDATE SET pct_type=EXCLUDED.
 			return rep, fmt.Errorf("%s baris %d: %w", src.Name, i+2, err)
 		}
 	}
+	reportManagedLevels(&rep, skippedLv, managed)
 	rep.DstRows = len(seenT)
 	// T033h: rows of this run (one per (template, sysid)), not count(*): a template row added in the app must not
 	// fail every later load, and a duplicate source row is a reported exception, not hidden by the count.
 	return rep, nil
+}
+
+// reportManagedLevels counts the skipped source rows and writes one Skipped line per app-managed level.
+func reportManagedLevels(rep *TableReport, skipped map[string]int, managed map[string]string) {
+	for _, lv := range slices.Sorted(maps.Keys(skipped)) {
+		rep.SkippedRows += skipped[lv]
+		rep.Skipped = append(rep.Skipped, fmt.Sprintf("template %s: %d baris dilewati, level dikelola aplikasi (oleh %s)", lv, skipped[lv], managed[lv]))
+	}
+}
+
+// appManagedLevels returns level → actor for the template levels of company that HR edited in the app (000050).
+func appManagedLevels(ctx context.Context, tx *sql.Tx, company int16) (map[string]string, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT pcto_template, pcto_managed_by FROM payroll.pyr_component_template_owner WHERE pcto_company_id=$1`, company)
+	if err != nil {
+		return nil, fmt.Errorf("level template milik app: %w", err)
+	}
+	defer closeQuiet(rows)
+	out := map[string]string{}
+	for rows.Next() {
+		var lv, by string
+		if err := rows.Scan(&lv, &by); err != nil {
+			return nil, err
+		}
+		out[lv] = by
+	}
+	return out, rows.Err()
 }
 
 // Run loads master, template and level rules in ONE transaction and records the report

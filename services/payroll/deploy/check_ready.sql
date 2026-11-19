@@ -58,14 +58,14 @@ app_deny(rel, privs) AS (VALUES
 -- payroll_etl di schema payroll: hanya daftar ini, hak tingkat tabel (grants.sql bagian 4); payroll_stg: DML penuh
 etl_allow(rel, privs) AS (VALUES
   ('pyr_company', 'S'), ('pyr_division_ref', 'S'), ('pyr_currency', 'S'),
-  ('pyr_component', 'SIU'), ('pyr_component_legacy_map', 'SIU'), ('pyr_component_template', 'SIU'), ('pyr_level_rule', 'SIU'),
+  ('pyr_component', 'SIU'), ('pyr_component_legacy_map', 'SIU'), ('pyr_component_template', 'SIU'), ('pyr_component_template_owner', 'S'), ('pyr_level_rule', 'SIU'),
   ('pyr_migration_log', 'SI'),
   ('pyr_employee', 'SIU'), ('pyr_employee_nik_hist', 'SIU'), ('pyr_employee_component', 'SIU'),
   ('pyr_static_value', 'SIU'), ('pyr_rule_set', 'SIU'), ('pyr_rule_constant', 'SIU'), ('pyr_attd_days', 'SIU'),
   ('pyr_subsidi_pph', 'SIU'), ('pyr_tax_adj', 'SIU'), ('pyr_holiday', 'SIU'), ('pyr_addition', 'SIU'),
   ('pyr_abnormal_premi', 'SIU'), ('pyr_batal_premi', 'SIU'), ('pyr_subsidy_rule', 'SIU'),
   ('pyr_gl_setup', 'SIU'), ('pyr_gl_group_map', 'SIU'), ('pyr_fx_rate', 'SIU'),
-  ('pyr_att_snapshot', 'SIU'), ('pyr_att_snapshot_row', 'SIU'),
+  ('pyr_att_snapshot', 'SIU'), ('pyr_att_snapshot_row', 'SIUD'),
   ('pyr_run', 'I'), ('pyr_period', 'I'), ('pyr_salary_head', 'I'), ('pyr_salary_detail', 'I'),
   ('pyr_audit_log', 'I'),
   ('pyr_thr_event', 'SI'), ('pyr_thr_run', 'I'), ('pyr_thr_head', 'I'), ('pyr_thr_detail', 'I')

@@ -393,8 +393,8 @@ func costGroup(args []string) error {
 			fmt.Fprintln(os.Stderr, "close:", cerr)
 		}
 	}()
-	r, err := etl.RunCostGroup(context.Background(), db, etl.PSVDir{Dir: *dir}, etl.CostGroupOptions{CompanyID: int16(*company), ExpectRows: *expRows}) //nolint:gosec // small id
-	if err != nil {
+	r, err := etl.RunCostGroup(context.Background(), db, etl.PSVDir{Dir: *dir}, etl.CostGroupOptions{CompanyID: int16(*company), ExpectRows: *expRows, AllowExceptions: *allowExc}) //nolint:gosec // small id
+	if err != nil && len(r.Exceptions) == 0 {
 		return err
 	}
 	fmt.Printf("%-20s src=%-8d updated=%-6d exc=%-4d sha256=%s\n", r.Table, r.SrcRows, r.DstRows, len(r.Exceptions), r.Checksum)
@@ -404,10 +404,7 @@ func costGroup(args []string) error {
 	for _, e := range r.Exceptions {
 		fmt.Println("  EXCEPTION", e)
 	}
-	if len(r.Exceptions) > 0 && !*allowExc {
-		return fmt.Errorf("%d exception (baris ditahan; atau -allow-exceptions)", len(r.Exceptions))
-	}
-	return nil
+	return err // exceptions without -allow-exceptions: nothing committed (T033h2)
 }
 
 func attLegacyFail(args []string) error {

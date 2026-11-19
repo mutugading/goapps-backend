@@ -242,6 +242,12 @@ func TestComponentTemplate(t *testing.T) {
 	  WHERE pct_template='LVL-T008' AND pct_component_sysid=$1`, foreign).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("foreign template row count = %d (%v), want 1 (untouched)", n, err)
 	}
+	// T033h2: the PUT marks the level as app-managed for the caller's company only (the ETL then skips it).
+	var marked string
+	if err := ownDB.QueryRowContext(context.Background(), `SELECT coalesce(string_agg(pcto_company_id::text, ','), '')
+	  FROM payroll.pyr_component_template_owner WHERE pcto_template='LVL-T008'`).Scan(&marked); err != nil || marked != "1" {
+		t.Fatalf("template owner marker = %q (%v), want company 1 only", marked, err)
+	}
 }
 
 func TestComponentTemplateGuards(t *testing.T) {

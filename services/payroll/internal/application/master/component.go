@@ -375,7 +375,7 @@ func (s *Service) PutTemplate(ctx context.Context, level string, items []compone
 		if e = guardNewTemplateItems(before, unmapped); e != nil {
 			return e
 		}
-		if e = s.comp.ReplaceTemplate(ctx, tx, level, items); e != nil {
+		if e = s.comp.ReplaceTemplate(ctx, tx, level, items, actorOf(ctx)); e != nil {
 			return toAppErr(e, "template")
 		}
 		if out, e = s.comp.GetTemplate(ctx, tx, level); e != nil {

@@ -3,7 +3,7 @@
 -- payroll_owner) SESUDAH SETIAP `migrate up`. Migrasi tidak memuat GRANT/REVOKE (ADR 0001, lint R4).
 --
 -- Deklaratif & idempoten: hak tabel/sequence role payroll_app/_etl/_ro di schema payroll + payroll_stg
--- di-reset lalu diberikan ulang ke keadaan akhir (setara hasil migrasi s.d. 000049, bukan urutan sejarahnya).
+-- di-reset lalu diberikan ulang ke keadaan akhir (setara hasil migrasi s.d. 000050, bukan urutan sejarahnya).
 -- Satu transaksi: aplikasi yang sedang jalan tidak pernah melihat keadaan tanpa grant.
 --
 -- Hak tingkat cluster/DB/schema (CONNECT, TEMP, USAGE schema, default privileges) ada di bootstrap.sql.
@@ -77,6 +77,8 @@ GRANT USAGE ON ALL SEQUENCES IN SCHEMA payroll, payroll_stg TO payroll_etl;
 GRANT SELECT ON payroll.pyr_company, payroll.pyr_division_ref, payroll.pyr_currency TO payroll_etl;
 GRANT SELECT, INSERT, UPDATE ON payroll.pyr_component, payroll.pyr_component_legacy_map,
   payroll.pyr_component_template, payroll.pyr_level_rule TO payroll_etl;
+-- level template yang dikelola aplikasi: ETL hanya membaca, lalu melewati level itu (000050, T033h2)
+GRANT SELECT ON payroll.pyr_component_template_owner TO payroll_etl;
 GRANT SELECT, INSERT ON payroll.pyr_migration_log TO payroll_etl;
 -- karyawan (000026)
 GRANT SELECT, INSERT, UPDATE ON payroll.pyr_employee, payroll.pyr_employee_nik_hist,
@@ -88,6 +90,8 @@ GRANT SELECT, INSERT, UPDATE ON payroll.pyr_static_value, payroll.pyr_rule_set, 
   payroll.pyr_gl_setup, payroll.pyr_gl_group_map, payroll.pyr_fx_rate TO payroll_etl;
 -- snapshot absensi LEGACY (000029, 000030)
 GRANT SELECT, INSERT, UPDATE ON payroll.pyr_att_snapshot, payroll.pyr_att_snapshot_row TO payroll_etl;
+-- baris snapshot LEGACY yang hilang dari spool dihapus (periode tanpa run ENGINE, belum APPROVED/CLOSED; T033h2)
+GRANT DELETE ON payroll.pyr_att_snapshot_row TO payroll_etl;
 GRANT SELECT (pas_snapshot_id, pas_yymm, pas_division, pas_company_id, pas_locked) ON payroll.pyr_att_snapshot TO payroll_etl;
 -- run gaji LEGACY (000029, 000031): INSERT saja di head/detail; SELECT/UPDATE per kolom tanpa nominal
 GRANT INSERT ON payroll.pyr_run, payroll.pyr_period, payroll.pyr_salary_head, payroll.pyr_salary_detail TO payroll_etl;
