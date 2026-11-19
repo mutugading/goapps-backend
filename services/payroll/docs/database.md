@@ -37,6 +37,19 @@ suffix, jadi setelah sync **wajib** `kubectl rollout restart deploy/pgbouncer-vp
 console admin) **sebelum** rollout payroll-service; kalau tidak, pod gagal dengan `no such database: payroll_db`.
 Job CLI (sync/recon/report/mailer) konek langsung ke `payroll_db` (bukan lewat PgBouncer).
 
+**Advisory lock sesi wajib koneksi langsung.** `postgres.DB.ScopedTxOptsLocked` memakai `pg_advisory_lock` tingkat
+sesi (agar snapshot REPEATABLE READ diambil sesudah lock didapat, T033d). `pgbouncer-vps` memakai `pool_mode =
+transaction`: lock dan unlock bisa mendarat di koneksi server berbeda, sehingga lock tidak menjamin saling-kunci dan bisa
+menggantung di satu koneksi (pemanggil berikutnya menunggu tanpa batas). Pemakainya saat ini hanya CLI, dan keduanya
+konek langsung (host `PG_HOST` di ConfigMap `payroll-cli-config`, `192.168.0.40` production / `192.168.0.60` staging):
+- `payroll-mailer` → `distribution.Service.Create` (`internal/application/distribution/distribution.go`)
+- `payroll-report` → `report.Service.ExportGL` (`internal/application/report/gl_export.go`)
+
+Server API (lewat PgBouncer) tidak memanggil keduanya. Jangan arahkan `PG_HOST` Job `mailer`/`report` ke
+`pgbouncer-vps`, dan jangan memanggil `ScopedTxOptsLocked` dari server API tanpa koneksi langsung khusus atau desain
+lock lain. Kode belum punya penjaga untuk ini. Lock per transaksi (`pg_advisory_xact_lock`, dipakai ETL dan
+`component_repository`) aman lewat PgBouncer.
+
 `grants.sql` juga mencabut DML `payroll_app` pada tabel versi golang-migrate (`schema_migrations_payroll` /
 `schema_migrations`, ada di schema `payroll`), sehingga app hanya bisa SELECT.
 
