@@ -22,7 +22,6 @@ var (
 	ErrBadSnapshotValue    = errors.New("run: attendance snapshot value is not a number")
 	ErrBadPeriod           = errors.New("run: invalid period")
 	ErrSubsidyBasisPeriods = errors.New("run: subsidy rules of the run use different basis periods")
-	errUnknownComponentTyp = engine.ErrBadCompType
 )
 
 // Issue codes reported as warnings.

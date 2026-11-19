@@ -122,6 +122,9 @@ func seedSubsidy(t *testing.T) {
 	for _, q := range []string{
 		`INSERT INTO payroll.pyr_rule_set (prs_id, prs_name, prs_effective_from, prs_status) VALUES
 		   (2, 'tanpa tabel pajak', 202601, 'ACTIVE'), (3, 'draft', 202601, 'DRAFT') ON CONFLICT DO NOTHING`,
+		// KESMAX/PENMAX are required first (T033f); rule set 2 has them so the missing tax table is what fails.
+		`INSERT INTO payroll.pyr_rule_constant (prc_rule_set_id, prc_company_id, prc_key, prc_value) VALUES
+		   (2, 1, 'KESMAX', 12000000), (2, 1, 'PENMAX', 11086300) ON CONFLICT DO NOTHING`,
 		`INSERT INTO payroll.pyr_subsidy_rule (psr_company_id, psr_name, psr_valid_from, psr_valid_to, psr_divisions, psr_basis_kind,
 		   psr_basis_period_yymm, psr_limit_amount, psr_subsidy_kind, psr_target_component_sysid, psr_status, created_by, approved_by)
 		 SELECT 1, v.name, v.vf, v.vt, v.divs, 'COMPONENTS_PERIOD', 202601, v.lim, 'FULL_PPH', c.pc_sysid, v.sts, 'maker', 'checker'

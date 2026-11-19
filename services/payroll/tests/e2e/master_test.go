@@ -153,7 +153,7 @@ var (
 		"payroll.master.company.view", "payroll.master.company.create", "payroll.master.company.update",
 		"payroll.master.currency.view", "payroll.master.currency.create", "payroll.master.currency.update",
 		"payroll.master.component.view", "payroll.master.component.create", "payroll.master.component.update",
-		"payroll.master.template.view", "payroll.master.template.update"}
+		"payroll.master.template.view", "payroll.master.template.update", "payroll.salary.amount.view"}
 	permsRO = []string{"payroll.master.employee.view", "payroll.master.company.view", "payroll.master.currency.view"}
 )
 

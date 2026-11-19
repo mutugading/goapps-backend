@@ -231,7 +231,7 @@ func (s *Service) UpdateComponent(ctx context.Context, c component.Component, if
 		if before.Status == component.StatusRetired {
 			return apperr.New(apperr.CodeConflict, "komponen RETIRED tidak dapat diubah", nil)
 		}
-		c.CompanyID = before.CompanyID
+		c.CompanyID, c.Code, c.Type = before.CompanyID, before.Code, before.Type // immutable; validateComponent parses them (T033f3)
 		if e = validateComponent(c); e != nil {
 			return e
 		}
