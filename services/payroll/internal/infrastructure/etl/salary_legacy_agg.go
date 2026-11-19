@@ -55,11 +55,11 @@ func AggregateSalaryLegacy(src Source, yymmFrom, yymmTo int) (LegacyDump, error)
 	if err != nil {
 		return out, err
 	}
-	mix, err := bindCols(mn, []string{"PM_YYMM", "PM_NIK", "PM_DIVISION", "PM_TOT_TUNJANGAN", "PM_TOT_POTONGAN", "PM_ROUNDING"})
+	mix, err := bindCols(mn, []string{colPmYymm, colPmNIK, colPmDivision, "PM_TOT_TUNJANGAN", "PM_TOT_POTONGAN", "PM_ROUNDING"})
 	if err != nil {
 		return out, err
 	}
-	dix, err := bindCols(dt, []string{colPdYymm, "PD_NIK", "PD_TYPE", "PD_AMOUNT", "PD_DIVISION"})
+	dix, err := bindCols(dt, []string{colPdYymm, colPdNIK, colPdType, "PD_AMOUNT", colPdDivision})
 	if err != nil {
 		return out, err
 	}
@@ -83,11 +83,11 @@ func AggregateSalaryLegacy(src Source, yymmFrom, yymmTo int) (LegacyDump, error)
 		return skips[k]
 	}
 	for _, r := range mn.Rows {
-		if badKey(r, mix, "PM_YYMM", "PM_DIVISION") != "" {
+		if badKey(r, mix, colPmYymm, colPmDivision) != "" {
 			out.Rejected++
 			continue
 		}
-		k := snapKey{r[mix["PM_YYMM"]], r[mix["PM_DIVISION"]]}
+		k := snapKey{r[mix[colPmYymm]], r[mix[colPmDivision]]}
 		switch {
 		case !inRange(k):
 		case legacySkipped(k):
@@ -98,11 +98,11 @@ func AggregateSalaryLegacy(src Source, yymmFrom, yymmTo int) (LegacyDump, error)
 		}
 	}
 	for _, r := range dt.Rows {
-		if badKey(r, dix, colPdYymm, "PD_DIVISION") != "" {
+		if badKey(r, dix, colPdYymm, colPdDivision) != "" {
 			out.Rejected++
 			continue
 		}
-		k := snapKey{r[dix[colPdYymm]], r[dix["PD_DIVISION"]]}
+		k := snapKey{r[dix[colPdYymm]], r[dix[colPdDivision]]}
 		switch {
 		case !inRange(k):
 		case legacySkipped(k):
@@ -209,7 +209,7 @@ func rawLineAmount(r []string, dix map[string]int) (t, p decimal.Decimal, err er
 	if err != nil {
 		return t, p, fmt.Errorf("PD_AMOUNT %q: %w", cell, err)
 	}
-	if strings.EqualFold(r[dix["PD_TYPE"]], typePotongan) {
+	if strings.EqualFold(r[dix[colPdType]], typePotongan) {
 		return t, a, nil
 	}
 	return a, p, nil

@@ -589,4 +589,11 @@ const (
 	colMpceNIK    = "MPCE_NIK"
 	colMpceType   = "MPCE_TYPE"
 	colPdYymm     = "PD_YYMM"
+	colPmDivision = "PM_DIVISION"
+	colPdDivision = "PD_DIVISION"
+	colPmNIK      = "PM_NIK"
+	colPdNIK      = "PD_NIK"
+	colPmYymm     = "PM_YYMM"
+	colPdType     = "PD_TYPE"
+	colPdNo       = "PD_NO"
 )

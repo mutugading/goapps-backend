@@ -321,51 +321,63 @@ func RunDummyPurge(ctx context.Context, db *sql.DB, company int16, yymm int, div
 		return rep, err
 	}
 	err := withTx(ctx, db, func(tx *sql.Tx) error {
-		id, err := lockDummyPeriod(ctx, tx, company, yymm, division)
-		if err != nil || id == 0 {
-			return err // no dummy snapshot: nothing of ours to delete (additions/attd_days are only ours with a dummy snapshot)
-		}
-		var runs int
-		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM payroll.pyr_run r JOIN payroll.pyr_att_snapshot s ON s.pas_snapshot_id = r.pr_snapshot_id
-WHERE s.pas_company_id=$1 AND s.pas_yymm=$2 AND s.pas_division=$3`, company, yymm, division).Scan(&runs); err != nil {
-			return fmt.Errorf("cek run: %w", err)
-		}
-		if runs > 0 {
-			return fmt.Errorf("periode %d %s: %d run memakai snapshot dummy; hapus run dulu", yymm, division, runs)
-		}
-		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM payroll.pyr_att_snapshot_row WHERE pasr_snapshot_id = $1`, id).Scan(&rep.Rows); err != nil {
-			return err
-		}
-		if !apply { // dry run: count what -apply would delete (same predicates as the DELETEs below)
-			rep.SnapshotID = id
-			if err := tx.QueryRowContext(ctx, `SELECT
-  (SELECT count(*) FROM payroll.pyr_addition WHERE pa_company_id=$1 AND pa_yymm=$2 AND pa_division=$3 AND created_by = $4),
-  (SELECT count(*) FROM payroll.pyr_attd_days WHERE pad_company_id=$1 AND pad_yymm=$2 AND pad_division=$3)`,
-				company, yymm, division, DummyMarker).Scan(&rep.Additions, &rep.AttdDays); err != nil {
-				return fmt.Errorf("dry-run: %w", err)
-			}
-			return nil
-		}
-		for _, d := range []struct {
-			q string
-			n *int
-		}{
-			{`DELETE FROM payroll.pyr_addition WHERE pa_company_id=$1 AND pa_yymm=$2 AND pa_division=$3 AND created_by = $4`, &rep.Additions},
-			{`DELETE FROM payroll.pyr_attd_days WHERE pad_company_id=$1 AND pad_yymm=$2 AND pad_division=$3 AND $4::text IS NOT NULL`, &rep.AttdDays},
-			{`DELETE FROM payroll.pyr_att_snapshot WHERE pas_company_id=$1 AND pas_yymm=$2 AND pas_division=$3 AND created_by = $4`, nil},
-		} {
-			res, err := tx.ExecContext(ctx, d.q, company, yymm, division, DummyMarker)
-			if err != nil {
-				return fmt.Errorf("purge: %w", err)
-			}
-			if d.n != nil {
-				*d.n = affected(res)
-			}
-		}
-		rep.SnapshotID = id
-		return dummyAudit(ctx, tx, company, "ETL_DUMMY_PURGE", yymm, division, map[string]any{"rows": rep.Rows, "additions": rep.Additions, "attd_days": rep.AttdDays, "snapshot": id})
+		return purgeDummyTx(ctx, tx, company, yymm, division, apply, &rep)
 	})
 	return rep, err
+}
+
+// purgeDummyTx is the transactional body of RunDummyPurge; it fills rep with the counts (dry run) or the deleted rows.
+func purgeDummyTx(ctx context.Context, tx *sql.Tx, company int16, yymm int, division string, apply bool, rep *DummyReport) error {
+	id, err := lockDummyPeriod(ctx, tx, company, yymm, division)
+	if err != nil || id == 0 {
+		return err // no dummy snapshot: nothing of ours to delete (additions/attd_days are only ours with a dummy snapshot)
+	}
+	if err := ensureNoRunOnSnapshot(ctx, tx, company, yymm, division); err != nil {
+		return err
+	}
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM payroll.pyr_att_snapshot_row WHERE pasr_snapshot_id = $1`, id).Scan(&rep.Rows); err != nil {
+		return err
+	}
+	rep.SnapshotID = id
+	if !apply { // dry run: count what -apply would delete (same predicates as the DELETEs below)
+		if err := tx.QueryRowContext(ctx, `SELECT
+  (SELECT count(*) FROM payroll.pyr_addition WHERE pa_company_id=$1 AND pa_yymm=$2 AND pa_division=$3 AND created_by = $4),
+  (SELECT count(*) FROM payroll.pyr_attd_days WHERE pad_company_id=$1 AND pad_yymm=$2 AND pad_division=$3)`,
+			company, yymm, division, DummyMarker).Scan(&rep.Additions, &rep.AttdDays); err != nil {
+			return fmt.Errorf("dry-run: %w", err)
+		}
+		return nil
+	}
+	for _, d := range []struct {
+		q string
+		n *int
+	}{
+		{`DELETE FROM payroll.pyr_addition WHERE pa_company_id=$1 AND pa_yymm=$2 AND pa_division=$3 AND created_by = $4`, &rep.Additions},
+		{`DELETE FROM payroll.pyr_attd_days WHERE pad_company_id=$1 AND pad_yymm=$2 AND pad_division=$3 AND $4::text IS NOT NULL`, &rep.AttdDays},
+		{`DELETE FROM payroll.pyr_att_snapshot WHERE pas_company_id=$1 AND pas_yymm=$2 AND pas_division=$3 AND created_by = $4`, nil},
+	} {
+		res, err := tx.ExecContext(ctx, d.q, company, yymm, division, DummyMarker)
+		if err != nil {
+			return fmt.Errorf("purge: %w", err)
+		}
+		if d.n != nil {
+			*d.n = affected(res)
+		}
+	}
+	return dummyAudit(ctx, tx, company, "ETL_DUMMY_PURGE", yymm, division, map[string]any{"rows": rep.Rows, "additions": rep.Additions, "attd_days": rep.AttdDays, "snapshot": id})
+}
+
+// ensureNoRunOnSnapshot refuses the purge when a run references the dummy snapshot of the period.
+func ensureNoRunOnSnapshot(ctx context.Context, tx *sql.Tx, company int16, yymm int, division string) error {
+	var runs int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM payroll.pyr_run r JOIN payroll.pyr_att_snapshot s ON s.pas_snapshot_id = r.pr_snapshot_id
+WHERE s.pas_company_id=$1 AND s.pas_yymm=$2 AND s.pas_division=$3`, company, yymm, division).Scan(&runs); err != nil {
+		return fmt.Errorf("cek run: %w", err)
+	}
+	if runs > 0 {
+		return fmt.Errorf("periode %d %s: %d run memakai snapshot dummy; hapus run dulu", yymm, division, runs)
+	}
+	return nil
 }
 
 // JanBaseReport is the outcome of RunDummyJanBase.

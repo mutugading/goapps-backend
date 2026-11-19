@@ -137,11 +137,11 @@ func RunSalaryLegacy(ctx context.Context, db *sql.DB, src Source, o SalaryLegacy
 	if o.ExpectDetail > 0 && repD.SrcRows != o.ExpectDetail {
 		return reps, fmt.Errorf("%s: %d baris, diharapkan %d", TableSalaryDetail, repD.SrcRows, o.ExpectDetail)
 	}
-	mix, err := bindCols(mn, []string{"PM_YYMM", "PM_NIK", "PM_DIVISION"})
+	mix, err := bindCols(mn, []string{colPmYymm, colPmNIK, colPmDivision})
 	if err != nil {
 		return reps, err
 	}
-	dix, err := bindCols(dt, []string{colPdYymm, "PD_NIK", "PD_TYPE", "PD_NO", "PD_DIVISION"})
+	dix, err := bindCols(dt, []string{colPdYymm, colPdNIK, colPdType, colPdNo, colPdDivision})
 	if err != nil {
 		return reps, err
 	}
@@ -155,11 +155,11 @@ func RunSalaryLegacy(ctx context.Context, db *sql.DB, src Source, o SalaryLegacy
 		return g
 	}
 	for i, r := range mn.Rows {
-		if exc := badKey(r, mix, "PM_YYMM", "PM_DIVISION"); exc != "" {
+		if exc := badKey(r, mix, colPmYymm, colPmDivision); exc != "" {
 			repM.Exceptions = append(repM.Exceptions, fmt.Sprintf("%s baris %d: %s", mn.Name, i+2, exc))
 			continue
 		}
-		k := snapKey{r[mix["PM_YYMM"]], r[mix["PM_DIVISION"]]}
+		k := snapKey{r[mix[colPmYymm]], r[mix[colPmDivision]]}
 		if legacySkipped(k) {
 			repM.SkippedRows++
 			skipNote(&repM, mn.Name, k)
@@ -169,11 +169,11 @@ func RunSalaryLegacy(ctx context.Context, db *sql.DB, src Source, o SalaryLegacy
 		g.heads = append(g.heads, r)
 	}
 	for i, r := range dt.Rows {
-		if exc := badKey(r, dix, colPdYymm, "PD_DIVISION"); exc != "" {
+		if exc := badKey(r, dix, colPdYymm, colPdDivision); exc != "" {
 			repD.Exceptions = append(repD.Exceptions, fmt.Sprintf("%s baris %d: %s", dt.Name, i+2, exc))
 			continue
 		}
-		k := snapKey{r[dix[colPdYymm]], r[dix["PD_DIVISION"]]}
+		k := snapKey{r[dix[colPdYymm]], r[dix[colPdDivision]]}
 		if legacySkipped(k) {
 			repD.SkippedRows++
 			skipNote(&repD, dt.Name, k)
@@ -299,16 +299,16 @@ func loadSalaryGroup(ctx context.Context, tx pgx.Tx, o SalaryLegacyOptions, mn, 
 	nProblems := 0
 	for i, r := range g.lines {
 		c := func(n string) string { return r[mustCol(dt, n)] }
-		typ := strings.ToLower(c("PD_TYPE"))
-		id, perr := strconv.Atoi(c("PD_NO"))
+		typ := strings.ToLower(c(colPdType))
+		id, perr := strconv.Atoi(c(colPdNo))
 		switch {
 		case typ != typeTunjangan && typ != typePotongan:
-			problems[i] = fmt.Sprintf("PD_TYPE %q", c("PD_TYPE"))
+			problems[i] = fmt.Sprintf("PD_TYPE %q", c(colPdType))
 		case perr != nil:
-			problems[i] = fmt.Sprintf("PD_NO %q", c("PD_NO"))
+			problems[i] = fmt.Sprintf("PD_NO %q", c(colPdNo))
 		default:
 			if _, ok := sysids[sysKey{typ, id}]; !ok {
-				problems[i] = fmt.Sprintf("tanpa peta sysid (%s %d)", c("PD_TYPE"), id)
+				problems[i] = fmt.Sprintf("tanpa peta sysid (%s %d)", c(colPdType), id)
 			}
 		}
 		if problems[i] != "" {
@@ -351,7 +351,7 @@ func loadSalaryGroup(ctx context.Context, tx pgx.Tx, o SalaryLegacyOptions, mn, 
 		if err != nil {
 			return err
 		}
-		copyRow(&heads, "@RUN@", c("PM_NIK"), c("PM_YYMM"), c("PM_DIVISION"), c("PM_NAMA"), c("PM_DEPT"), c("PM_DEPT_CODE"), c("PM_SECTION"),
+		copyRow(&heads, "@RUN@", c(colPmNIK), c(colPmYymm), c(colPmDivision), c("PM_NAMA"), c("PM_DEPT"), c("PM_DEPT_CODE"), c("PM_SECTION"),
 			c("PM_GRADE"), c("PM_JABATAN"), c("PM_EMP_TYPE"), c("PM_PEMBAYARAN"), join, pay, c("PM_TAX_CODE"),
 			c("PM_BASIC_PAY"), c("PM_TUNJJABATAN"), c("PM_TUNJRUMAH"), c("PM_TUNJKESEJAHTERAAN"), c("PM_TUNJTRANSPORT"), c("PM_RATE_PERJAM"),
 			zero0(c("PM_TOT_TUNJANGAN")), zero0(c("PM_TOT_POTONGAN")), zero0(c("PM_ROUNDING")), c("PM_DAY_PAY"), lem, c("PM_REMARKS"),
@@ -376,7 +376,7 @@ func loadSalaryGroup(ctx context.Context, tx pgx.Tx, o SalaryLegacyOptions, mn, 
 			if err != nil {
 				return fmt.Errorf("nik %s PD_AMOUNT %q: %w", nik, cell, err)
 			}
-			if strings.EqualFold(r[mustCol(dt, "PD_TYPE")], typePotongan) {
+			if strings.EqualFold(r[mustCol(dt, colPdType)], typePotongan) {
 				p = p.Add(a)
 			} else {
 				t = t.Add(a)
@@ -401,14 +401,14 @@ func loadSalaryGroup(ctx context.Context, tx pgx.Tx, o SalaryLegacyOptions, mn, 
 	}
 	for _, r := range g.lines {
 		c := func(n string) string { return r[mustCol(dt, n)] }
-		typ := strings.ToLower(c("PD_TYPE"))
-		id, _ := strconv.Atoi(c("PD_NO")) //nolint:errcheck // validated above
+		typ := strings.ToLower(c(colPdType))
+		id, _ := strconv.Atoi(c(colPdNo)) //nolint:errcheck // validated above
 		sys := sysids[sysKey{typ, id}]
 		typName := nameTunjangan
 		if typ == typePotongan {
 			typName = namePotongan
 		}
-		copyRow(&lines, "@RUN@", c("PD_NIK"), typName, strconv.Itoa(id), c("PD_DESCRIPTION"), c("PD_AMOUNT"), c("PD_STATUS"), c("PD_TAX"),
+		copyRow(&lines, "@RUN@", c(colPdNIK), typName, strconv.Itoa(id), c("PD_DESCRIPTION"), c("PD_AMOUNT"), c("PD_STATUS"), c("PD_TAX"),
 			c("PD_TAX_PAID_COMPANY"), c("PD_BASIS_AMOUNT"), "LEGACY", c("PD_REMARKS"), strconv.FormatInt(sys, 10))
 		nLine++
 	}

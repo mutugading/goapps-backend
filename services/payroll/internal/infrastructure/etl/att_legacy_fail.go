@@ -113,12 +113,12 @@ func (c *failCollector) loadAmounts(ce *Table) error {
 // markMissingPremi applies D-46 after DETAIL is scanned: a MAIN nik of an OPEN period with T40 attached (frz=2)
 // and no DETAIL T40 row gets PF=1. A DETAIL row (NULL or not) keeps the D-33 value.
 func (c *failCollector) markMissingPremi(mn *Table, open map[string]bool) error {
-	mi, err := bindCols(mn, []string{"PM_YYMM", "PM_NIK", "PM_DIVISION"})
+	mi, err := bindCols(mn, []string{colPmYymm, colPmNIK, colPmDivision})
 	if err != nil {
 		return err
 	}
 	for _, r := range mn.Rows {
-		k := failKey{r[mi["PM_YYMM"]], r[mi["PM_DIVISION"]], r[mi["PM_NIK"]]}
+		k := failKey{r[mi[colPmYymm]], r[mi[colPmDivision]], r[mi[colPmNIK]]}
 		if !open[k.yymm] || !c.premiOn[failKey{"", k.division, k.nik}] {
 			continue
 		}
@@ -133,7 +133,7 @@ func (c *failCollector) markMissingPremi(mn *Table, open map[string]bool) error 
 }
 
 func (c *failCollector) scanDetail(dt *Table) error {
-	di, err := bindCols(dt, []string{colPdYymm, "PD_NIK", "PD_NO", "PD_TYPE", "PD_AMOUNT", "PD_STATUS", "PD_DIVISION"})
+	di, err := bindCols(dt, []string{colPdYymm, colPdNIK, colPdNo, colPdType, "PD_AMOUNT", "PD_STATUS", colPdDivision})
 	if err != nil {
 		return err
 	}
@@ -142,11 +142,11 @@ func (c *failCollector) scanDetail(dt *Table) error {
 		basisIdx = -1
 	}
 	for _, r := range dt.Rows {
-		id, aerr := strconv.Atoi(r[di["PD_NO"]])
-		if strings.ToLower(r[di["PD_TYPE"]]) != typeTunjangan || aerr != nil || badYYMM(r, di, []string{colPdYymm}) != "" {
+		id, aerr := strconv.Atoi(r[di[colPdNo]])
+		if strings.ToLower(r[di[colPdType]]) != typeTunjangan || aerr != nil || badYYMM(r, di, []string{colPdYymm}) != "" {
 			continue
 		}
-		k := failKey{r[di[colPdYymm]], r[di["PD_DIVISION"]], r[di["PD_NIK"]]}
+		k := failKey{r[di[colPdYymm]], r[di[colPdDivision]], r[di[colPdNIK]]}
 		amt := strings.TrimSpace(r[di["PD_AMOUNT"]])
 		switch id {
 		case legacyPremiHadir:

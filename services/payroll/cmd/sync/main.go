@@ -622,26 +622,8 @@ func dummyPeriod(args []string) error {
 	if *to == 0 || *division == "" {
 		return fmt.Errorf("-to dan -division wajib")
 	}
-	var rep etl.DummyReport
-	var err error
 	if *purge {
-		if *ownerDSN == "" {
-			return fmt.Errorf("-purge butuh -owner-dsn (atau PAYROLL_OWNER_DSN): payroll_etl tidak punya DELETE")
-		}
-		db, oerr := sql.Open("pgx", *ownerDSN)
-		if oerr != nil {
-			return oerr
-		}
-		defer closeDB(db)
-		rep, err = etl.RunDummyPurge(context.Background(), db, int16(*company), *to, *division, *apply) //nolint:gosec // -company checked to 1..MaxInt16 above
-		if err == nil {
-			mode := "DRY-RUN (tidak ada yang dihapus; ulangi dengan -apply)"
-			if *apply {
-				mode = "APPLY"
-			}
-			fmt.Printf("%-8s %d purge %s: snapshot=%d rows=%d addition=%d attd_days=%d\n", rep.Division, rep.YYMM, mode, rep.SnapshotID, rep.Rows, rep.Additions, rep.AttdDays)
-		}
-		return err
+		return dummyPurge(*ownerDSN, int16(*company), *to, *division, *apply) //nolint:gosec // -company checked to 1..MaxInt16 above
 	}
 	if *dsn == "" || *from == 0 {
 		return fmt.Errorf("-dsn (atau PAYROLL_ETL_DSN) dan -from wajib")
@@ -651,13 +633,35 @@ func dummyPeriod(args []string) error {
 		return err
 	}
 	defer closeDB(db)
-	rep, err = etl.RunDummyPeriod(context.Background(), db, etl.DummyPeriodQuery{
+	rep, err := etl.RunDummyPeriod(context.Background(), db, etl.DummyPeriodQuery{
 		Company: int16(*company), From: *from, To: *to, Division: *division, WorkdaysDelta: *delta, //nolint:gosec // -company checked to 1..MaxInt16 above
 	})
 	if err == nil { // counts only (I25)
 		fmt.Printf("%-8s %d dari %d snapshot=%d rows=%d addition=%d attd_days=%d unchanged=%t\n", rep.Division, rep.YYMM, *from, rep.SnapshotID, rep.Rows, rep.Additions, rep.AttdDays, rep.Unchanged)
 	}
 	return err
+}
+
+// dummyPurge runs the -purge branch of dummyPeriod with the table-owner DSN (dry run unless apply).
+func dummyPurge(ownerDSN string, company int16, to int, division string, apply bool) error {
+	if ownerDSN == "" {
+		return fmt.Errorf("-purge butuh -owner-dsn (atau PAYROLL_OWNER_DSN): payroll_etl tidak punya DELETE")
+	}
+	db, err := sql.Open("pgx", ownerDSN)
+	if err != nil {
+		return err
+	}
+	defer closeDB(db)
+	rep, err := etl.RunDummyPurge(context.Background(), db, company, to, division, apply)
+	if err != nil {
+		return err
+	}
+	mode := "DRY-RUN (tidak ada yang dihapus; ulangi dengan -apply)"
+	if apply {
+		mode = "APPLY"
+	}
+	fmt.Printf("%-8s %d purge %s: snapshot=%d rows=%d addition=%d attd_days=%d\n", rep.Division, rep.YYMM, mode, rep.SnapshotID, rep.Rows, rep.Additions, rep.AttdDays)
+	return nil
 }
 
 // dummyJanBase seeds T901 for a January from the TETAP of the previous month (D-64 (4)).
