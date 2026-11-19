@@ -118,7 +118,7 @@ func TestQueriesUseBindsAndColumnCounts(t *testing.T) {
 		!strings.Contains(sqlDaily, "s.hmschd_ot_inwork") {
 		t.Error("daily schedule join (05§5)")
 	}
-	if !strings.Contains(sqlDaily, ":3") || !strings.Contains(sqlDaily, "hata_date BETWEEN :1 AND :2") {
+	if !strings.Contains(sqlDaily, ":3") || !strings.Contains(sqlDaily, "hata_date BETWEEN TO_DATE(:1,'YYYY-MM-DD') AND TO_DATE(:2,'YYYY-MM-DD')") {
 		t.Error("daily binds")
 	}
 	if !strings.Contains(sqlRekapAdd, "MPARA_SHIFT") || strings.Contains(sqlRekapAdd, "MPARA_DAYOFF") {
@@ -178,3 +178,20 @@ func TestScanDaily_CheckOutValidIsWIB(t *testing.T) {
 }
 
 func ptrTime(t time.Time) *time.Time { return &t }
+
+// T033h: the daily window is bound as calendar-date strings, independent of the host time zone.
+func TestOraDate_HostZoneIndependent(t *testing.T) {
+	wib := time.FixedZone("WIB", 7*3600)
+	for _, tc := range []struct {
+		in   time.Time
+		want string
+	}{
+		{time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC), "2026-09-26"},
+		{time.Date(2026, 9, 26, 0, 0, 0, 0, wib), "2026-09-26"},
+		{time.Date(2026, 10, 25, 23, 59, 0, 0, wib), "2026-10-25"},
+	} {
+		if got := oraDate(tc.in); got != tc.want {
+			t.Errorf("oraDate(%v) = %s, want %s", tc.in, got, tc.want)
+		}
+	}
+}

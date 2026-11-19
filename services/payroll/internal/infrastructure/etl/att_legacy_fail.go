@@ -43,6 +43,7 @@ type failVal struct {
 // "T40 attached but no DETAIL row ⇒ PF=1" rule applied (D-46): COMPNT_EMP is the state at dump time (D-44), so on
 // CLOSED periods it would invent failures. Empty = D-33 only.
 type AttLegacyFailOptions struct {
+	CompanyID   int16 // required (T033h): the spool is one company's; NIK+period may repeat in another company
 	OpenPeriods []string
 }
 
@@ -193,14 +194,14 @@ const updateFailSQL = `
 UPDATE payroll.pyr_att_snapshot_row r SET pasr_premi_fail = coalesce($4::int, r.pasr_premi_fail), pasr_beras_fail = coalesce($5::int, r.pasr_beras_fail)
 FROM payroll.pyr_att_snapshot s
 WHERE r.pasr_snapshot_id = s.pas_snapshot_id AND s.pas_source_batch_ids = '{}' AND s.pas_yymm = $1::int AND s.pas_division = $2::payroll.division
-  AND r.pasr_kind = 'REKAP' AND r.pasr_nik = $3
+  AND s.pas_company_id = $6 AND r.pasr_kind = 'REKAP' AND r.pasr_nik = $3
   AND NOT EXISTS (SELECT 1 FROM payroll.pyr_run x WHERE x.pr_company_id = s.pas_company_id AND x.pr_yymm = s.pas_yymm
                   AND x.pr_division = s.pas_division AND x.pr_status = 'ACTIVE' AND x.pr_kind = 'ENGINE')`
 
 // lockRuns takes the run advisory lock (same key as run.Lock, D-39) of every period touched, in sorted order
 // (no deadlock between ETLs), before the first UPDATE: the NOT EXISTS in updateFailSQL sees the statement snapshot,
 // so a Commit that finishes while an UPDATE waits on a row lock would be missed (T017f/T017g, D-40).
-func (c *failCollector) lockRuns(ctx context.Context, tx *sql.Tx) error {
+func (c *failCollector) lockRuns(ctx context.Context, tx *sql.Tx, company int16) error {
 	seen := map[[2]string]bool{}
 	var periods [][2]string
 	for _, k := range c.order {
@@ -217,19 +218,16 @@ func (c *failCollector) lockRuns(ctx context.Context, tx *sql.Tx) error {
 		return periods[i][1] < periods[j][1]
 	})
 	for _, p := range periods {
-		if _, err := tx.ExecContext(ctx, `
-SELECT pg_advisory_xact_lock(hashtext('payroll.run'), hashtext(k))
-FROM (SELECT DISTINCT pas_company_id::text || ':' || pas_yymm::text || ':' || pas_division::text AS k
-      FROM payroll.pyr_att_snapshot WHERE pas_source_batch_ids = '{}' AND pas_yymm = $1::int AND pas_division = $2::payroll.division
-      ORDER BY 1) q`, p[0], p[1]); err != nil {
+		if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext('payroll.run'), hashtext($1))`,
+			fmt.Sprintf("%d:%s:%s", company, p[0], p[1])); err != nil {
 			return fmt.Errorf("run lock %s/%s: %w", p[0], p[1], err)
 		}
 	}
 	return nil
 }
 
-func (c *failCollector) write(ctx context.Context, tx *sql.Tx) error {
-	if err := c.lockRuns(ctx, tx); err != nil {
+func (c *failCollector) write(ctx context.Context, tx *sql.Tx, company int16) error {
+	if err := c.lockRuns(ctx, tx, company); err != nil {
 		return err
 	}
 	stmt, err := tx.PrepareContext(ctx, updateFailSQL)
@@ -242,11 +240,17 @@ func (c *failCollector) write(ctx context.Context, tx *sql.Tx) error {
 		if v.premi == nil && v.beras == nil {
 			continue // residue only: column stays NULL
 		}
-		res, err := stmt.ExecContext(ctx, k.yymm, k.division, k.nik, nullInt(v.premi), nullInt(v.beras))
+		res, err := stmt.ExecContext(ctx, k.yymm, k.division, k.nik, nullInt(v.premi), nullInt(v.beras), company)
 		if err != nil {
 			return fmt.Errorf("%s/%s nik %s: %w", k.yymm, k.division, k.nik, err)
 		}
-		n, _ := res.RowsAffected() //nolint:errcheck // pgx always reports
+		n, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if n > 1 { // one LEGACY snapshot per (company, yymm, division) and one REKAP row per NIK: more is corrupt data
+			return fmt.Errorf("%s/%s nik %s: %d baris snapshot REKAP terkena, harus tepat 1", k.yymm, k.division, k.nik, n)
+		}
 		if n == 0 {
 			c.rep.NoSnapshotRow = append(c.rep.NoSnapshotRow, fmt.Sprintf("%s/%s nik %s", k.yymm, k.division, k.nik))
 			continue
@@ -297,6 +301,9 @@ func openSet(periods []string) (map[string]bool, error) {
 // payroll_etl never needs SELECT on salary tables.
 func RunAttLegacyFail(ctx context.Context, db *sql.DB, src Source, o AttLegacyFailOptions) (AttLegacyFailReport, error) {
 	var rep AttLegacyFailReport
+	if o.CompanyID <= 0 {
+		return rep, errors.New("att-legacy-fail: CompanyID wajib")
+	}
 	open, err := openSet(o.OpenPeriods)
 	if err != nil {
 		return rep, err
@@ -337,7 +344,7 @@ func RunAttLegacyFail(ctx context.Context, db *sql.DB, src Source, o AttLegacyFa
 			log.Warn().Err(rbErr).Msg("etl: rollback failed")
 		}
 	}()
-	if err := c.write(ctx, tx); err != nil {
+	if err := c.write(ctx, tx, o.CompanyID); err != nil {
 		return rep, err
 	}
 	return rep, tx.Commit()

@@ -259,17 +259,7 @@ func loadSalaryGroup(ctx context.Context, tx pgx.Tx, o SalaryLegacyOptions, mn, 
 	err := tx.QueryRow(ctx, `SELECT pr_id FROM payroll.pyr_run WHERE pr_company_id=$1 AND pr_yymm=$2 AND pr_division=$3 AND pr_kind='LEGACY' AND pr_status='ACTIVE'`,
 		o.CompanyID, g.key.yymm, g.key.division).Scan(&runID)
 	if err == nil { // already loaded and CLOSED: nothing to change, but the source must still match what was loaded
-		var nHead, nLine int
-		if err := tx.QueryRow(ctx, `SELECT pr_emp_count, pr_line_count FROM payroll.pyr_run WHERE pr_id=$1`, runID).Scan(&nHead, &nLine); err != nil {
-			return err
-		}
-		orphans := len(orphanNiks(g))
-		if nHead != len(g.heads)+orphans || nLine != len(g.lines) {
-			return fmt.Errorf("sudah dimuat (%d head, %d detail) tetapi sumber kini %d/%d; periode CLOSED tidak boleh diubah", nHead, nLine, len(g.heads)+orphans, len(g.lines))
-		}
-		repM.DstRows += nHead - orphans
-		repD.DstRows += nLine
-		return nil
+		return checkSalaryLoaded(ctx, tx, runID, mn, dt, g, repM, repD)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return err
@@ -437,9 +427,10 @@ VALUES ($1,$2,$3,$4,$5,'OPEN') ON CONFLICT DO NOTHING RETURNING 1) SELECT count(
 		return nil
 	}
 	if err := tx.QueryRow(ctx, `INSERT INTO payroll.pyr_run (pr_company_id, pr_yymm, pr_division, pr_pay_date, pr_rule_set_id, pr_snapshot_id, pr_status, pr_kind,
-  pr_emp_count, pr_line_count, pr_tot_tunjangan, pr_tot_potongan, pr_started_by, pr_finished_at)
-VALUES ($1,$2,$3,$4,$5,$6,'ACTIVE','LEGACY',$7,$8,$9,$10,'etl',now()) RETURNING pr_id`,
-		o.CompanyID, g.key.yymm, g.key.division, payDate, legacyRuleSetZero, snap, nHead, nLine, totT.String(), totP.String()).Scan(&runID); err != nil {
+  pr_emp_count, pr_line_count, pr_tot_tunjangan, pr_tot_potongan, pr_started_by, pr_finished_at, pr_input_hash)
+VALUES ($1,$2,$3,$4,$5,$6,'ACTIVE','LEGACY',$7,$8,$9,$10,'etl',now(),$11) RETURNING pr_id`,
+		o.CompanyID, g.key.yymm, g.key.division, payDate, legacyRuleSetZero, snap, nHead, nLine, totT.String(), totP.String(),
+		groupChecksum(g.heads, g.lines)).Scan(&runID); err != nil {
 		return err
 	}
 	id := strconv.FormatInt(runID, 10)
@@ -683,3 +674,37 @@ func (d *decimalSum) add(s string) {
 }
 
 func (d *decimalSum) String() string { return d.v.StringFixed(2) }
+
+// checkSalaryLoaded compares a period already loaded (CLOSED, untouchable) with the source of this run (T033h): the
+// source checksum of the period is stored in pr_input_hash at load time, so an edited row with the same row count is
+// caught. A mismatch holds every row of the period as an exception (the report never says OK for changed history).
+// Runs loaded before T033h have no checksum: the row counts are compared and a warning asks for a manual recheck.
+func checkSalaryLoaded(ctx context.Context, tx pgx.Tx, runID int64, mn, dt *Table, g *salaryGroup, repM, repD *TableReport) error {
+	var nHead, nLine int
+	var hash *string
+	if err := tx.QueryRow(ctx, `SELECT pr_emp_count, pr_line_count, pr_input_hash FROM payroll.pyr_run WHERE pr_id=$1`, runID).Scan(&nHead, &nLine, &hash); err != nil {
+		return err
+	}
+	orphans := len(orphanNiks(g))
+	why := ""
+	switch {
+	case nHead != len(g.heads)+orphans || nLine != len(g.lines):
+		why = fmt.Sprintf("sudah dimuat (%d head, %d detail) tetapi sumber kini %d/%d; periode CLOSED tidak diubah", nHead, nLine, len(g.heads)+orphans, len(g.lines))
+	case hash == nil:
+		repM.Warnings = append(repM.Warnings, fmt.Sprintf("%s %s/%s: dimuat sebelum checksum per periode (T033h); hanya jumlah baris yang dicek", mn.Name, g.key.yymm, g.key.division))
+	case *hash != groupChecksum(g.heads, g.lines):
+		why = "checksum sumber berbeda dengan saat dimuat; periode CLOSED tidak diubah"
+	}
+	if why != "" {
+		for _, r := range g.heads {
+			repM.Exceptions = append(repM.Exceptions, fmt.Sprintf("%s %s/%s nik %s: %s", mn.Name, g.key.yymm, g.key.division, r[1], why))
+		}
+		for _, r := range g.lines {
+			repD.Exceptions = append(repD.Exceptions, fmt.Sprintf("%s %s/%s nik %s: %s", dt.Name, g.key.yymm, g.key.division, r[1], why))
+		}
+		return nil
+	}
+	repM.DstRows += nHead - orphans
+	repD.DstRows += nLine
+	return nil
+}

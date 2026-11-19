@@ -138,9 +138,8 @@ ON CONFLICT (prc_rule_set_id, prc_company_id, prc_key, COALESCE(prc_division,'*'
 		}
 	}
 	rep.SrcRows = len(ruleConstants)
-	err := tx.QueryRowContext(ctx, `SELECT count(*) FROM payroll.pyr_rule_constant WHERE prc_rule_set_id=$1 AND prc_company_id=$2`,
-		legacyRuleSetID, company).Scan(&rep.DstRows)
-	return rep, err
+	rep.DstRows = len(ruleConstants) // T033h: rows written by this run
+	return rep, nil
 }
 
 // LoadAttdDays fills pyr_attd_days (MPAD_*). Rows of an APPROVED/CLOSED period are compared, not written (D-54).
@@ -369,11 +368,17 @@ ON CONFLICT (pta_company_id, pta_yymm, pta_division, pta_nik, pta_type) DO UPDAT
 
 // LoadHoliday fills pyr_holiday. The table has a surrogate id, so idempotency is by (date, descr, status, year).
 func LoadHoliday(ctx context.Context, tx *sql.Tx, src *Table) (TableReport, error) {
+	seen := map[string]bool{}
 	rep, err := loadTable(src, []string{"MPH_DATE", "MPH_DESCR", "MPH_STATUS", "MPH_YEAR"}, func(r []string, ix map[string]int, _ int) (string, error) {
 		d, err := reqDate("MPH_DATE", r[ix["MPH_DATE"]])
 		if err != nil {
 			return "", err
 		}
+		k := strings.Join([]string{d, r[ix["MPH_DESCR"]], r[ix["MPH_STATUS"]], r[ix["MPH_YEAR"]]}, "\x1f")
+		if seen[k] { // T033h: the NOT EXISTS insert would absorb it silently; report it instead
+			return "hari libur ganda di sumber", nil
+		}
+		seen[k] = true
 		var year any
 		if v := r[ix["MPH_YEAR"]]; v != "" {
 			if year, err = atoi(v); err != nil {
@@ -387,10 +392,8 @@ SELECT $1,$2,$3,$4 WHERE NOT EXISTS (SELECT 1 FROM payroll.pyr_holiday WHERE phd
 			d, nullable(r[ix["MPH_DESCR"]]), nullable(r[ix["MPH_STATUS"]]), year)
 		return "", err
 	})
-	if err != nil {
-		return rep, err
-	}
-	err = tx.QueryRowContext(ctx, `SELECT count(*) FROM payroll.pyr_holiday`).Scan(&rep.DstRows)
+	// T033h: DstRows = rows of this run (loadTable), not count(*) of the table: a holiday added in the app
+	// must not fail every later load.
 	return rep, err
 }
 

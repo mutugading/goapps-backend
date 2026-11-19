@@ -101,12 +101,25 @@ func TestETL_ThrLegacy(t *testing.T) {
 		}
 	}
 	// sumber berubah setelah event CLOSED: ditolak, bukan ditimpa.
+	// T033h: event ditahan sebagai exception (laporan tidak OK-tanpa-catatan), CLI keluar non-nol tanpa -allow-exceptions.
 	changed := writeThr(t, main, det+thrDet("202603", "THR", "1002", "6", "Tunjangan", "1", "SOLO"))
-	if _, err := etl.RunThrLegacy(ctx, etlDB, changed, etl.ThrLegacyOptions{CompanyID: 1}); err == nil {
-		t.Error("sumber berbeda dari yang sudah dimuat diterima")
+	if reps, err := etl.RunThrLegacy(ctx, etlDB, changed, etl.ThrLegacyOptions{CompanyID: 1}); err != nil || len(reps[0].Exceptions)+len(reps[1].Exceptions) == 0 {
+		t.Errorf("sumber berbeda dari yang sudah dimuat diterima: err=%v", err)
 	}
 	if state() != first {
 		t.Fatal("penolakan mengubah data")
+	}
+	// T033h: nilai berubah dengan jumlah baris sama tertangkap checksum sumber per event.
+	edited := writeThr(t, main, strings.Replace(det, "|uraian|300|", "|uraian|301|", 1))
+	reps3, err := etl.RunThrLegacy(ctx, etlDB, edited, etl.ThrLegacyOptions{CompanyID: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := len(reps3[0].Exceptions) + len(reps3[1].Exceptions); n == 0 || !strings.Contains(strings.Join(reps3[1].Exceptions, ";"), "checksum") {
+		t.Errorf("edit nilai dengan jumlah baris sama tidak tertangkap: %v", reps3)
+	}
+	if state() != first {
+		t.Fatal("penolakan checksum mengubah data")
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -133,6 +134,24 @@ func (t *Table) Checksum() string {
 	h := sha256.New()
 	for _, l := range lines {
 		_, _ = h.Write([]byte(l + "\n"))
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// groupChecksum is the sha256 of one period/event of a legacy source (MAIN rows, then DETAIL rows, each sorted),
+// stored on the LEGACY run so a re-run detects a changed row even when the row count is the same (T033h).
+func groupChecksum(heads, lines [][]string) string {
+	h := sha256.New()
+	for i, part := range [][][]string{heads, lines} {
+		rows := make([]string, len(part))
+		for j, r := range part {
+			rows[j] = strings.Join(r, "\x1f") // unit separator: a cell holding "|" cannot shift into the next one
+		}
+		sort.Strings(rows)
+		_, _ = h.Write([]byte("#" + strconv.Itoa(i) + " " + strconv.Itoa(len(rows)) + "\n"))
+		for _, l := range rows {
+			_, _ = h.Write([]byte(l + "\n"))
+		}
 	}
 	return hex.EncodeToString(h.Sum(nil))
 }

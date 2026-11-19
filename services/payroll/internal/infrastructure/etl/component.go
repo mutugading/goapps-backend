@@ -173,9 +173,8 @@ ON CONFLICT (pclm_company_id, pclm_legacy_type, pclm_legacy_id, pclm_legacy_divi
 			}
 		}
 	}
-	err = tx.QueryRowContext(ctx, `SELECT count(DISTINCT pclm_sysid) FROM payroll.pyr_component_legacy_map WHERE pclm_company_id=$1`,
-		o.CompanyID).Scan(&rep.DstRows)
-	return rep, err
+	rep.DstRows = len(seen) // T033h: components of this run, not the whole map
+	return rep, nil
 }
 
 func divisions(ctx context.Context, tx *sql.Tx, company int16) ([]string, error) {
@@ -210,6 +209,7 @@ func LoadTemplate(ctx context.Context, tx *sql.Tx, src *Table, o Options) (Table
 		}
 		idx[n] = i
 	}
+	seenT := map[tmplKey]bool{}
 	for i, r := range src.Rows {
 		id, err := strconv.Atoi(r[idx["MPCT_ID"]])
 		if err != nil {
@@ -223,6 +223,12 @@ WHERE pclm_company_id=$1 AND pclm_legacy_type=$2::payroll.comp_type AND pclm_leg
 		if err != nil {
 			return rep, fmt.Errorf("%s baris %d: (%s,%d) tidak ada di legacy_map (jalankan master dulu): %w", src.Name, i+2, typ, id, err)
 		}
+		tk := tmplKey{r[idx["MPCT_TEMPLATE"]], sysid}
+		if seenT[tk] {
+			rep.Exceptions = append(rep.Exceptions, fmt.Sprintf("%s baris %d: template %s komponen %s/%d ganda", src.Name, i+2, tk.level, typ, id))
+			continue
+		}
+		seenT[tk] = true
 		var tax any
 		if v := r[idx["MPCT_TAX"]]; v != "" {
 			if tax, err = strconv.Atoi(v); err != nil {
@@ -242,10 +248,10 @@ ON CONFLICT (pct_template, pct_component_sysid) DO UPDATE SET pct_type=EXCLUDED.
 			return rep, fmt.Errorf("%s baris %d: %w", src.Name, i+2, err)
 		}
 	}
-	err := tx.QueryRowContext(ctx, `
-SELECT count(*) FROM payroll.pyr_component_template t
-JOIN payroll.pyr_component c ON c.pc_sysid = t.pct_component_sysid WHERE c.pc_company_id=$1`, o.CompanyID).Scan(&rep.DstRows)
-	return rep, err
+	rep.DstRows = len(seenT)
+	// T033h: rows of this run (one per (template, sysid)), not count(*): a template row added in the app must not
+	// fail every later load, and a duplicate source row is a reported exception, not hidden by the count.
+	return rep, nil
 }
 
 // Run loads master, template and level rules in ONE transaction and records the report

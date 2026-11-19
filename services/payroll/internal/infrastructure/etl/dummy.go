@@ -132,6 +132,12 @@ func lockDummyPeriod(ctx context.Context, tx *sql.Tx, co int16, yymm int, div st
 		fmt.Sprintf("att-sync:%d:%d:%s", co, yymm, div)); err != nil {
 		return 0, fmt.Errorf("advisory lock: %w", err)
 	}
+	// T033h: plus the run lock (same key as run.Lock), so approve/close/reopen cannot change the status between
+	// the plain reads below and the commit.
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext('payroll.run'), hashtext($1))`,
+		fmt.Sprintf("%d:%d:%s", co, yymm, div)); err != nil {
+		return 0, fmt.Errorf("run lock: %w", err)
+	}
 	var status sql.NullString
 	if err := tx.QueryRowContext(ctx, `SELECT pp_status::text FROM payroll.pyr_period WHERE pp_company_id=$1 AND pp_yymm=$2 AND pp_division=$3`,
 		co, yymm, div).Scan(&status); err != nil && !errors.Is(err, sql.ErrNoRows) {

@@ -414,6 +414,7 @@ func attLegacyFail(args []string) error {
 	fs := flag.NewFlagSet("att-legacy-fail", flag.ExitOnError)
 	dir := fs.String("dir", "", "folder .psv hasil spool sqlplus (08§1): MGT_PAYROLL_DETAIL + MGT_PAYROLL_COMPNT_EMP")
 	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl")
+	company := fs.Int("company", 1, "pyr_company.pco_company_id (T033h: UPDATE hanya snapshot company ini)")
 	open := fs.String("open-periods", "", "yymm dipisah koma yang masih OPEN saat dump (D-46: T40 tanpa baris DETAIL ⇒ PF=1; butuh MGT_PAYROLL_MAIN). Kosong = hanya D-33")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -421,7 +422,10 @@ func attLegacyFail(args []string) error {
 	if *dir == "" || *dsn == "" {
 		return fmt.Errorf("-dir dan -dsn (atau PAYROLL_ETL_DSN) wajib")
 	}
-	var o etl.AttLegacyFailOptions
+	if *company < 1 || *company > math.MaxInt16 {
+		return fmt.Errorf("-company %d di luar 1..%d", *company, math.MaxInt16)
+	}
+	o := etl.AttLegacyFailOptions{CompanyID: int16(*company)} //nolint:gosec // bounds checked above
 	if *open != "" {
 		o.OpenPeriods = strings.Split(*open, ",")
 	}

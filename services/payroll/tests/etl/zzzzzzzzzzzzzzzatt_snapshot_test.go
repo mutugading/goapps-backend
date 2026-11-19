@@ -327,8 +327,25 @@ func TestAttSnapshot_Refused(t *testing.T) {
 			t.Fatalf("want refusal staging harian JAKARTA, got %v %+v", err, reps)
 		}
 	})
+	// T033h: daily window synced before its last day (max work_date < 25th) is refused, not counted as absences.
+	t.Run("jendela harian belum lengkap ditolak", func(t *testing.T) {
+		const ym = 203910
+		part := []etl.DailyRow{{WorkDate: time.Date(2039, 10, 20, 0, 0, 0, 0, time.UTC), NIK: "SN-R4", Division: "SOLO", ScheduleCode: "NW"}}
+		syncAll(t, &fakeAtt{rekap: []etl.RekapRow{rrow(ym, "SN-R4", "SOLO", "20")}, daily: part}, ym, "SOLO")
+		reps, err := etl.RunAttSnapshot(context.Background(), etlDB, etl.AttSnapshotQuery{Company: 1, YYMM: ym, Division: "SOLO"})
+		if err == nil || !strings.Contains(err.Error(), "belum lengkap") || !strings.Contains(err.Error(), "2039-10-20") || len(reps) != 0 {
+			t.Fatalf("want refusal belum lengkap, got %v %+v", err, reps)
+		}
+		full := append(part, etl.DailyRow{WorkDate: time.Date(2039, 10, 25, 0, 0, 0, 0, time.UTC), NIK: "SN-R4", Division: "SOLO", ScheduleCode: "NW"})
+		syncAll(t, &fakeAtt{rekap: []etl.RekapRow{rrow(ym, "SN-R4", "SOLO", "20")}, daily: full}, ym, "SOLO")
+		if r := snapOne(t, ym, "SOLO"); r.SnapshotID == 0 {
+			t.Fatal("jendela lengkap tetap ditolak")
+		}
+	})
 	// Both divisions: SOLO refused (CLOSED) does not stop JAKARTA.
-	syncAll(t, &fakeAtt{rekap: []etl.RekapRow{rrow(closed, "SN-R2", "JAKARTA", "20")}, daily: []etl.DailyRow{{WorkDate: time.Date(2039, 3, 1, 0, 0, 0, 0, time.UTC), NIK: "SN-R2", Division: "JAKARTA", ScheduleCode: "NW"}}}, closed, "JAKARTA")
+	syncAll(t, &fakeAtt{rekap: []etl.RekapRow{rrow(closed, "SN-R2", "JAKARTA", "20")}, daily: []etl.DailyRow{
+		{WorkDate: time.Date(2039, 3, 1, 0, 0, 0, 0, time.UTC), NIK: "SN-R2", Division: "JAKARTA", ScheduleCode: "NW"},
+		{WorkDate: time.Date(2039, 3, 25, 0, 0, 0, 0, time.UTC), NIK: "SN-R2", Division: "JAKARTA", ScheduleCode: "NW"}}}, closed, "JAKARTA")
 	reps, err := etl.RunAttSnapshot(context.Background(), etlDB, etl.AttSnapshotQuery{Company: 1, YYMM: closed})
 	if err == nil || len(reps) != 1 || reps[0].Division != "JAKARTA" || reps[0].SnapshotID == 0 {
 		t.Fatalf("both divisions: %v %+v", err, reps)

@@ -344,9 +344,9 @@ VALUES ($1,$2::payroll.division,$3,$4::int,$5::date,$6,'GIVEN','CLOSED','etl','e
 		return err
 	}
 	var runID int64
-	if err := l.tx.QueryRow(ctx, `INSERT INTO payroll.pyr_thr_run (ptr_event_id, ptr_kind, ptr_status, ptr_emp_count, ptr_tot_tunjangan, ptr_tot_potongan, ptr_warnings, ptr_started_by, ptr_finished_at)
-VALUES ($1,'LEGACY','ACTIVE',$2,$3,$4,$5::jsonb,'etl',now()) RETURNING ptr_id`,
-		eventID, p.nHead, p.totT.String(), p.totP.String(), string(meta)).Scan(&runID); err != nil {
+	if err := l.tx.QueryRow(ctx, `INSERT INTO payroll.pyr_thr_run (ptr_event_id, ptr_kind, ptr_status, ptr_emp_count, ptr_tot_tunjangan, ptr_tot_potongan, ptr_warnings, ptr_started_by, ptr_finished_at, ptr_input_hash)
+VALUES ($1,'LEGACY','ACTIVE',$2,$3,$4,$5::jsonb,'etl',now(),$6) RETURNING ptr_id`,
+		eventID, p.nHead, p.totT.String(), p.totP.String(), string(meta), groupChecksum(g.heads, g.lines)).Scan(&runID); err != nil {
 		return fmt.Errorf("run: %w", err)
 	}
 	id := strconv.FormatInt(runID, 10)
@@ -377,7 +377,8 @@ VALUES ('etl','ETL_THR_LEGACY','pyr_thr_event',$1,$2,jsonb_build_object('run_id'
 func (l *thrLoader) checkLoaded(ctx context.Context, g *thrGroup, p *thrPlan, eventID int64) error {
 	var nHead int
 	var warn []byte
-	err := l.tx.QueryRow(ctx, `SELECT ptr_emp_count, ptr_warnings FROM payroll.pyr_thr_run WHERE ptr_event_id=$1 AND ptr_kind='LEGACY' AND ptr_status='ACTIVE'`, eventID).Scan(&nHead, &warn)
+	var hash *string
+	err := l.tx.QueryRow(ctx, `SELECT ptr_emp_count, ptr_warnings, ptr_input_hash FROM payroll.pyr_thr_run WHERE ptr_event_id=$1 AND ptr_kind='LEGACY' AND ptr_status='ACTIVE'`, eventID).Scan(&nHead, &warn, &hash)
 	if errors.Is(err, pgx.ErrNoRows) {
 		l.hold(g, "event sudah ada tetapi bukan hasil ETL legacy; tidak diubah")
 		return nil
@@ -391,8 +392,18 @@ func (l *thrLoader) checkLoaded(ctx context.Context, g *thrGroup, p *thrPlan, ev
 	if err := json.Unmarshal(warn, &w); err != nil {
 		return err
 	}
-	if nHead != p.nHead || w.Lines != p.nLine {
-		return fmt.Errorf("sudah dimuat (%d head, %d detail) tetapi sumber kini %d/%d; event CLOSED tidak boleh diubah", nHead, w.Lines, p.nHead, p.nLine)
+	// T033h: a changed source holds the event as exceptions (never "OK"); the checksum catches an edit with the same
+	// row count. Events loaded before T033h have no checksum: counts only, plus a warning.
+	switch {
+	case nHead != p.nHead || w.Lines != p.nLine:
+		l.hold(g, fmt.Sprintf("sudah dimuat (%d head, %d detail) tetapi sumber kini %d/%d; event CLOSED tidak diubah", nHead, w.Lines, p.nHead, p.nLine))
+		return nil
+	case hash == nil:
+		l.repM.Warnings = append(l.repM.Warnings, fmt.Sprintf("%s %s/%s/%s: dimuat sebelum checksum per event (T033h); hanya jumlah baris yang dicek",
+			l.mn.Name, g.key.yymm, g.key.division, g.key.kind))
+	case *hash != groupChecksum(g.heads, g.lines):
+		l.hold(g, "checksum sumber berbeda dengan saat dimuat; event CLOSED tidak diubah")
+		return nil
 	}
 	l.repM.DstRows += nHead
 	l.repD.DstRows += w.Lines

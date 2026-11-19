@@ -91,7 +91,7 @@ GRANT SELECT, INSERT, UPDATE ON payroll.pyr_att_snapshot, payroll.pyr_att_snapsh
 GRANT SELECT (pas_snapshot_id, pas_yymm, pas_division, pas_company_id, pas_locked) ON payroll.pyr_att_snapshot TO payroll_etl;
 -- run gaji LEGACY (000029, 000031): INSERT saja di head/detail; SELECT/UPDATE per kolom tanpa nominal
 GRANT INSERT ON payroll.pyr_run, payroll.pyr_period, payroll.pyr_salary_head, payroll.pyr_salary_detail TO payroll_etl;
-GRANT SELECT (pr_id, pr_company_id, pr_yymm, pr_division, pr_kind, pr_status, pr_snapshot_id, pr_emp_count, pr_line_count)
+GRANT SELECT (pr_id, pr_company_id, pr_yymm, pr_division, pr_kind, pr_status, pr_snapshot_id, pr_emp_count, pr_line_count, pr_input_hash)
   ON payroll.pyr_run TO payroll_etl;
 GRANT SELECT (pp_yymm, pp_division, pp_company_id, pp_status, pp_active_run_id) ON payroll.pyr_period TO payroll_etl;
 GRANT UPDATE (pp_status, pp_active_run_id, closed_by, closed_at) ON payroll.pyr_period TO payroll_etl;

@@ -52,7 +52,7 @@ FROM   mgthris.hm_att_actual a
 JOIN   mgthris.hm_emp_data   e  ON e.hmemd_sys_id  = a.hata_hmemd_sys_id
 JOIN   mgthris.hm_division   dv ON dv.hmdiv_div_id = e.hmemd_hmdiv_div_id
 LEFT   JOIN mgthris.hm_schedule s ON s.hmschd_schedule = a.hata_hmschd_schedule
-WHERE  a.hata_date BETWEEN :1 AND :2
+WHERE  a.hata_date BETWEEN TO_DATE(:1,'YYYY-MM-DD') AND TO_DATE(:2,'YYYY-MM-DD')
 AND    dv.hmdiv_div_name = :3
 ORDER  BY e.hmemd_nik, a.hata_date`
 )
@@ -122,9 +122,11 @@ func (s *AttSource) SchRekap(ctx context.Context, yymm int, division string) ([]
 	return out, rows.Err()
 }
 
-// Daily reads S2 for work dates start..end (inclusive) of one division.
+// Daily reads S2 for work dates start..end (inclusive) of one division. The dates are bound as 'YYYY-MM-DD'
+// strings through TO_DATE (T033h): a time.Time bind becomes TIMESTAMP WITH TIME ZONE in the host zone, which drops
+// day 26 on a WIB host and prevents the hata_date index from being used.
 func (s *AttSource) Daily(ctx context.Context, start, end time.Time, division string) ([]etl.DailyRow, error) {
-	rows, cancel, err := s.query(ctx, sqlDaily, start, end, division)
+	rows, cancel, err := s.query(ctx, sqlDaily, oraDate(start), oraDate(end), division)
 	if err != nil {
 		return nil, err
 	}
@@ -140,6 +142,9 @@ func (s *AttSource) Daily(ctx context.Context, start, end time.Time, division st
 	}
 	return out, rows.Err()
 }
+
+// oraDate formats the calendar date of t (its own fields, no zone conversion) for TO_DATE(:n,'YYYY-MM-DD').
+func oraDate(t time.Time) string { return t.Format("2006-01-02") }
 
 // scanner is the part of *sql.Rows the row mappers need (fakeable in tests).
 type scanner interface{ Scan(dest ...any) error }

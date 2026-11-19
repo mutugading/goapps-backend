@@ -511,6 +511,15 @@ VALUES (1,$1,'JAKARTA','{}','x',true)`, ym); err != nil {
 	if got := scalar(t, `SELECT count(*) FROM payroll.pyr_audit_log WHERE pal_division='JAKARTA'`); got != "2" {
 		t.Errorf("run ulang menambah audit: %s", got)
 	}
+	// T033h: nilai berubah dengan jumlah baris sama tertangkap checksum sumber per periode (pr_input_hash), jadi exception.
+	edited := write(hdr(mainCols)+head("202601", "25-JAN-26", "10")+head("202602", "25-FEB-26", "21"), det)
+	repsE, err := etl.RunSalaryLegacy(ctx, etlDB, etl.PSVDir{Dir: edited}, etl.SalaryLegacyOptions{CompanyID: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exc := strings.Join(repsE[0].Exceptions, ";"); len(repsE[0].Exceptions) != 1 || !strings.Contains(exc, "202602") || !strings.Contains(exc, "checksum") || !repsE[0].OK() {
+		t.Errorf("checksum per periode: %v", repsE[0].Exceptions)
+	}
 	// payroll_etl hanya boleh INSERT audit ETL_*; tidak membaca, mengubah, atau menulis aksi lain.
 	if _, err := etlDB.Exec(`INSERT INTO payroll.pyr_audit_log (pal_actor, pal_action) VALUES ('etl','USER_LOGIN')`); err == nil {
 		t.Error("payroll_etl menulis aksi audit non-ETL")
@@ -533,12 +542,12 @@ func TestETL_AttLegacyFail(t *testing.T) {
 	state := func() string {
 		return scalar(t, `SELECT md5(string_agg(pasr_nik||(pasr_data->>'MPAR_DAY_WORK')||coalesce(pasr_premi_fail::text,'n')||coalesce(pasr_beras_fail::text,'n'), ',' ORDER BY 1)) FROM payroll.pyr_att_snapshot_row WHERE pasr_kind='REKAP'`)
 	}
-	rep, err := etl.RunAttLegacyFail(ctx, etlDB, src, etl.AttLegacyFailOptions{})
+	rep, err := etl.RunAttLegacyFail(ctx, etlDB, src, etl.AttLegacyFailOptions{CompanyID: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
 	first := state()
-	if _, err = etl.RunAttLegacyFail(ctx, etlDB, src, etl.AttLegacyFailOptions{}); err != nil {
+	if _, err = etl.RunAttLegacyFail(ctx, etlDB, src, etl.AttLegacyFailOptions{CompanyID: 1}); err != nil {
 		t.Fatalf("run ulang: %v", err)
 	}
 	if state() != first {
