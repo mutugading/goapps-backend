@@ -34,7 +34,7 @@ func TestRuleSetLoader_FromETL(t *testing.T) {
 	if _, err := etl.Run(ctx, etlDB, etl.PSVDir{Dir: "testdata"}, etl.Options{CompanyID: 1, ValidFrom: 202001}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := etl.RunInputs(ctx, etlDB, overlay{}, etl.InputOptions{CompanyID: 1}); err != nil {
+	if _, err := etl.RunInputs(ctx, etlDB, overlay{}, etl.InputOptions{CompanyID: 1, AllowRetire: true}); err != nil {
 		t.Fatal(err)
 	}
 	if n := scalar(t, `SELECT count(*) FROM payroll.pyr_static_value WHERE psv_rule_set_id = 1`); n != "159" {

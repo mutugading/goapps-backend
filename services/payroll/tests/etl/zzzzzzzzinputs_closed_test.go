@@ -43,7 +43,7 @@ func TestETL_InputsAfterSalaryLegacyClosed(t *testing.T) {
 	if _, err := etl.RunAttLegacy(ctx, etlDB, src, etl.AttLegacyOptions{CompanyID: 1}); err != nil {
 		t.Fatal(err)
 	}
-	o := etl.InputOptions{CompanyID: 1}
+	o := etl.InputOptions{CompanyID: 1, AllowRetire: true} // rule ETL sisa tes lain tidak menggagalkan tes ini
 	if _, err := etl.RunSalaryLegacy(ctx, etlDB, src, etl.SalaryLegacyOptions{CompanyID: 1}); err != nil {
 		t.Fatalf("salary-legacy: %v", err)
 	}

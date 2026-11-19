@@ -144,6 +144,7 @@ func inputs(args []string) error {
 	company := fs.Int("company", 1, "pyr_company.pco_company_id")
 	expA := fs.Int("expect-addition", 0, "jumlah baris MGT_PAYROLL_ADDITION yang diharapkan (28464)")
 	expP := fs.Int("expect-abnormal", 0, "jumlah baris MGT_PAYROLL_ABNORMAL_PREMI yang diharapkan (28550)")
+	allowRetire := fs.Bool("allow-retire", false, "izinkan me-retire rule subsidi ETL yang tak lagi diturunkan dari sumber (default: gagal + rollback, spool MPSP terpotong?)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -160,7 +161,7 @@ func inputs(args []string) error {
 		}
 	}()
 	reps, err := etl.RunInputs(context.Background(), db, etl.PSVDir{Dir: *dir}, etl.InputOptions{
-		CompanyID: int16(*company), ExpectAddition: *expA, ExpectAbnormal: *expP, //nolint:gosec // flag range checked by FK
+		CompanyID: int16(*company), ExpectAddition: *expA, ExpectAbnormal: *expP, AllowRetire: *allowRetire, //nolint:gosec // flag range checked by FK
 	})
 	for _, r := range reps {
 		fmt.Printf("%-32s src=%-6d dst=%-6d exc=%-4d sha256=%s\n", r.Table, r.SrcRows, r.DstRows, len(r.Exceptions), r.Checksum)

@@ -795,6 +795,7 @@ func TestETL_SubsidyRules(t *testing.T) {
 		t.Fatal(err)
 	}
 	write("IM_VS_STATIC_VALUE", strings.TrimRight(string(sv), "\n")+"\nPAYROLLSETUP|SUBSIDIPPH|9000000|9000000||\n")
+	o.AllowRetire = true // run 3 retires the SOLO 202601 rule on purpose (T033h4)
 	reps, err = etl.RunInputs(ctx, etlDB, etl.PSVDir{Dir: dir}, o)
 	if err != nil {
 		t.Fatal(err)

@@ -80,7 +80,7 @@ func TestETL_InputsSkipAppOwnedRows(t *testing.T) {
 			"209801|G5B|Ani|Tunjangan|1|Bonus|F|2|222|baru|SOLO\n",
 		etl.TableSubsidiPPh: "MPSP_YYMM|MPSP_YN|MPSP_LIMIT_AMT|MPSP_DIVISION|MPSP_DEPT\n209801|Y|10000000|SOLO|PROD\n",
 	})
-	reps, err := etl.RunInputs(ctx, etlDB, src, etl.InputOptions{CompanyID: 1})
+	reps, err := etl.RunInputs(ctx, etlDB, src, etl.InputOptions{CompanyID: 1, AllowRetire: true}) // rule ETL sisa tes lain bukan urusan tes ini
 	if err != nil {
 		t.Fatalf("baris milik app harus jadi exception, bukan menggagalkan load: %v", err)
 	}

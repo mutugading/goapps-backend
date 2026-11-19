@@ -161,6 +161,11 @@ kubectl delete job -n <NS> payroll-sync              # emptyDir (berisi dump gaj
 Limit memori 4Gi khusus initial load: `salary-legacy` memuat seluruh MAIN/DETAIL (±2,4 jt baris) dan kena OOMKilled pada limit template 1Gi (gladi T028i2a).
 `DONE.LST` (ditulis spool paling akhir) harus tersalin **terakhir**: kalau ragu, salin dulu tanpa DONE.LST lalu `kubectl exec ... touch /out/dump/DONE.LST`.
 Kalau ada `EXCEPTION`: jangan pakai `-allow-exceptions` tanpa keputusan user; catat jumlah per tabel dan berhenti.
+Perilaku ETL yang perlu diketahui operator (T033h4):
+- `inputs`: rule subsidi ETL yang tak lagi diturunkan dari MPSP (YN jadi N, baris hilang, spool terpotong) **membuat load gagal + rollback**; kosong total juga gagal. Pakai `-allow-retire` hanya setelah memastikan perubahannya memang di sumber.
+- `cost-group`: dept yang hilang total dari `FM_DEPARTMENT` hanya warning, `pe_cost_group` lama dibiarkan (hanya dept ber-group kosong/tak valid/konflik yang di-NULL-kan). Ada exception → rollback kecuali `-allow-exceptions`.
+- `thr-legacy`: baris DETAIL dengan `TD_YYMM`/`TD_TYPE`/`TD_DIVISION` rusak bersifat wildcard pada bagian kuncinya: semua event **baru** NIK itu ditahan (exception) sampai sumber diperbaiki. Event yang sudah dimuat (CLOSED) tidak terpengaruh.
+- Level template yang pernah disunting di aplikasi tercatat di `pyr_component_template_owner` dan **tidak lagi diisi ETL**; tidak ada jalur melepasnya lewat ETL (ubah di aplikasi).
 Langkah gagal → perbaiki penyebab, ulangi seluruh skrip (langkah yang sudah sukses jadi no-op).
 
 ## 3. Cek pasca-load (read-only, `payroll_recon`)

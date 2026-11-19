@@ -25,9 +25,12 @@ var validCostGroups = map[string]bool{costGroupMGT: true, "MB": true, costGroupC
 
 // RunCostGroup loads FM_DEPARTMENT.DEPT_FIELD_01 (MGT|MB|CONTRACT) into pyr_employee.pe_cost_group per employee dept
 // (pe_dept_id = DEPT_CODE) in ONE transaction. DEPT_FIELD_01 values outside the three groups and dept codes that
-// disagree between rows are Exceptions (never a silent pick); employees whose dept has no group are Warnings and keep
-// pe_cost_group NULL (report gl then rejects them with GL_COSTGROUP_MISSING). Idempotent. Only active-or-not is not
-// filtered: every employee of the company is updated, so a re-run also corrects a changed dept group.
+// disagree between rows are Exceptions (never a silent pick) and the run rolls back unless AllowExceptions. A dept with a
+// blank/invalid/conflicting group is cleared (unsetCostGroups). A dept absent from FM_DEPARTMENT altogether is only a
+// Warning and keeps whatever pe_cost_group it has (T033h4): the source says nothing about it, so nothing is cleared;
+// employees left without a group are listed as warnings (report gl rejects them with GL_COSTGROUP_MISSING).
+// Idempotent. Active-or-not is not filtered: every employee of the company is updated, so a re-run also corrects a
+// changed dept group.
 func RunCostGroup(ctx context.Context, db *sql.DB, src Source, o CostGroupOptions) (TableReport, error) {
 	t, err := src.Read(TableDepartment)
 	if err != nil {

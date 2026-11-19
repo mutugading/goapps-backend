@@ -31,6 +31,9 @@ type InputOptions struct {
 	CompanyID int16
 	// Expect* = 0 means unchecked; production sizes per 08§2.
 	ExpectAddition, ExpectAbnormal int
+	// AllowRetire lets the subsidy load retire ETL rules the source no longer derives (T033h4). Default false: such a
+	// rule is more likely a truncated MPSP spool than a real change, so the load fails and rolls back instead.
+	AllowRetire bool
 }
 
 // ruleConstants are the legacy magic numbers kept as rule_set 1 constants (06§1 DM/HM/BD, 06§4 BPJS limits).
@@ -232,9 +235,9 @@ func groupSubsidy(src *Table, rep *TableReport) ([]*subsidyGroup, error) {
 
 // subsidyFailClosed rejects an MPSP spool without valid rows while ETL rules are ACTIVE (T033h2): an empty spool is far
 // more likely a failed export than "no subsidy anywhere", and retiring every ETL rule would silently stop the subsidy of
-// every open period.
-func subsidyFailClosed(ctx context.Context, tx *sql.Tx, table string, company int16, groups int) error {
-	if groups > 0 {
+// every open period. allowRetire (-allow-retire) overrides it.
+func subsidyFailClosed(ctx context.Context, tx *sql.Tx, table string, company int16, groups int, allowRetire bool) error {
+	if groups > 0 || allowRetire {
 		return nil
 	}
 	var active int
@@ -313,7 +316,7 @@ VALUES ($1,$2,$3,$3,ARRAY[$4]::varchar[],'COMPONENTS_PERIOD',$5,$6::numeric,'FUL
 // rule per (yymm, division) that has YN='Y' rows, valid for that period only, no dept filter, target P000. Limit =
 // MPSP_LIMIT_AMT, else PAYROLLSETUP/SUBSIDIPPH of the legacy rule set; no limit at all is an exception (D-31). A group
 // whose depts disagree on YN (or on the limit) is an exception too, never a silent pick. Idempotent by rule name.
-func LoadSubsidyRules(ctx context.Context, tx *sql.Tx, src *Table, company int16) (TableReport, error) {
+func LoadSubsidyRules(ctx context.Context, tx *sql.Tx, src *Table, company int16, allowRetire bool) (TableReport, error) {
 	rep := TableReport{Table: "pyr_subsidy_rule", Checksum: src.Checksum()}
 	groups, err := groupSubsidy(src, &rep)
 	if err != nil {
@@ -324,7 +327,7 @@ func LoadSubsidyRules(ctx context.Context, tx *sql.Tx, src *Table, company int16
 WHERE psv_rule_set_id=$1 AND psv_vs_code='PAYROLLSETUP' AND psv_code='SUBSIDIPPH'`, legacyRuleSetID).Scan(&fallback); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return rep, fmt.Errorf("baca SUBSIDIPPH: %w", err)
 	}
-	if err := subsidyFailClosed(ctx, tx, src.Name, company, len(groups)); err != nil {
+	if err := subsidyFailClosed(ctx, tx, src.Name, company, len(groups), allowRetire); err != nil {
 		return rep, err
 	}
 	var target int64
@@ -356,15 +359,41 @@ WHERE psv_rule_set_id=$1 AND psv_vs_code='PAYROLLSETUP' AND psv_code='SUBSIDIPPH
 		kept = append(kept, subsidyRuleName(g))
 		rep.DstRows++
 	}
-	// A rule this ETL made earlier but no longer derives (YN turned N, row gone, now an exception) must stop
-	// subsidizing: legacy would not, so P0 would diverge. Retire, never delete (history stays).
-	if _, err := tx.ExecContext(ctx, `
-UPDATE payroll.pyr_subsidy_rule SET psr_status='RETIRED'
-WHERE psr_company_id=$1 AND created_by='etl' AND psr_status='ACTIVE' AND NOT (psr_name = ANY($2::text[]))`,
-		company, kept); err != nil {
-		return rep, fmt.Errorf("retire rule subsidi basi: %w", err)
+	return rep, retireStaleSubsidyRules(ctx, tx, company, kept, allowRetire)
+}
+
+// retireStaleSubsidyRules retires a rule this ETL made earlier but no longer derives (YN turned N, row gone, now an
+// exception): legacy would not subsidize, so P0 would diverge. Retire, never delete (history stays). A spool cut short
+// still yields valid groups and would silently retire every rule after the cut, so without allowRetire the rules to
+// retire make the load fail (T033h4).
+func retireStaleSubsidyRules(ctx context.Context, tx *sql.Tx, company int16, kept []string, allowRetire bool) error {
+	rows, err := tx.QueryContext(ctx, `SELECT psr_name FROM payroll.pyr_subsidy_rule
+WHERE psr_company_id=$1 AND created_by='etl' AND psr_status='ACTIVE' AND NOT (psr_name = ANY($2::text[])) ORDER BY psr_name`, company, kept)
+	if err != nil {
+		return fmt.Errorf("daftar rule subsidi basi: %w", err)
 	}
-	return rep, nil
+	defer closeQuiet(rows)
+	var stale []string
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err != nil {
+			return err
+		}
+		stale = append(stale, n)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if len(stale) == 0 {
+		return nil
+	}
+	if !allowRetire {
+		return fmt.Errorf("%d rule subsidi ETL ACTIVE tidak diturunkan lagi dari sumber (pertama: %s); spool MPSP terpotong? periksa lalu jalankan ulang dengan -allow-retire", len(stale), stale[0])
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE payroll.pyr_subsidy_rule SET psr_status='RETIRED' WHERE psr_company_id=$1 AND created_by='etl' AND psr_name = ANY($2::text[])`, company, stale); err != nil {
+		return fmt.Errorf("retire rule subsidi basi: %w", err)
+	}
+	return nil
 }
 
 // LoadTaxAdj fills pyr_tax_adj (MPTA_*). Rows of an APPROVED/CLOSED period are compared, not written (D-54).
@@ -595,7 +624,9 @@ func RunInputs(ctx context.Context, db *sql.DB, src Source, o InputOptions) ([]T
 		func() (TableReport, error) { return LoadStaticValues(ctx, tx, tb[TableStaticValue]) },
 		func() (TableReport, error) { return LoadAttdDays(ctx, tx, tb[TableAttdDays], o.CompanyID) },
 		func() (TableReport, error) { return LoadSubsidiPPh(ctx, tx, tb[TableSubsidiPPh], o.CompanyID) },
-		func() (TableReport, error) { return LoadSubsidyRules(ctx, tx, tb[TableSubsidiPPh], o.CompanyID) },
+		func() (TableReport, error) {
+			return LoadSubsidyRules(ctx, tx, tb[TableSubsidiPPh], o.CompanyID, o.AllowRetire)
+		},
 		func() (TableReport, error) { return LoadTaxAdj(ctx, tx, tb[TableTaxAdj], o.CompanyID) },
 		func() (TableReport, error) { return LoadHoliday(ctx, tx, tb[TableHoliday]) },
 		func() (TableReport, error) { return LoadAddition(ctx, tx, tb[TableAddition], o.CompanyID) },

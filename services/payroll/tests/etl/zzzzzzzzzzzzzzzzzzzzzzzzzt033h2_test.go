@@ -105,7 +105,7 @@ func TestT033h2_SubsidyEmptySourceFailsClosed(t *testing.T) {
 	})
 	if _, err := etl.RunInputs(ctx, etlDB, inputsDir(t, map[string]string{
 		etl.TableSubsidiPPh: "MPSP_YYMM|MPSP_YN|MPSP_LIMIT_AMT|MPSP_DIVISION|MPSP_DEPT\n209703|Y|10000000|SOLO|PROD\n",
-	}), etl.InputOptions{CompanyID: 1}); err != nil {
+	}), etl.InputOptions{CompanyID: 1, AllowRetire: true}); err != nil {
 		t.Fatal(err)
 	}
 	for name, body := range map[string]string{
@@ -121,6 +121,39 @@ func TestT033h2_SubsidyEmptySourceFailsClosed(t *testing.T) {
 	}
 	if got := scalar(t, `SELECT psr_status FROM payroll.pyr_subsidy_rule WHERE psr_name='ETL subsidi SOLO 209703'`); got != "ACTIVE" {
 		t.Fatalf("rule = %s, want ACTIVE", got)
+	}
+}
+
+// T033h4: a truncated MPSP spool (still >=1 valid group) must not silently retire the ETL rules after the cut: the load
+// fails and rolls back unless AllowRetire is given.
+func TestT033h4_SubsidyPartialSourceNeedsAllowRetire(t *testing.T) {
+	ctx := context.Background()
+	ensureComponents(t)
+	const hdr = "MPSP_YYMM|MPSP_YN|MPSP_LIMIT_AMT|MPSP_DIVISION|MPSP_DEPT\n"
+	t.Cleanup(func() {
+		if _, err := ownDB.Exec(`DELETE FROM payroll.pyr_subsidy_rule WHERE psr_name IN ('ETL subsidi SOLO 209704','ETL subsidi SOLO 209705')`); err != nil {
+			t.Errorf("cleanup: %v", err)
+		}
+	})
+	if _, err := etl.RunInputs(ctx, etlDB, inputsDir(t, map[string]string{
+		etl.TableSubsidiPPh: hdr + "209704|Y|10000000|SOLO|PROD\n209705|Y|10000000|SOLO|PROD\n",
+	}), etl.InputOptions{CompanyID: 1, AllowRetire: true}); err != nil { // AllowRetire: buang rule ETL sisa tes lain
+		t.Fatal(err)
+	}
+	cut := inputsDir(t, map[string]string{etl.TableSubsidiPPh: hdr + "209704|Y|10000000|SOLO|PROD\n"})
+	_, err := etl.RunInputs(ctx, etlDB, cut, etl.InputOptions{CompanyID: 1})
+	if err == nil || !strings.Contains(err.Error(), "-allow-retire") {
+		t.Fatalf("err = %v, want allow-retire hint", err)
+	}
+	const q = `SELECT psr_status FROM payroll.pyr_subsidy_rule WHERE psr_name='ETL subsidi SOLO 209705'`
+	if got := scalar(t, q); got != "ACTIVE" {
+		t.Fatalf("rule = %s, want ACTIVE (rolled back)", got)
+	}
+	if _, err := etl.RunInputs(ctx, etlDB, cut, etl.InputOptions{CompanyID: 1, AllowRetire: true}); err != nil {
+		t.Fatal(err)
+	}
+	if got := scalar(t, q); got != "RETIRED" {
+		t.Fatalf("rule = %s, want RETIRED", got)
 	}
 }
 
