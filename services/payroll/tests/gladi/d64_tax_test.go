@@ -3,28 +3,31 @@ package gladi
 import (
 	"database/sql"
 	"fmt"
+	"sort"
 	"strings"
 	"testing"
 
 	"github.com/shopspring/decimal"
 )
 
-// Independent recomputation of the PPh invariants (06§6.1–6.2 with the v1 composition of D-29/D-56). It reads the DB with its
+// Independent recomputation of the PPh invariants (06§6.1–6.2 with the v1 composition of D-29/D-56; December layers,
+// TRUNC −3 and job cost cap per the tax v2 of D-80 when TAX_V2_FROM is set). It reads the DB with its
 // own SQL per NIK (no loader code); placements merged through pe_prev_employee_id / shared NPWP are reported apart (chain).
 
 // decSQL: one row per NIK of the division with the 202612 run, YTD Jan–Nov per NIK and the current-month parts.
 const decSQL = `WITH cur AS (
   SELECT r.pr_id FROM payroll.pyr_run r WHERE r.pr_company_id=$1 AND r.pr_division=$2 AND r.pr_yymm=$3 AND r.pr_status='ACTIVE' AND r.pr_parent_run_id IS NULL
 ), ytd_runs AS (
-  SELECT r.pr_id FROM payroll.pyr_run r WHERE r.pr_company_id=$1 AND r.pr_division=$2 AND r.pr_yymm BETWEEN $3/100*100+1 AND $3-1
+  SELECT r.pr_id, r.pr_yymm FROM payroll.pyr_run r WHERE r.pr_company_id=$1 AND r.pr_division=$2 AND r.pr_yymm BETWEEN $3/100*100+1 AND $3-1
    AND r.pr_status='ACTIVE' AND r.pr_parent_run_id IS NULL
 ), y AS (
   SELECT d.psd_nik nik,
     COALESCE(SUM(d.psd_amount) FILTER (WHERE COALESCE(d.psd_tax,0)=2 AND COALESCE(d.psd_tax_paid_company,'N')<>'Y' AND d.psd_id<>75), 0)
       - COALESCE(SUM(d.psd_amount) FILTER (WHERE d.psd_type='Potongan' AND d.psd_id IN (4,8)), 0) gross,
     COALESCE(SUM(d.psd_amount) FILTER (WHERE d.psd_type='Potongan' AND d.psd_id IN (14,18,22,23)), 0) deduct,
-    COALESCE(SUM(d.psd_amount) FILTER (WHERE d.psd_type='Potongan' AND d.psd_id=1), 0) p1
-  FROM payroll.pyr_salary_detail d WHERE d.psd_run_id IN (SELECT pr_id FROM ytd_runs) GROUP BY 1
+    COALESCE(SUM(d.psd_amount) FILTER (WHERE d.psd_type='Potongan' AND d.psd_id=1), 0) p1,
+    count(DISTINCT yr.pr_yymm) months
+  FROM payroll.pyr_salary_detail d JOIN ytd_runs yr ON yr.pr_id = d.psd_run_id GROUP BY 1
 ), p7 AS (
   SELECT pa_nik nik, SUM(pa_amount) amt FROM payroll.pyr_addition WHERE pa_company_id=$1 AND pa_division=$2 AND pa_type='Potongan' AND pa_id=7
    AND pa_yymm BETWEEN $3/100*100+1 AND $3-1 GROUP BY 1
@@ -67,7 +70,8 @@ SELECT c.nik, COALESCE(e.pe_tax_id,''),
    WHERE o.pe_company_id=$1 AND o.pe_id<>e.pe_id AND (o.pe_id=e.pe_prev_employee_id OR o.pe_prev_employee_id=e.pe_id
      OR (e.pe_npwp_hash IS NOT NULL AND o.pe_npwp_hash=e.pe_npwp_hash))) other_ytd,
   (COALESCE(y.gross,0)+COALESCE(thr.gross,0))::text, COALESCE(y.deduct,0)::text, (COALESCE(y.p1,0)+COALESCE(p7.amt,0)+COALESCE(thr.paid,0))::text,
-  c.gross::text, (c.deduct+COALESCE(frz.amt,0))::text, COALESCE(adj.earn,0)::text, COALESCE(adj.ded,0)::text, c.has_p1, c.p1
+  c.gross::text, (c.deduct+COALESCE(frz.amt,0))::text, COALESCE(adj.earn,0)::text, COALESCE(adj.ded,0)::text, c.has_p1, c.p1,
+  COALESCE(y.months, 0), e.pe_date_join
 FROM c JOIN payroll.pyr_employee e ON e.pe_company_id=$1 AND e.pe_division=$2 AND e.pe_nik=c.nik
 LEFT JOIN y ON y.nik=c.nik LEFT JOIN p7 ON p7.nik=c.nik LEFT JOIN thr ON thr.nik=c.nik LEFT JOIN adj ON adj.nik=c.nik LEFT JOIN frz ON frz.nik=c.nik
 ORDER BY c.nik`
@@ -83,6 +87,7 @@ type taxTables struct {
 	kesMax     decimal.Decimal
 	hasKesMax  bool
 	hasKesMins bool
+	taxV2      bool // TAX_V2_FROM ≤ 202612 in the rule set (D-80 (1), D-81)
 }
 
 func loadTables(t *testing.T, e env, div string) taxTables {
@@ -121,6 +126,12 @@ FROM payroll.pyr_static_value WHERE psv_rule_set_id=$1 AND psv_vs_code IN ('EMPT
   (SELECT prc_value::text FROM payroll.pyr_rule_constant WHERE prc_rule_set_id=$1 AND prc_key='KESMAX' AND prc_division=$2)`, ruleSetID, div).Scan(&kmin, &kmax); err != nil {
 		t.Fatal(err)
 	}
+	var v2 bool
+	if err := e.own.QueryRow(`SELECT EXISTS (SELECT 1 FROM payroll.pyr_rule_constant WHERE prc_rule_set_id=$1 AND prc_key='TAX_V2_FROM'
+  AND prc_division IS NULL AND prc_value > 0 AND prc_value <= 202612)`, ruleSetID).Scan(&v2); err != nil {
+		t.Fatal(err)
+	}
+	tt.taxV2 = v2
 	if kmin.Valid {
 		tt.kesMin, tt.hasKesMins = decimal.RequireFromString(kmin.String), true
 	}
@@ -148,12 +159,55 @@ func progressiveV1(layers [][3]decimal.Decimal, pkp decimal.Decimal) decimal.Dec
 }
 
 type decRow struct {
-	nik, taxID                                                   string
-	chain                                                        bool
-	otherYTD                                                     int
+	nik, taxID                                                    string
+	chain                                                         bool
+	otherYTD                                                      int
 	ytdGross, ytdDeduct, ytdPaid, curGross, curDeduct, adjE, adjD decimal.Decimal
-	hasP1                                                        bool
-	p1                                                           sql.NullString
+	hasP1                                                         bool
+	p1                                                            sql.NullString
+	months                                                        int          // runs Jan–Nov of this NIK (tax v2 job cost cap, D-80 (4b))
+	join                                                          sql.NullTime // pe_date_join
+}
+
+// progressiveV2 is the statutory layer sum (D-29 v2): each layer taxes its own width, the last one has no upper bound.
+func progressiveV2(layers [][3]decimal.Decimal, pkp decimal.Decimal) decimal.Decimal {
+	ls := append([][3]decimal.Decimal(nil), layers...)
+	sort.Slice(ls, func(i, j int) bool { return ls[i][0].LessThan(ls[j][0]) })
+	var tax decimal.Decimal
+	for i, l := range ls {
+		lower := l[0].Sub(decimal.NewFromInt(1))
+		if !pkp.GreaterThan(lower) {
+			break
+		}
+		upper := pkp
+		if i < len(ls)-1 {
+			upper = decimal.Min(pkp, l[1])
+		}
+		tax = tax.Add(upper.Sub(lower).Mul(l[2]).Shift(-2))
+	}
+	return tax
+}
+
+// workMonths mirrors D-80 (4b) independently: max(runs Jan–Nov + 1, Dec − join month + 1), join after the 25th counts from the next month.
+func (r decRow) workMonths() int {
+	n := r.months + 1
+	if r.join.Valid {
+		j := r.join.Time
+		y, m := j.Year(), int(j.Month())
+		if j.Day() > 25 {
+			if m++; m > 12 {
+				m, y = 1, y+1
+			}
+		}
+		from := 1
+		if y == 2026 {
+			from = m
+		}
+		if y <= 2026 && 12-from+1 > n {
+			n = 12 - from + 1
+		}
+	}
+	return max(1, min(n, 12))
 }
 
 func (r decRow) expected(tt taxTables) (*decimal.Decimal, string) {
@@ -164,12 +218,22 @@ func (r decRow) expected(tt taxTables) (*decimal.Decimal, string) {
 	twelve := decimal.NewFromInt(12)
 	gross := r.ytdGross.Add(r.curGross).Add(r.adjE)
 	deduct := r.ytdDeduct.Add(r.curDeduct).Add(r.adjD)
-	jc := decimal.Min(gross.Mul(tt.jobRate).Shift(-2), tt.jobMax.Mul(twelve))
+	months := 12
+	if tt.taxV2 {
+		months = r.workMonths()
+	}
+	jc := decimal.Min(gross.Mul(tt.jobRate).Shift(-2), tt.jobMax.Mul(decimal.NewFromInt(int64(months))))
 	pkp := gross.Sub(deduct).Sub(jc).Sub(ptkp.Mul(twelve))
-	tax := progressiveV1(tt.layers, pkp)
+	var tax decimal.Decimal
+	if tt.taxV2 {
+		pkp = decimal.Max(pkp.Shift(-3).Truncate(0).Shift(3), decimal.Zero)
+		tax = progressiveV2(tt.layers, pkp)
+	} else {
+		tax = progressiveV1(tt.layers, pkp)
+	}
 	p1 := tax.Sub(r.ytdPaid).Round(0)
-	return &p1, fmt.Sprintf("bruto %s (YTD %s + bulan ini %s + adj %s) | pengurang %s (YTD %s + bulan ini %s + adj %s) | BJ %s | PTKP %s×12 | PKP %s | PPh setahun %s | dibayar Jan–Nov %s | P1 %s",
-		gross, r.ytdGross, r.curGross, r.adjE, deduct, r.ytdDeduct, r.curDeduct, r.adjD, jc, ptkp, pkp, tax, r.ytdPaid, p1)
+	return &p1, fmt.Sprintf("bruto %s (YTD %s + bulan ini %s + adj %s) | pengurang %s (YTD %s + bulan ini %s + adj %s) | BJ %s (%d bln) | PTKP %s×12 | PKP %s | PPh setahun %s | dibayar Jan–Nov %s | P1 %s",
+		gross, r.ytdGross, r.curGross, r.adjE, deduct, r.ytdDeduct, r.curDeduct, r.adjD, jc, months, ptkp, pkp, tax, r.ytdPaid, p1)
 }
 
 func checkDecember(t *testing.T, e env, rep *report, div string, _ lines) {
@@ -185,7 +249,8 @@ func checkDecember(t *testing.T, e env, rep *report, div string, _ lines) {
 	for rows.Next() {
 		var r decRow
 		var v [7]string
-		if err := rows.Scan(&r.nik, &r.taxID, &r.chain, &r.otherYTD, &v[0], &v[1], &v[2], &v[3], &v[4], &v[5], &v[6], &r.hasP1, &r.p1); err != nil {
+		if err := rows.Scan(&r.nik, &r.taxID, &r.chain, &r.otherYTD, &v[0], &v[1], &v[2], &v[3], &v[4], &v[5], &v[6], &r.hasP1, &r.p1,
+			&r.months, &r.join); err != nil {
 			t.Fatal(err)
 		}
 		ds := make([]decimal.Decimal, 7)
@@ -228,8 +293,8 @@ func checkDecember(t *testing.T, e env, rep *report, div string, _ lines) {
 	for _, h := range hand {
 		rep.handf("%s", h)
 	}
-	rep.addf("invarian P1 202612 %s (06§6.2/D-29, SQL Jan–Nov terpisah): cocok %d, beda %d, rantai cocok %d / beda karena YTD penempatan lain %d / beda tanpa penjelasan %d, tanpa P1 %d",
-		div, match, mismatch, chainOK, chainMis, chainBad, noP1)
+	rep.addf("invarian P1 202612 %s (06§6.2/D-29, pajak v2 %v D-80, SQL Jan–Nov terpisah): cocok %d, beda %d, rantai cocok %d / beda karena YTD penempatan lain %d / beda tanpa penjelasan %d, tanpa P1 %d",
+		div, tt.taxV2, match, mismatch, chainOK, chainMis, chainBad, noP1)
 	if mismatch > 0 || chainBad > 0 {
 		t.Errorf("202612 %s: %d NIK (+%d rantai tanpa YTD lain) P1 tidak sama dengan hitung ulang 06§6.2", div, mismatch, chainBad)
 	}

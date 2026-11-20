@@ -149,7 +149,8 @@ func (RuleSetLoader) Load(ctx context.Context, tx *sql.Tx, q RuleQuery) (RunRule
 	if err != nil {
 		return RunRules{}, err
 	}
-	tax, err := loadTaxTables(ctx, tx, q.RuleSetID, q.YYMM%100 == 12)
+	// Tax v2 (D-81) computes a leaver's last month on the annual basis, so it needs the annual tables in every month.
+	tax, err := loadTaxTables(ctx, tx, q.RuleSetID, q.YYMM%100 == 12 || engine.TaxV2(rs, q.YYMM))
 	if err != nil {
 		return RunRules{}, err
 	}

@@ -41,12 +41,15 @@ type InputOptions struct {
 var ruleConstants = []struct {
 	key, division string
 	value         string
+	seedOnly      bool // inserted once, never overwritten by a rerun (an ops change survives, T033m review)
 }{
-	{"DAYS_MONTH", "", "30"}, {"HOURS_MONTH", "", "173"}, {"BERAS_DAYS", "", "25"},
-	{"KESMIN", DivJakarta, "5729876"}, {"KESMAX", DivJakarta, "12000000"}, {"NAKMIN", DivJakarta, "5729876"},
-	{"PENMIN", DivJakarta, "5729876"}, {"PENMAX", DivJakarta, "11086300"},
-	{"KESMIN", DivSolo, "2592154"}, {"KESMAX", DivSolo, "12000000"}, {"NAKMIN", DivSolo, "2592154"},
-	{"PENMIN", DivSolo, "2592154"}, {"PENMAX", DivSolo, "11086300"},
+	{"DAYS_MONTH", "", "30", false}, {"HOURS_MONTH", "", "173", false}, {"BERAS_DAYS", "", "25", false},
+	{"KESMIN", DivJakarta, "5729876", false}, {"KESMAX", DivJakarta, "12000000", false}, {"NAKMIN", DivJakarta, "5729876", false},
+	{"PENMIN", DivJakarta, "5729876", false}, {"PENMAX", DivJakarta, "11086300", false},
+	{"KESMIN", DivSolo, "2592154", false}, {"KESMAX", DivSolo, "12000000", false}, {"NAKMIN", DivSolo, "2592154", false},
+	{"PENMIN", DivSolo, "2592154", false}, {"PENMAX", DivSolo, "11086300", false},
+	// D-80 (1), D-81: PPh dihitung dengan cabang pajak v2 mulai 202612 (rule set v1 tetap paritas di luar pajak).
+	{"TAX_V2_FROM", "", "202612", true}, // = engine.ConstTaxV2From
 }
 
 // reqDate parses a mandatory date cell with the shared parseDate (employee.go); empty is an error.
@@ -132,10 +135,14 @@ VALUES ($1,'Legacy v1 (paritas Oracle)',201712,true,'ACTIVE') ON CONFLICT (prs_i
 		if c.division != "" {
 			div = c.division
 		}
+		onConflict := `DO UPDATE SET prc_value=EXCLUDED.prc_value`
+		if c.seedOnly {
+			onConflict = `DO NOTHING`
+		}
 		res, err := tx.ExecContext(ctx, `
 INSERT INTO payroll.pyr_rule_constant (prc_rule_set_id, prc_company_id, prc_key, prc_value, prc_division)
 VALUES ($1,$2,$3,$4::numeric,$5)
-ON CONFLICT (prc_rule_set_id, prc_company_id, prc_key, COALESCE(prc_division,'*')) DO UPDATE SET prc_value=EXCLUDED.prc_value`,
+ON CONFLICT (prc_rule_set_id, prc_company_id, prc_key, COALESCE(prc_division,'*')) `+onConflict,
 			legacyRuleSetID, company, c.key, c.value, div)
 		if err != nil {
 			return rep, fmt.Errorf("rule_constant %s: %w", c.key, err)
@@ -143,6 +150,9 @@ ON CONFLICT (prc_rule_set_id, prc_company_id, prc_key, COALESCE(prc_division,'*'
 		n, err := res.RowsAffected()
 		if err != nil {
 			return rep, fmt.Errorf("rule_constant %s: %w", c.key, err)
+		}
+		if c.seedOnly && n == 0 { // already seeded: the row exists and is deliberately kept
+			n = 1
 		}
 		rep.DstRows += int(n) // T033h3: rows reported by the statement (an upsert counts 1), not len(ruleConstants)
 	}

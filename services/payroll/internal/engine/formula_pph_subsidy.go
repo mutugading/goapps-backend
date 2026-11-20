@@ -157,7 +157,18 @@ func withSubsidyComponent(in Input, comps []EmpComponent) []EmpComponent {
 	return append(comps, EmpComponent{Key: k, Sts: stsFull})
 }
 
-// pphSubsidy is P0 (06§6.4, 12§4): −P1 when the first matching rule's basis ≤ limit, else 0.
+// subsidyPPh is the PPh that P0 hands back: P1, or with tax v2 P1 + P5 (D-80 (2)), so a PPh the company
+// already bears through P5 is not refunded twice. A NULL P5 counts as 0; a NULL P1 stays nil.
+func subsidyPPh(ctx *EvalCtx) *decimal.Decimal {
+	p1 := ctx.lines[CompKey{CompP, 1}].Amount
+	if p1 == nil || !taxV2(ctx.In) {
+		return p1
+	}
+	v := money.Add(*p1, ctx.lines[CompKey{CompP, 5}].AmountOrZero())
+	return &v
+}
+
+// pphSubsidy is P0 (06§6.4, 12§4): −P1 (tax v2: −(P1 + P5), D-80 (2)) when the first matching rule's basis ≤ limit, else 0.
 // An override decides before the rules.
 type pphSubsidy struct{}
 
@@ -166,8 +177,8 @@ func (pphSubsidy) Code() string { return FormulaPPhSubsidy }
 func (pphSubsidy) Eval(ctx *EvalCtx, _ EmpComponent, _ Params) (*decimal.Decimal, string, error) {
 	in := ctx.In
 	zero := decimal.Zero
-	p1 := ctx.lines[CompKey{CompP, 1}].Amount // nil: P1 absent or NULL
-	neg := func() *decimal.Decimal {          // legacy V_PPH × −1 keeps NULL
+	p1 := subsidyPPh(ctx)            // nil: P1 absent or NULL
+	neg := func() *decimal.Decimal { // legacy V_PPH × −1 keeps NULL
 		if p1 == nil {
 			return nil
 		}

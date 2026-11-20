@@ -86,6 +86,8 @@ func TestCheckTaxTables_Empty_EngineErrors(t *testing.T) {
 		{"empty", engine.TaxTables{}, false, engine.ErrNoTaxTable},
 		{"ter only, non-December", ter, false, nil},
 		{"ter only, December", ter, true, engine.ErrNoAnnualTaxTable},
+		// T033m (D-81): tax v2 needs the annual tables in every month (leaver true-up); the loader passes TaxV2 as december.
+		{"ter only, tax v2 non-December", ter, engine.TaxV2(taxV2Set{}, 202701), engine.ErrNoAnnualTaxTable},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -168,4 +170,16 @@ func TestCheckRequiredConstants(t *testing.T) {
 			t.Errorf("%s = 0: err = %v", k, err)
 		}
 	}
+}
+
+// taxV2Set is a legacy rule set with TAX_V2_FROM = 202612 (D-81).
+type taxV2Set struct{}
+
+func (taxV2Set) ID() int            { return 1 }
+func (taxV2Set) LegacyCompat() bool { return true }
+func (taxV2Set) Constant(k string) (decimal.Decimal, bool) {
+	if k == engine.ConstTaxV2From {
+		return decimal.NewFromInt(202612), true
+	}
+	return decimal.Zero, false
 }

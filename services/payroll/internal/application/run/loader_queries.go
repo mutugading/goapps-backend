@@ -83,8 +83,8 @@ ORDER BY pe_nik`, q.CompanyID, q.Division, nikArray(q.NIKs))
 		if err := rows.Scan(&e.NIK, &e.Name, &e.Level, &e.TaxStatus, &e.Dept, &e.HasNPWP, &birth, &join, &resign); err != nil {
 			return nil, fmt.Errorf("scan employee: %w", err)
 		}
-		e.BirthDate, e.JoinDate = timePtr(birth), timePtr(join)
-		out = append(out, empRow{Employee: e, resign: timePtr(resign)})
+		e.BirthDate, e.JoinDate, e.ResignDate = timePtr(birth), timePtr(join), timePtr(resign)
+		out = append(out, empRow{Employee: e, resign: e.ResignDate})
 	}
 	return out, rows.Err()
 }

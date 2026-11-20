@@ -43,8 +43,9 @@ type annualBasis struct {
 	gross, deduct, jobCost, ptkp, pkp, tax, paid decimal.Decimal
 }
 
-// pph21Annual is P1 in December (06§6.2, D-29): annual tax on gross Jan..Dec minus PPh paid
-// Jan..Nov, unfloored (negative = over-withheld, refunded in take-home).
+// pph21Annual is P1 in December (06§6.2, D-29), and with tax v2 also in a leaver's last tax month
+// (D-80 (4a)): annual tax on the gross of the year so far minus PPh paid before, unfloored (negative =
+// over-withheld, refunded in take-home).
 func pph21Annual(ctx *EvalCtx) (*decimal.Decimal, string, error) {
 	in := ctx.In
 	cur, ok := pphGrossExcept(ctx, map[int]bool{idTHRBonus: true})
@@ -64,24 +65,31 @@ func pph21Annual(ctx *EvalCtx) (*decimal.Decimal, string, error) {
 		}
 		return nil, "", nil
 	}
-	twelve := decimal.NewFromInt(12)
 	b := annualBasis{
 		gross:  money.Sum(in.YTD.Gross, cur, in.Thr.Gross, in.TaxAdj.Earn),
 		deduct: money.Sum(in.YTD.Deduct, curDeduct, in.TaxAdj.Deduct),
-		ptkp:   money.Mul(ptkp, twelve),
+		ptkp:   money.Mul(ptkp, decimal.NewFromInt(monthsPerYear)), // full year, also for a leaver (D-80)
 		paid:   money.Add(in.YTD.TaxPaid, in.Thr.PPhPaid),
 	}
-	b.jobCost = decimal.Min(money.Mul(b.gross, t.JobCost.Rate).Shift(-2), money.Mul(t.JobCost.MaxMonthly, twelve))
+	jcCap, months := jobCostCap(in)
+	b.jobCost = decimal.Min(money.Mul(b.gross, t.JobCost.Rate).Shift(-2), jcCap)
 	nett := money.Sub(money.Sub(money.Sub(b.gross, b.deduct), b.jobCost), b.ptkp)
-	if in.Rules.LegacyCompat() {
-		b.pkp, b.tax = nett, progressiveLegacy(layers, nett)
-	} else {
+	v2 := taxV2(in)
+	if v2 {
 		b.pkp = decimal.Max(money.Trunc(nett, -3), decimal.Zero)
 		b.tax = progressive(layers, b.pkp)
+	} else {
+		b.pkp, b.tax = nett, progressiveLegacy(layers, nett)
 	}
 	p := money.Round(money.Sub(b.tax, b.paid), 0)
 	remark := fmt.Sprintf("Bruto : %s | Pengurang : %s | Biaya Jabatan : %s | PTKP : %s | PKP : %s | PPh Setahun : %s | PPh Dibayar : %s",
 		thousands(b.gross), thousands(b.deduct), thousands(b.jobCost), thousands(b.ptkp), thousands(b.pkp), thousands(b.tax), thousands(b.paid))
+	if v2 {
+		remark += fmt.Sprintf(" | Bulan Kerja : %d", months)
+		if !in.Period.IsDecember() {
+			remark += " | Masa Pajak Terakhir (resign)"
+		}
+	}
 	return &p, remark, nil
 }
 
