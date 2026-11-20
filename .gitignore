@@ -107,3 +107,6 @@ htmlcov/
 
 # Production data pulled by scripts/local-mirror/sync-from-prod.sh -- never commit
 scripts/local-mirror/dumps/
+
+# Local developer-snapshot sync settings (make v2-sync)
+.env.devsnap
