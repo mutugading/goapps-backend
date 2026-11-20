@@ -98,9 +98,19 @@ func identityOf(ctx context.Context) (string, bool) {
 	return id.UserID, found
 }
 
-// canSeeAmounts follows the SUPER_ADMIN bypass of PermissionInterceptor and MasterHandler.caller (I23).
+// canSeeAmounts requires payroll.salary.amount.view itself: SUPER_ADMIN gets no bypass for nominals
+// (seed IAM 000102 §4 excludes it from SUPER_ADMIN; D-73 (3), review #283).
 func canSeeAmounts(ctx context.Context) bool {
-	return IsSuperAdmin(ctx) || HasPermission(ctx, permSalaryAmount)
+	return HasPermission(ctx, permSalaryAmount)
+}
+
+// requireAmounts rejects a write of nominals by a caller who may not see them (masked "***" would round-trip
+// into a validation error, an empty amount into a silent 0). SUPER_ADMIN gets no bypass (D-73 (3)).
+func requireAmounts(ctx context.Context) error {
+	if canSeeAmounts(ctx) {
+		return nil
+	}
+	return apperr.New(apperr.CodePermissionDenied, "permission denied: requires "+permSalaryAmount, nil)
 }
 
 // mask returns v, or "***" when the caller may not see nominals.

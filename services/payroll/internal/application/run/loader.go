@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/mutugading/goapps-backend/services/payroll/internal/engine"
@@ -19,17 +18,17 @@ var (
 	ErrNoSnapshot          = errors.New("run: no attendance snapshot for the period")
 	ErrMissingAttdDays     = errors.New("run: MISSING_ATTD_DAYS: pyr_attd_days has no row for the period")
 	ErrMissingAttendance   = errors.New("run: MISSING_ATTENDANCE: active employee without attendance recap")
-	ErrBadComponentCode    = errors.New("run: component code is not T/P + number")
+	ErrBadComponentCode    = engine.ErrBadCompCode
 	ErrBadSnapshotValue    = errors.New("run: attendance snapshot value is not a number")
 	ErrBadPeriod           = errors.New("run: invalid period")
 	ErrSubsidyBasisPeriods = errors.New("run: subsidy rules of the run use different basis periods")
-	errUnknownComponentTyp = errors.New("run: unknown component type")
 )
 
 // Issue codes reported as warnings.
 const (
 	CodeMissingAttendance = "MISSING_ATTENDANCE"
-	CodeOutOfPeriod       = "OUT_OF_PERIOD" // D-55: v2 skips employees who joined after / resigned before the period
+	CodeOutOfPeriod       = "OUT_OF_PERIOD"      // D-55: v2 skips employees who joined after / resigned before the period
+	CodeTaxClassMismatch  = "TAX_CLASS_MISMATCH" // T033f: pec_tax disagrees with pc_tax_class (informational)
 
 	// Legacy COMPNT_EMP subqueries of PPh ignore FRZ_FLAG for P4/P8 and P14/P18/P22/P23 (D-28d),
 	// so a frozen row still reduces the gross / annual deduction (loadComponents).
@@ -104,7 +103,7 @@ func (l Loader) Load(ctx context.Context, tx *sql.Tx, q Query, rules Rules) (Res
 	if len(emps) == 0 {
 		return oop, nil
 	}
-	comps, err := loadComponents(ctx, tx, q)
+	comps, compIssues, err := loadComponents(ctx, tx, q)
 	if err != nil {
 		return Result{}, err
 	}
@@ -128,7 +127,7 @@ func (l Loader) Load(ctx context.Context, tx *sql.Tx, q Query, rules Rules) (Res
 		}
 	}
 
-	res := Result{Warnings: append(taxIssues, oop.Warnings...), SnapshotID: snapID}
+	res := Result{Warnings: append(append(taxIssues, compIssues...), oop.Warnings...), SnapshotID: snapID}
 	for _, er := range emps {
 		e := er.Employee
 		in := engine.Input{
@@ -246,12 +245,9 @@ func dailyFails(division string, r snapRow, hasT1 bool) engine.DailyFails {
 }
 
 // typeOf maps pyr_component.pc_type to the engine type.
-func typeOf(s string) (engine.CompType, error) {
-	switch strings.ToLower(s) {
-	case "tunjangan", "t":
-		return engine.CompT, nil
-	case "potongan", "p":
-		return engine.CompP, nil
-	}
-	return "", fmt.Errorf("%w: %q", errUnknownComponentTyp, s)
+func typeOf(s string) (engine.CompType, error) { return engine.CompTypeOf(s) }
+
+// parseComponentKey maps (pc_type, pc_code 'T001') to the legacy key via the shared engine parser.
+func parseComponentKey(typ, code string) (engine.CompKey, error) {
+	return engine.ParseCompKey(typ, code)
 }

@@ -141,13 +141,17 @@ func (pph21) Eval(ctx *EvalCtx, _ EmpComponent, _ Params) (*decimal.Decimal, str
 	return &p, remark, nil
 }
 
-// terTax is ROUND(g × TER(category, g) / 100, 0). ok is false, with a PPH_NO_BRACKET warning,
-// when the tax status has no category or g falls in no bracket (legacy SELECT INTO → NULL).
+// terTax is ROUND(g × TER(category, g) / 100, 0). ok is false when the tax status has no category or
+// g falls in no bracket (legacy SELECT INTO → NULL). PPH_NO_BRACKET blocks approve (T033i), so it is
+// raised only for g > 0: a zero or negative gross owes no tax and the NULL result changes nothing.
 func terTax(ctx *EvalCtx, g decimal.Decimal) (p decimal.Decimal, cat string, b TERBracket, ok bool) {
 	in := ctx.In
 	cat, okCat := in.Tax.Category[in.Emp.TaxStatus]
 	b, okBr := in.Tax.bracket(cat, g)
 	if !okCat || !okBr {
+		if !g.IsPositive() {
+			return decimal.Zero, cat, b, false
+		}
 		ctx.warn(fmt.Sprintf("%s: %s status pajak %q, bruto %s", WarnPPhNoBracket, in.Emp.NIK, in.Emp.TaxStatus, g))
 		return decimal.Zero, cat, b, false
 	}

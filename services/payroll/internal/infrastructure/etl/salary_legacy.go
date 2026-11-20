@@ -137,11 +137,11 @@ func RunSalaryLegacy(ctx context.Context, db *sql.DB, src Source, o SalaryLegacy
 	if o.ExpectDetail > 0 && repD.SrcRows != o.ExpectDetail {
 		return reps, fmt.Errorf("%s: %d baris, diharapkan %d", TableSalaryDetail, repD.SrcRows, o.ExpectDetail)
 	}
-	mix, err := bindCols(mn, []string{"PM_YYMM", "PM_NIK", "PM_DIVISION"})
+	mix, err := bindCols(mn, []string{colPmYymm, colPmNIK, colPmDivision})
 	if err != nil {
 		return reps, err
 	}
-	dix, err := bindCols(dt, []string{colPdYymm, "PD_NIK", "PD_TYPE", "PD_NO", "PD_DIVISION"})
+	dix, err := bindCols(dt, []string{colPdYymm, colPdNIK, colPdType, colPdNo, colPdDivision})
 	if err != nil {
 		return reps, err
 	}
@@ -155,11 +155,11 @@ func RunSalaryLegacy(ctx context.Context, db *sql.DB, src Source, o SalaryLegacy
 		return g
 	}
 	for i, r := range mn.Rows {
-		if exc := badKey(r, mix, "PM_YYMM", "PM_DIVISION"); exc != "" {
+		if exc := badKey(r, mix, colPmYymm, colPmDivision); exc != "" {
 			repM.Exceptions = append(repM.Exceptions, fmt.Sprintf("%s baris %d: %s", mn.Name, i+2, exc))
 			continue
 		}
-		k := snapKey{r[mix["PM_YYMM"]], r[mix["PM_DIVISION"]]}
+		k := snapKey{r[mix[colPmYymm]], r[mix[colPmDivision]]}
 		if legacySkipped(k) {
 			repM.SkippedRows++
 			skipNote(&repM, mn.Name, k)
@@ -169,11 +169,11 @@ func RunSalaryLegacy(ctx context.Context, db *sql.DB, src Source, o SalaryLegacy
 		g.heads = append(g.heads, r)
 	}
 	for i, r := range dt.Rows {
-		if exc := badKey(r, dix, colPdYymm, "PD_DIVISION"); exc != "" {
+		if exc := badKey(r, dix, colPdYymm, colPdDivision); exc != "" {
 			repD.Exceptions = append(repD.Exceptions, fmt.Sprintf("%s baris %d: %s", dt.Name, i+2, exc))
 			continue
 		}
-		k := snapKey{r[dix[colPdYymm]], r[dix["PD_DIVISION"]]}
+		k := snapKey{r[dix[colPdYymm]], r[dix[colPdDivision]]}
 		if legacySkipped(k) {
 			repD.SkippedRows++
 			skipNote(&repD, dt.Name, k)
@@ -259,17 +259,7 @@ func loadSalaryGroup(ctx context.Context, tx pgx.Tx, o SalaryLegacyOptions, mn, 
 	err := tx.QueryRow(ctx, `SELECT pr_id FROM payroll.pyr_run WHERE pr_company_id=$1 AND pr_yymm=$2 AND pr_division=$3 AND pr_kind='LEGACY' AND pr_status='ACTIVE'`,
 		o.CompanyID, g.key.yymm, g.key.division).Scan(&runID)
 	if err == nil { // already loaded and CLOSED: nothing to change, but the source must still match what was loaded
-		var nHead, nLine int
-		if err := tx.QueryRow(ctx, `SELECT pr_emp_count, pr_line_count FROM payroll.pyr_run WHERE pr_id=$1`, runID).Scan(&nHead, &nLine); err != nil {
-			return err
-		}
-		orphans := len(orphanNiks(g))
-		if nHead != len(g.heads)+orphans || nLine != len(g.lines) {
-			return fmt.Errorf("sudah dimuat (%d head, %d detail) tetapi sumber kini %d/%d; periode CLOSED tidak boleh diubah", nHead, nLine, len(g.heads)+orphans, len(g.lines))
-		}
-		repM.DstRows += nHead - orphans
-		repD.DstRows += nLine
-		return nil
+		return checkSalaryLoaded(ctx, tx, runID, mn, dt, g, repM, repD)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return err
@@ -307,18 +297,32 @@ func loadSalaryGroup(ctx context.Context, tx pgx.Tx, o SalaryLegacyOptions, mn, 
 	// (every row reported) until the cause (missing legacy map, orphan NIK) is fixed and the load is re-run.
 	problems := make([]string, len(g.lines)) // "" = line is fine
 	nProblems := 0
+	// MAIN attributes of orphan NIKs (D-35.2) are read up front: an unreadable attribute (T033h5: PE_DATE_JOIN) holds
+	// this period like any other bad DETAIL row, instead of aborting the whole run.
+	orphanAt := map[string]map[string]string{}
+	orphanErr := map[string]string{}
+	for _, nik := range orphanNiks(g) {
+		at, aerr := emp.attrs(nik, g.key.division)
+		if aerr != nil {
+			orphanErr[nik] = "atribut MAIN sintetis: " + aerr.Error()
+			continue
+		}
+		orphanAt[nik] = at
+	}
 	for i, r := range g.lines {
 		c := func(n string) string { return r[mustCol(dt, n)] }
-		typ := strings.ToLower(c("PD_TYPE"))
-		id, perr := strconv.Atoi(c("PD_NO"))
+		typ := strings.ToLower(c(colPdType))
+		id, perr := strconv.Atoi(c(colPdNo))
 		switch {
+		case orphanErr[r[1]] != "":
+			problems[i] = orphanErr[r[1]]
 		case typ != typeTunjangan && typ != typePotongan:
-			problems[i] = fmt.Sprintf("PD_TYPE %q", c("PD_TYPE"))
+			problems[i] = fmt.Sprintf("PD_TYPE %q", c(colPdType))
 		case perr != nil:
-			problems[i] = fmt.Sprintf("PD_NO %q", c("PD_NO"))
+			problems[i] = fmt.Sprintf("PD_NO %q", c(colPdNo))
 		default:
 			if _, ok := sysids[sysKey{typ, id}]; !ok {
-				problems[i] = fmt.Sprintf("tanpa peta sysid (%s %d)", c("PD_TYPE"), id)
+				problems[i] = fmt.Sprintf("tanpa peta sysid (%s %d)", c(colPdType), id)
 			}
 		}
 		if problems[i] != "" {
@@ -361,7 +365,7 @@ func loadSalaryGroup(ctx context.Context, tx pgx.Tx, o SalaryLegacyOptions, mn, 
 		if err != nil {
 			return err
 		}
-		copyRow(&heads, "@RUN@", c("PM_NIK"), c("PM_YYMM"), c("PM_DIVISION"), c("PM_NAMA"), c("PM_DEPT"), c("PM_DEPT_CODE"), c("PM_SECTION"),
+		copyRow(&heads, "@RUN@", c(colPmNIK), c(colPmYymm), c(colPmDivision), c("PM_NAMA"), c("PM_DEPT"), c("PM_DEPT_CODE"), c("PM_SECTION"),
 			c("PM_GRADE"), c("PM_JABATAN"), c("PM_EMP_TYPE"), c("PM_PEMBAYARAN"), join, pay, c("PM_TAX_CODE"),
 			c("PM_BASIC_PAY"), c("PM_TUNJJABATAN"), c("PM_TUNJRUMAH"), c("PM_TUNJKESEJAHTERAAN"), c("PM_TUNJTRANSPORT"), c("PM_RATE_PERJAM"),
 			zero0(c("PM_TOT_TUNJANGAN")), zero0(c("PM_TOT_POTONGAN")), zero0(c("PM_ROUNDING")), c("PM_DAY_PAY"), lem, c("PM_REMARKS"),
@@ -386,17 +390,14 @@ func loadSalaryGroup(ctx context.Context, tx pgx.Tx, o SalaryLegacyOptions, mn, 
 			if err != nil {
 				return fmt.Errorf("nik %s PD_AMOUNT %q: %w", nik, cell, err)
 			}
-			if strings.EqualFold(r[mustCol(dt, "PD_TYPE")], typePotongan) {
+			if strings.EqualFold(r[mustCol(dt, colPdType)], typePotongan) {
 				p = p.Add(a)
 			} else {
 				t = t.Add(a)
 			}
 		}
 		t, p = t.Round(2), p.Round(2)
-		at, err := emp.attrs(nik, g.key.division)
-		if err != nil {
-			return err
-		}
+		at := orphanAt[nik]
 		if at["nama"] == "" {
 			repM.Warnings = append(repM.Warnings, fmt.Sprintf("%s %s/%s nik %s: atribut karyawan tidak ditemukan di EMP (nama kosong)", mn.Name, g.key.yymm, g.key.division, nik))
 		}
@@ -411,14 +412,14 @@ func loadSalaryGroup(ctx context.Context, tx pgx.Tx, o SalaryLegacyOptions, mn, 
 	}
 	for _, r := range g.lines {
 		c := func(n string) string { return r[mustCol(dt, n)] }
-		typ := strings.ToLower(c("PD_TYPE"))
-		id, _ := strconv.Atoi(c("PD_NO")) //nolint:errcheck // validated above
+		typ := strings.ToLower(c(colPdType))
+		id, _ := strconv.Atoi(c(colPdNo)) //nolint:errcheck // validated above
 		sys := sysids[sysKey{typ, id}]
 		typName := nameTunjangan
 		if typ == typePotongan {
 			typName = namePotongan
 		}
-		copyRow(&lines, "@RUN@", c("PD_NIK"), typName, strconv.Itoa(id), c("PD_DESCRIPTION"), c("PD_AMOUNT"), c("PD_STATUS"), c("PD_TAX"),
+		copyRow(&lines, "@RUN@", c(colPdNIK), typName, strconv.Itoa(id), c("PD_DESCRIPTION"), c("PD_AMOUNT"), c("PD_STATUS"), c("PD_TAX"),
 			c("PD_TAX_PAID_COMPANY"), c("PD_BASIS_AMOUNT"), "LEGACY", c("PD_REMARKS"), strconv.FormatInt(sys, 10))
 		nLine++
 	}
@@ -437,9 +438,10 @@ VALUES ($1,$2,$3,$4,$5,'OPEN') ON CONFLICT DO NOTHING RETURNING 1) SELECT count(
 		return nil
 	}
 	if err := tx.QueryRow(ctx, `INSERT INTO payroll.pyr_run (pr_company_id, pr_yymm, pr_division, pr_pay_date, pr_rule_set_id, pr_snapshot_id, pr_status, pr_kind,
-  pr_emp_count, pr_line_count, pr_tot_tunjangan, pr_tot_potongan, pr_started_by, pr_finished_at)
-VALUES ($1,$2,$3,$4,$5,$6,'ACTIVE','LEGACY',$7,$8,$9,$10,'etl',now()) RETURNING pr_id`,
-		o.CompanyID, g.key.yymm, g.key.division, payDate, legacyRuleSetZero, snap, nHead, nLine, totT.String(), totP.String()).Scan(&runID); err != nil {
+  pr_emp_count, pr_line_count, pr_tot_tunjangan, pr_tot_potongan, pr_started_by, pr_finished_at, pr_input_hash)
+VALUES ($1,$2,$3,$4,$5,$6,'ACTIVE','LEGACY',$7,$8,$9,$10,'etl',now(),$11) RETURNING pr_id`,
+		o.CompanyID, g.key.yymm, g.key.division, payDate, legacyRuleSetZero, snap, nHead, nLine, totT.String(), totP.String(),
+		groupChecksum(g.heads, g.lines)).Scan(&runID); err != nil {
 		return err
 	}
 	id := strconv.FormatInt(runID, 10)
@@ -683,3 +685,37 @@ func (d *decimalSum) add(s string) {
 }
 
 func (d *decimalSum) String() string { return d.v.StringFixed(2) }
+
+// checkSalaryLoaded compares a period already loaded (CLOSED, untouchable) with the source of this run (T033h): the
+// source checksum of the period is stored in pr_input_hash at load time, so an edited row with the same row count is
+// caught. A mismatch holds every row of the period as an exception (the report never says OK for changed history).
+// Runs loaded before T033h have no checksum: the row counts are compared and a warning asks for a manual recheck.
+func checkSalaryLoaded(ctx context.Context, tx pgx.Tx, runID int64, mn, dt *Table, g *salaryGroup, repM, repD *TableReport) error {
+	var nHead, nLine int
+	var hash *string
+	if err := tx.QueryRow(ctx, `SELECT pr_emp_count, pr_line_count, pr_input_hash FROM payroll.pyr_run WHERE pr_id=$1`, runID).Scan(&nHead, &nLine, &hash); err != nil {
+		return err
+	}
+	orphans := len(orphanNiks(g))
+	why := ""
+	switch {
+	case nHead != len(g.heads)+orphans || nLine != len(g.lines):
+		why = fmt.Sprintf("sudah dimuat (%d head, %d detail) tetapi sumber kini %d/%d; periode CLOSED tidak diubah", nHead, nLine, len(g.heads)+orphans, len(g.lines))
+	case hash == nil:
+		repM.Warnings = append(repM.Warnings, fmt.Sprintf("%s %s/%s: dimuat sebelum checksum per periode (T033h); hanya jumlah baris yang dicek", mn.Name, g.key.yymm, g.key.division))
+	case *hash != groupChecksum(g.heads, g.lines):
+		why = "checksum sumber berbeda dengan saat dimuat; periode CLOSED tidak diubah"
+	}
+	if why != "" {
+		for _, r := range g.heads {
+			repM.Exceptions = append(repM.Exceptions, fmt.Sprintf("%s %s/%s nik %s: %s", mn.Name, g.key.yymm, g.key.division, r[1], why))
+		}
+		for _, r := range g.lines {
+			repD.Exceptions = append(repD.Exceptions, fmt.Sprintf("%s %s/%s nik %s: %s", dt.Name, g.key.yymm, g.key.division, r[1], why))
+		}
+		return nil
+	}
+	repM.DstRows += nHead - orphans
+	repD.DstRows += nLine
+	return nil
+}

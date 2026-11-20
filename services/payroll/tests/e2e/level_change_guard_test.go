@@ -78,15 +78,15 @@ func TestCreateEmployee_RuleComponentsMissingIsSkipped(t *testing.T) {
 // date_join in a CLOSED period must not write valid_from into that period.
 func TestCreateEmployee_ClosedJoinPeriodLeavesValidFromUnset(t *testing.T) {
 	seedPeriod(t, 202003, "SOLO", "CLOSED")
-	tmpl := mustComponent(t, "T9G1", "T", "Guard template")
+	tmpl := mustComponent(t, "T201", "T", "Guard template")
 	putLevelTemplate(t, "LV-GUARD", tmpl.GetSysid())
 	createAt(t, "GD002", "LV-GUARD", "2020-03-05")
 	got := componentsOf(t, "GD002")
-	if got["T9G1"] == nil {
+	if got["T201"] == nil {
 		t.Fatalf("template not attached: %v", got)
 	}
-	if got["T9G1"].GetValidFrom() != 0 {
-		t.Fatalf("valid_from = %d, want unset for a CLOSED join period", got["T9G1"].GetValidFrom())
+	if got["T201"].GetValidFrom() != 0 {
+		t.Fatalf("valid_from = %d, want unset for a CLOSED join period", got["T201"].GetValidFrom())
 	}
 }
 
@@ -155,7 +155,7 @@ func TestLevelChange_NonStaffGroupsAndPutDropsManual(t *testing.T) {
 	t002 := mustComponentOnce(t, "T002", "Tunj 2")
 	mustComponentOnce(t, "T006", "OT in work")
 	mustComponentOnce(t, "T034", "Tunj shift")
-	manual := mustComponent(t, "T9G9", "T", "Manual guard")
+	manual := mustComponent(t, "T202", "T", "Manual guard")
 	for lvl, grp := range map[string]string{"LV-GS": "GS", "LV-DRV": "DRIVER", "LV-DRM": "DIRUMAHKAN"} {
 		seedRule(t, lvl, grp, "0.05", 2, 1500)
 		putLevelTemplate(t, lvl, t002.GetSysid())
@@ -174,7 +174,7 @@ func TestLevelChange_NonStaffGroupsAndPutDropsManual(t *testing.T) {
 		}
 		etag = ap.GetData().GetEtag()
 		m := componentsOf(t, "GD007")
-		if m["T006"].GetAmount() != "0.05" || m["T034"].GetAmount() != "1500" || m["T002"] != nil || m["T9G9"].GetSource() != "MANUAL" {
+		if m["T006"].GetAmount() != "0.05" || m["T034"].GetAmount() != "1500" || m["T002"] != nil || m["T202"].GetSource() != "MANUAL" {
 			t.Fatalf("%s attachments = %v", lvl, m)
 		}
 	}

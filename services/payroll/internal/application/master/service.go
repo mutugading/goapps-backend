@@ -78,6 +78,9 @@ func toAppErr(err error, what string) error {
 	case errors.Is(err, domain.ErrReference):
 		return apperr.New(apperr.CodeValidation, "referensi "+what+" tidak valid", nil)
 	}
+	if ve, ok := domain.IsValidation(err); ok {
+		return validation(ve.Field, ve.Msg)
+	}
 	return err
 }
 
@@ -144,6 +147,9 @@ func auditCompany(ctx context.Context) (int16, error) {
 
 // CreateCurrency creates a currency.
 func (s *Service) CreateCurrency(ctx context.Context, c domain.Currency, ip string) (out domain.Currency, err error) {
+	if c, err = domain.NewCurrency(c.Code, c.MinorUnit, c.TakehomeRound); err != nil {
+		return out, toAppErr(err, "mata uang")
+	}
 	auditCo, err := auditCompany(ctx)
 	if err != nil {
 		return out, err
@@ -194,15 +200,15 @@ func (s *Service) UpdateCurrency(ctx context.Context, c domain.Currency, ifMatch
 
 // CreateCompany creates a company.
 func (s *Service) CreateCompany(ctx context.Context, c domain.Company, npwp string, cl Caller) (out domain.Company, err error) {
-	if npwp == domain.MaskedValue {
-		return out, validation("npwp", "npwp tidak boleh berisi nilai mask")
+	if err = domain.ValidateCompanyNPWP(npwp); err != nil {
+		return out, toAppErr(err, "company")
+	}
+	if c, err = domain.NewCompany(c.Code, c.Name, c.BaseCurrency); err != nil {
+		return out, toAppErr(err, "company")
 	}
 	auditCo, err := auditCompany(ctx)
 	if err != nil {
 		return out, err
-	}
-	if c.BaseCurrency == "" {
-		c.BaseCurrency = "IDR"
 	}
 	err = s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
 		var e error
@@ -267,6 +273,9 @@ func (s *Service) UpdateCompany(ctx context.Context, c domain.Company, npwp stri
 
 // CreateDivision creates a division.
 func (s *Service) CreateDivision(ctx context.Context, d domain.Division, ip string) (out domain.Division, err error) {
+	if d, err = domain.NewDivision(d.CompanyID, d.Code, d.Name); err != nil {
+		return out, toAppErr(err, "divisi")
+	}
 	if err = inCompany(ctx, d.CompanyID); err != nil {
 		return out, err
 	}
@@ -372,6 +381,23 @@ func normalize(e *domain.Employee) error {
 	return nil
 }
 
+// checkTaxStatus rejects a pe_tax_id that is not an EMPTAX code of an ACTIVE rule set (T033i): a typo
+// such as "K/1" would leave P1/P5 NULL. Empty is allowed (data not known yet); the run then raises
+// PPH_NO_BRACKET for a taxable employee, which blocks approve.
+func (s *Service) checkTaxStatus(ctx context.Context, tx *sql.Tx, code string) error {
+	if code == "" {
+		return nil
+	}
+	ok, err := s.repo.TaxStatusKnown(ctx, tx, code)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return validation("tax_id", "tax_id "+strconv.Quote(code)+" bukan kode status pajak EMPTAX rule set aktif")
+	}
+	return nil
+}
+
 // CreateEmployee creates an employee inside the caller's scope.
 func (s *Service) CreateEmployee(ctx context.Context, e domain.Employee, sec EmployeeSecrets, cl Caller) (out domain.Employee, err error) {
 	if err = sec.validate(); err != nil {
@@ -385,6 +411,9 @@ func (s *Service) CreateEmployee(ctx context.Context, e domain.Employee, sec Emp
 	}
 	actor := actorOf(ctx)
 	err = s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
+		if e2 := s.checkTaxStatus(ctx, tx, e.TaxID); e2 != nil {
+			return e2
+		}
 		var e2 error
 		if out, e2 = s.repo.CreateEmployee(ctx, tx, e, sec.NPWP, sec.KTP, sec.BankAcnt, actor, s.pii(cl)); e2 != nil {
 			return toAppErr(e2, "karyawan")
@@ -469,6 +498,11 @@ func (s *Service) UpdateEmployee(ctx context.Context, id int64, e domain.Employe
 		}
 		if s.att != nil && e.Level != before.Level {
 			return validation("level", "level tidak dapat diubah lewat update karyawan; gunakan level-change")
+		}
+		if e.TaxID != before.TaxID { // a stored HRIS code is not re-checked on unrelated edits
+			if e2 = s.checkTaxStatus(ctx, tx, e.TaxID); e2 != nil {
+				return e2
+			}
 		}
 		if out, e2 = s.repo.UpdateEmployee(ctx, tx, id, e, sec.NPWP, sec.KTP, sec.BankAcnt, actor, ifMatch, s.pii(cl)); e2 != nil {
 			return toAppErr(e2, "karyawan")

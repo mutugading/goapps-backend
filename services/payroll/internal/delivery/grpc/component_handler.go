@@ -47,15 +47,16 @@ func componentFromInput(in *payrollv1.ComponentInput) component.Component {
 	}
 }
 
-func templateItemPB(it component.TemplateItem) *payrollv1.TemplateItem {
-	return &payrollv1.TemplateItem{ComponentSysid: it.Sysid, Sts: it.Sts, Tax: int32(it.Tax), Amount: it.Amount, //nolint:gosec // smallint
+// templateItemPB masks Amount unless see (payroll.salary.amount.view, D-73 (3)).
+func templateItemPB(it component.TemplateItem, see bool) *payrollv1.TemplateItem {
+	return &payrollv1.TemplateItem{ComponentSysid: it.Sysid, Sts: it.Sts, Tax: int32(it.Tax), Amount: mask(see, it.Amount), //nolint:gosec // smallint
 		TaxPaidCompany: it.TaxPaidCompany, ComponentCode: it.Code, ComponentName: it.Name}
 }
 
-func templateItemsPB(items []component.TemplateItem) []*payrollv1.TemplateItem {
+func templateItemsPB(items []component.TemplateItem, see bool) []*payrollv1.TemplateItem {
 	out := make([]*payrollv1.TemplateItem, len(items))
 	for i, it := range items {
-		out[i] = templateItemPB(it)
+		out[i] = templateItemPB(it, see)
 	}
 	return out
 }
@@ -68,7 +69,11 @@ func (h *MasterHandler) CreateComponent(ctx context.Context, r *payrollv1.Create
 	if err != nil {
 		return nil, fail(ctx, err)
 	}
-	return &payrollv1.CreateComponentResponse{Base: ok("Component created"), Data: componentPB(out)}, nil
+	msg := "Component created"
+	if w := app.FormulaWarning(out); w != "" {
+		msg += "; " + w
+	}
+	return &payrollv1.CreateComponentResponse{Base: ok(msg), Data: componentPB(out)}, nil
 }
 
 // GetComponent reads a component.
@@ -129,11 +134,14 @@ func (h *MasterHandler) GetComponentTemplate(ctx context.Context, r *payrollv1.G
 	if err != nil {
 		return nil, fail(ctx, err)
 	}
-	return &payrollv1.GetComponentTemplateResponse{Base: ok("OK"), Level: r.GetLevel(), Items: templateItemsPB(out)}, nil
+	return &payrollv1.GetComponentTemplateResponse{Base: ok("OK"), Level: r.GetLevel(), Items: templateItemsPB(out, canSeeAmounts(ctx))}, nil
 }
 
 // PutComponentTemplate replaces the template of a level.
 func (h *MasterHandler) PutComponentTemplate(ctx context.Context, r *payrollv1.PutComponentTemplateRequest) (*payrollv1.PutComponentTemplateResponse, error) {
+	if err := requireAmounts(ctx); err != nil {
+		return nil, fail(ctx, err)
+	}
 	items := make([]component.TemplateItem, len(r.GetItems()))
 	for i, it := range r.GetItems() {
 		items[i] = component.TemplateItem{Sysid: it.GetComponentSysid(), Sts: it.GetSts(), Tax: int(it.GetTax()),
@@ -143,5 +151,5 @@ func (h *MasterHandler) PutComponentTemplate(ctx context.Context, r *payrollv1.P
 	if err != nil {
 		return nil, fail(ctx, err)
 	}
-	return &payrollv1.PutComponentTemplateResponse{Base: ok("Template updated"), Level: r.GetLevel(), Items: templateItemsPB(out)}, nil
+	return &payrollv1.PutComponentTemplateResponse{Base: ok("Template updated"), Level: r.GetLevel(), Items: templateItemsPB(out, canSeeAmounts(ctx))}, nil
 }

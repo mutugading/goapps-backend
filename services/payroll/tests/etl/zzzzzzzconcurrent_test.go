@@ -3,6 +3,7 @@ package etl
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -15,11 +16,17 @@ import (
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/postgres"
 )
 
-// waitWaiters polls pg_locks until n lock requests are queued (no fixed sleep as synchronization).
-func waitWaiters(t *testing.T, n string, done <-chan error) {
+// waitWaiters polls pg_locks until n lock requests are queued on the run advisory lock of key ("company:yymm:division",
+// the same key as run.Lock). Only that key is counted, so other sessions waiting on other advisory locks (parallel
+// tests, the att-sync lock) cannot satisfy it (T033h5).
+func waitWaiters(t *testing.T, key, n string, done <-chan error) {
 	t.Helper()
+	// pg_locks.classid/objid are unsigned oids; hashtext is a signed int4, so compare modulo 2^32.
+	q := fmt.Sprintf(`SELECT (count(*) >= %s)::text FROM pg_locks WHERE NOT granted AND locktype='advisory' AND objsubid=2
+		AND classid::bigint = (hashtext('payroll.run')::bigint + 4294967296) %% 4294967296
+		AND objid::bigint = (hashtext('%s')::bigint + 4294967296) %% 4294967296`, n, key)
 	deadline := time.Now().Add(15 * time.Second)
-	for scalar(t, `SELECT (count(*) >= `+n+`)::text FROM pg_locks WHERE NOT granted AND locktype='advisory'`) != "true" {
+	for scalar(t, q) != "true" {
 		select {
 		case err := <-done:
 			t.Fatalf("selesai sebelum menunggu lock: %v", err)
@@ -117,7 +124,7 @@ func concRace(t *testing.T, etlFn func() error) {
 	}
 	etlDone := make(chan error, 1)
 	go func() { etlDone <- etlFn() }()
-	waitWaiters(t, "1", etlDone) // ETL queued behind the run advisory lock
+	waitWaiters(t, "1:202607:SOLO", "1", etlDone) // ETL queued behind the run advisory lock
 	release()
 	if err := <-commitDone; err != nil {
 		t.Fatalf("commit: %v", err)
@@ -160,7 +167,7 @@ func TestETL_AttLegacyVsCommitConcurrent(t *testing.T) {
 // not touch the REKAP rows (sentinel 7 stays).
 func TestETL_AttLegacyFailVsCommitConcurrent(t *testing.T) {
 	concRace(t, func() error {
-		_, err := etl.RunAttLegacyFail(context.Background(), etlDB, etl.PSVDir{Dir: "testdata_fail"}, etl.AttLegacyFailOptions{})
+		_, err := etl.RunAttLegacyFail(context.Background(), etlDB, etl.PSVDir{Dir: "testdata_fail"}, etl.AttLegacyFailOptions{CompanyID: 1})
 		return err
 	})
 	if got := scalar(t, `SELECT count(*) FROM payroll.pyr_att_snapshot_row r JOIN payroll.pyr_att_snapshot s ON s.pas_snapshot_id = r.pasr_snapshot_id `+

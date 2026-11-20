@@ -37,6 +37,8 @@ type TxRunner interface {
 	ScopedTx(ctx context.Context, fn func(tx *sql.Tx) error) error
 	// ScopedTxOpts is ScopedTx with tx options (REPEATABLE READ for Load, T023f).
 	ScopedTxOpts(ctx context.Context, opts *sql.TxOptions, fn func(tx *sql.Tx) error) error
+	// ScopedTxOptsLocked takes the session advisory lock (namespace, key) before the transaction (and its snapshot) begins (T033d).
+	ScopedTxOptsLocked(ctx context.Context, opts *sql.TxOptions, namespace, key string, fn func(tx *sql.Tx) error) error
 }
 
 // RulesFunc loads the rules of a run inside the scoped transaction (postgres.RuleSetLoader, T016a).

@@ -51,6 +51,7 @@ func openEnv(t *testing.T) env {
 	if dsn == "" {
 		t.Skip("GLADI_D64_DSN kosong: gladi D-64 dilewati")
 	}
+	t.Setenv("PAYROLL_DUMMY_DB_ALLOW", dbName) // T033a: the copy DB is the only allowlisted one (dev and production stay refused)
 	e := env{out: os.Getenv("GLADI_D64_OUT")}
 	if e.out == "" {
 		e.out = "/tmp/t029b"

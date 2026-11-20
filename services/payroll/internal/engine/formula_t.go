@@ -297,8 +297,8 @@ func (notWorking) Eval(ctx *EvalCtx, c EmpComponent, p Params) (*decimal.Decimal
 }
 
 // bpjs is the employer BPJS allowance: clamp(base, min, max) × A where the base is TETAP
-// (STS F) or TETAP_D (STS D); BPJS_KES uses JAN_BASE in January. A missing PAYROLLSETUP
-// constant is 0, like the legacy variable default.
+// (STS F) or TETAP_D (STS D); BPJS_KES uses JAN_BASE in January. A missing min constant is 0,
+// like the legacy variable default; a missing max is ErrMissingConstant.
 type bpjs struct {
 	code     string
 	minKey   string
@@ -328,11 +328,20 @@ func (f bpjs) Eval(ctx *EvalCtx, c EmpComponent, _ Params) (*decimal.Decimal, st
 	if !present { // NULL base: every comparison is unknown, ELSE branch gives NULL × A
 		return nil, "", nil
 	}
-	// Same IF/ELSIF order as legacy: max is checked before min.
+	// Same IF/ELSIF order as legacy: max is checked before min. The cap is required (T033f): a
+	// missing KESMAX/PENMAX would clamp every base to 0 without a trace.
 	lo := optConstant(ctx.In.Rules, f.minKey)
+	var hi decimal.Decimal
+	if f.maxKey != "" {
+		v, err := constant(ctx.In.Rules, f.maxKey)
+		if err != nil {
+			return nil, "", err
+		}
+		hi = v
+	}
 	switch {
-	case f.maxKey != "" && base.GreaterThan(optConstant(ctx.In.Rules, f.maxKey)):
-		base = optConstant(ctx.In.Rules, f.maxKey)
+	case f.maxKey != "" && base.GreaterThan(hi):
+		base = hi
 	case base.LessThan(lo):
 		base = lo
 	}
@@ -362,7 +371,7 @@ func tFormulas() []Formula {
 }
 
 // tSpecFor maps a T component id to its formula (legacy FNC_MGT_PAYROLL_COMPNT_CALC, D-25).
-// Every id is mapped: ids without a legacy branch get LEGACY_NULL.
+// Legacy ids without a branch get LEGACY_NULL (legacyNullT); ok is false for any other id.
 func tSpecFor(id int) (formulaSpec, bool) {
 	if s, ok := otSpecFor(id); ok {
 		return s, true
@@ -388,8 +397,20 @@ func tSpecFor(id int) (formulaSpec, bool) {
 	if s, ok := tFamilySpec(id); ok {
 		return s, true
 	}
-	return formulaSpec{Code: FormulaLegacyNull}, true
+	if legacyNullT[id] {
+		return formulaSpec{Code: FormulaLegacyNull}, true
+	}
+	return formulaSpec{}, false
 }
+
+// legacyNullT / legacyNullP list the legacy component ids without a branch in
+// FNC_MGT_PAYROLL_COMPNT_CALC: their line exists with a NULL amount (D-25, D-27). Only ids found in
+// the legacy data are listed (T033f); any other id is unmapped, so a new HR component is flagged
+// incomplete instead of silently paying NULL.
+var (
+	legacyNullT = map[int]bool{37: true, 901: true}
+	legacyNullP = map[int]bool{8: true, 10: true, 78: true}
+)
 
 // familyID reports whether id is first + k for a legacy family base k in {0..4, 6} or
 // is the T55 member (e.g. 101–105, 107, 155 for first=101, t55=155).

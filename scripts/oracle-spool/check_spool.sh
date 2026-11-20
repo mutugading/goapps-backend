@@ -14,11 +14,11 @@ if [ "${2:-}" = thr ]; then  # [T024b] spool THR: check_spool.sh <dir> thr
 fi
 if [ "${2:-}" = open ]; then  # [T027a] spool_recon_open.sql: cetak jumlah baris + kolom rusak, tanpa angka tetap
   rc=0
-  [ -f "$d/DONE" ] && echo "OK     DONE" || { echo "KURANG DONE (spool terputus?)"; rc=1; }
+  { [ -f "$d/DONE.LST" ] || [ -f "$d/DONE" ]; } && echo "OK     DONE" || { echo "KURANG DONE (spool terputus?)"; rc=1; }
   for t in MGT_PAYROLL_EMP MGT_PAYROLL_COMPNT_EMP MGT_PAYROLL_COMPNT_MASTER MGT_PAYROLL_COMPNT_TEMPLATE \
     MGT_PAYROLL_ADDITION MGT_PAYROLL_ABNORMAL_PREMI MGT_PAYROLL_ATTD_DAYS MGT_PAYROLL_SUBSIDI_PPH \
     MGT_PAYROLL_TAX_ADJ MGT_PAYROLL_HOLIDAY MGT_PAYROLL_BATAL_PREMI MGT_PAYROLL_MAIN MGT_PAYROLL_DETAIL \
-    MGT_PAYROLL_ATT_REKAP MGT_PAYROLL_ATT_REKAP_ADD MGT_PAYROLL_SCH_REKAP MGT_THR_MAIN MGT_THR_DETAIL HM_EMP_DATA; do
+    MGT_PAYROLL_ATT_REKAP MGT_PAYROLL_ATT_REKAP_ADD MGT_PAYROLL_SCH_REKAP MGT_THR_MAIN MGT_THR_DETAIL IM_VS_STATIC_VALUE HM_EMP_DATA; do
     f="$d/$t.psv"
     if [ ! -f "$f" ]; then
       if [ "$t" = HM_EMP_DATA ]; then echo "ada?   $t (opsional)"; else echo "KURANG $t"; rc=1; fi

@@ -18,7 +18,7 @@ const (
 // Idempotency-Key store against real PG18 + RLS (D-19, T007e).
 func TestIdempotencyStore(t *testing.T) {
 	ctx := context.Background()
-	st := postgres.NewIdempotencyStore(appDB)
+	st := postgres.NewIdempotencyStore(appDB, encKey)
 	k := idempotency.Key{UserID: userRW, Method: "/payroll.v1.PayrollService/CreateCompany", Key: "k-e2e"}
 
 	claims := map[idempotency.Key]string{}
@@ -45,6 +45,21 @@ func TestIdempotencyStore(t *testing.T) {
 	}
 	if s, b := begin(k, hashA, hashA); s != idempotency.Replay || string(b) != "resp" {
 		t.Fatalf("after Complete = %v %q, want Replay resp", s, b)
+	}
+	// T033g1: the stored response is ciphertext, never the plaintext (it may hold revealed PII).
+	var plain bool
+	if err := ownDB.QueryRowContext(ctx, `SELECT position('resp'::bytea IN pik_response) > 0 FROM payroll.pyr_idempotency_key
+		WHERE pik_user_id = $1 AND pik_key = $2`, userRW, k.Key).Scan(&plain); err != nil || plain {
+		t.Fatalf("pik_response must be encrypted: plaintext=%v err=%v", plain, err)
+	}
+	if _, _, _, err := postgres.NewIdempotencyStore(appDB, "").Begin(ctx, k, hashA, hashA); err == nil {
+		t.Fatal("Begin without a PII key must fail")
+	}
+	if s, _ := begin(k, hashB, hashA); s != idempotency.Conflict { // conflict path does not decrypt
+		t.Fatalf("other body = %v, want Conflict", s)
+	}
+	if _, _, _, err := postgres.NewIdempotencyStore(appDB, "wrong-key-0123456789-0123456789-xx").Begin(ctx, k, hashA, hashA); err == nil {
+		t.Fatal("Begin with another PII key must fail to decrypt the stored response")
 	}
 	if s, _ := begin(k, hashB, hashA); s != idempotency.Conflict {
 		t.Fatalf("other body = %v, want Conflict", s)
@@ -122,7 +137,7 @@ func TestIdempotencyStore(t *testing.T) {
 // T007f: purge removes keys expired beyond the grace window for every user, keeps the rest.
 func TestIdempotencyPurge(t *testing.T) {
 	ctx := context.Background()
-	st := postgres.NewIdempotencyStore(appDB)
+	st := postgres.NewIdempotencyStore(appDB, encKey)
 	m := "/payroll.v1.PayrollService/CreateCompany"
 	for _, k := range []idempotency.Key{
 		{UserID: userRW, Method: m, Key: "p-old"}, {UserID: userRO, Method: m, Key: "p-old"},

@@ -47,9 +47,12 @@ func NewService(db run.TxRunner, w audit.Writer, hasher InputHasher) *Service {
 	return &Service{db: db, audit: w, hasher: hasher}
 }
 
-// blockingCodes are per-NIK run warnings whose employee has no result (not paid): approve is refused (D-54).
+// blockingCodes are per-NIK run warnings whose employee has no result (not paid) or no PPh: approve is
+// refused (D-54). PPH_NO_PTKP/PPH_NO_BRACKET leave P1/P5 NULL for a tax status missing from the tax
+// tables; they block for rule v1 and v2 alike (T033i): with complete data they never occur, so parity holds.
 // NO_WORKDAYS stays a warning: an employee without workdays may legitimately get nothing (D-27).
-var blockingCodes = map[string]bool{run.CodeCalcError: true, run.CodeLoanDouble: true, run.CodeIncomplete: true}
+var blockingCodes = map[string]bool{run.CodeCalcError: true, run.CodeLoanDouble: true, run.CodeIncomplete: true,
+	run.CodePPhNoPTKP: true, run.CodePPhNoBracket: true}
 
 const maxBlockedNIKs = 20
 
@@ -258,7 +261,7 @@ func blockingWarnings(cmd Command, st state) error {
 	}
 	d["niks"] = strings.Join(niks, ",")
 	return apperr.New(apperr.CodeBusinessRule,
-		fmt.Sprintf("%d karyawan tanpa hasil (CALC_ERROR/LOAN_DOUBLE/INCOMPLETE_RESULT); perbaiki lalu jalankan ulang run", len(seen)), d)
+		fmt.Sprintf("%d karyawan tanpa hasil atau PPh (CALC_ERROR/LOAN_DOUBLE/INCOMPLETE_RESULT/PPH_NO_PTKP/PPH_NO_BRACKET); perbaiki lalu jalankan ulang run", len(seen)), d)
 }
 
 // checkInput refuses approve/close when the period input changed after the ACTIVE ENGINE run was committed: the

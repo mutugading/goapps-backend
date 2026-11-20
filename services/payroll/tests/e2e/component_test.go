@@ -171,9 +171,9 @@ func TestComponentScopeAndList(t *testing.T) {
 
 func TestComponentTemplate(t *testing.T) {
 	ctx := ctxFor(t, userRW, permsRW...)
-	a := mustComponent(t, "T920", "T", "Tmpl A")
-	b := mustComponent(t, "P921", "P", "Tmpl B")
-	retired := mustComponent(t, "T922", "T", "Tmpl Retired")
+	a := mustComponent(t, "T101", "T", "Tmpl A")
+	b := mustComponent(t, "P011", "P", "Tmpl B")
+	retired := mustComponent(t, "T102", "T", "Tmpl Retired")
 	if _, err := handler.RetireComponent(ctx, &payrollv1.RetireComponentRequest{Sysid: retired.GetSysid(), IfMatch: "1"}); err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +182,7 @@ func TestComponentTemplate(t *testing.T) {
 		{ComponentSysid: a.GetSysid(), Sts: "F", Tax: 2, Amount: "0.0877"},
 		{ComponentSysid: b.GetSysid(), Amount: "2200"},
 	}})
-	if err != nil || len(put.GetItems()) != 2 || put.GetItems()[0].GetComponentCode() != "T920" || put.GetItems()[0].GetAmount() != "0.0877" {
+	if err != nil || len(put.GetItems()) != 2 || put.GetItems()[0].GetComponentCode() != "T101" || put.GetItems()[0].GetAmount() != "0.0877" {
 		t.Fatalf("put: %v %+v", err, put)
 	}
 
@@ -242,11 +242,17 @@ func TestComponentTemplate(t *testing.T) {
 	  WHERE pct_template='LVL-T008' AND pct_component_sysid=$1`, foreign).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("foreign template row count = %d (%v), want 1 (untouched)", n, err)
 	}
+	// T033h2: the PUT marks the level as app-managed for the caller's company only (the ETL then skips it).
+	var marked string
+	if err := ownDB.QueryRowContext(context.Background(), `SELECT coalesce(string_agg(pcto_company_id::text, ','), '')
+	  FROM payroll.pyr_component_template_owner WHERE pcto_template='LVL-T008'`).Scan(&marked); err != nil || marked != "1" {
+		t.Fatalf("template owner marker = %q (%v), want company 1 only", marked, err)
+	}
 }
 
 func TestComponentTemplateGuards(t *testing.T) {
 	ctx := ctxFor(t, userRW, permsRW...)
-	a := mustComponent(t, "T930", "T", "Guard A")
+	a := mustComponent(t, "T103", "T", "Guard A")
 
 	// More than 6 decimals would be rounded silently by numeric(18,6): rejected.
 	_, err := handler.PutComponentTemplate(ctx, &payrollv1.PutComponentTemplateRequest{Level: "LVL-G", Items: []*payrollv1.TemplateItem{
@@ -299,8 +305,8 @@ func TestComponentTemplateGuards(t *testing.T) {
 // Two PUTs of one level at once serialize on the advisory lock: both succeed, last wins, no PK error.
 func TestComponentTemplateConcurrentPut(t *testing.T) {
 	ctx := ctxFor(t, userRW, permsRW...)
-	a := mustComponent(t, "T940", "T", "Conc A")
-	b := mustComponent(t, "T941", "T", "Conc B")
+	a := mustComponent(t, "T104", "T", "Conc A")
+	b := mustComponent(t, "T402", "T", "Conc B")
 	var wg sync.WaitGroup
 	errs := make([]error, 6)
 	for i := range errs {

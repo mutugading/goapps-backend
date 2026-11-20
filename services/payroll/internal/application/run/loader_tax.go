@@ -107,8 +107,9 @@ func (t *taxInput) apply(in *engine.Input) {
 
 // ytdSQL aggregates January up to the previous period per target NIK over every placement of the
 // same tax subject in the company (13§3.3, D-N4): the pe_prev_employee_id chain plus every placement
-// sharing a pe_npwp_hash of that chain. Two NPWPs in one chain is a conflict. Visible placements only: RLS limits them to the run scope, so a
-// placement in a division outside the scope is not summed (legacy sums per NIK + division too).
+// sharing a pe_npwp_hash of that chain. Two NPWPs in one chain is a conflict. In-scope placements only: every employee join
+// filters fn_in_scope (same rows as RLS for payroll_app; for payroll_ro, which reads across divisions since T033g2, the
+// app.scopes set by cmd/recon), so a placement in a division outside the scope is not summed (legacy sums per NIK + division too).
 // Compositions (D-29 P1, D-31 P5, D-56 THR/Bonus of CLOSED events, matched by pe_id, not component sysid):
 //
 //	YTD.Gross    = Σ tax=2 tax_paid_company=N id<>75 − Σ P4, P8 + Σ THR/Bonus Tunjangan ≠ 0 (Jan..prev)
@@ -121,12 +122,14 @@ func (t *taxInput) apply(in *engine.Input) {
 const ytdSQL = `WITH RECURSIVE tgt AS (
   SELECT pe_nik nik, pe_id id, pe_npwp_hash h FROM payroll.pyr_employee
   WHERE pe_company_id = $1 AND pe_division = $2 AND pe_sts_payroll = 2 AND ($5::text[] = '{}' OR pe_nik = ANY($5::text[]))
+    AND payroll.fn_in_scope(pe_company_id, pe_division)
 ), chain AS (
   SELECT t.nik, t.id, e.pe_prev_employee_id prev, 1 depth
   FROM tgt t JOIN payroll.pyr_employee e ON e.pe_id = t.id
   UNION ALL
   SELECT c.nik, e.pe_id, e.pe_prev_employee_id, c.depth + 1
   FROM chain c JOIN payroll.pyr_employee e ON e.pe_id = c.prev AND e.pe_company_id = $1
+   AND payroll.fn_in_scope(e.pe_company_id, e.pe_division)
   WHERE c.depth < $6
 ), hashes AS (
   SELECT DISTINCT c.nik, e.pe_npwp_hash h FROM chain c JOIN payroll.pyr_employee e ON e.pe_id = c.id
@@ -136,6 +139,7 @@ const ytdSQL = `WITH RECURSIVE tgt AS (
   UNION
   SELECT x.nik, e.pe_id, e.pe_nik, e.pe_division
   FROM hashes x JOIN payroll.pyr_employee e ON e.pe_company_id = $1 AND e.pe_npwp_hash = x.h
+   AND payroll.fn_in_scope(e.pe_company_id, e.pe_division)
 ), det AS (
   SELECT m.nik, d.psd_type::text typ, d.psd_id id, COALESCE(d.psd_tax, 0) = 2 tax,
          COALESCE(d.psd_tax_paid_company, 'N') = 'Y' tpc, d.psd_amount amt

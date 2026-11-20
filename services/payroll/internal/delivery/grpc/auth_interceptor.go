@@ -36,6 +36,16 @@ type JWTClaims struct {
 	Permissions []string `json:"permissions,omitempty"`
 }
 
+// TokenBlacklistChecker checks whether a token was revoked (IAM logout, shared Redis).
+type TokenBlacklistChecker interface {
+	IsBlacklisted(ctx context.Context, tokenID string) (bool, error)
+}
+
+// PermissionsReader fetches a user's permissions from the IAM Redis cache.
+type PermissionsReader interface {
+	GetUserPermissions(ctx context.Context, userID string) ([]string, error)
+}
+
 func isPublicMethod(fullMethod string) bool {
 	return strings.HasPrefix(fullMethod, "/grpc.health.v1.") ||
 		strings.HasPrefix(fullMethod, "/grpc.reflection.")
@@ -44,7 +54,9 @@ func isPublicMethod(fullMethod string) bool {
 // AuthInterceptor validates IAM-issued JWTs and attaches the caller identity
 // with its payroll scopes (pyr_user_scope, D-06/D-11) to the context.
 // Scopes are resolved per request so admin changes apply immediately.
-func AuthInterceptor(cfg *config.JWTConfig, resolver scope.Resolver) grpc.UnaryServerInterceptor {
+// blacklist and permsReader are optional (nil = skipped), same as finance (D-73 (3)): a revoked JTI is
+// rejected; permissions come from the IAM Redis cache and fall back to the JWT claims on a miss or error.
+func AuthInterceptor(cfg *config.JWTConfig, resolver scope.Resolver, blacklist TokenBlacklistChecker, permsReader PermissionsReader) grpc.UnaryServerInterceptor {
 	secret := []byte(cfg.AccessTokenSecret)
 
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
@@ -62,6 +74,11 @@ func AuthInterceptor(cfg *config.JWTConfig, resolver scope.Resolver) grpc.UnaryS
 			return nil, status.Errorf(codes.Unauthenticated, "invalid token: %v", err)
 		}
 
+		if revoked(ctx, blacklist, claims.ID) {
+			return nil, status.Error(codes.Unauthenticated, "token has been revoked")
+		}
+		perms := userPermissions(ctx, permsReader, claims)
+
 		scopes, err := resolver.Resolve(ctx, claims.UserID)
 		if err != nil {
 			log.Error().Err(err).Str("userID", claims.UserID).Msg("failed to resolve payroll scope")
@@ -71,11 +88,40 @@ func AuthInterceptor(cfg *config.JWTConfig, resolver scope.Resolver) grpc.UnaryS
 		ctx = context.WithValue(ctx, AuthUserIDKey, claims.UserID)
 		ctx = context.WithValue(ctx, AuthUsernameKey, claims.Username)
 		ctx = context.WithValue(ctx, AuthRolesKey, claims.Roles)
-		ctx = context.WithValue(ctx, AuthPermissionsKey, claims.Permissions)
+		ctx = context.WithValue(ctx, AuthPermissionsKey, perms)
 		ctx = scope.WithIdentity(ctx, scope.Identity{UserID: claims.UserID, Scopes: scopes})
 
 		return handler(ctx, req)
 	}
+}
+
+// revoked reports whether the token JTI is on the IAM blacklist. A Redis error fails open (short access TTL),
+// same as finance.
+func revoked(ctx context.Context, blacklist TokenBlacklistChecker, jti string) bool {
+	if blacklist == nil || jti == "" {
+		return false
+	}
+	hit, err := blacklist.IsBlacklisted(ctx, jti)
+	if err != nil {
+		log.Warn().Err(err).Msg("failed to check token blacklist")
+	}
+	return hit
+}
+
+// userPermissions returns the cached IAM permissions, or the JWT claims on a cache miss or error.
+func userPermissions(ctx context.Context, reader PermissionsReader, claims *JWTClaims) []string {
+	if reader == nil {
+		return claims.Permissions
+	}
+	cached, err := reader.GetUserPermissions(ctx, claims.UserID)
+	if err != nil {
+		log.Warn().Err(err).Str("userID", claims.UserID).Msg("failed to fetch permissions from Redis, using JWT fallback")
+		return claims.Permissions
+	}
+	if cached == nil {
+		return claims.Permissions
+	}
+	return cached
 }
 
 func extractBearerToken(ctx context.Context) (string, error) {

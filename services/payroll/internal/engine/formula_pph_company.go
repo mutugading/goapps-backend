@@ -27,7 +27,9 @@ func (pphCompany) Eval(ctx *EvalCtx, _ EmpComponent, _ Params) (*decimal.Decimal
 	}
 	all, okAll := pphGross(ctx)
 	own, okOwn := pphGrossWhere(ctx, func(_ CompKey, l Line) bool { return l.TaxPaidCompany }, false)
-	if !okAll || !okOwn { // legacy SELECT INTO without a row: NO_DATA_FOUND → NULL
+	// Legacy SELECT INTO without a row: NO_DATA_FOUND → NULL (parity, no blocking warning; T033i review):
+	// e.g. every taxable line is company-paid, so the own side has no row while P1 is still computed.
+	if !okAll || !okOwn {
 		return nil, "", nil
 	}
 	if len(in.Tax.Category) == 0 || len(in.Tax.TER) == 0 {
@@ -80,7 +82,7 @@ func pphCompanyAnnual(ctx *EvalCtx) (*decimal.Decimal, string, error) {
 	if len(ptkpTable) == 0 || t.JobCost.Rate.IsZero() || t.JobCost.MaxMonthly.IsZero() || len(t.Progressive) == 0 {
 		return nil, "", ErrNoAnnualTaxTable
 	}
-	ptkp, ok := ptkpTable[in.Emp.TaxStatus]
+	ptkp, ok := companyPTKP(ctx, ptkpTable, money.Sum(y.Gross, cur, y.ThrBonus))
 	if !ok { // legacy inner join on PTKP finds no row: both taxes NO_DATA_FOUND → 0
 		p := decimal.Zero
 		return &p, "", nil
@@ -112,4 +114,19 @@ func pphCompanyAnnual(ctx *EvalCtx) (*decimal.Decimal, string, error) {
 	remark := fmt.Sprintf("Bruto : %s | Ditanggung Perusahaan : %s | Pengurang : %s | PTKP : %s | PPh Setahun : %s | PPh Ditanggung Karyawan : %s | P5 Jan-Nov : %s",
 		thousands(gross), thousands(paid), thousands(deduct), thousands(ptkp), thousands(taxAll), thousands(taxOwn), thousands(y.P5Paid))
 	return &p, remark, nil
+}
+
+// companyPTKP looks up the monthly PTKP of P5 in December. A status unknown to the full PTKP table is
+// bad master data (T033i): with a positive gross it warns with the P1 text, so one warning blocks approve.
+// TK1–TK3 missing from PTKPCompany under v1 is parity (D-37a) and stays silent.
+func companyPTKP(ctx *EvalCtx, table map[string]decimal.Decimal, gross decimal.Decimal) (decimal.Decimal, bool) {
+	status := ctx.In.Emp.TaxStatus
+	ptkp, ok := table[status]
+	if ok {
+		return ptkp, true
+	}
+	if _, known := ctx.In.Tax.PTKP[status]; !known && gross.IsPositive() {
+		ctx.warn(noPTKPWarning(ctx.In))
+	}
+	return decimal.Zero, false
 }

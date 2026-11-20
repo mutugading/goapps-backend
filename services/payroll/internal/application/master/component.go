@@ -3,6 +3,7 @@ package master
 import (
 	"context"
 	"database/sql"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/apperr"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/audit"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/component"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/engine"
 )
 
 // WithComponents enables the component master and template use cases (T008).
@@ -28,6 +30,12 @@ func validYYMM(v int) bool { return v >= 200001 && v <= 209912 && v%100 >= 1 && 
 
 // validateComponent checks the rules the proto constraints cannot express.
 func validateComponent(c component.Component) error {
+	if _, err := engine.ParseCompKey(c.Type, c.Code); err != nil {
+		return validation("code", "kode komponen harus berformat huruf tipe + angka, mis. T001 / P032: "+c.Code)
+	}
+	if !engine.CodeMatchesType(c.Type, c.Code) {
+		return validation("code", "huruf pertama kode "+c.Code+" harus sama dengan tipe komponen ("+c.Type+")")
+	}
 	if !validYYMM(c.ValidFrom) {
 		return validation("valid_from", "valid_from harus yymm yang valid (mis. 202610)")
 	}
@@ -223,7 +231,7 @@ func (s *Service) UpdateComponent(ctx context.Context, c component.Component, if
 		if before.Status == component.StatusRetired {
 			return apperr.New(apperr.CodeConflict, "komponen RETIRED tidak dapat diubah", nil)
 		}
-		c.CompanyID = before.CompanyID
+		c.CompanyID, c.Code, c.Type = before.CompanyID, before.Code, before.Type // immutable; validateComponent parses them (T033f3)
 		if e = validateComponent(c); e != nil {
 			return e
 		}
@@ -288,6 +296,9 @@ func normalizeTemplate(items []component.TemplateItem) ([]component.TemplateItem
 			return nil, validation("items", "komponen dobel di template: "+strconv.FormatInt(it.Sysid, 10))
 		}
 		seen[it.Sysid] = true
+		if it.Tax < 0 || it.Tax > component.TaxTaxable {
+			return nil, validation("items.tax", "tax harus 0 (ikut kelas pajak komponen), 1, atau 2")
+		}
 		if it.Amount == "" {
 			continue
 		}
@@ -305,19 +316,38 @@ func normalizeTemplate(items []component.TemplateItem) ([]component.TemplateItem
 
 // templateCompanies checks every item's component is visible and not RETIRED and
 // returns the companies the template touches (D-20).
-func (s *Service) templateCompanies(ctx context.Context, tx *sql.Tx, items []component.TemplateItem) (map[int16]bool, error) {
+func (s *Service) templateCompanies(ctx context.Context, tx *sql.Tx, items []component.TemplateItem) (map[int16]bool, map[int64]string, error) {
 	companies := map[int16]bool{}
+	unmapped := map[int64]string{} // components without an engine formula (T033f2)
 	for _, it := range items {
 		c, err := s.comp.Get(ctx, tx, it.Sysid)
 		if err != nil {
-			return nil, validation("items.component_sysid", "komponen tidak ditemukan: "+strconv.FormatInt(it.Sysid, 10))
+			return nil, nil, validation("items.component_sysid", "komponen tidak ditemukan: "+strconv.FormatInt(it.Sysid, 10))
 		}
 		if c.Status == component.StatusRetired {
-			return nil, validation("items.component_sysid", "komponen RETIRED tidak boleh masuk template: "+c.Code)
+			return nil, nil, validation("items.component_sysid", "komponen RETIRED tidak boleh masuk template: "+c.Code)
+		}
+		if !formulaMapped(c.Type, c.Code) {
+			unmapped[c.Sysid] = c.Code
 		}
 		companies[c.CompanyID] = true
 	}
-	return companies, nil
+	return companies, unmapped, nil
+}
+
+// guardNewTemplateItems refuses components without an engine formula that the level template does not
+// hold yet; rows already in the template are kept so a GET -> PUT round trip works (T033f2).
+func guardNewTemplateItems(before []component.TemplateItem, unmapped map[int64]string) error {
+	held := make(map[int64]bool, len(before))
+	for _, b := range before {
+		held[b.Sysid] = true
+	}
+	for _, sysid := range slices.Sorted(maps.Keys(unmapped)) {
+		if !held[sysid] {
+			return noFormulaError("items.component_sysid", unmapped[sysid])
+		}
+	}
+	return nil
 }
 
 // PutTemplate replaces the template of a level. Every component must be visible
@@ -333,7 +363,7 @@ func (s *Service) PutTemplate(ctx context.Context, level string, items []compone
 		return nil, err
 	}
 	err = s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
-		companies, e := s.templateCompanies(ctx, tx, items)
+		companies, unmapped, e := s.templateCompanies(ctx, tx, items)
 		if e != nil {
 			return e
 		}
@@ -342,7 +372,10 @@ func (s *Service) PutTemplate(ctx context.Context, level string, items []compone
 		if e != nil {
 			return e
 		}
-		if e = s.comp.ReplaceTemplate(ctx, tx, level, items); e != nil {
+		if e = guardNewTemplateItems(before, unmapped); e != nil {
+			return e
+		}
+		if e = s.comp.ReplaceTemplate(ctx, tx, level, items, actorOf(ctx)); e != nil {
 			return toAppErr(e, "template")
 		}
 		if out, e = s.comp.GetTemplate(ctx, tx, level); e != nil {

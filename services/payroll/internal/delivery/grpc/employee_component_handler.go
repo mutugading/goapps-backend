@@ -19,18 +19,19 @@ func init() {
 	}
 }
 
-func attachmentPB(a component.Attachment) *payrollv1.EmployeeComponent {
+// attachmentPB masks Amount unless see (payroll.salary.amount.view, D-73 (3)).
+func attachmentPB(a component.Attachment, see bool) *payrollv1.EmployeeComponent {
 	return &payrollv1.EmployeeComponent{
 		ComponentSysid: a.Sysid, ComponentCode: a.Code, ComponentName: a.Name, Sts: a.Sts, Tax: int32(a.Tax), //nolint:gosec // smallint
-		Amount: a.Amount, TaxPaidCompany: a.TaxPaidCompany, FrzFlag: int32(a.Frz), Source: a.Source, //nolint:gosec // smallint
+		Amount: mask(see, a.Amount), TaxPaidCompany: a.TaxPaidCompany, FrzFlag: int32(a.Frz), Source: a.Source, //nolint:gosec // smallint
 		ValidFrom: int32(a.ValidFrom), ValidTo: int32(a.ValidTo), //nolint:gosec // yymm
 	}
 }
 
-func attachmentsPB(in []component.Attachment) []*payrollv1.EmployeeComponent {
+func attachmentsPB(in []component.Attachment, see bool) []*payrollv1.EmployeeComponent {
 	out := make([]*payrollv1.EmployeeComponent, len(in))
 	for i, a := range in {
-		out[i] = attachmentPB(a)
+		out[i] = attachmentPB(a, see)
 	}
 	return out
 }
@@ -43,15 +44,15 @@ func attachmentFromInput(in *payrollv1.EmployeeComponentInput) component.Attachm
 	}
 }
 
-func changesPB(in []component.Change) []*payrollv1.ComponentChange {
+func changesPB(in []component.Change, see bool) []*payrollv1.ComponentChange {
 	out := make([]*payrollv1.ComponentChange, len(in))
 	for i, c := range in {
 		pb := &payrollv1.ComponentChange{Action: c.Action, ComponentSysid: c.Sysid, ComponentCode: c.Code, ComponentName: c.Name}
 		if c.Before != nil {
-			pb.Before = attachmentPB(*c.Before)
+			pb.Before = attachmentPB(*c.Before, see)
 		}
 		if c.After != nil {
-			pb.After = attachmentPB(*c.After)
+			pb.After = attachmentPB(*c.After, see)
 		}
 		out[i] = pb
 	}
@@ -64,11 +65,14 @@ func (h *MasterHandler) GetEmployeeComponents(ctx context.Context, r *payrollv1.
 	if err != nil {
 		return nil, fail(ctx, err)
 	}
-	return &payrollv1.GetEmployeeComponentsResponse{Base: ok("OK"), EmployeeId: id, Items: attachmentsPB(items)}, nil
+	return &payrollv1.GetEmployeeComponentsResponse{Base: ok("OK"), EmployeeId: id, Items: attachmentsPB(items, canSeeAmounts(ctx))}, nil
 }
 
 // PutEmployeeComponents replaces the attachment set of an employee.
 func (h *MasterHandler) PutEmployeeComponents(ctx context.Context, r *payrollv1.PutEmployeeComponentsRequest) (*payrollv1.PutEmployeeComponentsResponse, error) {
+	if err := requireAmounts(ctx); err != nil {
+		return nil, fail(ctx, err)
+	}
 	items := make([]component.Attachment, len(r.GetItems()))
 	for i, it := range r.GetItems() {
 		items[i] = attachmentFromInput(it)
@@ -77,7 +81,7 @@ func (h *MasterHandler) PutEmployeeComponents(ctx context.Context, r *payrollv1.
 	if err != nil {
 		return nil, fail(ctx, err)
 	}
-	return &payrollv1.PutEmployeeComponentsResponse{Base: ok("Employee components saved"), EmployeeId: id, Items: attachmentsPB(out)}, nil
+	return &payrollv1.PutEmployeeComponentsResponse{Base: ok("Employee components saved"), EmployeeId: id, Items: attachmentsPB(out, canSeeAmounts(ctx))}, nil
 }
 
 // PreviewLevelChange returns the component diff of a level change.
@@ -87,7 +91,7 @@ func (h *MasterHandler) PreviewLevelChange(ctx context.Context, r *payrollv1.Pre
 		return nil, fail(ctx, err)
 	}
 	return &payrollv1.PreviewLevelChangeResponse{Base: ok("OK"), CurrentLevel: lc.CurrentLevel, NewLevel: lc.NewLevel,
-		Changes: changesPB(lc.Changes), SkippedManual: lc.SkippedManual}, nil
+		Changes: changesPB(lc.Changes, canSeeAmounts(ctx)), SkippedManual: lc.SkippedManual}, nil
 }
 
 // ApplyLevelChange applies a level change under the employee If-Match.
@@ -101,5 +105,5 @@ func (h *MasterHandler) ApplyLevelChange(ctx context.Context, r *payrollv1.Apply
 		return nil, fail(ctx, err)
 	}
 	return &payrollv1.ApplyLevelChangeResponse{Base: ok("Level changed"), Data: employeePB(emp),
-		Changes: changesPB(lc.Changes), SkippedManual: lc.SkippedManual}, nil
+		Changes: changesPB(lc.Changes, canSeeAmounts(ctx)), SkippedManual: lc.SkippedManual}, nil
 }

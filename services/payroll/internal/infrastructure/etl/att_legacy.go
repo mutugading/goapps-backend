@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -127,18 +129,8 @@ func snapChecksum(rows []snapRow) string {
 // the historical source of those figures is still an open question (TASKS T009d).
 // The run advisory lock taken per period is held for the whole ETL transaction: Commit/Approve/Reopen of that
 // period fail with RUN_IN_PROGRESS while the ETL runs.
-func writeSnapshots(ctx context.Context, tx *sql.Tx, company int16, groups map[snapKey][]snapRow) ([]string, error) {
-	var skipped []string
-	keys := make([]snapKey, 0, len(groups))
-	for k := range groups {
-		keys = append(keys, k)
-	}
-	sort.Slice(keys, func(i, j int) bool {
-		if keys[i].yymm != keys[j].yymm {
-			return keys[i].yymm < keys[j].yymm
-		}
-		return keys[i].division < keys[j].division
-	})
+func writeSnapshots(ctx context.Context, tx *sql.Tx, company int16, groups map[snapKey][]snapRow) (skipped, notes []string, err error) {
+	keys, present := snapKeys(groups)
 	for _, k := range keys {
 		rows := groups[k]
 		// A period that already has an ACTIVE ENGINE run keeps its snapshot as is: re-locking or re-checksumming it
@@ -149,7 +141,14 @@ func writeSnapshots(ctx context.Context, tx *sql.Tx, company int16, groups map[s
 		// a running Commit finishes before the check starts, a later Commit fails fast with RUN_IN_PROGRESS.
 		if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext('payroll.run'), hashtext($1))`,
 			fmt.Sprintf("%d:%s:%s", company, k.yymm, k.division)); err != nil {
-			return nil, fmt.Errorf("run lock %s/%s: %w", k.yymm, k.division, err)
+			return nil, nil, fmt.Errorf("run lock %s/%s: %w", k.yymm, k.division, err)
+		}
+		if msg, err := lockedSnapshot(ctx, tx, company, k, snapChecksum(rows)); err != nil || msg != "" {
+			if err != nil {
+				return nil, nil, err
+			}
+			skipped = append(skipped, msg)
+			continue
 		}
 		var id int64
 		err := tx.QueryRowContext(ctx, `
@@ -167,22 +166,93 @@ RETURNING pas_snapshot_id`, company, k.yymm, k.division, snapChecksum(rows)).Sca
 			continue
 		}
 		if err != nil {
-			return nil, fmt.Errorf("snapshot %s/%s: %w", k.yymm, k.division, err)
+			return nil, nil, fmt.Errorf("snapshot %s/%s: %w", k.yymm, k.division, err)
 		}
-		for _, r := range rows {
-			js, err := json.Marshal(r.data)
-			if err != nil {
-				return nil, err
-			}
-			if _, err := tx.ExecContext(ctx, `
-INSERT INTO payroll.pyr_att_snapshot_row (pasr_snapshot_id, pasr_kind, pasr_nik, pasr_data) VALUES ($1,$2,$3,$4::jsonb)
-ON CONFLICT (pasr_snapshot_id, pasr_kind, pasr_nik) DO UPDATE SET pasr_data = EXCLUDED.pasr_data`,
-				id, r.kind, r.nik, string(js)); err != nil {
-				return nil, fmt.Errorf("snapshot %s/%s nik %s %s: %w", k.yymm, k.division, r.nik, r.kind, err)
-			}
+		note, err := writeSnapRows(ctx, tx, k, id, rows, present)
+		if err != nil {
+			return nil, nil, err
+		}
+		if note != "" {
+			notes = append(notes, note)
 		}
 	}
-	return skipped, nil
+	return skipped, notes, nil
+}
+
+// snapKeys returns the groups sorted by (yymm, division) and the kinds with rows in this load: a kind whose spool is
+// empty (failed export) is never pruned (T033h2).
+func snapKeys(groups map[snapKey][]snapRow) ([]snapKey, map[string]bool) {
+	keys := make([]snapKey, 0, len(groups))
+	present := map[string]bool{}
+	for k, rows := range groups {
+		keys = append(keys, k)
+		for _, r := range rows {
+			present[r.kind] = true
+		}
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].yymm != keys[j].yymm {
+			return keys[i].yymm < keys[j].yymm
+		}
+		return keys[i].division < keys[j].division
+	})
+	return keys, present
+}
+
+// lockedSnapshot handles a group whose period is APPROVED or CLOSED (T033h2, D-54): an existing legacy snapshot is never
+// rewritten (neither rows nor checksum); a different source is reported. No snapshot yet = "" (first load may insert it).
+// The run advisory lock of the period is already held.
+func lockedSnapshot(ctx context.Context, tx *sql.Tx, company int16, k snapKey, sum string) (string, error) {
+	var st string
+	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(max(pp_status::text), '') FROM payroll.pyr_period
+WHERE pp_company_id=$1 AND pp_yymm=$2 AND pp_division=$3 AND pp_status IN ('APPROVED','CLOSED')`, company, k.yymm, k.division).Scan(&st); err != nil {
+		return "", fmt.Errorf("status periode %s/%s: %w", k.yymm, k.division, err)
+	}
+	if st == "" {
+		return "", nil
+	}
+	var cur string
+	err := tx.QueryRowContext(ctx, `SELECT pas_checksum FROM payroll.pyr_att_snapshot
+WHERE pas_company_id=$1 AND pas_yymm=$2 AND pas_division=$3 AND pas_source_batch_ids='{}'`, company, k.yymm, k.division).Scan(&cur)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return "", nil
+	case err != nil:
+		return "", fmt.Errorf("snapshot %s/%s: %w", k.yymm, k.division, err)
+	case cur == sum:
+		return fmt.Sprintf("%s/%s: periode %s, snapshot sama dengan sumber", k.yymm, k.division, st), nil
+	}
+	return fmt.Sprintf("%s/%s: periode %s, sumber BERBEDA dari snapshot yang dimuat; snapshot tidak diubah", k.yymm, k.division, st), nil
+}
+
+// writeSnapRows upserts the rows of snapshot id, then deletes the rows of the kinds present in this load that the
+// source no longer has (T033h2: a NIK that left the spool must not stay with its old figures). Only (yymm, division)
+// groups in the source reach here; periods with an ACTIVE ENGINE run or APPROVED/CLOSED were skipped before.
+func writeSnapRows(ctx context.Context, tx *sql.Tx, k snapKey, id int64, rows []snapRow, present map[string]bool) (string, error) {
+	kinds, niks := make([]string, len(rows)), make([]string, len(rows))
+	for i, r := range rows {
+		js, err := json.Marshal(r.data)
+		if err != nil {
+			return "", err
+		}
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO payroll.pyr_att_snapshot_row (pasr_snapshot_id, pasr_kind, pasr_nik, pasr_data) VALUES ($1,$2,$3,$4::jsonb)
+ON CONFLICT (pasr_snapshot_id, pasr_kind, pasr_nik) DO UPDATE SET pasr_data = EXCLUDED.pasr_data`,
+			id, r.kind, r.nik, string(js)); err != nil {
+			return "", fmt.Errorf("snapshot %s/%s nik %s %s: %w", k.yymm, k.division, r.nik, r.kind, err)
+		}
+		kinds[i], niks[i] = r.kind, r.nik
+	}
+	res, err := tx.ExecContext(ctx, `DELETE FROM payroll.pyr_att_snapshot_row WHERE pasr_snapshot_id=$1 AND pasr_kind = ANY($4::text[])
+AND (pasr_kind, pasr_nik) NOT IN (SELECT * FROM unnest($2::text[], $3::text[]))`, id, kinds, niks, slices.Sorted(maps.Keys(present)))
+	if err != nil {
+		return "", fmt.Errorf("hapus baris basi %s/%s: %w", k.yymm, k.division, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil || n == 0 {
+		return "", err
+	}
+	return fmt.Sprintf("%s/%s: %d baris snapshot dihapus (tidak ada lagi di sumber)", k.yymm, k.division, n), nil
 }
 
 // RunAttLegacy loads the historical attendance recaps into LEGACY snapshots in ONE transaction (idempotent).
@@ -226,13 +296,14 @@ func RunAttLegacy(ctx context.Context, db *sql.DB, src Source, o AttLegacyOption
 			log.Warn().Err(rbErr).Msg("etl: rollback failed")
 		}
 	}()
-	skipped, err := writeSnapshots(ctx, tx, o.CompanyID, groups)
+	skipped, notes, err := writeSnapshots(ctx, tx, o.CompanyID, groups)
 	if err != nil {
 		return reps, err
 	}
 	if len(reps) > 0 {
-		// Periods with an ACTIVE run are reported, not hidden in the log (D-40).
+		// Periods with an ACTIVE run are reported, not hidden in the log (D-40); so are pruned/kept stale rows (T033h2).
 		reps[0].Skipped = append(reps[0].Skipped, skipped...)
+		reps[0].Warnings = append(reps[0].Warnings, notes...)
 	}
 	for _, r := range reps {
 		if err := logReport(ctx, tx, o.CompanyID, r); err != nil {

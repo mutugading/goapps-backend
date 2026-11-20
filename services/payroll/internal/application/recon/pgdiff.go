@@ -371,11 +371,11 @@ WHERE e.pec_company_id = $1 AND e.pec_division = $2 AND e.pec_frz_flag IS DISTIN
 	return out, rows.Err()
 }
 
-// compKeyOf maps (pc_type, pc_code 'T015') to the legacy key.
+// compKeyOf maps (pc_type, pc_code 'T015') to the legacy key via the shared engine parser.
 func compKeyOf(typ, code string) (engine.CompKey, error) {
-	n, err := strconv.Atoi(strings.TrimLeft(code, "TPtp"))
-	if err != nil || len(code) < 2 {
-		return engine.CompKey{}, fmt.Errorf("recon: component code %q", code)
+	k, err := engine.ParseCompKey(typ, code)
+	if err != nil {
+		return engine.CompKey{}, fmt.Errorf("recon: %w", err)
 	}
-	return engine.CompKey{Type: compType(typ), ID: n}, nil
+	return k, nil
 }

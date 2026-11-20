@@ -82,7 +82,7 @@ func setup() (func(), error) {
 	fail := func(err error) (func(), error) { cleanup(); return nil, err }
 
 	code, _, err := ctr.Exec(ctx, []string{"psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1",
-		"-v", "pw_app=payroll_app123", "-v", "pw_etl=payroll_etl123", "-v", "pw_ro=payroll_ro123",
+		"-v", "pw_app=payroll_app123", "-v", "pw_etl=payroll_etl123", "-v", "pw_recon=payroll_recon123",
 		"-v", "pw_mig=payroll_mig123", "-f", "/bootstrap/bootstrap.sql"})
 	if err != nil || code != 0 {
 		return fail(fmt.Errorf("bootstrap: code=%d err=%v", code, err))
@@ -119,6 +119,9 @@ func setup() (func(), error) {
 		`INSERT INTO payroll.pyr_currency (pcy_code, pcy_minor_unit, pcy_takehome_round) VALUES ('IDR', 2, -2)`,
 		`INSERT INTO payroll.pyr_company (pco_code, pco_name) VALUES ('MGT', 'Mutu Gading')`,
 		`INSERT INTO payroll.pyr_division_ref VALUES (1,'SOLO','Solo'), (1,'JAKARTA','Jakarta')`,
+		// T033i: pe_tax_id divalidasi terhadap EMPTAX rule set ACTIVE; K9 hanya ada di rule set RETIRED.
+		`INSERT INTO payroll.pyr_rule_set (prs_id, prs_name, prs_effective_from, prs_status) VALUES (1, 'v1', 200001, 'ACTIVE'), (9, 'old', 201801, 'RETIRED') ON CONFLICT DO NOTHING`,
+		`INSERT INTO payroll.pyr_static_value (psv_rule_set_id, psv_vs_code, psv_code, psv_field_01) VALUES (1, 'EMPTAX', 'TK', 'A'), (1, 'EMPTAX', 'K1', 'B'), (9, 'EMPTAX', 'K9', 'C') ON CONFLICT DO NOTHING`,
 		`INSERT INTO payroll.pyr_user_scope (pus_user_id, pus_company_id, pus_division) VALUES
 		   ('` + userRW + `',1,'SOLO'), ('` + userRO + `',1,'SOLO'), ('` + userJkt + `',1,'JAKARTA'), ('` + userBoth + `',1,'SOLO'), ('` + userBoth + `',1,'JAKARTA')`,
 	} {
@@ -153,7 +156,7 @@ var (
 		"payroll.master.company.view", "payroll.master.company.create", "payroll.master.company.update",
 		"payroll.master.currency.view", "payroll.master.currency.create", "payroll.master.currency.update",
 		"payroll.master.component.view", "payroll.master.component.create", "payroll.master.component.update",
-		"payroll.master.template.view", "payroll.master.template.update"}
+		"payroll.master.template.view", "payroll.master.template.update", "payroll.salary.amount.view"}
 	permsRO = []string{"payroll.master.employee.view", "payroll.master.company.view", "payroll.master.currency.view"}
 )
 
@@ -214,6 +217,40 @@ func TestEmployeeCreateGetListUpdate(t *testing.T) {
 	}
 	if upd.GetData().GetNpwp() != rawNPWP || upd.GetData().GetKtp() != rawKTP {
 		t.Fatal("empty PII on update must keep the stored value")
+	}
+}
+
+// T033i: tax_id harus kode EMPTAX rule set ACTIVE; kosong diizinkan (belum diketahui), typo/RETIRED ditolak.
+func TestEmployeeTaxIDValidated(t *testing.T) {
+	ctx := ctxFor(t, userRW, permsRW...)
+	create := func(nik, tax string) error {
+		in := input("Pajak " + nik)
+		in.TaxId = tax
+		_, err := handler.CreateEmployee(ctx, &payrollv1.CreateEmployeeRequest{CompanyId: 1, Division: "SOLO", Nik: nik, Input: in})
+		return err
+	}
+	for _, c := range []struct{ nik, tax string }{{"E900", "K/1"}, {"E901", "K9"}, {"E902", "tk"}} {
+		if err := create(c.nik, c.tax); err == nil || code(t, err) != apperr.CodeValidation {
+			t.Errorf("tax_id %q: want VALIDATION, got %v", c.tax, err)
+		}
+	}
+	if err := create("E903", "K1"); err != nil {
+		t.Fatalf("tax_id K1: %v", err)
+	}
+	e := mustCreate(t, "E904", "Tanpa Status")
+	in := input("Tanpa Status")
+	in.TaxId = "K/1"
+	_, err := handler.UpdateEmployee(ctx, &payrollv1.UpdateEmployeeRequest{Id: e.GetId(), Input: in, IfMatch: e.GetEtag()})
+	if err == nil || code(t, err) != apperr.CodeValidation {
+		t.Fatalf("update tax_id K/1: want VALIDATION, got %v", err)
+	}
+	// Kode HRIS lama (dimuat ETL tanpa validasi) tidak dicek ulang bila tax_id tidak diubah.
+	if _, err := ownDB.Exec(`UPDATE payroll.pyr_employee SET pe_tax_id = 'K/1' WHERE pe_id = $1`, e.GetId()); err != nil {
+		t.Fatal(err)
+	}
+	in.Nama = "Ganti Nama Saja"
+	if _, err := handler.UpdateEmployee(ctx, &payrollv1.UpdateEmployeeRequest{Id: e.GetId(), Input: in, IfMatch: e.GetEtag()}); err != nil {
+		t.Fatalf("update nama, tax_id lama K/1 tetap: %v", err)
 	}
 }
 

@@ -112,6 +112,8 @@ type Repository interface {
 	ResolveEmployeeIDs(ctx context.Context, tx *sql.Tx, nik string, companyID int16, division string) ([]int64, error)
 	ListEmployees(ctx context.Context, tx *sql.Tx, f EmployeeFilter, p PII) ([]Employee, error)
 	UpdateEmployee(ctx context.Context, tx *sql.Tx, id int64, e Employee, npwp, ktp, bankAcnt, actor string, ifMatch int, p PII) (Employee, error)
+	// TaxStatusKnown reports whether code is an EMPTAX code (pe_tax_id) of an ACTIVE rule set.
+	TaxStatusKnown(ctx context.Context, tx *sql.Tx, code string) (bool, error)
 
 	// Lock* take a row lock (SELECT ... FOR UPDATE) so the "before" image read for
 	// the audit log cannot differ from the row the UPDATE then changes.

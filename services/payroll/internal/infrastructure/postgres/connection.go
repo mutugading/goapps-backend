@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"time"
@@ -70,8 +71,17 @@ func (db *DB) Transaction(ctx context.Context, fn func(tx *sql.Tx) error) error 
 	return db.transactionOpts(ctx, nil, fn)
 }
 
+// txBeginner is what *sql.DB and *sql.Conn share.
+type txBeginner interface {
+	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
+}
+
 func (db *DB) transactionOpts(ctx context.Context, opts *sql.TxOptions, fn func(tx *sql.Tx) error) error {
-	tx, err := db.BeginTx(ctx, opts)
+	return runTx(ctx, db.DB, opts, fn)
+}
+
+func runTx(ctx context.Context, b txBeginner, opts *sql.TxOptions, fn func(tx *sql.Tx) error) error {
+	tx, err := b.BeginTx(ctx, opts)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
@@ -101,11 +111,47 @@ func (db *DB) ScopedTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
 
 // ScopedTxOpts is ScopedTx with transaction options (nil = default isolation).
 func (db *DB) ScopedTxOpts(ctx context.Context, opts *sql.TxOptions, fn func(tx *sql.Tx) error) error {
+	return scopedTx(ctx, db.DB, opts, fn)
+}
+
+// ScopedTxOptsLocked is ScopedTxOpts that first takes a session advisory lock (namespace, key) on the connection and
+// only then begins the transaction, so a REPEATABLE READ snapshot is taken after the lock was granted (T033d): the
+// snapshot of a waiter always includes what the previous holder committed. A transaction-level lock cannot do this
+// because the snapshot is taken at the start of the first statement, before it waits. The lock is held until the
+// transaction ended; if it cannot be released the connection is discarded. A session lock needs a direct connection
+// (CLI jobs, docs/database.md): behind PgBouncer in transaction mode lock and unlock may hit different server
+// connections. Waiting is unbounded unless ctx has a deadline.
+func (db *DB) ScopedTxOptsLocked(ctx context.Context, opts *sql.TxOptions, namespace, key string, fn func(tx *sql.Tx) error) (err error) {
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get connection: %w", err)
+	}
+	defer func() {
+		if cerr := conn.Close(); cerr != nil {
+			log.Warn().Err(cerr).Msg("close locked connection")
+		}
+	}()
+	if _, err = conn.ExecContext(ctx, `SELECT pg_advisory_lock(hashtext($1), hashtext($2))`, namespace, key); err != nil {
+		return fmt.Errorf("advisory lock %s: %w", namespace, err)
+	}
+	defer func() {
+		// The caller's ctx may be cancelled already; the lock must still be released.
+		uctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if _, uerr := conn.ExecContext(uctx, `SELECT pg_advisory_unlock(hashtext($1), hashtext($2))`, namespace, key); uerr != nil {
+			log.Error().Err(uerr).Str("lock", namespace).Msg("advisory unlock failed; discarding connection")
+			_ = conn.Raw(func(any) error { return driver.ErrBadConn }) //nolint:errcheck // marks the connection bad so the pool drops it
+		}
+	}()
+	return scopedTx(ctx, conn, opts, fn)
+}
+
+func scopedTx(ctx context.Context, b txBeginner, opts *sql.TxOptions, fn func(tx *sql.Tx) error) error {
 	id, ok := scope.FromContext(ctx)
 	if !ok {
 		return scope.ErrNoIdentity
 	}
-	err := db.transactionOpts(ctx, opts, func(tx *sql.Tx) error {
+	err := runTx(ctx, b, opts, func(tx *sql.Tx) error {
 		if err := setSession(ctx, tx, id.UserID, scope.Join(id.Scopes)); err != nil {
 			return err
 		}

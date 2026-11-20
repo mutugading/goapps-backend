@@ -36,7 +36,7 @@ func TestLevelChangeReplacesTemplateAttachmentsAndKeepsManual(t *testing.T) {
 	mustComponent(t, "T034", "T", "Tunj shift")
 	t035 := mustComponent(t, "T035", "T", "Tunj shift staff")
 	t036 := mustComponent(t, "T036", "T", "Shift adj")
-	t900 := mustComponent(t, "T9B1", "T", "Manual only")
+	t900 := mustComponent(t, "T105", "T", "Manual only")
 
 	for _, s := range []string{
 		`INSERT INTO payroll.pyr_level_rule VALUES ('LV-SHIFT','SHIFT',0.0877,2,1,2,2200,'T1_7_55')`,
@@ -70,18 +70,18 @@ func TestLevelChangeReplacesTemplateAttachmentsAndKeepsManual(t *testing.T) {
 	items := []*payrollv1.EmployeeComponentInput{}
 	for _, it := range got.GetItems() {
 		items = append(items, &payrollv1.EmployeeComponentInput{ComponentSysid: it.GetComponentSysid(), Sts: it.GetSts(), Tax: it.GetTax(),
-			Amount: it.GetAmount(), FrzFlag: it.GetFrzFlag()})
+			Amount: it.GetAmount(), FrzFlag: it.GetFrzFlag(), TaxPaidCompany: it.GetTaxPaidCompany()})
 	}
 	items = append(items, &payrollv1.EmployeeComponentInput{ComponentSysid: t900.GetSysid(), Amount: "7.5"})
 	put, err := handler.PutEmployeeComponents(ctx, &payrollv1.PutEmployeeComponentsRequest{Nik: "LC001", CompanyId: 1, Division: "SOLO", Items: items})
 	if err != nil {
 		t.Fatalf("put: %v", err)
 	}
-	if m := codesOf(put.GetItems()); m["T9B1"].GetSource() != "MANUAL" || m["T002"].GetSource() != "TEMPLATE" {
+	if m := codesOf(put.GetItems()); m["T105"].GetSource() != "MANUAL" || m["T002"].GetSource() != "TEMPLATE" {
 		t.Fatalf("put sources = %v", m)
 	}
 
-	// Preview to a shift level: T2 (dropped for non-staff) and T35 removed, T6/T34/T36 added, MANUAL T9B1 untouched, nothing written yet.
+	// Preview to a shift level: T2 (dropped for non-staff) and T35 removed, T6/T34/T36 added, MANUAL T105 untouched, nothing written yet.
 	pv, err := handler.PreviewLevelChange(ctx, &payrollv1.PreviewLevelChangeRequest{Nik: "LC001", CompanyId: 1, Division: "SOLO", NewLevel: "LV-SHIFT", EffectiveYymm: 202610})
 	if err != nil {
 		t.Fatalf("preview: %v", err)
@@ -90,7 +90,7 @@ func TestLevelChangeReplacesTemplateAttachmentsAndKeepsManual(t *testing.T) {
 	for _, c := range pv.GetChanges() {
 		acts[c.GetComponentCode()] = c.GetAction()
 	}
-	if acts["T002"] != "REMOVE" || acts["T035"] != "REMOVE" || acts["T006"] != "ADD" || acts["T034"] != "ADD" || acts["T036"] != "ADD" || acts["T9B1"] != "" {
+	if acts["T002"] != "REMOVE" || acts["T035"] != "REMOVE" || acts["T006"] != "ADD" || acts["T034"] != "ADD" || acts["T036"] != "ADD" || acts["T105"] != "" {
 		t.Fatalf("preview actions = %v", acts)
 	}
 	if again, _ := handler.GetEmployeeComponents(ctx, &payrollv1.GetEmployeeComponentsRequest{Nik: "LC001", CompanyId: 1, Division: "SOLO"}); codesOf(again.GetItems())["T006"] != nil {
@@ -116,8 +116,8 @@ func TestLevelChangeReplacesTemplateAttachmentsAndKeepsManual(t *testing.T) {
 	}
 	after, _ := handler.GetEmployeeComponents(ctx, &payrollv1.GetEmployeeComponentsRequest{Nik: "LC001", CompanyId: 1, Division: "SOLO"})
 	m := codesOf(after.GetItems())
-	if m["T035"] != nil || m["T002"] != nil || m["T006"].GetAmount() != "0.0877" || m["T034"].GetAmount() != "2200" || m["T9B1"].GetSource() != "MANUAL" ||
-		m["T9B1"].GetAmount() != "7.5" || m["T036"].GetFrzFlag() != 1 {
+	if m["T035"] != nil || m["T002"] != nil || m["T006"].GetAmount() != "0.0877" || m["T034"].GetAmount() != "2200" || m["T105"].GetSource() != "MANUAL" ||
+		m["T105"].GetAmount() != "7.5" || m["T036"].GetFrzFlag() != 1 {
 		t.Fatalf("after apply = %v", m)
 	}
 	var hist int
@@ -136,7 +136,7 @@ func TestEmployeeComponentsScopeAndValidation(t *testing.T) {
 		Items: []*payrollv1.EmployeeComponentInput{{ComponentSysid: 999999}}}); code(t, err) != apperr.CodeValidation {
 		t.Fatalf("unknown component = %v, want VALIDATION", err)
 	}
-	c := mustComponent(t, "T9B2", "T", "Validasi")
+	c := mustComponent(t, "T962", "T", "Validasi")
 	if _, err := handler.PutEmployeeComponents(ctx, &payrollv1.PutEmployeeComponentsRequest{Nik: "LC002", CompanyId: 1, Division: "SOLO",
 		Items: []*payrollv1.EmployeeComponentInput{{ComponentSysid: c.GetSysid(), Amount: "1.1234567"}}}); code(t, err) != apperr.CodeValidation {
 		t.Fatalf("7 decimals = %v, want VALIDATION", err)
@@ -148,7 +148,7 @@ func TestEmployeeComponentsScopeAndValidation(t *testing.T) {
 
 func TestPutComponents_EditedTemplateRowBecomesManualAndRetiredStaysEditable(t *testing.T) {
 	ctx := ctxFor(t, userRW, permsRW...)
-	c := mustComponent(t, "T9C1", "T", "Edit template")
+	c := mustComponent(t, "T107", "T", "Edit template")
 	putLevelTemplate(t, "LV-PUT", c.GetSysid())
 	in := input("Put Uji")
 	in.Level = "LV-PUT"
@@ -157,7 +157,7 @@ func TestPutComponents_EditedTemplateRowBecomesManualAndRetiredStaysEditable(t *
 	}
 	key := &payrollv1.GetEmployeeComponentsRequest{Nik: "LC003", CompanyId: 1, Division: "SOLO"}
 	got, _ := handler.GetEmployeeComponents(ctx, key)
-	if m := codesOf(got.GetItems()); m["T9C1"].GetSource() != "TEMPLATE" {
+	if m := codesOf(got.GetItems()); m["T107"].GetSource() != "TEMPLATE" {
 		t.Fatalf("created = %v", m)
 	}
 	put := func(amount string) error {
@@ -170,14 +170,14 @@ func TestPutComponents_EditedTemplateRowBecomesManualAndRetiredStaysEditable(t *
 		t.Fatal(err)
 	}
 	got, _ = handler.GetEmployeeComponents(ctx, key)
-	if codesOf(got.GetItems())["T9C1"].GetSource() != "TEMPLATE" {
+	if codesOf(got.GetItems())["T107"].GetSource() != "TEMPLATE" {
 		t.Fatal("unchanged PUT changed the source")
 	}
 	if err := put("250"); err != nil {
 		t.Fatal(err)
 	}
 	got, _ = handler.GetEmployeeComponents(ctx, key)
-	if r := codesOf(got.GetItems())["T9C1"]; r.GetSource() != "MANUAL" || r.GetAmount() != "250" {
+	if r := codesOf(got.GetItems())["T107"]; r.GetSource() != "MANUAL" || r.GetAmount() != "250" {
 		t.Fatalf("edited row = %+v", r)
 	}
 	var hist int
@@ -203,7 +203,7 @@ func TestPutComponents_EditedTemplateRowBecomesManualAndRetiredStaysEditable(t *
 func TestPutComponents_ClosedPeriodRefused(t *testing.T) {
 	ctx := ctxFor(t, userRW, permsRW...)
 	mustCreate(t, "LC004", "Closed Uji")
-	c := mustComponent(t, "T9C2", "T", "Closed")
+	c := mustComponent(t, "T155", "T", "Closed")
 	if _, err := ownDB.ExecContext(context.Background(), `INSERT INTO payroll.pyr_period (pp_company_id, pp_yymm, pp_division, pp_date_from, pp_date_to, pp_status)
 	  VALUES (1,202511,'SOLO','2025-10-26','2025-11-25','CLOSED') ON CONFLICT DO NOTHING`); err != nil {
 		t.Fatal(err)

@@ -179,7 +179,7 @@ VALUES ($1,$2,$3,$4) RETURNING psb_id`, q.Company, tb.source, q.YYMM, div).Scan(
 			}
 		}()
 	}
-	if err = attPeriodOpen(ctx, func(c context.Context, s string, a ...any) rowScanner { return db.QueryRowContext(c, s, a...) }, q, div, false); err != nil {
+	if err = attPeriodOpen(ctx, func(c context.Context, s string, a ...any) rowScanner { return db.QueryRowContext(c, s, a...) }, q, div); err != nil {
 		return rep, err
 	}
 	p, err := pullAtt(ctx, reader, q, src, div)
@@ -223,13 +223,11 @@ type rowScanner interface{ Scan(dest ...any) error }
 
 // attPeriodOpen refuses a CLOSED period or one with a locked snapshot (05§4 step 2). The --force-unlocked
 // supervisor flag is not implemented (no consumer before B-UI3); CLOSED is never allowed anyway.
-func attPeriodOpen(ctx context.Context, qr func(context.Context, string, ...any) rowScanner, q AttSyncQuery, div string, share bool) error {
-	forShare := ""
-	if share { // inside the write transaction: block a concurrent approve/close until we commit
-		forShare = " FOR SHARE"
-	}
+// Plain reads, never FOR SHARE (T033h): a locking read applies the p_etl_upd policy (pp_status='OPEN'), which hides
+// a CLOSED period, so the check would pass. Inside the write transaction the run advisory lock serializes instead.
+func attPeriodOpen(ctx context.Context, qr func(context.Context, string, ...any) rowScanner, q AttSyncQuery, div string) error {
 	var status sql.NullString
-	err := qr(ctx, `SELECT pp_status::text FROM payroll.pyr_period WHERE pp_company_id=$1 AND pp_yymm=$2 AND pp_division=$3`+forShare,
+	err := qr(ctx, `SELECT pp_status::text FROM payroll.pyr_period WHERE pp_company_id=$1 AND pp_yymm=$2 AND pp_division=$3`,
 		q.Company, q.YYMM, div).Scan(&status)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) && !errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("cek periode: %w", err)
@@ -239,7 +237,7 @@ func attPeriodOpen(ctx context.Context, qr func(context.Context, string, ...any)
 	}
 	var locked bool
 	if err := qr(ctx, `SELECT coalesce(bool_or(pas_locked), false) FROM (SELECT pas_locked FROM payroll.pyr_att_snapshot
-WHERE pas_company_id=$1 AND pas_yymm=$2 AND pas_division=$3`+forShare+`) s`, q.Company, q.YYMM, div).Scan(&locked); err != nil {
+WHERE pas_company_id=$1 AND pas_yymm=$2 AND pas_division=$3) s`, q.Company, q.YYMM, div).Scan(&locked); err != nil {
 		return fmt.Errorf("cek lock snapshot: %w", err)
 	}
 	if locked {
@@ -457,7 +455,7 @@ func writeAttStage(ctx context.Context, db *sql.DB, q AttSyncQuery, tb attTable,
 		if !ok {
 			return errors.New("driver bukan pgx")
 		}
-		tx, err := sc.Conn().Begin(ctx)
+		tx, err := sc.Conn().BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted}) // the period re-check needs a fresh snapshot per statement (T033h)
 		if err != nil {
 			return err
 		}
@@ -583,17 +581,19 @@ func guardEmptySource(ctx context.Context, tx pgx.Tx, tb attTable, rows int, sco
 }
 
 func lockAndCheckPeriod(ctx context.Context, tx pgx.Tx, q AttSyncQuery, div string) error {
-	// One sync per (company, yymm, division) at a time, then re-check CLOSED/lock with FOR SHARE row locks:
-	// a concurrent approve/close (which updates those rows) waits for this commit, so it cannot slip in
-	// between the check and the write; one that committed earlier is seen here.
+	// One sync per (company, yymm, division) at a time. Then the run advisory lock (same key as run.Lock, D-39), which
+	// approve/close/reopen and engine Commit take before they change pp_status/pas_locked: one that committed earlier
+	// is seen by the re-check below (READ COMMITTED: a new snapshot per statement), one that starts later waits for
+	// this commit (T033h; replaces FOR SHARE, which RLS made blind to CLOSED).
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
 		fmt.Sprintf("att-sync:%d:%d:%s", q.Company, q.YYMM, div)); err != nil {
 		return fmt.Errorf("advisory lock: %w", err)
 	}
-	if err := attPeriodOpen(ctx, func(c context.Context, s string, a ...any) rowScanner { return tx.QueryRow(c, s, a...) }, q, div, true); err != nil {
-		return err
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext('payroll.run'), hashtext($1))`,
+		fmt.Sprintf("%d:%d:%s", q.Company, q.YYMM, div)); err != nil {
+		return fmt.Errorf("run lock: %w", err)
 	}
-	return nil
+	return attPeriodOpen(ctx, func(c context.Context, s string, a ...any) rowScanner { return tx.QueryRow(c, s, a...) }, q, div)
 }
 
 // Staging company-id columns repeated in the sync table definitions.

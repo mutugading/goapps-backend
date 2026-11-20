@@ -94,6 +94,7 @@ type Repository interface {
 
 	// GetTemplate lists the template rows of a level whose component is visible (D-20).
 	GetTemplate(ctx context.Context, tx *sql.Tx, level string) ([]TemplateItem, error)
-	// ReplaceTemplate swaps the visible rows of a level for items (D-20).
-	ReplaceTemplate(ctx context.Context, tx *sql.Tx, level string, items []TemplateItem) error
+	// ReplaceTemplate swaps the visible rows of a level for items (D-20) and marks the level as managed by actor,
+	// which the legacy ETL then leaves alone (T033h2).
+	ReplaceTemplate(ctx context.Context, tx *sql.Tx, level string, items []TemplateItem, actor string) error
 }

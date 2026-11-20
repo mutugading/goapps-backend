@@ -22,7 +22,7 @@ func TestETL_CostGroup(t *testing.T) {
 	hdr := "DEPT_COMP_CODE|DEPT_CODE|DEPT_FIELD_01\n"
 	row := func(code, g string) string { return "002|" + code + "|" + g }
 	dir := writePSV(t, "FM_DEPARTMENT", hdr, row(dept, "contract\r"), row("ZZ1", "MGT"), row("ZZ2", ""), row("ZZ3", "XX"), row("ZZ4", "MGT"), row("ZZ4", "MB"))
-	rep, err := etl.RunCostGroup(ctx, etlDB, dir, etl.CostGroupOptions{CompanyID: 1, ExpectRows: 5})
+	rep, err := etl.RunCostGroup(ctx, etlDB, dir, etl.CostGroupOptions{CompanyID: 1, ExpectRows: 5, AllowExceptions: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func TestETL_CostGroup(t *testing.T) {
 		t.Fatalf("%s karyawan dept ZZD tidak CONTRACT", got)
 	}
 	first := scalar(t, `SELECT coalesce(string_agg(pe_nik||coalesce(pe_cost_group,'-'),',' ORDER BY pe_nik),'') FROM payroll.pyr_employee`)
-	rep2, err := etl.RunCostGroup(ctx, etlDB, dir, etl.CostGroupOptions{CompanyID: 1, ExpectRows: 5})
+	rep2, err := etl.RunCostGroup(ctx, etlDB, dir, etl.CostGroupOptions{CompanyID: 1, ExpectRows: 5, AllowExceptions: true})
 	if err != nil {
 		t.Fatal(err)
 	}

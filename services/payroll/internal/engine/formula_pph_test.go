@@ -2,7 +2,6 @@ package engine
 
 import (
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/shopspring/decimal"
@@ -17,6 +16,9 @@ type pphRules struct {
 func (r pphRules) Constant(k string) (decimal.Decimal, bool) {
 	if k == ConstAllowNegativePPh && r.allowNeg != nil {
 		return decimal.NewFromInt(*r.allowNeg), true
+	}
+	if k == ConstKesMax || k == ConstPenMax { // required by BPJS P15–18 (T033f); high enough not to clamp
+		return d("1000000000"), true
 	}
 	return r.rules.Constant(k)
 }
@@ -159,18 +161,23 @@ func TestPPh21NonDecember(t *testing.T) {
 }
 
 // Legacy SELECT INTO without a category or bracket raises NO_DATA_FOUND, which SQL turns into NULL.
+// PPH_NO_BRACKET blocks approve, so a gross ≤ 0 (no tax owed) leaves P1 NULL without a warning (T033i).
 func TestPPh21NoBracket(t *testing.T) {
-	for name, in := range map[string]Input{
-		"status pajak tak dikenal": pphInput("XX", taxT(1, "6000000", "F")),
-		"gross negatif":            pphInput("TK", taxT(1, "100000", "F"), pComp(4, "500000", "F", false)),
+	for name, c := range map[string]struct {
+		in    Input
+		warns int
+	}{
+		"status pajak tak dikenal": {pphInput("XX", taxT(1, "6000000", "F")), 1},
+		"gross negatif":            {pphInput("TK", taxT(1, "100000", "F"), pComp(4, "500000", "F", false)), 0},
 	} {
+		in := c.in
 		t.Run(name, func(t *testing.T) {
 			l, res := p1(t, in)
 			if l.Amount != nil {
 				t.Errorf("P1 = %s, want NULL", l.Amount)
 			}
-			if len(res.Warnings) != 1 || !strings.HasPrefix(res.Warnings[0], WarnPPhNoBracket) {
-				t.Errorf("warnings = %v", res.Warnings)
+			if countWarn(res, WarnPPhNoBracket) != c.warns || len(res.Warnings) != c.warns {
+				t.Errorf("warnings = %v, want %d PPH_NO_BRACKET", res.Warnings, c.warns)
 			}
 			if res.Incomplete {
 				t.Error("incomplete")

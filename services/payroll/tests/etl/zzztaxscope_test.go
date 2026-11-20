@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/run"
@@ -56,10 +57,18 @@ func TestRunLoader_YTDOutOfScope(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = raw.Close() }()
-	app := postgres.NewDBFromSQL(raw)
+	// payroll_recon reads across divisions (p_ro, T033g2): app.scopes is only the filter cmd/recon sets, so the
+	// loader must filter scope explicitly to give the same YTD as the app (recon parity).
+	rawRecon, err := sql.Open("pgx", strings.Replace(appDSN, "user=payroll_app password=payroll_app123", "user=payroll_recon password=payroll_recon123", 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = rawRecon.Close() }()
+	app, recon := postgres.NewDBFromSQL(raw), postgres.NewDBFromSQL(rawRecon)
+	db := app
 	load := func(legacy bool, divs ...string) (map[string]engine.Input, []run.Issue, error) {
 		var res run.Result
-		err := app.ScopedTx(asScopes(t, divs...), func(tx *sql.Tx) error {
+		err := db.ScopedTx(asScopes(t, divs...), func(tx *sql.Tx) error {
 			var lerr error
 			res, lerr = run.NewLoader().Load(ctx, tx, run.Query{CompanyID: 1, Division: "SOLO", YYMM: 203212, NIKs: []string{"Z-S", "Z-N", "Z-X"}},
 				run.Rules{Set: stubRules{legacy}, Subsidy: func(string) engine.Subsidy { return engine.Subsidy{} }})
@@ -90,6 +99,20 @@ func TestRunLoader_YTDOutOfScope(t *testing.T) {
 		}
 		if g := ins["Z-S"].YTD.Gross; !g.Equal(dec("2000000")) {
 			t.Errorf("YTD.Gross = %s, want 2000000", g)
+		}
+	})
+	t.Run("recon role scope SOLO only: same as app", func(t *testing.T) {
+		db = recon
+		defer func() { db = app }()
+		ins, warns, err := load(true, "SOLO")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := outOfScope(warns); len(got) != 2 || got[0] != "Z-S" || got[1] != "Z-X" {
+			t.Errorf("out-of-scope warnings: %v (%+v)", got, warns)
+		}
+		if g := ins["Z-S"].YTD.Gross; !g.Equal(dec("2000000")) {
+			t.Errorf("recon YTD.Gross = %s, want 2000000 (JAKARTA placement must not be summed)", g)
 		}
 	})
 	t.Run("v2 scope SOLO only: error", func(t *testing.T) {

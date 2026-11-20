@@ -115,26 +115,53 @@ func LoadEmployees(ctx context.Context, tx *sql.Tx, src *Table, division string,
 		if err != nil {
 			return rep, nil, fmt.Errorf("%s: %w", where, err)
 		}
-		for _, w := range warns {
-			rep.Warnings = append(rep.Warnings, where+": "+w)
-		}
 		sys, w := hrisSysID(hris, nik)
-		if w != "" {
-			rep.Warnings = append(rep.Warnings, where+": "+w)
+		npwp, wn := cleanNPWP(c("PE_NPWP"))
+		for _, w := range append(warns, w, wn) {
+			if w != "" {
+				rep.Warnings = append(rep.Warnings, where+": "+w)
+			}
 		}
 		var id int64
-		if err = stmt.QueryRowContext(ctx, employeeArgs(o, division, c, dates, sys)...).Scan(&id); err != nil {
+		if err = stmt.QueryRowContext(ctx, employeeArgs(o, division, c, npwp, dates, sys)...).Scan(&id); err != nil {
 			return rep, nil, fmt.Errorf("%s: %w", where, scrub(err))
 		}
 		if _, err = tx.ExecContext(ctx, `INSERT INTO payroll.pyr_employee_nik_hist (penh_employee_id, penh_nik, penh_valid_from, penh_source)
 VALUES ($1,$2,COALESCE($3::date,'2000-01-01'),'PAYROLL_NIK') ON CONFLICT DO NOTHING`, id, nik, nullable(dates[0])); err != nil {
 			return rep, nil, fmt.Errorf("%s: nik_hist: %w", where, err)
 		}
+		if loaded[EmpKey{nik, division}] {
+			return rep, nil, fmt.Errorf("%s: NIK ganda di sumber", where)
+		}
 		loaded[EmpKey{nik, division}] = true
 	}
-	err = tx.QueryRowContext(ctx, `SELECT count(*) FROM payroll.pyr_employee WHERE pe_company_id=$1 AND pe_division=$2::payroll.division`,
-		o.CompanyID, division).Scan(&rep.DstRows)
-	return rep, loaded, err
+	// T033h: reconcile what THIS run loaded, not count(*) of the table (an employee created in the app would
+	// otherwise fail every later ETL, and a duplicate could hide a missing row).
+	rep.DstRows = len(loaded)
+	return rep, loaded, nil
+}
+
+// cleanNPWP returns the NPWP to store, or "" (NULL, no hash) with a warning when it is not 15/16 digits or one
+// repeated digit (placeholder such as 00.000.000.0-000.000): a shared hash would merge the YTD of unrelated
+// employees (review #283 #6, D-73 (4)). The warning never echoes the value (PII, D-17).
+func cleanNPWP(s string) (string, string) {
+	var d strings.Builder
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			d.WriteRune(r)
+		}
+	}
+	digits := d.String()
+	if digits == "" {
+		return "", ""
+	}
+	if n := len(digits); n != 15 && n != 16 {
+		return "", fmt.Sprintf("NPWP %d digit (bukan 15/16): disimpan NULL", len(digits))
+	}
+	if strings.Count(digits, digits[:1]) == len(digits) {
+		return "", "NPWP placeholder (satu digit berulang): disimpan NULL"
+	}
+	return s, ""
 }
 
 // hrisSysID resolves HMEMD_SYS_ID for a NIK; a warning (13§3.5) when HRIS was provided but has no match.
@@ -191,12 +218,11 @@ func employeeDates(c func(string) string, r []string, pwIdx int) ([3]string, []s
 }
 
 // employeeArgs builds the bind list of upsertEmployeeSQL ($1 = encryption key, never logged).
-func employeeArgs(o EmployeeOptions, division string, c func(string) string, dates [3]string, sys any) []any {
+func employeeArgs(o EmployeeOptions, division string, c func(string) string, npwp string, dates [3]string, sys any) []any {
 	sub := c("PE_SUB_ACNT")
 	if sub == "" {
 		sub = c("PE_NIK")
 	}
-	npwp := c("PE_NPWP")
 	var hash any
 	if h := postgres.NPWPHash([]byte(o.HMACKey), npwp); h != nil {
 		hash = h
@@ -236,7 +262,32 @@ ON CONFLICT (pe_company_id, pe_nik, pe_division) DO UPDATE SET
   pe_bank_acnt_enc=EXCLUDED.pe_bank_acnt_enc, pe_npwp_hash=EXCLUDED.pe_npwp_hash, pe_bank=EXCLUDED.pe_bank,
   pe_bank_branch=EXCLUDED.pe_bank_branch, pe_bank_acnt_name=EXCLUDED.pe_bank_acnt_name,
   pe_id_mesin=EXCLUDED.pe_id_mesin, pe_cuti_tahunan=EXCLUDED.pe_cuti_tahunan,
-  pe_hris_sys_id=COALESCE(EXCLUDED.pe_hris_sys_id, payroll.pyr_employee.pe_hris_sys_id), updated_by='ETL', updated_at=now()
+  pe_hris_sys_id=COALESCE(EXCLUDED.pe_hris_sys_id, payroll.pyr_employee.pe_hris_sys_id),
+  -- T033e (#3b): ETag (pe_version) naik hanya bila nilai berubah. Kolom PII terenkripsi memakai salt acak, jadi
+  -- dibandingkan lewat plaintext ($26-$28), bukan ciphertext.
+  pe_version=payroll.pyr_employee.pe_version + CASE WHEN
+    (payroll.pyr_employee.pe_nama, payroll.pyr_employee.pe_email, payroll.pyr_employee.pe_dept_id, payroll.pyr_employee.pe_dept,
+     payroll.pyr_employee.pe_section_id, payroll.pyr_employee.pe_section, payroll.pyr_employee.pe_designation_id,
+     payroll.pyr_employee.pe_designation, payroll.pyr_employee.pe_grade, payroll.pyr_employee.pe_level, payroll.pyr_employee.pe_tax_id,
+     payroll.pyr_employee.pe_sts_emp, payroll.pyr_employee.pe_sts_payroll, payroll.pyr_employee.pe_sts_bonus,
+     payroll.pyr_employee.pe_date_join, payroll.pyr_employee.pe_resign_date, payroll.pyr_employee.pe_birth_date,
+     payroll.pyr_employee.pe_birth_place, payroll.pyr_employee.pe_sex, payroll.pyr_employee.pe_married_sts,
+     payroll.pyr_employee.pe_religion, payroll.pyr_employee.pe_npwp_hash, payroll.pyr_employee.pe_bank,
+     payroll.pyr_employee.pe_bank_branch, payroll.pyr_employee.pe_bank_acnt_name, payroll.pyr_employee.pe_id_mesin,
+     payroll.pyr_employee.pe_cuti_tahunan, payroll.pyr_employee.pe_hris_sys_id,
+     CASE WHEN payroll.pyr_employee.pe_npwp_enc IS NULL THEN NULL ELSE payroll.pgp_sym_decrypt(payroll.pyr_employee.pe_npwp_enc,$1::text) END,
+     CASE WHEN payroll.pyr_employee.pe_ktp_enc IS NULL THEN NULL ELSE payroll.pgp_sym_decrypt(payroll.pyr_employee.pe_ktp_enc,$1::text) END,
+     CASE WHEN payroll.pyr_employee.pe_bank_acnt_enc IS NULL THEN NULL ELSE payroll.pgp_sym_decrypt(payroll.pyr_employee.pe_bank_acnt_enc,$1::text) END)
+    IS DISTINCT FROM
+    (EXCLUDED.pe_nama, EXCLUDED.pe_email, EXCLUDED.pe_dept_id, EXCLUDED.pe_dept, EXCLUDED.pe_section_id, EXCLUDED.pe_section,
+     EXCLUDED.pe_designation_id, EXCLUDED.pe_designation, EXCLUDED.pe_grade, EXCLUDED.pe_level, EXCLUDED.pe_tax_id,
+     EXCLUDED.pe_sts_emp, EXCLUDED.pe_sts_payroll, EXCLUDED.pe_sts_bonus, EXCLUDED.pe_date_join, EXCLUDED.pe_resign_date,
+     EXCLUDED.pe_birth_date, EXCLUDED.pe_birth_place, EXCLUDED.pe_sex, EXCLUDED.pe_married_sts, EXCLUDED.pe_religion,
+     EXCLUDED.pe_npwp_hash, EXCLUDED.pe_bank, EXCLUDED.pe_bank_branch, EXCLUDED.pe_bank_acnt_name, EXCLUDED.pe_id_mesin,
+     EXCLUDED.pe_cuti_tahunan, COALESCE(EXCLUDED.pe_hris_sys_id, payroll.pyr_employee.pe_hris_sys_id),
+     $26::text, $27::text, $28::text)
+  THEN 1 ELSE 0 END,
+  updated_by='ETL', updated_at=now()
 RETURNING pe_id`
 
 // scrub drops driver detail that could echo a PII value (D-17); the SQLSTATE and message stay.
@@ -288,6 +339,7 @@ func LoadEmployeeComponents(ctx context.Context, tx *sql.Tx, src *Table, divisio
 	}
 	defer closeQuiet(stmt)
 
+	seen := map[attKey]bool{}
 	for i, r := range src.Rows {
 		c := func(n string) string { return r[idx[n]] }
 		id, err := strconv.Atoi(c(colMpceID))
@@ -305,6 +357,10 @@ func LoadEmployeeComponents(ctx context.Context, tx *sql.Tx, src *Table, divisio
 			rep.Exceptions = append(rep.Exceptions, where+": komponen tanpa peta sysid")
 			continue
 		}
+		if seen[attKey{c(colMpceNIK), sysid}] { // the first row wins; a second one is reported, never written over it
+			rep.Exceptions = append(rep.Exceptions, where+": komponen ganda untuk NIK ini di sumber")
+			continue
+		}
 		frz := c("MPCE_FRZ_FLAG")
 		if frz == "" {
 			frz = "2"
@@ -314,10 +370,15 @@ func LoadEmployeeComponents(ctx context.Context, tx *sql.Tx, src *Table, divisio
 			attachmentSource(tmpl, sysid, c)); err != nil {
 			return rep, fmt.Errorf("%s: %w", where, err)
 		}
+		seen[attKey{c(colMpceNIK), sysid}] = true
 	}
-	err = tx.QueryRowContext(ctx, `SELECT count(*) FROM payroll.pyr_employee_component WHERE pec_company_id=$1 AND pec_division=$2::payroll.division`,
-		o.CompanyID, division).Scan(&rep.DstRows)
-	return rep, err
+	rep.DstRows = len(seen) // T033h: rows of this run, not count(*) of the table
+	return rep, nil
+}
+
+type attKey struct {
+	nik   string
+	sysid int64
 }
 
 const upsertAttachmentSQL = `
@@ -528,4 +589,11 @@ const (
 	colMpceNIK    = "MPCE_NIK"
 	colMpceType   = "MPCE_TYPE"
 	colPdYymm     = "PD_YYMM"
+	colPmDivision = "PM_DIVISION"
+	colPdDivision = "PD_DIVISION"
+	colPmNIK      = "PM_NIK"
+	colPdNIK      = "PD_NIK"
+	colPmYymm     = "PM_YYMM"
+	colPdType     = "PD_TYPE"
+	colPdNo       = "PD_NO"
 )

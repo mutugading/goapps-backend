@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -98,10 +99,13 @@ func parseGlRow(r []string, ix map[string]int, sysids map[sysKey]int64) (glRow, 
 		g.balance = true
 		return g, ""
 	}
-	if exc := parseGlLine(&g, c); exc != "" {
+	if exc := parseGlLine(&g, c, glPayableJenis[jenis]); exc != "" {
 		return g, exc
 	}
 	if glPayableJenis[jenis] {
+		// SALARY001 joins Salary Payables on jabatan + division only (not MPS_DEPT) and the GL export reads one PAYABLE
+		// row per group (T033h3): the dept is dropped, so rows that differ only in dept share one key and an account/drcr
+		// difference between them is a conflict (exception), not an arbitrary pick.
 		g.key.kind = glKindPayable
 		return g, ""
 	}
@@ -122,12 +126,13 @@ func parseGlRow(r []string, ix map[string]int, sysids map[sysKey]int64) (glRow, 
 	return g, ""
 }
 
-// parseGlLine validates the columns every journal line (component or payable) needs: jabatan, dept and drcr.
-func parseGlLine(g *glRow, c func(string) string) string {
+// parseGlLine validates the columns every journal line needs: jabatan, drcr and (component lines only) dept; a
+// payable line ignores MPS_DEPT (T033h3).
+func parseGlLine(g *glRow, c func(string) string, payable bool) string {
 	if g.key.group = c("MPS_JABATAN"); g.key.group == "" {
 		return "MPS_JABATAN kosong"
 	}
-	if d := strings.ToUpper(c("MPS_DEPT")); d != "" {
+	if d := strings.ToUpper(c("MPS_DEPT")); d != "" && !payable {
 		cg, ok := glCostGroups[d]
 		if !ok {
 			return fmt.Sprintf("MPS_DEPT %q bukan MGT/MB/Contract", c("MPS_DEPT"))
@@ -234,12 +239,22 @@ func RunGlSetup(ctx context.Context, db *sql.DB, src Source, o GlSetupOptions) (
 		if len(dups) > 1 {
 			rep.Warnings = append(rep.Warnings, fmt.Sprintf("%d baris identik digabung: %s", len(dups), glKeyText(g.key)))
 		}
-		if err := upsertGl(ctx, tx, o.CompanyID, dups[0]); err != nil {
+		exc, err := upsertGl(ctx, tx, o.CompanyID, dups[0])
+		if err != nil {
 			return rep, fmt.Errorf("baris %d: %w", g.srcLine, err)
+		}
+		if exc != "" {
+			for _, d := range dups {
+				rep.Exceptions = append(rep.Exceptions, fmt.Sprintf("%s baris %d: %s", t.Name, d.srcLine, exc))
+			}
+			continue
 		}
 		loaded += len(dups)
 	}
 	rep.DstRows = loaded
+	if err := staleGlPayables(ctx, tx, o.CompanyID, &rep); err != nil {
+		return rep, err
+	}
 	if err := loadGlGroupMap(ctx, tx, o.CompanyID, &rep); err != nil {
 		return rep, err
 	}
@@ -311,10 +326,12 @@ WHERE pclm_company_id=$1 AND pclm_legacy_division=$2`, company, division)
 	return m, rows.Err()
 }
 
-func upsertGl(ctx context.Context, tx *sql.Tx, company int16, g glRow) error {
+// upsertGl writes one setup row. A row of the same key without pgs_legacy_row is app-made and outside p_etl (000049): it is
+// never overwritten, the returned exception text says so (T033g5) instead of an RLS error that would roll back the load.
+func upsertGl(ctx context.Context, tx *sql.Tx, company int16, g glRow) (string, error) {
 	legacy, err := json.Marshal(g.legacy)
 	if err != nil {
-		return err
+		return "", err
 	}
 	var cost, sysid, sub any
 	if g.key.cost != "" {
@@ -326,6 +343,17 @@ func upsertGl(ctx context.Context, tx *sql.Tx, company int16, g glRow) error {
 	if g.sub != "" {
 		sub = g.sub
 	}
+	var appOwned bool
+	switch err := tx.QueryRowContext(ctx, `SELECT pgs_legacy_row IS NULL FROM payroll.pyr_gl_setup
+WHERE pgs_company_id=$1 AND pgs_division=$2 AND pgs_journal_type=$3 AND pgs_gl_group=$4 AND coalesce(pgs_cost_group,'*')=coalesce($5::text,'*')
+  AND coalesce(pgs_component_sysid,0)=coalesce($6::bigint,0) AND pgs_line_kind=$7 AND pgs_valid_from=$8`,
+		company, g.key.division, g.key.journal, g.key.group, cost, sysid, g.key.kind, glValidFrom).Scan(&appOwned); {
+	case errors.Is(err, sql.ErrNoRows):
+	case err != nil:
+		return "", err
+	case appOwned:
+		return "baris setup GL milik app (tanpa pgs_legacy_row), tidak ditimpa ETL: " + glKeyText(g.key), nil
+	}
 	_, err = tx.ExecContext(ctx, `
 INSERT INTO payroll.pyr_gl_setup (pgs_company_id, pgs_division, pgs_journal_type, pgs_gl_group, pgs_cost_group, pgs_component_sysid,
   pgs_line_kind, pgs_account_main, pgs_account_sub, pgs_sub_from_employee, pgs_drcr, pgs_description, pgs_valid_from, pgs_legacy_row)
@@ -335,7 +363,26 @@ DO UPDATE SET pgs_account_main=EXCLUDED.pgs_account_main, pgs_account_sub=EXCLUD
   pgs_sub_from_employee=EXCLUDED.pgs_sub_from_employee, pgs_drcr=EXCLUDED.pgs_drcr,
   pgs_description=EXCLUDED.pgs_description, pgs_legacy_row=EXCLUDED.pgs_legacy_row`,
 		company, g.key.division, g.key.journal, g.key.group, cost, sysid, g.key.kind, g.main, sub, g.subFromEmp, g.drcr, g.desc, glValidFrom, string(legacy))
-	return err
+	return "", err
+}
+
+// staleGlPayables warns about PAYABLE rows that still carry a cost group (ETL before T033h3; migration 000051 deletes
+// them). The GL export never reads them. Rows outside the p_etl policy are not visible here.
+func staleGlPayables(ctx context.Context, tx *sql.Tx, company int16, rep *TableReport) error {
+	q, err := tx.QueryContext(ctx, `SELECT pgs_division, pgs_journal_type, pgs_gl_group, pgs_cost_group FROM payroll.pyr_gl_setup
+WHERE pgs_company_id=$1 AND pgs_line_kind='PAYABLE' AND pgs_cost_group IS NOT NULL ORDER BY 1,2,3,4`, company)
+	if err != nil {
+		return err
+	}
+	defer closeQuiet(q)
+	for q.Next() {
+		var d, j, g, c string
+		if err := q.Scan(&d, &j, &g, &c); err != nil {
+			return err
+		}
+		rep.Warnings = append(rep.Warnings, fmt.Sprintf("baris PAYABLE ber-cost group %s/%s/%s/cost=%q tidak dipakai ekspor GL (T033h3, lihat migrasi 000051)", d, j, g, c))
+	}
+	return q.Err()
 }
 
 // loadGlGroupMap seeds pyr_gl_group_map and warns when a mapped gl_group has no setup row for its division.

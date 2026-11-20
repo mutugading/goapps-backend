@@ -141,3 +141,49 @@ func TestInputHasRekap_NilVersusEmpty(t *testing.T) {
 		t.Fatal("empty non-nil Att must count as a recap")
 	}
 }
+
+func TestParseCompKey(t *testing.T) {
+	cases := []struct {
+		typ, code string
+		want      CompKey
+		wantErr   error
+	}{
+		{"Tunjangan", "T001", CompKey{CompT, 1}, nil},
+		{"Potongan", "P032", CompKey{CompP, 32}, nil},
+		{"t", "t015", CompKey{CompT, 15}, nil},
+		{"P", "P008", CompKey{CompP, 8}, nil},
+		{"T", "T", CompKey{}, ErrBadCompCode},
+		{"T", "Txyz", CompKey{}, ErrBadCompCode},
+		{"T", "TT01", CompKey{}, ErrBadCompCode},
+		{"T", "T-01", CompKey{}, ErrBadCompCode},
+		{"T", "X001", CompKey{}, ErrBadCompCode},
+		{"T", "", CompKey{}, ErrBadCompCode},
+		{"X", "T001", CompKey{}, ErrBadCompType},
+	}
+	for _, c := range cases {
+		got, err := ParseCompKey(c.typ, c.code)
+		if !errors.Is(err, c.wantErr) || got != c.want {
+			t.Errorf("ParseCompKey(%q,%q) = %v, %v; want %v, %v", c.typ, c.code, got, err, c.want, c.wantErr)
+		}
+	}
+}
+
+func TestCodeMatchesType(t *testing.T) {
+	cases := []struct {
+		typ, code string
+		want      bool
+	}{
+		{"T", "T001", true},
+		{"Tunjangan", "T001", true},
+		{"Potongan", "P001", true},
+		{"P", "T001", false},
+		{"T", "P001", false},
+		{"T", "", false},
+		{"Z", "T001", false},
+	}
+	for _, c := range cases {
+		if got := CodeMatchesType(c.typ, c.code); got != c.want {
+			t.Errorf("CodeMatchesType(%q,%q) = %v, want %v", c.typ, c.code, got, c.want)
+		}
+	}
+}

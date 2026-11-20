@@ -6,10 +6,55 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"slices"
 	"strings"
 
 	"github.com/rs/zerolog/log"
+
+	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/config"
 )
+
+// DummyDBAllowEnv lists (comma separated) the database names where the dummy/purge tools may run. Empty or unset = every
+// database is refused (fail-closed, T033a / review #283 #1).
+const DummyDBAllowEnv = "PAYROLL_DUMMY_DB_ALLOW"
+
+// ErrDummyRefused is returned when the dummy/purge guard rejects the target database or environment.
+var ErrDummyRefused = errors.New("dummy ditolak")
+
+// dummyEnvs are the only APP_ENV values where synthetic data may be created (whitelist, not a production blacklist:
+// "Production", "prod" or a typo must not pass, T033a review).
+var dummyEnvs = []string{"development", "local", "test", "staging"}
+
+// CheckDummyEnv returns ErrDummyRefused unless APP_ENV (trimmed, case-insensitive; unset = development) is a dummy-safe
+// environment. The CLI calls it before opening any connection; Run* calls it through guardDummy.
+func CheckDummyEnv(op string) error {
+	env := strings.ToLower(strings.TrimSpace(config.EnvFromOS()))
+	if !slices.Contains(dummyEnvs, env) {
+		return fmt.Errorf("%w: %s di APP_ENV=%q: data dummy hanya di %s (D-68); pakai DB salinan/staging", ErrDummyRefused, op, env, strings.Join(dummyEnvs, "|"))
+	}
+	return nil
+}
+
+// guardDummy is the fail-closed guard of every synthetic-data operation (D-64, D-68, T033a). It runs inside the Run*
+// functions, so a caller other than the CLI is covered too: APP_ENV must be a dummy-safe environment (CheckDummyEnv) AND current_database() must be
+// in the PAYROLL_DUMMY_DB_ALLOW allowlist (default empty = refuse). The check is done on the live connection, not on a
+// DSN string, so a tunnel or an alias cannot hide the real database.
+func guardDummy(ctx context.Context, db *sql.DB, op string) error {
+	if err := CheckDummyEnv(op); err != nil {
+		return err
+	}
+	var name string
+	if err := db.QueryRowContext(ctx, `SELECT current_database()`).Scan(&name); err != nil {
+		return fmt.Errorf("%w: %s: current_database(): %w", ErrDummyRefused, op, err)
+	}
+	for _, a := range strings.Split(os.Getenv(DummyDBAllowEnv), ",") {
+		if a = strings.TrimSpace(a); a != "" && a == name {
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: %s di database %q yang tidak ada di allowlist %s (default kosong = tolak; hanya DB salinan/staging)", ErrDummyRefused, op, name, DummyDBAllowEnv)
+}
 
 // DummyMarker labels every synthetic row of the D-64 rehearsal (created_by / updated_by). It differs from the '{}'
 // LEGACY marker of pas_source_batch_ids so uix_pas_legacy and the loaders never mistake a dummy for history.
@@ -87,6 +132,12 @@ func lockDummyPeriod(ctx context.Context, tx *sql.Tx, co int16, yymm int, div st
 		fmt.Sprintf("att-sync:%d:%d:%s", co, yymm, div)); err != nil {
 		return 0, fmt.Errorf("advisory lock: %w", err)
 	}
+	// T033h: plus the run lock (same key as run.Lock), so approve/close/reopen cannot change the status between
+	// the plain reads below and the commit.
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext('payroll.run'), hashtext($1))`,
+		fmt.Sprintf("%d:%d:%s", co, yymm, div)); err != nil {
+		return 0, fmt.Errorf("run lock: %w", err)
+	}
 	var status sql.NullString
 	if err := tx.QueryRowContext(ctx, `SELECT pp_status::text FROM payroll.pyr_period WHERE pp_company_id=$1 AND pp_yymm=$2 AND pp_division=$3`,
 		co, yymm, div).Scan(&status); err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -117,6 +168,9 @@ func lockDummyPeriod(ctx context.Context, tx *sql.Tx, co int16, yymm int, div st
 // brought in line. db must connect as payroll_etl.
 func RunDummyPeriod(ctx context.Context, db *sql.DB, q DummyPeriodQuery) (DummyReport, error) {
 	rep := DummyReport{Division: q.Division, YYMM: q.To}
+	if err := guardDummy(ctx, db, "dummy-period"); err != nil {
+		return rep, err
+	}
 	if q.Company <= 0 {
 		return rep, errors.New("company wajib")
 	}
@@ -250,9 +304,13 @@ VALUES ('etl', $1, 'dummy_d64', $2, $3, $4, $5::jsonb)`, action, fmt.Sprintf("%d
 // RunDummyPurge deletes the dummy rows of one period: dummy snapshots (rows by cascade), additions marked DUMMY-D64 and
 // pyr_attd_days (only when a dummy snapshot exists). It needs the table-owner DSN (payroll_etl has no DELETE; D-64 (3)
 // amended, user decision batch T029a). It refuses a non-dummy snapshot, an APPROVED/CLOSED period and a period whose dummy
-// snapshot a run references; a period without dummy rows is a no-op.
-func RunDummyPurge(ctx context.Context, db *sql.DB, company int16, yymm int, division string) (DummyReport, error) {
+// snapshot a run references; a period without dummy rows is a no-op. Without apply it is a dry run: the same checks run and
+// the report holds what would be deleted, but nothing is deleted or audited (T033a). The allowlist guard applies to both.
+func RunDummyPurge(ctx context.Context, db *sql.DB, company int16, yymm int, division string, apply bool) (DummyReport, error) {
 	rep := DummyReport{Division: division, YYMM: yymm}
+	if err := guardDummy(ctx, db, "dummy-purge"); err != nil {
+		return rep, err
+	}
 	if company <= 0 {
 		return rep, errors.New("company wajib")
 	}
@@ -263,41 +321,63 @@ func RunDummyPurge(ctx context.Context, db *sql.DB, company int16, yymm int, div
 		return rep, err
 	}
 	err := withTx(ctx, db, func(tx *sql.Tx) error {
-		id, err := lockDummyPeriod(ctx, tx, company, yymm, division)
-		if err != nil || id == 0 {
-			return err // no dummy snapshot: nothing of ours to delete (additions/attd_days are only ours with a dummy snapshot)
-		}
-		var runs int
-		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM payroll.pyr_run r JOIN payroll.pyr_att_snapshot s ON s.pas_snapshot_id = r.pr_snapshot_id
-WHERE s.pas_company_id=$1 AND s.pas_yymm=$2 AND s.pas_division=$3`, company, yymm, division).Scan(&runs); err != nil {
-			return fmt.Errorf("cek run: %w", err)
-		}
-		if runs > 0 {
-			return fmt.Errorf("periode %d %s: %d run memakai snapshot dummy; hapus run dulu", yymm, division, runs)
-		}
-		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM payroll.pyr_att_snapshot_row WHERE pasr_snapshot_id = $1`, id).Scan(&rep.Rows); err != nil {
-			return err
-		}
-		for _, d := range []struct {
-			q string
-			n *int
-		}{
-			{`DELETE FROM payroll.pyr_addition WHERE pa_company_id=$1 AND pa_yymm=$2 AND pa_division=$3 AND created_by = $4`, &rep.Additions},
-			{`DELETE FROM payroll.pyr_attd_days WHERE pad_company_id=$1 AND pad_yymm=$2 AND pad_division=$3 AND $4::text IS NOT NULL`, &rep.AttdDays},
-			{`DELETE FROM payroll.pyr_att_snapshot WHERE pas_company_id=$1 AND pas_yymm=$2 AND pas_division=$3 AND created_by = $4`, nil},
-		} {
-			res, err := tx.ExecContext(ctx, d.q, company, yymm, division, DummyMarker)
-			if err != nil {
-				return fmt.Errorf("purge: %w", err)
-			}
-			if d.n != nil {
-				*d.n = affected(res)
-			}
-		}
-		rep.SnapshotID = id
-		return dummyAudit(ctx, tx, company, "ETL_DUMMY_PURGE", yymm, division, map[string]any{"rows": rep.Rows, "additions": rep.Additions, "attd_days": rep.AttdDays, "snapshot": id})
+		return purgeDummyTx(ctx, tx, company, yymm, division, apply, &rep)
 	})
 	return rep, err
+}
+
+// purgeDummyTx is the transactional body of RunDummyPurge; it fills rep with the counts (dry run) or the deleted rows.
+func purgeDummyTx(ctx context.Context, tx *sql.Tx, company int16, yymm int, division string, apply bool, rep *DummyReport) error {
+	id, err := lockDummyPeriod(ctx, tx, company, yymm, division)
+	if err != nil || id == 0 {
+		return err // no dummy snapshot: nothing of ours to delete (additions/attd_days are only ours with a dummy snapshot)
+	}
+	if err := ensureNoRunOnSnapshot(ctx, tx, company, yymm, division); err != nil {
+		return err
+	}
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM payroll.pyr_att_snapshot_row WHERE pasr_snapshot_id = $1`, id).Scan(&rep.Rows); err != nil {
+		return err
+	}
+	rep.SnapshotID = id
+	if !apply { // dry run: count what -apply would delete (same predicates as the DELETEs below)
+		if err := tx.QueryRowContext(ctx, `SELECT
+  (SELECT count(*) FROM payroll.pyr_addition WHERE pa_company_id=$1 AND pa_yymm=$2 AND pa_division=$3 AND created_by = $4),
+  (SELECT count(*) FROM payroll.pyr_attd_days WHERE pad_company_id=$1 AND pad_yymm=$2 AND pad_division=$3)`,
+			company, yymm, division, DummyMarker).Scan(&rep.Additions, &rep.AttdDays); err != nil {
+			return fmt.Errorf("dry-run: %w", err)
+		}
+		return nil
+	}
+	for _, d := range []struct {
+		q string
+		n *int
+	}{
+		{`DELETE FROM payroll.pyr_addition WHERE pa_company_id=$1 AND pa_yymm=$2 AND pa_division=$3 AND created_by = $4`, &rep.Additions},
+		{`DELETE FROM payroll.pyr_attd_days WHERE pad_company_id=$1 AND pad_yymm=$2 AND pad_division=$3 AND $4::text IS NOT NULL`, &rep.AttdDays},
+		{`DELETE FROM payroll.pyr_att_snapshot WHERE pas_company_id=$1 AND pas_yymm=$2 AND pas_division=$3 AND created_by = $4`, nil},
+	} {
+		res, err := tx.ExecContext(ctx, d.q, company, yymm, division, DummyMarker)
+		if err != nil {
+			return fmt.Errorf("purge: %w", err)
+		}
+		if d.n != nil {
+			*d.n = affected(res)
+		}
+	}
+	return dummyAudit(ctx, tx, company, "ETL_DUMMY_PURGE", yymm, division, map[string]any{"rows": rep.Rows, "additions": rep.Additions, "attd_days": rep.AttdDays, "snapshot": id})
+}
+
+// ensureNoRunOnSnapshot refuses the purge when a run references the dummy snapshot of the period.
+func ensureNoRunOnSnapshot(ctx context.Context, tx *sql.Tx, company int16, yymm int, division string) error {
+	var runs int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM payroll.pyr_run r JOIN payroll.pyr_att_snapshot s ON s.pas_snapshot_id = r.pr_snapshot_id
+WHERE s.pas_company_id=$1 AND s.pas_yymm=$2 AND s.pas_division=$3`, company, yymm, division).Scan(&runs); err != nil {
+		return fmt.Errorf("cek run: %w", err)
+	}
+	if runs > 0 {
+		return fmt.Errorf("periode %d %s: %d run memakai snapshot dummy; hapus run dulu", yymm, division, runs)
+	}
+	return nil
 }
 
 // JanBaseReport is the outcome of RunDummyJanBase.
@@ -318,6 +398,9 @@ func prevYYMM(y int) int {
 // (idempotent). db must connect as payroll_etl.
 func RunDummyJanBase(ctx context.Context, db *sql.DB, company int16, yymm int) (JanBaseReport, error) {
 	rep := JanBaseReport{YYMM: yymm, Source: prevYYMM(yymm)}
+	if err := guardDummy(ctx, db, "dummy-janbase"); err != nil {
+		return rep, err
+	}
 	if company <= 0 {
 		return rep, errors.New("company wajib")
 	}

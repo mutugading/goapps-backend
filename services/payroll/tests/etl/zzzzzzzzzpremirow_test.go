@@ -43,13 +43,13 @@ func TestETL_AttLegacyFailMissingPremiRow(t *testing.T) {
 			WHERE s.pas_company_id=1 AND s.pas_source_batch_ids='{}' AND r.pasr_kind='REKAP' AND s.pas_yymm=`+yymm+` AND s.pas_division='`+div+`' AND r.pasr_nik='`+nik+`'`)
 	}
 	// Without OpenPeriods: D-33 only (backward compatible).
-	if _, err := etl.RunAttLegacyFail(ctx, etlDB, src, etl.AttLegacyFailOptions{}); err != nil {
+	if _, err := etl.RunAttLegacyFail(ctx, etlDB, src, etl.AttLegacyFailOptions{CompanyID: 1}); err != nil {
 		t.Fatal(err)
 	}
 	if got := pf("202606", "SOLO", "2026-0001"); got != "NULL" {
 		t.Fatalf("tanpa periode OPEN PF %s, want NULL", got)
 	}
-	o := etl.AttLegacyFailOptions{OpenPeriods: []string{"202606"}}
+	o := etl.AttLegacyFailOptions{CompanyID: 1, OpenPeriods: []string{"202606"}}
 	rep, err := etl.RunAttLegacyFail(ctx, etlDB, src, o)
 	if err != nil {
 		t.Fatal(err)
@@ -74,7 +74,7 @@ func TestETL_AttLegacyFailMissingPremiRow(t *testing.T) {
 	if got := pf("202606", "SOLO", "2026-0001"); got != "1" {
 		t.Errorf("run ulang PF %s", got)
 	}
-	if _, err := etl.RunAttLegacyFail(ctx, etlDB, src, etl.AttLegacyFailOptions{OpenPeriods: []string{"2026"}}); err == nil {
+	if _, err := etl.RunAttLegacyFail(ctx, etlDB, src, etl.AttLegacyFailOptions{CompanyID: 1, OpenPeriods: []string{"2026"}}); err == nil {
 		t.Error("periode OPEN tidak valid diterima")
 	}
 }

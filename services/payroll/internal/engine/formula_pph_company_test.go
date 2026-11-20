@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"testing"
+	"time"
 )
 
 // paidT is a taxable T component whose PPh the company bears (tax_paid_company = Y, e.g. T73).
@@ -231,6 +232,66 @@ func TestFrozenAnnualDeductions(t *testing.T) {
 		}
 		if res.Header.TotPotongan.String() != "602000" { // hanya P1; baris beku tidak ikut
 			t.Errorf("legacy=%v: tot_potongan = %s, want 602000", legacy, res.Header.TotPotongan)
+		}
+	}
+}
+
+// T033i: P5 Desember dengan status pajak di luar tabel PTKP memberi PPH_NO_PTKP (satu kali bersama P1,
+// memblokir approve); TK1–TK3 di v1 tetap 0 tanpa warning (parity D-37a).
+func TestPPhCompanyDecemberNoPTKPWarns(t *testing.T) {
+	for _, legacy := range []bool{true, false} {
+		mk := func(status string) Input {
+			in := decInput(legacy, status, "5400000", "0", "0", "0", paidT(73, "600000"), pComp(5, "0", "F", false))
+			in.YTDCompany = YTDCompanyTax{Gross: d("66000000"), CompanyPaid: d("6600000")}
+			return in
+		}
+		for _, c := range []struct {
+			status string
+			want   int
+		}{{"K/1", 1}, {"", 1}, {"TK1", 0}, {"TK", 0}} {
+			res, err := Calculate(mk(c.status))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if n := countWarn(res, WarnPPhNoPTKP); n != c.want {
+				t.Errorf("legacy %v status %q: PPH_NO_PTKP = %d, want %d (%v)", legacy, c.status, n, c.want, res.Warnings)
+			}
+		}
+	}
+}
+
+// Bruto 0 tidak berutang pajak: status tak dikenal tidak memblokir (T033i review).
+func TestPPhNoTaxStatusZeroGrossSilent(t *testing.T) {
+	dec := decInput(true, "K/1", "0", "0", "0", "0", pComp(5, "0", "F", false))
+	dec.Components[0] = taxT(1, "0", "F")
+	non := pphInput("", taxT(1, "0", "F"), pComp(5, "0", "F", false))
+	for name, in := range map[string]Input{"Desember": dec, "non-Desember": non} {
+		res, err := Calculate(in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(res.Warnings) != 0 {
+			t.Errorf("%s: warnings = %v, want none", name, res.Warnings)
+		}
+	}
+}
+
+// P1 non-Desember (termasuk Januari) dengan status kosong/typo memberi PPH_NO_BRACKET satu kali.
+func TestPPhNoTaxStatusNonDecemberWarns(t *testing.T) {
+	jan := Period{YYMM: 202601, Start: time.Date(2025, 12, 26, 0, 0, 0, 0, time.UTC), End: time.Date(2026, 1, 25, 0, 0, 0, 0, time.UTC)}
+	for _, status := range []string{"", "K/1"} {
+		for _, p := range []*Period{nil, &jan} {
+			in := pphInput(status, taxT(1, "5000000", "F"), paidT(73, "600000"), pComp(5, "0", "F", false))
+			if p != nil {
+				in.Period = *p
+			}
+			res, err := Calculate(in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if n := countWarn(res, WarnPPhNoBracket); n != 1 {
+				t.Errorf("status %q periode %d: PPH_NO_BRACKET = %d, want 1 (%v)", status, in.Period.YYMM, n, res.Warnings)
+			}
 		}
 	}
 }

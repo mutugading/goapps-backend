@@ -84,6 +84,9 @@ func validateAttachmentInput(in component.Attachment) (component.Attachment, err
 	if in.Frz == 0 {
 		in.Frz = 2
 	}
+	if in.Tax < 0 || in.Tax > component.TaxTaxable {
+		return in, validation("items.tax", "tax harus 0 (komponen baru: ikut kelas pajak; sudah terpasang: tetap), 1, atau 2")
+	}
 	if in.ValidFrom != 0 && !validYYMM(in.ValidFrom) || in.ValidTo != 0 && !validYYMM(in.ValidTo) ||
 		in.ValidTo != 0 && in.ValidTo < in.ValidFrom {
 		return in, validation("items.valid_from", "valid_from/valid_to harus yymm yang valid dan valid_to >= valid_from")
@@ -142,6 +145,9 @@ func (s *Service) PutEmployeeComponents(ctx context.Context, nik string, company
 func resolvePut(it component.Attachment, cur component.Attachment, isHeld bool, c component.CatalogEntry, inCatalog bool) (component.Attachment, error) {
 	switch {
 	case inCatalog:
+		if err := guardNewAttachment(isHeld, c.Code); err != nil {
+			return it, err
+		}
 		it.Name = c.Name
 		if it.Sts == "" {
 			it.Sts = c.DefaultSts
@@ -154,6 +160,7 @@ func resolvePut(it component.Attachment, cur component.Attachment, isHeld bool, 
 	default:
 		return it, validation("items.component_sysid", "komponen tidak ditemukan/aktif untuk karyawan ini: "+strconv.FormatInt(it.Sysid, 10))
 	}
+	defaultTax(&it, cur, isHeld, c, inCatalog)
 	it.Source = component.SourceManual
 	if !isHeld {
 		return it, nil
@@ -166,6 +173,22 @@ func resolvePut(it component.Attachment, cur component.Attachment, isHeld bool, 
 		it.Source = component.SourceManual
 	}
 	return it, nil
+}
+
+// defaultTax fills tax 0 (not given). A new attachment takes the default of pc_tax_class (T033f), so a UI
+// attach never silently makes a taxable component non-taxable; an attached row keeps its stored flag as is
+// (also a stored 0), so a GET -> PUT round trip never changes PPh. Changing an attached flag needs 1 or 2.
+func defaultTax(it *component.Attachment, cur component.Attachment, isHeld bool, c component.CatalogEntry, inCatalog bool) {
+	switch {
+	case it.Tax != 0:
+	case isHeld:
+		it.Tax = cur.Tax
+	case inCatalog:
+		it.Tax = component.DefaultTax(c.TaxClass)
+		if it.TaxPaidCompany == "" {
+			it.TaxPaidCompany = component.DefaultTaxPaidCompany(c.TaxClass)
+		}
+	}
 }
 
 func unchanged(cur, it component.Attachment) bool {
@@ -274,7 +297,7 @@ func (s *Service) buildLevelPlan(ctx context.Context, tx *sql.Tx, e domain.Emplo
 	}
 	p := planLevel(current, want, yymm)
 	p.Missing = missing
-	return p, nil
+	return guardPlanAdds(p, newLevel, lenient)
 }
 
 // PreviewLevelChange returns the diff without writing anything.

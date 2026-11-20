@@ -148,7 +148,7 @@ func TestRunLoader_ThreeNIKFixture(t *testing.T) {
 	if n.HasRekap() || n.Att != nil || n.AttAdd != nil {
 		t.Fatalf("no-rekap input: att=%v add=%v", n.Att, n.AttAdd)
 	}
-	if len(res.Warnings) != 1 || res.Warnings[0].NIK != "L-SOLO-N" || res.Warnings[0].Code != run.CodeMissingAttendance {
+	if perNIK := perNIKWarnings(res.Warnings); len(perNIK) != 1 || perNIK[0].NIK != "L-SOLO-N" || perNIK[0].Code != run.CodeMissingAttendance {
 		t.Fatalf("warnings: %+v", res.Warnings)
 	}
 
@@ -288,7 +288,7 @@ func TestRunLoader_OutOfPeriodAndSnapshot(t *testing.T) {
 			t.Fatalf("v2 inputs: %+v", r.Inputs)
 		}
 		got := map[string]string{}
-		for _, w := range r.Warnings {
+		for _, w := range perNIKWarnings(r.Warnings) {
 			got[w.NIK] = w.Code
 		}
 		if len(got) != 2 || got["L-SOLO-LATE"] != run.CodeOutOfPeriod || got["L-SOLO-GONE"] != run.CodeOutOfPeriod {
@@ -322,4 +322,15 @@ func TestRunLoader_OutOfPeriodAndSnapshot(t *testing.T) {
 			t.Fatalf("after commit: %v %d", err, len(r.Inputs))
 		}
 	})
+}
+
+// perNIKWarnings drops the component-level informational warning TAX_CLASS_MISMATCH (T033f, empty NIK).
+func perNIKWarnings(ws []run.Issue) []run.Issue {
+	var out []run.Issue
+	for _, w := range ws {
+		if w.Code != run.CodeTaxClassMismatch {
+			out = append(out, w)
+		}
+	}
+	return out
 }

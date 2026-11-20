@@ -29,7 +29,9 @@ type Server struct {
 
 // NewServer creates a new gRPC server with the interceptor chain, including
 // JWT auth + payroll scope resolution (D-06, D-11) and RBAC permission checks.
-func NewServer(cfg *config.ServerConfig, jwtCfg *config.JWTConfig, resolver scope.Resolver, idem idempotency.Store) (*Server, error) {
+// blacklist and permsReader may be nil (auth Redis unavailable, D-73 (3)).
+func NewServer(cfg *config.ServerConfig, jwtCfg *config.JWTConfig, resolver scope.Resolver, idem idempotency.Store,
+	blacklist TokenBlacklistChecker, permsReader PermissionsReader) (*Server, error) {
 	// Create rate limiter (100 requests per second default).
 	rateLimiter := NewRateLimiter(100)
 
@@ -40,20 +42,20 @@ func NewServer(cfg *config.ServerConfig, jwtCfg *config.JWTConfig, resolver scop
 
 	// Chain interceptors in order (outermost first).
 	unaryChain := grpc.ChainUnaryInterceptor(
-		StructuredErrorInterceptor(),       // 0. Wrap gRPC errors into BaseResponse
-		RecoveryInterceptor(),              // 1. Recover from panics first
-		RequestIDInterceptor(),             // 2. Add request ID
-		TraceContextInterceptor(),          // 2b. Continue caller's distributed trace
-		TracingInterceptor(),               // 3. Add tracing span
-		MetricsInterceptor(),               // 4. Record metrics
-		RateLimitInterceptor(rateLimiter),  // 5. Rate limiting
-		LoggingInterceptor(),               // 6. Log request
-		TimeoutInterceptor(60*time.Second), // 7. Enforce timeout
-		AuthInterceptor(jwtCfg, resolver),  // 8. JWT + payroll scope
-		PermissionInterceptor(),            // 9. RBAC permission check
-		IfMatchInterceptor(),               // 10. If-Match header -> if_match (D-16)
-		validation,                         // 11. buf.validate request constraints
-		IdempotencyInterceptor(idem),       // 12. Idempotency-Key replay (D-19)
+		StructuredErrorInterceptor(),                              // 0. Wrap gRPC errors into BaseResponse
+		RecoveryInterceptor(),                                     // 1. Recover from panics first
+		RequestIDInterceptor(),                                    // 2. Add request ID
+		TraceContextInterceptor(),                                 // 2b. Continue caller's distributed trace
+		TracingInterceptor(),                                      // 3. Add tracing span
+		MetricsInterceptor(),                                      // 4. Record metrics
+		RateLimitInterceptor(rateLimiter),                         // 5. Rate limiting
+		LoggingInterceptor(),                                      // 6. Log request
+		TimeoutInterceptor(60*time.Second),                        // 7. Enforce timeout
+		AuthInterceptor(jwtCfg, resolver, blacklist, permsReader), // 8. JWT + blacklist + IAM perms + payroll scope
+		PermissionInterceptor(),                                   // 9. RBAC permission check
+		IfMatchInterceptor(),                                      // 10. If-Match header -> if_match (D-16)
+		validation,                                                // 11. buf.validate request constraints
+		IdempotencyInterceptor(idem),                              // 12. Idempotency-Key replay (D-19)
 	)
 
 	opts := []grpc.ServerOption{

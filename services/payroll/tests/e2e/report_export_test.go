@@ -6,15 +6,12 @@ import (
 	"database/sql"
 	"errors"
 	"net"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/shopspring/decimal"
 	"github.com/xuri/excelize/v2"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
-	"google.golang.org/grpc/status"
 
 	payrollv1 "github.com/mutugading/goapps-backend/gen/payroll/v1"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/report"
@@ -29,8 +26,8 @@ import (
 // path of `cmd/report reco|bank` (ExportReco/ExportBank + WriteReco/WriteBank) for the same synthetic data; every
 // export writes exactly one REPORT_EXPORT row; both permissions are required; BANK is refused while the period is OPEN.
 const (
-	expYYMM     = 203703
-	expOpenYYMM = 203704
+	expYYMM     = 203706
+	expOpenYYMM = 203707
 )
 
 var (
@@ -135,7 +132,7 @@ func TestExportReport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.GetFileName() != "reco_SOLO_203703.xlsx" || len(resp.GetFileContent()) == 0 || resp.GetRowCount() == 0 {
+	if resp.GetFileName() != "reco_SOLO_203706.xlsx" || len(resp.GetFileContent()) == 0 || resp.GetRowCount() == 0 {
 		t.Fatalf("reco resp: name %q bytes %d rows %d", resp.GetFileName(), len(resp.GetFileContent()), resp.GetRowCount())
 	}
 	sameWorkbook(t, "reco", resp.GetFileContent(), want.Bytes())
@@ -168,7 +165,7 @@ func TestExportReport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bank.GetFileName() != "bank_SOLO_203703.xlsx" || int(bank.GetRowCount()) != wantRows || bank.GetSkippedCount() != 1 {
+	if bank.GetFileName() != "bank_SOLO_203706.xlsx" || int(bank.GetRowCount()) != wantRows || bank.GetSkippedCount() != 1 {
 		t.Fatalf("bank resp: name %q rows %d skipped %d", bank.GetFileName(), bank.GetRowCount(), bank.GetSkippedCount())
 	}
 	sameWorkbook(t, "bank", bank.GetFileContent(), wantBank.Bytes())
@@ -219,8 +216,8 @@ func TestExportReport(t *testing.T) {
 	_, err = h.ExportReport(solo, &payrollv1.ExportReportRequest{Yymm: 209901, Division: "SOLO", Kind: payrollv1.ReportKind_REPORT_KIND_RECO})
 	wantCode(t, "unknown period", err, apperr.CodeNotFound)
 
-	// A bank text (PAYROLL_REPORT_*) failure is INTERNAL without details, and the period check runs first: an OPEN period
-	// is still BUSINESS_RULE although the config is broken. Nothing is audited for either.
+	// A bank text (PAYROLL_REPORT_*) failure is BUSINESS_RULE (T030h2), and the period check runs first: an OPEN period
+	// is also BUSINESS_RULE although the config is broken. Nothing is audited for either.
 	badText := func(time.Time) (report.BankText, error) {
 		return report.BankText{}, errors.New("config: wajib diisi: PAYROLL_REPORT_COMPANY_NAME")
 	}
@@ -229,9 +226,7 @@ func TestExportReport(t *testing.T) {
 	wantCode(t, "bank on OPEN with broken config", err, apperr.CodeBusinessRule)
 	pre := scalar(t, `SELECT count(*)::text FROM payroll.pyr_audit_log WHERE pal_action='REPORT_EXPORT'`)
 	_, err = hb.ExportReport(solo, &payrollv1.ExportReportRequest{Yymm: expYYMM, Division: "SOLO", Kind: payrollv1.ReportKind_REPORT_KIND_BANK, TransferDate: "2037-03-26"})
-	if status.Code(err) != codes.Internal || strings.Contains(err.Error(), "PAYROLL_REPORT") {
-		t.Fatalf("broken bank config: %v, want INTERNAL without details", err)
-	}
+	wantCode(t, "broken bank config", err, apperr.CodeBusinessRule) // T030h2: ErrBankConfig is BUSINESS_RULE, the operator needs the message
 	if post := scalar(t, `SELECT count(*)::text FROM payroll.pyr_audit_log WHERE pal_action='REPORT_EXPORT'`); post != pre {
 		t.Fatalf("config failure audited: %s -> %s", pre, post)
 	}

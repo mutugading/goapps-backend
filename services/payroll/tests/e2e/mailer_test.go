@@ -15,6 +15,7 @@ import (
 
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/distribution"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/report"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/apperr"
 	auditinfra "github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/audit"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/config"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/pdf"
@@ -32,6 +33,7 @@ const (
 	mail3YYMM = 203607
 	mail4YYMM = 203604
 	mail5YYMM = 203702
+	mail6YYMM = 203703
 )
 
 type fakeSMTP struct {
@@ -177,8 +179,8 @@ func TestMailer(t *testing.T) {
 	if cr.Total != 2 || cr.Queued != 1 || cr.NoEmail != 1 || cr.NoEmailNIK[0] != "ZREP0002" {
 		t.Fatalf("create %+v", cr)
 	}
-	if _, err := svc.Create(ctx, q, distribution.CreateOptions{}); err == nil {
-		t.Fatal("batch kedua untuk periode yang sama harus ditolak")
+	if _, err := svc.Create(ctx, q, distribution.CreateOptions{}); !errors.Is(err, distribution.ErrBatchExists) {
+		t.Fatalf("batch kedua untuk periode yang sama harus ditolak (ErrBatchExists): %v", err)
 	}
 	b := cr.BatchID
 
@@ -706,5 +708,140 @@ func TestMailer_SlipPIIPerItem(t *testing.T) {
 	}
 	if !strings.Contains(logs.String(), "slip mail not sent") {
 		t.Fatalf("kegagalan item harus tercatat di log: %q", logs.String())
+	}
+}
+
+// T028g3 (D-69): Reply-To resolution order ReplyToHR > active row of the batch division > company default row (NULL
+// division) > env; an empty address in the table falls through; one active row per (company, division).
+func TestMailer_ReplyToPerDivision(t *testing.T) {
+	t.Cleanup(func() { _, _ = ownDB.Exec(`DELETE FROM payroll.pyr_mail_account`) }) //nolint:errcheck // cleanup
+	acct := func(div, reply string, active bool) {
+		t.Helper()
+		dv, rt := "NULL", "NULL"
+		if div != "" {
+			dv = "'" + div + "'"
+		}
+		if reply != "" {
+			rt = "'" + reply + "'"
+		}
+		q := fmt.Sprintf(`INSERT INTO payroll.pyr_mail_account (pma_company_id, pma_division, pma_host, pma_from_address, pma_reply_to, pma_secret_ref, pma_active)
+		 VALUES (1, %s, 'smtp.example.test', 'from@example.test', %s, 'secret-x', %t)`, dv, rt, active)
+		if _, err := ownDB.Exec(q); err != nil {
+			t.Fatalf("seed account: %v\n%s", err, q)
+		}
+	}
+	fake := newFakeSMTP(t)
+	now := time.Date(2036, 10, 1, 8, 0, 0, 0, time.UTC)
+	svc := mailSvc(fake, &now) // env ReplyTo = hr@example.test
+	ctx := ctxFor(t, userRW)
+	resolve := func(div, override string) string {
+		t.Helper()
+		got, err := svc.ResolveReplyTo(ctx, distribution.SendOptions{ReplyToHR: override, Query: report.Query{CompanyID: 1, Division: div}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+
+	if got := resolve("SOLO", ""); got != "hr@example.test" { // no rows: env
+		t.Fatalf("tanpa baris = %q", got)
+	}
+	acct("", "default@example.test", true)
+	if got := resolve("JAKARTA", ""); got != "default@example.test" { // fallback to the NULL row
+		t.Fatalf("fallback NULL = %q", got)
+	}
+	acct("SOLO", "solo@example.test", true)
+	acct("JAKARTA", "jakarta@example.test", true)
+	if s, j := resolve("SOLO", ""), resolve("JAKARTA", ""); s != "solo@example.test" || j != "jakarta@example.test" || s == j {
+		t.Fatalf("per divisi: SOLO=%q JAKARTA=%q", s, j)
+	}
+	if got := resolve("SOLO", "override@example.test"); got != "override@example.test" {
+		t.Fatalf("ReplyToHR harus menang = %q", got)
+	}
+	if _, err := ownDB.Exec(`UPDATE payroll.pyr_mail_account SET pma_reply_to='' WHERE pma_division='JAKARTA'`); err != nil {
+		t.Fatal(err)
+	}
+	if got := resolve("JAKARTA", ""); got != "default@example.test" { // empty address skips to the next level
+		t.Fatalf("alamat kosong = %q", got)
+	}
+	if _, err := ownDB.Exec(`UPDATE payroll.pyr_mail_account SET pma_active=false WHERE pma_division IS NULL`); err != nil {
+		t.Fatal(err)
+	}
+	if got := resolve("JAKARTA", ""); got != "hr@example.test" { // default row inactive: env
+		t.Fatalf("fallback env = %q", got)
+	}
+	// unique partial index: a second active row for the same (company, division) is rejected, an inactive one is not
+	if _, err := ownDB.Exec(`INSERT INTO payroll.pyr_mail_account (pma_company_id, pma_division, pma_host, pma_from_address, pma_secret_ref)
+	  VALUES (1,'SOLO','h','f@example.test','s')`); err == nil {
+		t.Fatal("baris aktif kedua (company, divisi) harus ditolak")
+	}
+	acct("SOLO", "solo-old@example.test", false)
+	acct("", "default2@example.test", true) // the former default row is inactive, so a new active one is allowed
+}
+
+// T033d: two concurrent creates for the same period: exactly one batch, the other gets ErrBatchExists
+// (unique index uix_pdb_active, not a raw 23505).
+func TestMailer_ConcurrentCreate(t *testing.T) {
+	seedReportRun(t, mail6YYMM, "APPROVED")
+	for _, q := range []string{
+		`INSERT INTO payroll.pyr_slip_password_policy (pspp_company_id, pspp_valid_from, pspp_policy_code, pspp_status, created_by, approved_by)
+		 VALUES (1, DATE '2020-01-01', 'DOB_DDMMYYYY', 'ACTIVE', 'test', 'system') ON CONFLICT DO NOTHING`,
+		`INSERT INTO payroll.pyr_mail_template (pmt_company_id, pmt_doc_type, pmt_version, pmt_subject, pmt_body_html, pmt_body_text, pmt_status, created_by, approved_by)
+		 VALUES (1,'SLIP_GAJI',1,'Slip {{.PeriodName}}','<p>{{.Nama}}</p>','{{.Nama}}','ACTIVE','t','s') ON CONFLICT DO NOTHING`,
+		`INSERT INTO payroll.pyr_employee (pe_company_id, pe_nik, pe_division, pe_nama, pe_orion_sub_acnt, pe_birth_date, pe_email) VALUES
+		 (1,'ZREP0001','SOLO','Rep Satu','ZREP0001','1990-03-07','satu@example.test'),
+		 (1,'ZREP0002','SOLO','Rep Dua','ZREP0002','1991-04-08','dua@example.test')
+		 ON CONFLICT (pe_company_id, pe_nik, pe_division) DO UPDATE SET pe_birth_date=EXCLUDED.pe_birth_date, pe_email=EXCLUDED.pe_email`,
+	} {
+		if _, err := ownDB.Exec(q); err != nil {
+			t.Fatalf("seed: %v\n%s", err, q)
+		}
+	}
+	t.Cleanup(func() {
+		for _, q := range []string{`DELETE FROM payroll.pyr_distribution_item`, `DELETE FROM payroll.pyr_distribution_batch`,
+			`UPDATE payroll.pyr_employee SET pe_birth_date=NULL WHERE pe_nik='ZREP0002'`} {
+			_, _ = ownDB.Exec(q) //nolint:errcheck // cleanup
+		}
+	})
+	now := time.Date(2037, 3, 1, 8, 0, 0, 0, time.UTC)
+	svc := mailSvc(newFakeSMTP(t), &now)
+	ctx := ctxFor(t, userRW)
+	q := report.Query{CompanyID: 1, YYMM: mail6YYMM, Division: "SOLO"}
+
+	const racers = 4
+	errs := make(chan error, racers)
+	for range racers {
+		go func() { _, err := svc.Create(ctx, q, distribution.CreateOptions{}); errs <- err }()
+	}
+	won := 0
+	for range racers {
+		switch err := <-errs; {
+		case err == nil:
+			won++
+		case !errors.Is(err, distribution.ErrBatchExists):
+			t.Errorf("concurrent create: %v", err)
+		}
+	}
+	if won != 1 {
+		t.Fatalf("concurrent create winners = %d, want 1", won)
+	}
+	live := `SELECT count(*)::text FROM payroll.pyr_distribution_batch WHERE pdb_yymm=` + itoa(mail6YYMM) +
+		` AND pdb_status NOT IN ('CANCELLED','SUPERSEDED')`
+	if got := scalar(t, live); got != "1" {
+		t.Fatalf("live batches = %s", got)
+	}
+	var ae *apperr.Error
+	if _, err := svc.Create(ctx, q, distribution.CreateOptions{}); !errors.As(err, &ae) || ae.Code != apperr.CodeConflict {
+		t.Fatalf("ErrBatchExists must carry apperr CONFLICT: %v", err)
+	}
+	// A CANCELLED batch no longer blocks: a new create succeeds, and is again the only live one.
+	if _, err := ownDB.Exec(`UPDATE payroll.pyr_distribution_batch SET pdb_status='CANCELLED' WHERE pdb_yymm=` + itoa(mail6YYMM)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Create(ctx, q, distribution.CreateOptions{}); err != nil {
+		t.Fatalf("create after cancel: %v", err)
+	}
+	if got := scalar(t, live); got != "1" {
+		t.Fatalf("live batches after re-create = %s", got)
 	}
 }

@@ -28,8 +28,8 @@ func updateComponent(t *testing.T, c *payrollv1.Component, mutate func(*payrollv
 // (1) RETIRED components are not copied by CreateEmployee/level-change and vanish from the template view.
 func TestRetiredComponentNotAttachedAndHiddenFromTemplate(t *testing.T) {
 	ctx := ctxFor(t, userRW, permsRW...)
-	live := mustComponent(t, "T9R1", "T", "Retire live")
-	gone := mustComponent(t, "T9R2", "T", "Retire gone")
+	live := mustComponent(t, "T203", "T", "Retire live")
+	gone := mustComponent(t, "T204", "T", "Retire gone")
 	putLevelTemplate(t, "LV-RET", live.GetSysid(), gone.GetSysid())
 	cur, err := handler.GetComponent(ctx, &payrollv1.GetComponentRequest{Sysid: gone.GetSysid()})
 	if err != nil {
@@ -48,17 +48,17 @@ func TestRetiredComponentNotAttachedAndHiddenFromTemplate(t *testing.T) {
 		}
 	}
 	createAt(t, "RT001", "LV-RET", "2026-05-10")
-	if got := componentsOf(t, "RT001"); got["T9R2"] != nil || got["T9R1"] == nil {
-		t.Fatalf("attachments = %v, want T9R1 only", got)
+	if got := componentsOf(t, "RT001"); got["T204"] != nil || got["T203"] == nil {
+		t.Fatalf("attachments = %v, want T203 only", got)
 	}
 }
 
 // (2) base_component_sysid cycles and a RETIRED base are refused.
 func TestComponentBaseCycleAndRetiredBase(t *testing.T) {
 	ctx := ctxFor(t, userRW, permsRW...)
-	a := mustComponent(t, "T9K1", "T", "Base A")
-	b := mustComponent(t, "T9K2", "T", "Base B")
-	c3 := mustComponent(t, "T9K3", "T", "Base C")
+	a := mustComponent(t, "T967", "T", "Base A")
+	b := mustComponent(t, "T968", "T", "Base B")
+	c3 := mustComponent(t, "T969", "T", "Base C")
 	if err := updateComponent(t, b, func(in *payrollv1.ComponentInput) { in.BaseComponentSysid = a.GetSysid() }); err != nil {
 		t.Fatalf("B->A: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestComponentBaseCycleAndRetiredBase(t *testing.T) {
 	}
 	in := compInput("Pakai base RETIRED")
 	in.BaseComponentSysid = a.GetSysid()
-	if _, err := handler.CreateComponent(ctx, &payrollv1.CreateComponentRequest{CompanyId: 1, Code: "T9K4", Type: "T", Input: in}); code(t, err) != apperr.CodeValidation {
+	if _, err := handler.CreateComponent(ctx, &payrollv1.CreateComponentRequest{CompanyId: 1, Code: "T970", Type: "T", Input: in}); code(t, err) != apperr.CodeValidation {
 		t.Fatalf("create with RETIRED base = %v, want VALIDATION", err)
 	}
 	if err := updateComponent(t, b, func(in *payrollv1.ComponentInput) { in.Name = "B renamed" }); err != nil {
@@ -91,7 +91,7 @@ func TestComponentBaseCycleAndRetiredBase(t *testing.T) {
 
 // (3) Guarded fields of a component attached to anyone (any division) are frozen; free fields are not.
 func TestComponentGuardedFieldsWhenUsed(t *testing.T) {
-	c := mustComponent(t, "T9U1", "T", "Used guard")
+	c := mustComponent(t, "T205", "T", "Used guard")
 	if err := updateComponent(t, c, func(in *payrollv1.ComponentInput) { in.TaxClass = "NONTAX" }); err != nil {
 		t.Fatalf("unused component must allow tax_class change: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestComponentGuardedFieldsWhenUsed(t *testing.T) {
 		t.Fatalf("name/serial are free: %v", err)
 	}
 	// Attached only in JAKARTA: a SOLO-only caller must still be guarded (usage is checked across divisions).
-	other := mustComponent(t, "T9U2", "T", "Used in JKT")
+	other := mustComponent(t, "T401", "T", "Used in JKT")
 	if _, err := handler.CreateEmployee(ctxFor(t, userBoth, permsRW...), &payrollv1.CreateEmployeeRequest{CompanyId: 1, Division: "JAKARTA", Nik: "UG002", Input: input("Jkt Guard")}); err != nil {
 		t.Fatalf("create jkt employee: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestComponentGuardedFieldsWhenUsed(t *testing.T) {
 // (3b) A component booked in a CLOSED run is frozen even without attachments.
 func TestComponentGuardedFieldsWhenInClosedRun(t *testing.T) {
 	bg := context.Background()
-	c := mustComponent(t, "T9U3", "T", "Closed run guard")
+	c := mustComponent(t, "T207", "T", "Closed run guard")
 	for _, s := range []string{
 		`INSERT INTO payroll.pyr_rule_set (prs_id, prs_name, prs_effective_from) VALUES (9001,'guard',202601) ON CONFLICT DO NOTHING`,
 		`INSERT INTO payroll.pyr_period (pp_company_id, pp_yymm, pp_division, pp_date_from, pp_date_to, pp_status) VALUES (1,203404,'SOLO','2034-03-26','2034-04-25','OPEN') ON CONFLICT DO NOTHING`,
@@ -145,7 +145,7 @@ func TestComponentGuardedFieldsWhenInClosedRun(t *testing.T) {
 	t.Cleanup(func() { // the CLOSED period would block level-change tests that run later
 		for _, q := range []string{
 			`UPDATE payroll.pyr_period SET pp_status='OPEN' WHERE pp_company_id=1 AND pp_yymm=203404 AND pp_division='SOLO'`,
-			`DELETE FROM payroll.pyr_salary_detail WHERE psd_component_sysid IN (SELECT pc_sysid FROM payroll.pyr_component WHERE pc_code='T9U3')`,
+			`DELETE FROM payroll.pyr_salary_detail WHERE psd_component_sysid IN (SELECT pc_sysid FROM payroll.pyr_component WHERE pc_code='T207')`,
 			`DELETE FROM payroll.pyr_run WHERE pr_company_id=1 AND pr_yymm=203404 AND pr_division='SOLO'`,
 			`DELETE FROM payroll.pyr_att_snapshot WHERE pas_company_id=1 AND pas_yymm=203404`,
 			`DELETE FROM payroll.pyr_period WHERE pp_company_id=1 AND pp_yymm=203404 AND pp_division='SOLO'`,

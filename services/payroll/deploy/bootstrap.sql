@@ -3,7 +3,7 @@
 -- =============================================================================
 -- Payroll — bootstrap cluster-level (D-04). Dijalankan SUPERUSER, sekali.
 -- Sumber: spec 04 §0–2 (+ §13 hanya sebagai acuan; pg_hba tidak dipakai di dev).
--- Variabel psql: pw_app, pw_etl, pw_ro, pw_mig (lihat init.sh).
+-- Variabel psql: pw_app, pw_etl, pw_recon, pw_mig (lihat init.sh).
 -- Migrasi aplikasi (T003+) berjalan sebagai payroll_migrator, otomatis ber-ROLE
 -- payroll_owner (ALTER ROLE ... IN DATABASE ... SET role), jadi golang-migrate
 -- tidak perlu SET ROLE manual. Hak objek (tabel/sequence/fungsi) TIDAK ada di migrasi
@@ -16,23 +16,26 @@
 CREATE ROLE payroll_owner NOLOGIN NOINHERIT;
 CREATE ROLE payroll_app      LOGIN NOINHERIT PASSWORD :'pw_app' CONNECTION LIMIT 40;
 CREATE ROLE payroll_etl      LOGIN NOINHERIT PASSWORD :'pw_etl' CONNECTION LIMIT 5;
-CREATE ROLE payroll_ro       LOGIN NOINHERIT PASSWORD :'pw_ro'  CONNECTION LIMIT 5;
+-- payroll_ro = grup baca (NOLOGIN, pemegang hak & policy p_ro lintas divisi, T033g2). Login-nya payroll_recon (INHERIT,
+-- anggota payroll_ro) untuk cmd/recon, check_ready.sql, dan cek IT; app.scopes bukan batas keamanan bagi role baca.
+CREATE ROLE payroll_ro       NOLOGIN NOINHERIT;
+CREATE ROLE payroll_recon    LOGIN INHERIT PASSWORD :'pw_recon' CONNECTION LIMIT 5 IN ROLE payroll_ro;
 CREATE ROLE payroll_migrator LOGIN NOINHERIT PASSWORD :'pw_mig' CONNECTION LIMIT 2;
 GRANT payroll_owner TO payroll_migrator;
 
 ALTER ROLE payroll_app      SET search_path = payroll, pg_catalog;
 ALTER ROLE payroll_etl      SET search_path = payroll_stg, pg_catalog;
-ALTER ROLE payroll_ro       SET search_path = payroll, pg_catalog;
+ALTER ROLE payroll_recon    SET search_path = payroll, pg_catalog;
 ALTER ROLE payroll_migrator SET search_path = payroll, pg_catalog;
 ALTER ROLE payroll_app      SET statement_timeout = '5min';
-ALTER ROLE payroll_ro       SET default_transaction_read_only = on;
+ALTER ROLE payroll_recon    SET default_transaction_read_only = on;
 ALTER ROLE payroll_app      SET idle_in_transaction_session_timeout = '2min';
 
 -- 1. DATABASE
 CREATE DATABASE payroll_db OWNER payroll_owner ENCODING 'UTF8' TEMPLATE template0
        LC_COLLATE 'C' LC_CTYPE 'C';
 REVOKE ALL     ON DATABASE payroll_db FROM PUBLIC;
-GRANT  CONNECT ON DATABASE payroll_db TO payroll_app, payroll_etl, payroll_ro, payroll_migrator;
+GRANT  CONNECT ON DATABASE payroll_db TO payroll_app, payroll_etl, payroll_recon, payroll_migrator;
 GRANT  TEMP    ON DATABASE payroll_db TO payroll_app, payroll_etl;  -- etl: TEMP lalu INSERT..SELECT (COPY ditolak di tabel ber-RLS)
 
 -- Role payroll tidak boleh connect ke DB lain (pengganti pg_hba §13 di dev).

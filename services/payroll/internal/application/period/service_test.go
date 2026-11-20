@@ -6,7 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mutugading/goapps-backend/services/payroll/internal/application/run"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/apperr"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/engine"
 )
 
 func TestBlockingWarnings(t *testing.T) {
@@ -19,6 +21,7 @@ func TestBlockingWarnings(t *testing.T) {
 	}{
 		{"no warnings", sql.NullString{}, false, ""},
 		{"only NO_WORKDAYS passes", sql.NullString{String: `[{"nik":"1","code":"NO_WORKDAYS"}]`, Valid: true}, false, ""},
+		{"PPH_NO_PTKP and PPH_NO_BRACKET block (T033i)", sql.NullString{String: `[{"nik":"1","code":"PPH_NO_PTKP"},{"nik":"2","code":"PPH_NO_BRACKET"},{"nik":"3","code":"YTD_NO_NPWP"}]`, Valid: true}, true, "2 karyawan"},
 		{"calc error blocks", sql.NullString{String: `[{"nik":"1","code":"CALC_ERROR"},{"nik":"1","code":"LOAN_DOUBLE"},{"nik":"2","code":"INCOMPLETE_RESULT"}]`, Valid: true}, true, "2 karyawan"},
 	}
 	for _, tt := range tests {
@@ -74,5 +77,19 @@ func TestCheckInput(t *testing.T) {
 	st := state{runKind: sql.NullString{String: "ENGINE", Valid: true}, runID: sql.NullInt64{Int64: 5, Valid: true}}
 	if err := s.checkInput(nil, nil, cmd, st); err == nil { //nolint:staticcheck // ctx unused on this path
 		t.Fatal("ENGINE run without hasher must error")
+	}
+}
+
+// T033i: the engine PPh warning texts parse (run.engineWarning) to codes that block approve.
+func TestBlockingCodesCoverPPhWarnings(t *testing.T) {
+	for _, c := range []string{run.CodePPhNoPTKP, run.CodePPhNoBracket, run.CodeCalcError, run.CodeLoanDouble, run.CodeIncomplete} {
+		if !blockingCodes[c] {
+			t.Errorf("%s not blocking", c)
+		}
+	}
+	for _, w := range []string{engine.WarnPPhNoPTKP + `: 1 status pajak "K/1"`, engine.WarnPPhNoBracket + `: 1 status pajak "", bruto 5000000`} {
+		if is := run.ParseEngineWarning("1", w); !blockingCodes[is.Code] {
+			t.Errorf("warning %q → code %q, not blocking", w, is.Code)
+		}
 	}
 }

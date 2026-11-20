@@ -84,7 +84,7 @@ func TestRecon_SyntheticMarkerInSync(t *testing.T) {
 
 func TestRecon_DiffSourcePG(t *testing.T) {
 	legacyRun, engineRun := seedRecon(t)
-	raw, err := sql.Open("pgx", strings.Replace(appDSN, "user=payroll_app password=payroll_app123", "user=payroll_ro password=payroll_ro123", 1))
+	raw, err := sql.Open("pgx", strings.Replace(appDSN, "user=payroll_app password=payroll_app123", "user=payroll_recon password=payroll_recon123", 1))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,8 +140,10 @@ func TestRecon_DiffSourcePG(t *testing.T) {
 			t.Fatalf("no legacy run: %v", err)
 		}
 		if _, err := src.Load(asScopes(t, "JAKARTA"), recon.DiffQuery{CompanyID: 1, Division: "SOLO", YYMM: reconYYMM,
-			RuleSetID: 1, Target: recon.TargetDry}); !errors.Is(err, recon.ErrNoLegacyRun) {
-			t.Fatalf("out of scope must see nothing: %v", err)
+			RuleSetID: 1, Target: recon.TargetDry}); !errors.Is(err, postgres.ErrRuleOutOfScope) {
+			// payroll_ro reads across divisions (p_ro, T033g2): the LEGACY run is visible, the scope check in the
+			// rule loader still refuses a division outside app.scopes.
+			t.Fatalf("out of scope must be refused: %v", err)
 		}
 	})
 	if got := scalar(t, `SELECT count(*) FROM payroll.pyr_run`); got != runCount {

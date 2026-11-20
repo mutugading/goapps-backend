@@ -10,12 +10,13 @@
 Claude Code skills installed at user level (`~/.claude/skills/`). Invoke the matching skill automatically when the task fits; the user should not have to name it. **Missing skill → recommend installing it.** Other devs may not have these skills yet. At the start of a task, if a skill listed below is not in the session's skill list, do not silently skip it:
 1. Tell the user which skill is missing and why it helps this task (one line).
 2. Give the exact install command from "Setting up a new machine" below (public skills: `npx skills add <owner/repo@skill> -g -y`; they load on the next session start). If the skill is not in that list, run `find-skills` / `npx skills find <topic>` and recommend only well-known sources.
-3. Offer to run the install for them; run it only if they agree. Internal skills (`review-pr`, `triage-issue`, `feature-flow`, `backend`, `frontend`, `proto`, `infra`) can't be installed via npx — ask the user to copy them from a teammate's `~/.claude/skills/`.
+3. Offer to run the install for them; run it only if they agree. Internal skills (`review-pr`, `review-branch`, `triage-issue`, `feature-flow`, `backend`, `frontend`, `proto`, `infra`) can't be installed via npx — ask the user to copy them from a teammate's `~/.claude/skills/`.
 4. Meanwhile, continue the task using this CLAUDE.md as the baseline.
 
 | When | Skill |
 |------|-------|
 | Review a PR (any goapps repo, incl. paired cross-repo PRs) | `review-pr` — draft first in `../docs/pr-review-drafts/`, post only after user approval |
+| Large WIP branch or brand-new service (before/instead of a huge PR; resumable across sessions, incremental on new commits) | `review-branch` — `/review-branch <repo> <branch>`, ledger in `../docs/branch-reviews/`, human guide `~/.claude/skills/review-branch/README.md`; nothing sent/posted without approval |
 | Triage an issue / fill labels, assignee, project fields (Status, Prio, Size, Estimate, Iteration, Start, Due) | `triage-issue` — draft first, apply only after approval |
 | Non-trivial feature / bug / refactor end-to-end | `feature-flow` (resume-check first) |
 | Can't find a skill for a task | `find-skills` |
@@ -27,7 +28,7 @@ Claude Code skills installed at user level (`~/.claude/skills/`). Invoke the mat
 | Dockerfile | `multi-stage-dockerfile` |
 | Proto / gRPC contract touched | `protobuf`, `public-grpc-api-design`, team skill `proto` |
 
-Setting up a new machine (public skills; `review-pr`, `triage-issue`, `feature-flow` and the team skills `backend`/`frontend`/`proto`/`infra` are internal, so copy them from a teammate's `~/.claude/skills/`):
+Setting up a new machine (public skills; `review-pr`, `review-branch`, `triage-issue`, `feature-flow` and the team skills `backend`/`frontend`/`proto`/`infra` are internal, so copy them from a teammate's `~/.claude/skills/`):
 ```bash
 npx skills add samber/cc-skills-golang vercel-labs/skills@find-skills obra/superpowers@receiving-code-review obra/superpowers@requesting-code-review getsentry/skills@security-review getsentry/skills@gha-security-review trailofbits/skills@differential-review trailofbits/skills@supply-chain-risk-auditor github/awesome-copilot@github-actions-hardening github/awesome-copilot@multi-stage-dockerfile -g -y
 npx skills add supabase/agent-skills@supabase-postgres-best-practices bufbuild/claude-plugins@protobuf samber/developer-platform-skills@public-grpc-api-design -g -y
@@ -158,6 +159,8 @@ goapps-backend/
 | Finance | 50051 | 8080 | 5434 | `finance_db` |
 | IAM | 50052 | 8081 | 5435 | `iam_db` |
 
+> Database ports above are the classic (legacy) defaults; with v2 env on (`make v2-env-on`) services use Postgres :5440 / PgBouncer :6440.
+
 Redis is shared on port 6379 (DB 0: app cache, DB 1: token blacklist).
 
 ---
@@ -206,7 +209,11 @@ make seed                          # Run data seeders
 Finance default DATABASE_URL: `postgres://finance:finance123@localhost:5434/finance_db?sslmode=disable`
 IAM default DATABASE_URL: `postgres://iam:iam123@localhost:5435/iam_db?sslmode=disable`
 
+> These are classic defaults. With v2 env on, `make migrate-up` targets :5440 as `<svc>_owner` (`DATABASE_URL` from `.env.local`); run `make v2-grants` after new tables.
+
 > Note (ADR 0001): these are legacy single-service dev DSNs. Staging/prod (VPS) use one DB per service with `<svc>_owner` / `<svc>_app` roles, never a superuser; the local stack mirroring the VPS is `docker-compose.v2.yaml` (`make v2-up`, env in `deploy/local-v2/env/<svc>.env`).
+
+> Local data refresh: `make v2-sync` pulls the weekly SANITIZED developer snapshot from staging (rsync, resumable, restore inside the container) - see `docs/local-db-sync.md`. `make v2-refresh` (direct pg_dump stream) is LAN-only.
 
 ### Docker (local infra)
 
@@ -895,7 +902,7 @@ Full ADR: `docs/adr/0001-one-database-per-service.md` (this repo). Roles referen
 - **Extensions** (`pg_trgm`, `uuid-ossp`) are pre-created by the DBA scripts (`10-create-databases.sql`); `<svc>_owner` is not a superuser, so a migration may only `CREATE EXTENSION IF NOT EXISTS` an already-provisioned one. A new extension goes into the DBA script first.
 - **Migrations must NOT contain**: `CREATE/ALTER SCHEMA`, `SET search_path`, `OWNER TO`, `GRANT/REVOKE`, `ALTER DEFAULT PRIVILEGES`, `dblink`/FDW/`CREATE DATABASE`/`CREATE ROLE`, or references to other schemas.
 - **Lint**: `make migration-lint` (`scripts/migration-lint.sh`), enforced by CI `.github/workflows/migration-lint.yml`. Exceptions go in `scripts/migration-lint.allow`; every entry needs a `# reason`.
-- **Local stack (mirrors VPS)**: `docker-compose.v2.yaml` + `make v2-up / v2-migrate / v2-seed / v2-verify`; `make v2-env-on` / `v2-env-off` switches services via `services/<svc>/.env.local` (source `deploy/local-v2/env/<svc>.env`).
+- **Local stack (mirrors VPS)**: `docker-compose.v2.yaml` + `make v2-up / v2-migrate / v2-seed / v2-verify`; `make v2-env-on` / `v2-env-off` switches services via `services/<svc>/.env.local` (source `deploy/local-v2/env/<svc>.env`; re-run `v2-env-on` after changes). `make v2-sync` loads the sanitized staging snapshot (`docs/local-db-sync.md`). Credentials and daily workflow: `deploy/local-v2/README.md`.
 - **After migrations**: a new materialized view in finance -> re-run `25-finance-runtime.sql`; IAM columns added to restricted tables -> re-run `30-restricted-iam.sql`.
 - **Migrate** as `<svc>_owner` (direct) with `x-migrations-table=schema_migrations_<svc>`; run the service as `<svc>_app` via PgBouncer. Data from another service comes via gRPC, never SQL.
 

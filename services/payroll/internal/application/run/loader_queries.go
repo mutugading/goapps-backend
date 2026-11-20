@@ -6,7 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -107,11 +108,14 @@ func timePtr(t sql.NullTime) *time.Time {
 }
 
 // loadComponents reads the attached components (1 query): frz_flag = 2 inside the validity
-// window, plus frozen P4/P8/P14/P18/P22/P23 (D-28d, paritas).
-func loadComponents(ctx context.Context, tx *sql.Tx, q Query) (map[string][]engine.EmpComponent, error) {
+// window, plus frozen P4/P8/P14/P18/P22/P23 (D-28d, paritas). Taxability stays pec_tax = 2 (parity); a T row
+// whose flag disagrees with pc_tax_class is reported once per component as TAX_CLASS_MISMATCH (T033f);
+// pc_tax_class comes from one legacy flag per component (lossy), so this is a hint, not an error.
+func loadComponents(ctx context.Context, tx *sql.Tx, q Query) (map[string][]engine.EmpComponent, []Issue, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT e.pec_nik, c.pc_type::text, c.pc_code, COALESCE(e.pec_amount,0)::text,
   COALESCE(e.pec_sts, c.pc_default_sts), COALESCE(e.pec_tax,0) = 2, COALESCE(e.pec_tax_paid_company,'N') = 'Y',
-  c.pc_subsidy_eligible, e.pec_frz_flag <> 2
+  c.pc_subsidy_eligible, e.pec_frz_flag <> 2,
+  c.pc_type = 'Tunjangan' AND (COALESCE(e.pec_tax,0) = 2) <> (c.pc_tax_class IN ('TAXABLE','TAX_PAID_COMPANY'))
 FROM payroll.pyr_employee_component e
 JOIN payroll.pyr_employee p ON p.pe_company_id = e.pec_company_id AND p.pe_nik = e.pec_nik AND p.pe_division = e.pec_division
 JOIN payroll.pyr_component c ON c.pc_sysid = e.pec_component_sysid
@@ -121,40 +125,52 @@ WHERE e.pec_company_id = $1 AND e.pec_division = $2 AND p.pe_sts_payroll = 2
   AND ($4::text[] = '{}' OR e.pec_nik = ANY($4::text[]))
 ORDER BY e.pec_nik, c.pc_type, c.pc_code`, q.CompanyID, q.Division, q.YYMM, nikArray(q.NIKs), frzActive)
 	if err != nil {
-		return nil, fmt.Errorf("load components: %w", err)
+		return nil, nil, fmt.Errorf("load components: %w", err)
 	}
 	defer closeRows(rows)
 	out := map[string][]engine.EmpComponent{}
+	mismatch := map[string]int{}
 	for rows.Next() {
 		var nik, typ, code, amount, sts string
 		var c engine.EmpComponent
-		if err := rows.Scan(&nik, &typ, &code, &amount, &sts, &c.Tax, &c.TaxPaidCompany, &c.TaxSubsidy, &c.Frozen); err != nil {
-			return nil, fmt.Errorf("scan component: %w", err)
+		var differs bool
+		if err := rows.Scan(&nik, &typ, &code, &amount, &sts, &c.Tax, &c.TaxPaidCompany, &c.TaxSubsidy, &c.Frozen, &differs); err != nil {
+			return nil, nil, fmt.Errorf("scan component: %w", err)
 		}
 		var err error
-		if c.Key, err = parseCode(typ, code); err != nil {
-			return nil, err
+		if c.Key, err = parseComponentKey(typ, code); err != nil {
+			return nil, nil, err
 		}
 		if c.Amount, err = decimal.NewFromString(amount); err != nil {
-			return nil, fmt.Errorf("component %s %s: %w", nik, code, err)
+			return nil, nil, fmt.Errorf("component %s %s: %w", nik, code, err)
 		}
 		c.Sts = sts
 		out[nik] = append(out[nik], c)
+		if differs && !legacyNull(c.Key) { // the flag of a NULL line has no effect
+			mismatch[code]++
+		}
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	return out, taxClassIssues(mismatch), nil
 }
 
-// parseCode maps (pc_type, pc_code 'T001') to the legacy key.
-func parseCode(typ, code string) (engine.CompKey, error) {
-	t, err := typeOf(typ)
-	if err != nil {
-		return engine.CompKey{}, err
+func legacyNull(k engine.CompKey) bool {
+	f, _, ok := engine.SpecOf(k)
+	return ok && f == engine.FormulaLegacyNull
+}
+
+// taxClassIssues reports, per component code in code order, how many attachments carry a tax flag
+// that disagrees with pc_tax_class. It is informational: the run keeps pec_tax (legacy parity).
+func taxClassIssues(mismatch map[string]int) []Issue {
+	codes := slices.Sorted(maps.Keys(mismatch))
+	out := make([]Issue, 0, len(codes))
+	for _, code := range codes {
+		out = append(out, Issue{Code: CodeTaxClassMismatch,
+			Message: fmt.Sprintf("%s: %d karyawan dengan flag pajak (pec_tax) berbeda dari kelas pajak komponen", code, mismatch[code])})
 	}
-	n, err := strconv.Atoi(strings.TrimLeft(code, "TPtp"))
-	if err != nil || len(code) < 2 {
-		return engine.CompKey{}, fmt.Errorf("%w: %q", ErrBadComponentCode, code)
-	}
-	return engine.CompKey{Type: t, ID: n}, nil
+	return out
 }
 
 // loadAdditions reads pyr_addition (1 query).

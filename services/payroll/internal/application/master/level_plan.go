@@ -98,7 +98,10 @@ func ruleEntry(catalog map[string]component.CatalogEntry, code string) (componen
 	if !ok {
 		return component.Attachment{}, missingError{code}
 	}
-	return component.Attachment{Sysid: c.Sysid, Code: c.Code, Name: c.Name, Sts: c.DefaultSts, Source: component.SourceTemplate}, nil
+	// Legacy TRG_MGT_PAYROLL_EMP_MAST inserts the rule components with MPCE_TAX = 2 and
+	// MPCE_TAX_PAID_COMPANY = 'N' (T033f): taxable, like the ETL rows, so preview shows no false change.
+	return component.Attachment{Sysid: c.Sysid, Code: c.Code, Name: c.Name, Sts: c.DefaultSts, Source: component.SourceTemplate,
+		Tax: component.TaxTaxable, TaxPaidCompany: "N"}, nil
 }
 
 func upsertRule(want map[int64]component.Attachment, catalog map[string]component.CatalogEntry, code, amount string, frz int) error {

@@ -204,8 +204,8 @@ func (r inworkRule) ratio(fail decimal.Decimal) (decimal.Decimal, error) {
 }
 
 // otInwork is T6 / T36: F → A, D → RATEOTOPR × A × ratio, where RATEOTOPR is Σ T{1,7,55}
-// (not divided by HM) for every division and level. An amount without a legacy variant
-// leaves V_OTINWORK NULL, so the result is NULL.
+// (not divided by HM) for every division and level. Amount 0 has no legacy variant and gives
+// NULL; any other amount without a variant is errUnsupported (T033f).
 type otInwork struct{ code string }
 
 func (f otInwork) Code() string { return f.code }
@@ -215,7 +215,10 @@ func (f otInwork) Eval(ctx *EvalCtx, c EmpComponent, _ Params) (*decimal.Decimal
 		return a, "", nil
 	}
 	rule, ok := inworkRuleFor(f.code, c.Amount)
-	if !ok || !ctx.Basis.hasOTOpr {
+	switch {
+	case !ok && !c.Amount.IsZero(): // 0 is in the legacy data and stays NULL (D-25); a new rate is not
+		return nil, "", fmt.Errorf("%w: %s rate %s", errUnsupported, f.code, c.Amount)
+	case !ok || !ctx.Basis.hasOTOpr:
 		return nil, "", nil
 	}
 	ratio, err := rule.ratio(ctx.Basis.rekapOrZero(ctx.In, colOtiwDecr))

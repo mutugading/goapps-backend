@@ -16,6 +16,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib" // driver
 
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/report"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/cliutil"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/scope"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/audit"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/config"
@@ -53,7 +54,7 @@ func reconKomponen(ctx context.Context, args []string) error {
 	allowOpen := fs.Bool("allow-open", false, "izinkan periode belum APPROVED (gladi; tercatat di audit)")
 	actor := fs.String("actor", "cli-report", "identitas aktor untuk audit")
 	out := fs.String("out", "", "berkas xlsx keluaran (wajib; berisi gaji nyata, jangan di-commit)")
-	dsn := fs.String("dsn", "", "DSN role payroll_app (atau env PAYROLL_APP_DSN)")
+	dsn := cliutil.SecretString(fs, "dsn", "DSN role payroll_app", "PAYROLL_APP_DSN")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -111,8 +112,8 @@ func reco(ctx context.Context, args []string) error {
 	allowOpen := fs.Bool("allow-open", false, "izinkan periode belum APPROVED (gladi; tercatat di audit)")
 	actor := fs.String("actor", "cli-report", "identitas aktor untuk audit")
 	out := fs.String("out", "", "berkas xlsx keluaran (wajib; berisi gaji & rekening nyata, jangan di-commit)")
-	dsn := fs.String("dsn", "", "DSN role payroll_app (atau env PAYROLL_APP_DSN)")
-	key := fs.String("pii-key", "", "kunci PII (dekripsi rekening) (atau env PAYROLL_PII_KEY; utamakan env)")
+	dsn := cliutil.SecretString(fs, "dsn", "DSN role payroll_app", "PAYROLL_APP_DSN")
+	key := cliutil.SecretString(fs, "pii-key", "kunci PII (dekripsi rekening)", "PAYROLL_PII_KEY")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -177,8 +178,8 @@ func bank(ctx context.Context, args []string) error {
 	allowOpen := fs.Bool("allow-open", false, "izinkan periode belum APPROVED (gladi; tercatat di audit)")
 	actor := fs.String("actor", "cli-report", "identitas aktor untuk audit")
 	out := fs.String("out", "", "berkas xlsx keluaran (wajib; berisi rekening & gaji nyata, jangan di-commit)")
-	dsn := fs.String("dsn", "", "DSN role payroll_app (atau env PAYROLL_APP_DSN)")
-	key := fs.String("pii-key", "", "kunci PII (dekripsi rekening) (atau env PAYROLL_PII_KEY; utamakan env)")
+	dsn := cliutil.SecretString(fs, "dsn", "DSN role payroll_app", "PAYROLL_APP_DSN")
+	key := cliutil.SecretString(fs, "pii-key", "kunci PII (dekripsi rekening)", "PAYROLL_PII_KEY")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -306,8 +307,8 @@ func slip(ctx context.Context, args []string) error {
 	allowOpen := fs.Bool("allow-open", false, "izinkan periode belum APPROVED (gladi; tercatat di audit)")
 	actor := fs.String("actor", "cli-report", "identitas aktor untuk audit")
 	out := fs.String("out", "", "folder keluaran (wajib; berisi slip nyata, jangan di-commit)")
-	dsn := fs.String("dsn", "", "DSN role payroll_app (atau env PAYROLL_APP_DSN)")
-	key := fs.String("pii-key", "", "kunci PII (dekripsi NPWP dan rekening) (atau env PAYROLL_PII_KEY; utamakan env)")
+	dsn := cliutil.SecretString(fs, "dsn", "DSN role payroll_app", "PAYROLL_APP_DSN")
+	key := cliutil.SecretString(fs, "pii-key", "kunci PII (dekripsi NPWP dan rekening)", "PAYROLL_PII_KEY")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -372,7 +373,7 @@ func gl(ctx context.Context, args []string) error {
 	allowOpen := fs.Bool("allow-open", false, "izinkan periode belum APPROVED (gladi; tercatat di audit)")
 	actor := fs.String("actor", "cli-report", "identitas aktor untuk audit")
 	out := fs.String("out", "", "berkas xlsx keluaran (wajib; berisi nominal gaji, jangan di-commit)")
-	dsn := fs.String("dsn", "", "DSN role payroll_app (atau env PAYROLL_APP_DSN)")
+	dsn := cliutil.SecretString(fs, "dsn", "DSN role payroll_app", "PAYROLL_APP_DSN")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

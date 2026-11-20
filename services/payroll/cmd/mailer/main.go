@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -18,6 +19,7 @@ import (
 
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/distribution"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/report"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/cliutil"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/scope"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/audit"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/config"
@@ -27,7 +29,7 @@ import (
 
 const usage = `usage:
   mailer create -yymm 202701 -division SOLO [-company 1] [-allow-open] [-allow-dup-email] [-actor cli-mailer] -dsn <payroll_app dsn>
-  mailer send   -batch ID -yymm 202701 -division SOLO [-company 1] [-allow-open] [-test-to addr] [-limit N] [-wait] [-actor cli-mailer] [-pii-key K | PAYROLL_PII_KEY] -dsn <dsn>   (SMTP: PAYROLL_SMTP_*; kunci PII wajib, utamakan env; logo/teks: PAYROLL_REPORT_LOGO, PAYROLL_SLIP_PERHATIAN, PAYROLL_SLIP_CONTACT_IT)
+  mailer send   -batch ID -yymm 202701 -division SOLO [-company 1] [-allow-open] [-test-to addr] [-limit N] [-wait] [-yes] [-actor cli-mailer] [-pii-key K | PAYROLL_PII_KEY] -dsn <dsn>   (SMTP: PAYROLL_SMTP_*; kunci PII wajib, utamakan env; logo/teks: PAYROLL_REPORT_LOGO, PAYROLL_SLIP_PERHATIAN, PAYROLL_SLIP_CONTACT_IT)
   mailer resend -batch ID -yymm 202701 -division SOLO -nik N -reason "..." [-allow-dup-email] [-company 1] [-allow-open] [-actor cli-mailer] -dsn <dsn>
   mailer cancel -batch ID -yymm 202701 -division SOLO -reason "..." [-company 1] [-actor cli-mailer] -dsn <dsn>   (batch CANCELLED; send/resend ditolak; batch baru boleh dibuat)
   mailer report -batch ID -yymm 202701 -division SOLO -out x.xlsx [-company 1] [-actor cli-mailer] -dsn <dsn>`
@@ -50,7 +52,7 @@ func newCommon(name string) *common {
 		company:   fs.Int("company", 1, "pyr_company.pco_company_id"),
 		allowOpen: fs.Bool("allow-open", false, "izinkan periode belum APPROVED (gladi; tercatat di audit)"),
 		actor:     fs.String("actor", "cli-mailer", "identitas aktor untuk audit"),
-		dsn:       fs.String("dsn", "", "DSN role payroll_app (atau env PAYROLL_APP_DSN)"), // never a default: -h would print it
+		dsn:       cliutil.SecretString(fs, "dsn", "DSN role payroll_app", "PAYROLL_APP_DSN"), // never a default: -h would print it
 	}
 }
 
@@ -145,7 +147,8 @@ func send(ctx context.Context, args []string) error {
 	testTo := c.fs.String("test-to", "", "gladi: kirim semua email ke alamat ini saja; status item tidak berubah")
 	limit := c.fs.Int("limit", 0, "maksimum email dalam satu jalan (0 = semua; dengan -test-to default 3)")
 	wait := c.fs.Bool("wait", false, "tunggu jadwal retry sampai semua item selesai")
-	key := c.fs.String("pii-key", "", "kunci PII (dekripsi NPWP dan rekening di slip) (atau env PAYROLL_PII_KEY; utamakan env)")
+	yes := c.fs.Bool("yes", false, "lewati konfirmasi kirim sungguhan (untuk skrip; tanpa -yes ketik id batch)")
+	key := cliutil.SecretString(c.fs, "pii-key", "kunci PII (dekripsi NPWP dan rekening di slip)", "PAYROLL_PII_KEY")
 	if err := c.fs.Parse(args); err != nil {
 		return err
 	}
@@ -165,6 +168,12 @@ func send(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	if *testTo == "" { // a real send cannot be undone; the rehearsal (-test-to, capped at 3) needs no confirmation
+		summary := fmt.Sprintf("KIRIM EMAIL SUNGGUHAN: batch %d, periode %d, divisi %s, batas %s", *batch, *c.yymm, *c.division, limitText(*limit))
+		if err := cliutil.Confirm(os.Stdin, os.Stderr, *yes, summary, strconv.FormatInt(*batch, 10)); err != nil {
+			return err
+		}
+	}
 	ctx, q, db, closeDB, err := c.open(ctx)
 	if err != nil {
 		return err
@@ -178,6 +187,13 @@ func send(ctx context.Context, args []string) error {
 	res, err := svc.Send(ctx, distribution.SendOptions{BatchID: *batch, Query: q, TestTo: *testTo, Limit: *limit, Wait: *wait, SlipConfig: slipCfg})
 	fmt.Printf("terkirim=%d gagal=%d gagal_final=%d uji=%d menunggu_retry=%d\n", res.Sent, res.Failed, res.FinalFailed, res.Test, res.Waiting)
 	return err
+}
+
+func limitText(limit int) string {
+	if limit <= 0 {
+		return "semua item"
+	}
+	return strconv.Itoa(limit) + " email"
 }
 
 func resend(ctx context.Context, args []string) error {

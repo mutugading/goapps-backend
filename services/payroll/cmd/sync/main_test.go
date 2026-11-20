@@ -25,3 +25,21 @@ func TestDummyAllowedInDevelopment(t *testing.T) {
 		}
 	}
 }
+
+// T033a review: the env check is a whitelist, so spelling variants of production and unknown values are refused too.
+func TestDummyRejectedForEnvVariants(t *testing.T) {
+	for _, env := range []string{"Production", "PRODUCTION", "prod", "production ", "prd", "live"} {
+		t.Setenv("APP_ENV", env)
+		for name, run := range map[string]func([]string) error{"dummy-period": dummyPeriod, "dummy-janbase": dummyJanBase} {
+			if err := run([]string{"-dsn", ""}); err == nil || !strings.Contains(err.Error(), "D-68") {
+				t.Errorf("APP_ENV=%q %s: want D-68 rejection, got %v", env, name, err)
+			}
+		}
+	}
+	for _, env := range []string{"staging", "Staging", "local", "test"} {
+		t.Setenv("APP_ENV", env)
+		if err := dummyPeriod([]string{"-dsn", ""}); err == nil || strings.Contains(err.Error(), "D-68") {
+			t.Errorf("APP_ENV=%q: want argument error (guard passes), got %v", env, err)
+		}
+	}
+}

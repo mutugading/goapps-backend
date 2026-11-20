@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
@@ -18,6 +19,10 @@ type AttSnapshotQuery struct {
 	Company  int16
 	YYMM     int
 	Division string
+	// AllowNoDay25 (T033h3, operator decision per run) accepts a daily window whose last row is before the 25th when the
+	// newest OK daily batch started after the window closed (26th 00:00 WIB): for a division with nobody scheduled on
+	// the 25th. It proves when the sync ran, not that HRIS was complete, so it is never the default.
+	AllowNoDay25 bool
 }
 
 // AttSnapshotReport is the outcome of one division. Counts only, no names (I25).
@@ -46,7 +51,7 @@ var (
 )
 
 // RunAttSnapshot freezes the current staging of each division into a new pyr_att_snapshot (05§6): one transaction
-// per division, refused when the period is CLOSED or has a locked snapshot (same advisory lock + FOR SHARE as
+// per division, refused when the period is CLOSED or has a locked snapshot (same advisory locks + plain re-check as
 // RunAttSync, so a sync of the same period waits or runs first). The snapshot holds the whole staging of
 // (company, yymm, division) at that moment, not only the rows written by the batches in pas_source_batch_ids:
 // an upsert-if-changed keeps the old batch id on unchanged rows. Rows use the LEGACY jsonb format (MPAR_*,
@@ -85,7 +90,7 @@ func snapshotDivision(ctx context.Context, db *sql.DB, q AttSnapshotQuery, div s
 		if !ok {
 			return errors.New("driver bukan pgx")
 		}
-		tx, err := sc.Conn().Begin(ctx)
+		tx, err := sc.Conn().BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted}) // the period re-check needs a fresh snapshot per statement (T033h)
 		if err != nil {
 			return err
 		}
@@ -152,10 +157,12 @@ const (
 func checkStagingFilled(ctx context.Context, tx pgx.Tx, q AttSnapshotQuery, div string) error {
 	start, end := DailyWindow(q.YYMM)
 	var rekap, daily int
+	var last *time.Time
 	if err := tx.QueryRow(ctx, `SELECT
   (SELECT count(*) FROM payroll_stg.pyr_stg_att_rekap_hm WHERE psar_company_id=$1 AND psar_division=$2 AND psar_yymm=$3),
-  (SELECT count(*) FROM payroll_stg.pyr_stg_att_daily WHERE psad_company_id=$1 AND psad_division=$2 AND psad_work_date BETWEEN $4 AND $5)`,
-		q.Company, div, q.YYMM, start, end).Scan(&rekap, &daily); err != nil {
+  (SELECT count(*) FROM payroll_stg.pyr_stg_att_daily WHERE psad_company_id=$1 AND psad_division=$2 AND psad_work_date BETWEEN $4 AND $5),
+  (SELECT max(psad_work_date) FROM payroll_stg.pyr_stg_att_daily WHERE psad_company_id=$1 AND psad_division=$2 AND psad_work_date BETWEEN $4 AND $5)`,
+		q.Company, div, q.YYMM, start, end).Scan(&rekap, &daily, &last); err != nil {
 		return fmt.Errorf("cek staging: %w", err)
 	}
 	if rekap == 0 {
@@ -165,8 +172,34 @@ func checkStagingFilled(ctx context.Context, tx pgx.Tx, q AttSnapshotQuery, div 
 		return fmt.Errorf("staging harian %d %s kosong (%s..%s): premi_fail semua NIK akan = jumlah hari; sync daily dulu",
 			q.YYMM, div, start.Format("2006-01-02"), end.Format("2006-01-02"))
 	}
-	return nil
+	// T033h: a window synced before its last day counts the missing days as absent (premi_fail inflated).
+	// T033h3: with AllowNoDay25 a division without a row on the 25th passes when the newest OK DAILY batch started after
+	// the window closed (26th 00:00 WIB). Proof of sync time only, so only on explicit request.
+	if last != nil && last.Format(dateISO) >= end.Format(dateISO) {
+		return nil
+	}
+	got := "-"
+	if last != nil {
+		got = last.Format(dateISO)
+	}
+	if !q.AllowNoDay25 {
+		return fmt.Errorf("staging harian %d %s belum lengkap: tanggal terakhir %s < akhir jendela %s; sync daily sesudah jendela selesai (divisi tanpa jadwal tgl 25: -allow-no-day25)",
+			q.YYMM, div, got, end.Format(dateISO))
+	}
+	var after bool
+	if err := tx.QueryRow(ctx, `SELECT coalesce((SELECT psb_started_at >= (($4::date + 1)::timestamp AT TIME ZONE 'Asia/Jakarta')
+  FROM payroll_stg.pyr_stg_sync_batch WHERE psb_company_id=$1 AND psb_division=$2 AND psb_yymm=$3 AND psb_source=$5 AND psb_status='OK'
+  ORDER BY psb_id DESC LIMIT 1), false)`, q.Company, div, q.YYMM, end.Format(dateISO), tblDaily.source).Scan(&after); err != nil {
+		return fmt.Errorf("cek batch harian: %w", err)
+	}
+	if after {
+		return nil
+	}
+	return fmt.Errorf("staging harian %d %s belum lengkap: tanggal terakhir %s < akhir jendela %s dan batch daily terakhir dimulai sebelum jendela selesai; sync daily lagi sesudah tanggal 25",
+		q.YYMM, div, got, end.Format(dateISO))
 }
+
+const dateISO = "2006-01-02"
 
 // buildSnapshotRows fills the temp table with the REKAP/ADD/SCH rows and computes counts and checksum.
 func buildSnapshotRows(ctx context.Context, tx pgx.Tx, q AttSnapshotQuery, div string, rep *AttSnapshotReport) error {
