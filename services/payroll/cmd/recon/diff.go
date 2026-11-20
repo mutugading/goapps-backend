@@ -10,6 +10,7 @@ import (
 
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/recon"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/run"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/cliutil"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/scope"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/postgres"
 )
@@ -35,7 +36,7 @@ func diffCmd(args []string, stdout, stderr io.Writer) int {
 	ruleSet := fs.Int("rule-set", 1, "rule set untuk dry-run (v1 = 1)")
 	out := fs.String("out", "", "berkas laporan JSON (kosong = stdout); memuat NIK & gaji nyata, jangan dikomit")
 	xlsx := fs.String("xlsx", "", "berkas laporan xlsx (Ringkasan, Top50, PerNIK); memuat NIK & gaji nyata, jangan dikomit")
-	dsn := fs.String("dsn", reconDSN(), "DSN login payroll_recon (read-only, anggota payroll_ro)")
+	dsn := cliutil.SecretString(fs, "dsn", "DSN login payroll_recon (read-only, anggota payroll_ro)", "PAYROLL_RECON_DSN", "PAYROLL_RO_DSN")
 	if err := fs.Parse(args); err != nil {
 		return exitError
 	}

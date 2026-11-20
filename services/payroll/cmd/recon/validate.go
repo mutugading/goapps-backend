@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/mutugading/goapps-backend/services/payroll/internal/cliutil"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/etl"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/recon"
 )
@@ -27,7 +28,7 @@ func validateCmd(args []string, stdout, stderr io.Writer) int {
 	to := fs.Int("yymm-to", 0, "periode akhir yymm (wajib)")
 	out := fs.String("out", "", "berkas laporan JSON agregat (kosong = stdout)")
 	dump := fs.String("dump", "", "folder PSV dump (MGT_PAYROLL_MAIN/DETAIL.psv): bandingkan agregat DB dengan dump (T032b)")
-	dsn := fs.String("dsn", reconDSN(), "DSN login payroll_recon (read-only, anggota payroll_ro)")
+	dsn := cliutil.SecretString(fs, "dsn", "DSN login payroll_recon (read-only, anggota payroll_ro)", "PAYROLL_RECON_DSN", "PAYROLL_RO_DSN")
 	if err := fs.Parse(args); err != nil {
 		return exitError
 	}

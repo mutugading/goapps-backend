@@ -373,3 +373,56 @@ func TestRunAPI_ByIDScopeMaskAmbiguity(t *testing.T) {
 }
 
 func itoa(i int) string { return strconv.Itoa(i) }
+
+// T033k (review #283, tes): a caller scoped to company 1 cannot touch company 2 through the Run API. Writes are
+// refused with DIVISION_FORBIDDEN before any query; by-id reads answer NOT_FOUND (RLS hides the row, no existence leak)
+// and lists never include the foreign run.
+func TestRunAPI_CrossCompanyDenied(t *testing.T) {
+	h := runHandler(t)
+	var co int
+	if err := ownDB.QueryRow(`INSERT INTO payroll.pyr_company (pco_code, pco_name) VALUES ('XCO','Cross Co') RETURNING pco_company_id`).Scan(&co); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`INSERT INTO payroll.pyr_division_ref VALUES (` + itoa(co) + `,'SOLO','Solo')`,
+		`INSERT INTO payroll.pyr_period (pp_company_id, pp_yymm, pp_division, pp_date_from, pp_date_to) VALUES (` + itoa(co) + `,203502,'SOLO','2035-01-26','2035-02-25')`,
+		`INSERT INTO payroll.pyr_att_snapshot (pas_company_id, pas_yymm, pas_division, pas_source_batch_ids, pas_checksum, pas_locked)
+		 VALUES (` + itoa(co) + `,203502,'SOLO','{1}','xco-snap',true)`,
+		`INSERT INTO payroll.pyr_run (pr_company_id, pr_yymm, pr_division, pr_pay_date, pr_rule_set_id, pr_snapshot_id, pr_status, pr_kind)
+		 SELECT ` + itoa(co) + `,203502,'SOLO','2035-02-26',1,pas_snapshot_id,'ACTIVE','ENGINE' FROM payroll.pyr_att_snapshot WHERE pas_checksum='xco-snap'`,
+	} {
+		if _, err := ownDB.Exec(q); err != nil {
+			t.Fatalf("%v\n%s", err, q)
+		}
+	}
+	foreign := scalar(t, `SELECT pr_id::text FROM payroll.pyr_run WHERE pr_company_id=`+itoa(co))
+	fid, err := strconv.ParseInt(foreign, 10, 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := ctxFor(t, userRW, permsRun...) // scope: company 1 SOLO only
+
+	for _, mode := range []payrollv1.RunMode{payrollv1.RunMode_RUN_MODE_DRY, payrollv1.RunMode_RUN_MODE_COMMIT} {
+		req := createRun("SOLO", mode)
+		req.CompanyId = int32(co) //nolint:gosec // test id
+		_, err := h.CreateRun(ctx, req)
+		wantCode(t, "CreateRun foreign company "+mode.String(), err, apperr.CodeDivisionForbidden)
+	}
+	_, err = h.GetRun(ctx, &payrollv1.GetRunRequest{RunId: fid})
+	wantCode(t, "GetRun foreign company", err, apperr.CodeNotFound)
+	_, err = h.ListRunLines(ctx, &payrollv1.ListRunLinesRequest{RunId: fid})
+	wantCode(t, "ListRunLines foreign company", err, apperr.CodeNotFound)
+
+	lr, err := h.ListRuns(ctx, &payrollv1.ListRunsRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range lr.GetData() {
+		if r.GetRunId() == fid {
+			t.Fatal("ListRuns leaked a run of another company")
+		}
+	}
+	if got := scalar(t, `SELECT count(*)::text FROM payroll.pyr_run WHERE pr_company_id=`+itoa(co)); got != "1" {
+		t.Fatalf("foreign company runs changed: %s", got)
+	}
+}

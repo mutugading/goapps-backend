@@ -15,6 +15,7 @@ import (
 
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/recon"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/run"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/cliutil"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/scope"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/engine"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/postgres"
@@ -46,15 +47,6 @@ func main() {
 	}
 }
 
-// reconDSN is the default -dsn: PAYROLL_RECON_DSN (login payroll_recon, member of NOLOGIN payroll_ro, T033g2), falling
-// back to PAYROLL_RO_DSN until the infra secrets move (T033g3).
-func reconDSN() string {
-	if v := os.Getenv("PAYROLL_RECON_DSN"); v != "" {
-		return v
-	}
-	return os.Getenv("PAYROLL_RO_DSN")
-}
-
 // openRO opens the read-only connection and returns a context carrying the recon identity for scopes.
 func openRO(dsn string, scopes []scope.Scope) (*sql.DB, context.Context, error) {
 	raw, err := sql.Open("pgx", dsn)
@@ -79,7 +71,7 @@ func extractGolden(args []string) error {
 	ruleSet := fs.Int("rule-set", 1, "rule set untuk memuat input (v1 = 1)")
 	out := fs.String("out", "tests/golden/out", "folder keluaran (gitignored; berisi gaji nyata)")
 	rulesOut := fs.String("rules-out", "", "berkas GOLDEN_RULES (rule set + tabel pajak periode itu) untuk TestGoldenReal")
-	dsn := fs.String("dsn", reconDSN(), "DSN login payroll_recon (read-only, anggota payroll_ro)")
+	dsn := cliutil.SecretString(fs, "dsn", "DSN login payroll_recon (read-only, anggota payroll_ro)", "PAYROLL_RECON_DSN", "PAYROLL_RO_DSN")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

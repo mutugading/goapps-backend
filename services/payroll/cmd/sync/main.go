@@ -14,6 +14,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib" // driver
 
+	"github.com/mutugading/goapps-backend/services/payroll/internal/cliutil"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/config"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/etl"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/oracle"
@@ -67,7 +68,7 @@ func main() {
 func employees(args []string) error {
 	fs := flag.NewFlagSet("employees", flag.ExitOnError)
 	dir := fs.String("dir", "", "folder .psv hasil spool sqlplus (08§1)")
-	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl")
+	dsn := cliutil.SecretString(fs, "dsn", "DSN role payroll_etl", "PAYROLL_ETL_DSN")
 	company := fs.Int("company", 1, "pyr_company.pco_company_id")
 	expE := fs.Int("expect-emp", 0, "jumlah baris MGT_PAYROLL_EMP yang diharapkan (2860)")
 	expC := fs.Int("expect-compe", 0, "jumlah baris MGT_PAYROLL_COMPNT_EMP yang diharapkan (117827)")
@@ -108,7 +109,7 @@ func employees(args []string) error {
 func migrate(args []string) error {
 	fs := flag.NewFlagSet("migrate", flag.ExitOnError)
 	dir := fs.String("dir", "", "folder .psv hasil spool sqlplus (08§1)")
-	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl")
+	dsn := cliutil.SecretString(fs, "dsn", "DSN role payroll_etl", "PAYROLL_ETL_DSN")
 	company := fs.Int("company", 1, "pyr_company.pco_company_id")
 	validFrom := fs.Int("valid-from", 202001, "pc_valid_from komponen legacy (yymm)")
 	expM := fs.Int("expect-master", 0, "jumlah baris master yang diharapkan (133 di produksi)")
@@ -140,7 +141,7 @@ func migrate(args []string) error {
 func inputs(args []string) error {
 	fs := flag.NewFlagSet("inputs", flag.ExitOnError)
 	dir := fs.String("dir", "", "folder .psv hasil spool sqlplus (08§1)")
-	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl")
+	dsn := cliutil.SecretString(fs, "dsn", "DSN role payroll_etl", "PAYROLL_ETL_DSN")
 	company := fs.Int("company", 1, "pyr_company.pco_company_id")
 	expA := fs.Int("expect-addition", 0, "jumlah baris MGT_PAYROLL_ADDITION yang diharapkan (28464)")
 	expP := fs.Int("expect-abnormal", 0, "jumlah baris MGT_PAYROLL_ABNORMAL_PREMI yang diharapkan (28550)")
@@ -175,7 +176,7 @@ func inputs(args []string) error {
 func attLegacy(args []string) error {
 	fs := flag.NewFlagSet("att-legacy", flag.ExitOnError)
 	dir := fs.String("dir", "", "folder .psv hasil spool sqlplus (08§1)")
-	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl")
+	dsn := cliutil.SecretString(fs, "dsn", "DSN role payroll_etl", "PAYROLL_ETL_DSN")
 	company := fs.Int("company", 1, "pyr_company.pco_company_id")
 	expR := fs.Int("expect-rekap", 0, "jumlah baris MGT_PAYROLL_ATT_REKAP yang diharapkan (68925)")
 	expA := fs.Int("expect-add", 0, "jumlah baris MGT_PAYROLL_ATT_REKAP_ADD yang diharapkan (870)")
@@ -210,7 +211,7 @@ func attLegacy(args []string) error {
 func salaryLegacy(args []string) error {
 	fs := flag.NewFlagSet("salary-legacy", flag.ExitOnError)
 	dir := fs.String("dir", "", "folder .psv hasil spool sqlplus (08§1)")
-	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl")
+	dsn := cliutil.SecretString(fs, "dsn", "DSN role payroll_etl", "PAYROLL_ETL_DSN")
 	company := fs.Int("company", 1, "pyr_company.pco_company_id")
 	expM := fs.Int("expect-main", 0, "jumlah baris MGT_PAYROLL_MAIN yang diharapkan (91916)")
 	expD := fs.Int("expect-detail", 0, "jumlah baris MGT_PAYROLL_DETAIL yang diharapkan (2274418)")
@@ -256,7 +257,7 @@ func salaryLegacy(args []string) error {
 func thrLegacy(args []string) error {
 	fs := flag.NewFlagSet("thr-legacy", flag.ExitOnError)
 	dir := fs.String("dir", "", "folder .psv hasil spool sqlplus (08§1): MGT_THR_MAIN + MGT_THR_DETAIL")
-	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl (wajib login payroll_etl: pengecualian guard CLOSED memakai session_user)")
+	dsn := cliutil.SecretString(fs, "dsn", "DSN role payroll_etl (wajib login payroll_etl: pengecualian guard CLOSED memakai session_user)", "PAYROLL_ETL_DSN")
 	company := fs.Int("company", 1, "pyr_company.pco_company_id")
 	expM := fs.Int("expect-main", 0, "jumlah baris MGT_THR_MAIN yang diharapkan (14918)")
 	expD := fs.Int("expect-detail", 0, "jumlah baris MGT_THR_DETAIL yang diharapkan (62246)")
@@ -296,7 +297,7 @@ func thrLegacy(args []string) error {
 func glSetup(args []string) error {
 	fs := flag.NewFlagSet("gl-setup", flag.ExitOnError)
 	dir := fs.String("dir", "", "folder .psv hasil spool sqlplus (08§1): MGT_PAYROLL_SETUP")
-	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl")
+	dsn := cliutil.SecretString(fs, "dsn", "DSN role payroll_etl", "PAYROLL_ETL_DSN")
 	company := fs.Int("company", 1, "pyr_company.pco_company_id")
 	expRows := fs.Int("expect-rows", 0, "jumlah baris MGT_PAYROLL_SETUP yang diharapkan (1338)")
 	allowExc := fs.Bool("allow-exceptions", false, "exit 0 walau ada exception (default: exit non-nol bila ada exception)")
@@ -337,7 +338,7 @@ func glSetup(args []string) error {
 func fxRate(args []string) error {
 	fs := flag.NewFlagSet("fx-rate", flag.ExitOnError)
 	dir := fs.String("dir", "", "folder .psv hasil spool sqlplus (08§1): FM_EXCHANGE_RATE")
-	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl")
+	dsn := cliutil.SecretString(fs, "dsn", "DSN role payroll_etl", "PAYROLL_ETL_DSN")
 	expRows := fs.Int("expect-rows", 0, "jumlah baris IDR→USD BOOK yang diharapkan")
 	allowExc := fs.Bool("allow-exceptions", false, "exit 0 walau ada exception")
 	if err := fs.Parse(args); err != nil {
@@ -375,7 +376,7 @@ func fxRate(args []string) error {
 func costGroup(args []string) error {
 	fs := flag.NewFlagSet("cost-group", flag.ExitOnError)
 	dir := fs.String("dir", "", "folder .psv hasil spool sqlplus (08§1): FM_DEPARTMENT")
-	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl")
+	dsn := cliutil.SecretString(fs, "dsn", "DSN role payroll_etl", "PAYROLL_ETL_DSN")
 	company := fs.Int("company", 1, "company id")
 	expRows := fs.Int("expect-rows", 0, "jumlah baris FM_DEPARTMENT ber-DEPT_FIELD_01 yang diharapkan")
 	allowExc := fs.Bool("allow-exceptions", false, "exit 0 walau ada exception")
@@ -411,7 +412,7 @@ func costGroup(args []string) error {
 func attLegacyFail(args []string) error {
 	fs := flag.NewFlagSet("att-legacy-fail", flag.ExitOnError)
 	dir := fs.String("dir", "", "folder .psv hasil spool sqlplus (08§1): MGT_PAYROLL_DETAIL + MGT_PAYROLL_COMPNT_EMP")
-	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl")
+	dsn := cliutil.SecretString(fs, "dsn", "DSN role payroll_etl", "PAYROLL_ETL_DSN")
 	company := fs.Int("company", 1, "pyr_company.pco_company_id (T033h: UPDATE hanya snapshot company ini)")
 	open := fs.String("open-periods", "", "yymm dipisah koma yang masih OPEN saat dump (D-46: T40 tanpa baris DETAIL ⇒ PF=1; butuh MGT_PAYROLL_MAIN). Kosong = hanya D-33")
 	if err := fs.Parse(args); err != nil {
@@ -459,7 +460,7 @@ func attLegacyFail(args []string) error {
 
 func pruneExcluded(args []string) error {
 	fs := flag.NewFlagSet("prune-excluded", flag.ExitOnError)
-	dsn := fs.String("owner-dsn", os.Getenv("PAYROLL_OWNER_DSN"), "DSN pemilik tabel (payroll_migrator); payroll_etl tidak punya DELETE")
+	dsn := cliutil.SecretString(fs, "owner-dsn", "DSN pemilik tabel (payroll_migrator); payroll_etl tidak punya DELETE", "PAYROLL_OWNER_DSN")
 	company := fs.Int("company", 1, "pyr_company.pco_company_id")
 	apply := fs.Bool("apply", false, "hapus sungguhan (default: dry-run, hanya melaporkan)")
 	if err := fs.Parse(args); err != nil {
@@ -505,7 +506,7 @@ func oracleSyncFromEnv() config.OracleSyncConfig {
 // att pulls attendance from HRIS Oracle into payroll_stg (05§4, D-58). Exit non-zero on any failure.
 func att(args []string) error {
 	fs := flag.NewFlagSet("att", flag.ExitOnError)
-	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl")
+	dsn := cliutil.SecretString(fs, "dsn", "DSN role payroll_etl", "PAYROLL_ETL_DSN")
 	company := fs.Int("company", 1, "pyr_company.pco_company_id")
 	yymm := fs.Int("yymm", 0, "periode YYYYMM (wajib)")
 	division := fs.String("division", "", "SOLO atau JAKARTA (kosong = keduanya)")
@@ -555,7 +556,7 @@ func att(args []string) error {
 // snapshot freezes the current staging into a new attendance snapshot per division (05§6–7, D-58 (4)(5)).
 func snapshot(args []string) error {
 	fs := flag.NewFlagSet("snapshot", flag.ExitOnError)
-	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl")
+	dsn := cliutil.SecretString(fs, "dsn", "DSN role payroll_etl", "PAYROLL_ETL_DSN")
 	company := fs.Int("company", 1, "pyr_company.pco_company_id")
 	yymm := fs.Int("yymm", 0, "periode YYYYMM (wajib)")
 	division := fs.String("division", "", "SOLO atau JAKARTA (kosong = keduanya)")
@@ -604,8 +605,8 @@ func dummyPeriod(args []string) error {
 		return err
 	}
 	fs := flag.NewFlagSet("dummy-period", flag.ExitOnError)
-	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl (klon)")
-	ownerDSN := fs.String("owner-dsn", os.Getenv("PAYROLL_OWNER_DSN"), "DSN pemilik tabel (payroll_migrator); hanya untuk -purge")
+	dsn := cliutil.SecretString(fs, "dsn", "DSN role payroll_etl (klon)", "PAYROLL_ETL_DSN")
+	ownerDSN := cliutil.SecretString(fs, "owner-dsn", "DSN pemilik tabel (payroll_migrator); hanya untuk -purge", "PAYROLL_OWNER_DSN")
 	company := fs.Int("company", 1, "pyr_company.pco_company_id")
 	from := fs.Int("from", 0, "periode sumber YYYYMM (klon; mis. 202610)")
 	to := fs.Int("to", 0, "periode dummy YYYYMM (wajib)")
@@ -670,7 +671,7 @@ func dummyJanBase(args []string) error {
 		return err
 	}
 	fs := flag.NewFlagSet("dummy-janbase", flag.ExitOnError)
-	dsn := fs.String("dsn", os.Getenv("PAYROLL_ETL_DSN"), "DSN role payroll_etl")
+	dsn := cliutil.SecretString(fs, "dsn", "DSN role payroll_etl", "PAYROLL_ETL_DSN")
 	company := fs.Int("company", 1, "pyr_company.pco_company_id")
 	yymm := fs.Int("yymm", 0, "periode Januari YYYYMM (wajib; mis. 202701)")
 	if err := fs.Parse(args); err != nil {

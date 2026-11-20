@@ -78,6 +78,9 @@ func toAppErr(err error, what string) error {
 	case errors.Is(err, domain.ErrReference):
 		return apperr.New(apperr.CodeValidation, "referensi "+what+" tidak valid", nil)
 	}
+	if ve, ok := domain.IsValidation(err); ok {
+		return validation(ve.Field, ve.Msg)
+	}
 	return err
 }
 
@@ -144,6 +147,9 @@ func auditCompany(ctx context.Context) (int16, error) {
 
 // CreateCurrency creates a currency.
 func (s *Service) CreateCurrency(ctx context.Context, c domain.Currency, ip string) (out domain.Currency, err error) {
+	if c, err = domain.NewCurrency(c.Code, c.MinorUnit, c.TakehomeRound); err != nil {
+		return out, toAppErr(err, "mata uang")
+	}
 	auditCo, err := auditCompany(ctx)
 	if err != nil {
 		return out, err
@@ -194,15 +200,15 @@ func (s *Service) UpdateCurrency(ctx context.Context, c domain.Currency, ifMatch
 
 // CreateCompany creates a company.
 func (s *Service) CreateCompany(ctx context.Context, c domain.Company, npwp string, cl Caller) (out domain.Company, err error) {
-	if npwp == domain.MaskedValue {
-		return out, validation("npwp", "npwp tidak boleh berisi nilai mask")
+	if err = domain.ValidateCompanyNPWP(npwp); err != nil {
+		return out, toAppErr(err, "company")
+	}
+	if c, err = domain.NewCompany(c.Code, c.Name, c.BaseCurrency); err != nil {
+		return out, toAppErr(err, "company")
 	}
 	auditCo, err := auditCompany(ctx)
 	if err != nil {
 		return out, err
-	}
-	if c.BaseCurrency == "" {
-		c.BaseCurrency = "IDR"
 	}
 	err = s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
 		var e error
@@ -267,6 +273,9 @@ func (s *Service) UpdateCompany(ctx context.Context, c domain.Company, npwp stri
 
 // CreateDivision creates a division.
 func (s *Service) CreateDivision(ctx context.Context, d domain.Division, ip string) (out domain.Division, err error) {
+	if d, err = domain.NewDivision(d.CompanyID, d.Code, d.Name); err != nil {
+		return out, toAppErr(err, "divisi")
+	}
 	if err = inCompany(ctx, d.CompanyID); err != nil {
 		return out, err
 	}
