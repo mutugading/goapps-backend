@@ -163,6 +163,19 @@ func (MasterRepository) ListEmployees(ctx context.Context, tx *sql.Tx, f domain.
 	return out, rows.Err()
 }
 
+// TaxStatusKnown reports whether code is an EMPTAX row of an ACTIVE rule set (T033i). pyr_static_value and
+// pyr_rule_set are global reference tables (no RLS), readable by payroll_app.
+func (MasterRepository) TaxStatusKnown(ctx context.Context, tx *sql.Tx, code string) (bool, error) {
+	var ok bool
+	err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM payroll.pyr_static_value v
+  JOIN payroll.pyr_rule_set r ON r.prs_id = v.psv_rule_set_id
+  WHERE r.prs_status = 'ACTIVE' AND v.psv_vs_code = 'EMPTAX' AND v.psv_code = $1)`, code).Scan(&ok)
+	if err != nil {
+		return false, fmt.Errorf("check tax status: %w", err)
+	}
+	return ok, nil
+}
+
 // LockEmployee locks one employee row until the transaction ends.
 func (MasterRepository) LockEmployee(ctx context.Context, tx *sql.Tx, id int64) error {
 	return lockRow(ctx, tx, `SELECT 1 FROM payroll.pyr_employee WHERE pe_id=$1 FOR UPDATE`, id)

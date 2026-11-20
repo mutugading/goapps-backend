@@ -21,13 +21,17 @@ import (
 
 // Per-NIK warning codes raised by the runner (D-27: a per-NIK engine error is a warning, not a failed run).
 const (
-	CodeNoWorkdays  = "NO_WORKDAYS"
-	CodeLoanDouble  = "LOAN_DOUBLE"
-	CodeCalcError   = "CALC_ERROR"
-	CodeEngineWarn  = "ENGINE_WARNING"
-	CodeIncomplete  = "INCOMPLETE_RESULT"
-	warnCodeMaxLen  = 40
-	hashSharedLabel = "shared"
+	CodeNoWorkdays = "NO_WORKDAYS"
+	CodeLoanDouble = "LOAN_DOUBLE"
+	CodeCalcError  = "CALC_ERROR"
+	CodeEngineWarn = "ENGINE_WARNING"
+	CodeIncomplete = "INCOMPLETE_RESULT"
+	// CodePPhNoPTKP and CodePPhNoBracket are engine warnings (P1/P5 NULL for an unknown tax status) that block
+	// approve (T033i).
+	CodePPhNoPTKP    = engine.WarnPPhNoPTKP
+	CodePPhNoBracket = engine.WarnPPhNoBracket
+	warnCodeMaxLen   = 40
+	hashSharedLabel  = "shared"
 )
 
 // Summary is the dry-run totals (03§3 step 5). Totals sum the rounded line amounts (NULL = 0).
@@ -149,6 +153,10 @@ func engineWarning(nik, w string) Issue {
 	}
 	return Issue{NIK: nik, Code: CodeEngineWarn, Message: w}
 }
+
+// ParseEngineWarning is engineWarning for other packages: it maps an engine warning text to the Issue stored
+// in pr_warnings, so approve checks (period) can be tested against the real code split.
+func ParseEngineWarning(nik, w string) Issue { return engineWarning(nik, w) }
 
 func isCode(s string) bool {
 	if s == "" || len(s) > warnCodeMaxLen {

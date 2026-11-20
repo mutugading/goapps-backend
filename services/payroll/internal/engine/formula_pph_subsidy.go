@@ -46,6 +46,28 @@ const (
 // ErrSubsidyKind is returned for a subsidy kind or override action the engine does not know.
 var ErrSubsidyKind = errors.New("engine: unsupported subsidy kind or override action")
 
+// ErrSubsidyNegative is returned for an AMOUNT override below zero (T033i; DB CHECK pso_amount >= 0).
+var ErrSubsidyNegative = errors.New("engine: negative subsidy override amount")
+
+// overrideAmount is P0 for an AMOUNT override: −amount, capped to the PPh withheld (P1), so the
+// subsidy never pays out more than P1 (T033i). P1 NULL or ≤ 0 caps it to 0.
+func overrideAmount(o *SubsidyOverride, p1 *decimal.Decimal, remark string) (*decimal.Decimal, string, error) {
+	if o.Amount.IsNegative() {
+		return nil, "", fmt.Errorf("%w: %s", ErrSubsidyNegative, o.Amount)
+	}
+	limit := decimal.Zero
+	if p1 != nil && p1.IsPositive() {
+		limit = *p1
+	}
+	amt := o.Amount
+	if amt.GreaterThan(limit) {
+		amt = limit
+		remark += " | Dibatasi PPh : " + thousands(limit)
+	}
+	v := amt.Neg()
+	return &v, remark, nil
+}
+
 // SubsidyRule is one ACTIVE pyr_subsidy_rule (12§4.2), restricted to what rule v1 uses. Rule v1
 // migrates MGT_PAYROLL_SUBSIDI_PPH rows with YN = 'Y' into rules per period and division; legacy
 // matches yymm + division only (D-30), so Depts stays empty for migrated rules.
@@ -161,8 +183,7 @@ func (pphSubsidy) Eval(ctx *EvalCtx, _ EmpComponent, _ Params) (*decimal.Decimal
 		case OverrideExclude:
 			return &zero, remark, nil
 		case OverrideAmount:
-			v := o.Amount.Neg()
-			return &v, remark, nil
+			return overrideAmount(o, p1, remark)
 		}
 		return nil, "", fmt.Errorf("%w: override %q", ErrSubsidyKind, o.Action)
 	}

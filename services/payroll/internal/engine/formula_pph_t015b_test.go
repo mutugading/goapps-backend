@@ -86,29 +86,31 @@ func TestPPhCompanyNonDecemberExtra(t *testing.T) {
 // P5 Desember: pengurang P4/P14/P18 bulan berjalan, v2 PKP negatif dan TRUNC.
 func TestPPhCompanyDecemberExtra(t *testing.T) {
 	t.Run("v1 pengurang P4/P14/P18 bulan berjalan", func(t *testing.T) {
-		// P4/P14/P18 dihitung formula masing-masing; yang diuji: ketiganya (bukan P8) masuk pengurang
-		// bersama YTD, dilihat dari remark P5.
+		// Hitung tangan (review #283 PPh minor, T033i). T1 5.400.000 + T73 600.000 (ditanggung).
+		// P4 1.000.000 (STS F), P14 2 % × basis 5.400.000 = 108.000, P18 1 % × 5.400.000 = 54.000; P8 bukan pengurang.
+		// Pengurang = YTD 6.000.000 + 1.162.000 = 7.162.000. Bruto = 66.000.000 + 6.000.000 = 72.000.000;
+		// BJ = MIN(5 % = 3.600.000, 6.000.000); PTKP TK 54.000.000 → PKP 7.238.000 → v1 5 % = 361.900.
+		// Sisi sendiri: PKP − ditanggung (6.600.000 + 600.000) = 38.000 → 1.900. P5 = 1.900 − 361.900 = −360.000.
 		in := decInput(true, "TK", "5400000", "0", "0", "0", paidT(73, "600000"), pComp(5, "0", "F", false),
 			pComp(4, "1000000", "F", false), pComp(8, "700000", "F", false),
-			pComp(14, "500000", "F", false), pComp(18, "500000", "F", false))
+			pComp(14, "0.02", "F", false), pComp(18, "0.01", "F", false))
 		in.YTDCompany = YTDCompanyTax{Gross: d("66000000"), CompanyPaid: d("6600000"), Deduct: d("6000000")}
 		res, err := Calculate(in)
 		if err != nil {
 			t.Fatal(err)
 		}
-		cur := d("0")
+		want := map[CompKey]string{{CompP, 4}: "1000000", {CompP, 14}: "108000", {CompP, 18}: "54000", keyP5: "-360000"}
 		var p5 Line
 		for _, l := range res.Lines {
-			switch l.Key {
-			case CompKey{CompP, 4}, CompKey{CompP, 14}, CompKey{CompP, 18}:
-				cur = cur.Add(l.AmountOrZero())
-			case keyP5:
+			if w, ok := want[l.Key]; ok && amountStr(l) != w {
+				t.Errorf("%v = %q, want %q", l.Key, amountStr(l), w)
+			}
+			if l.Key == keyP5 {
 				p5 = l
 			}
 		}
-		want := "Pengurang : " + thousands(d("6000000").Add(cur))
-		if !strings.Contains(p5.Remark, want) {
-			t.Errorf("remark %q tidak memuat %q", p5.Remark, want)
+		if !strings.Contains(p5.Remark, "Pengurang : 7,162,000") {
+			t.Errorf("remark %q tidak memuat Pengurang : 7,162,000", p5.Remark)
 		}
 	})
 	t.Run("v2 PKP negatif → 0, hanya P5 Jan-Nov yang dikembalikan", func(t *testing.T) {

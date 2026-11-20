@@ -33,6 +33,11 @@ type TaxLayer struct {
 	Rate decimal.Decimal // percent, e.g. 15
 }
 
+// noPTKPWarning is the PPH_NO_PTKP text of P1 and P5; the same text is kept once per employee.
+func noPTKPWarning(in Input) string {
+	return fmt.Sprintf("%s: %s status pajak %q", WarnPPhNoPTKP, in.Emp.NIK, in.Emp.TaxStatus)
+}
+
 // annualBasis is the December computation, kept for the remark.
 type annualBasis struct {
 	gross, deduct, jobCost, ptkp, pkp, tax, paid decimal.Decimal
@@ -53,8 +58,10 @@ func pph21Annual(ctx *EvalCtx) (*decimal.Decimal, string, error) {
 	}
 	layers := sortedLayers(t.Progressive)
 	ptkp, okPTKP := t.PTKP[in.Emp.TaxStatus]
-	if !okPTKP {
-		ctx.warn(fmt.Sprintf("%s: %s status pajak %q", WarnPPhNoPTKP, in.Emp.NIK, in.Emp.TaxStatus))
+	if !okPTKP { // PPH_NO_PTKP blocks approve (T033i): raised only when there is an annual gross to tax
+		if money.Sum(in.YTD.Gross, cur, in.Thr.Gross, in.TaxAdj.Earn).IsPositive() {
+			ctx.warn(noPTKPWarning(in))
+		}
 		return nil, "", nil
 	}
 	twelve := decimal.NewFromInt(12)

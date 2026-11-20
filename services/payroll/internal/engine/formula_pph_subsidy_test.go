@@ -88,6 +88,18 @@ func TestPPhSubsidy(t *testing.T) {
 			in.Subsidy.Override = &SubsidyOverride{Action: OverrideAmount, Amount: d("5000"), Reason: "sebagian"}
 			return in
 		}, "-5000", ""},
+		// T033i: AMOUNT di atas PPh dibatasi ke P1 (14.000), P1 NULL → 0.
+		{"override AMOUNT dibatasi P1", func() Input {
+			in := subInput("9000000", ruleV1())
+			in.Subsidy.Override = &SubsidyOverride{Action: OverrideAmount, Amount: d("50000"), Reason: "salah ketik"}
+			return in
+		}, "-14000", ""},
+		{"override AMOUNT, P1 NULL → 0", func() Input {
+			in := subInput("9000000", ruleV1())
+			in.Components[0] = subT(1, "7000000")
+			in.Subsidy.Override = &SubsidyOverride{Action: OverrideAmount, Amount: d("5000"), Reason: "sebagian"}
+			return in
+		}, "0", ""},
 		// P1 NULL (bracket hilang) → −NULL tetap NULL, seperti V_PPH × −1 legacy.
 		{"P1 NULL", func() Input {
 			in := subInput("9000000", ruleV1())
@@ -310,4 +322,13 @@ func TestPPhSubsidyD30(t *testing.T) {
 			t.Error("P0 added without a rule")
 		}
 	})
+}
+
+// T033i: override AMOUNT negatif ditolak (DB CHECK pso_amount >= 0; engine fail-closed).
+func TestPPhSubsidyOverrideNegative(t *testing.T) {
+	in := subInput("9000000", ruleV1())
+	in.Subsidy.Override = &SubsidyOverride{Action: OverrideAmount, Amount: d("-1"), Reason: "x"}
+	if _, err := Calculate(in); !errors.Is(err, ErrSubsidyNegative) {
+		t.Fatalf("err = %v, want ErrSubsidyNegative", err)
+	}
 }
