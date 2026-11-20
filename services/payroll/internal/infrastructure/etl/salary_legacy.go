@@ -297,11 +297,25 @@ func loadSalaryGroup(ctx context.Context, tx pgx.Tx, o SalaryLegacyOptions, mn, 
 	// (every row reported) until the cause (missing legacy map, orphan NIK) is fixed and the load is re-run.
 	problems := make([]string, len(g.lines)) // "" = line is fine
 	nProblems := 0
+	// MAIN attributes of orphan NIKs (D-35.2) are read up front: an unreadable attribute (T033h5: PE_DATE_JOIN) holds
+	// this period like any other bad DETAIL row, instead of aborting the whole run.
+	orphanAt := map[string]map[string]string{}
+	orphanErr := map[string]string{}
+	for _, nik := range orphanNiks(g) {
+		at, aerr := emp.attrs(nik, g.key.division)
+		if aerr != nil {
+			orphanErr[nik] = "atribut MAIN sintetis: " + aerr.Error()
+			continue
+		}
+		orphanAt[nik] = at
+	}
 	for i, r := range g.lines {
 		c := func(n string) string { return r[mustCol(dt, n)] }
 		typ := strings.ToLower(c(colPdType))
 		id, perr := strconv.Atoi(c(colPdNo))
 		switch {
+		case orphanErr[r[1]] != "":
+			problems[i] = orphanErr[r[1]]
 		case typ != typeTunjangan && typ != typePotongan:
 			problems[i] = fmt.Sprintf("PD_TYPE %q", c(colPdType))
 		case perr != nil:
@@ -383,10 +397,7 @@ func loadSalaryGroup(ctx context.Context, tx pgx.Tx, o SalaryLegacyOptions, mn, 
 			}
 		}
 		t, p = t.Round(2), p.Round(2)
-		at, err := emp.attrs(nik, g.key.division)
-		if err != nil {
-			return err
-		}
+		at := orphanAt[nik]
 		if at["nama"] == "" {
 			repM.Warnings = append(repM.Warnings, fmt.Sprintf("%s %s/%s nik %s: atribut karyawan tidak ditemukan di EMP (nama kosong)", mn.Name, g.key.yymm, g.key.division, nik))
 		}

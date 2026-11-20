@@ -145,7 +145,7 @@ func TestT033h3_SnapshotAndDummyWaitForClose(t *testing.T) {
 			}
 			done := make(chan error, 1)
 			go func() { done <- fn() }()
-			waitWaiters(t, "1", done) // ETL queued behind the run lock
+			waitWaiters(t, fmt.Sprintf("1:%d:SOLO", ym), "1", done) // ETL queued behind the run lock
 			if _, err := holder.ExecContext(ctx, fmt.Sprintf(`UPDATE payroll.pyr_period SET pp_status='CLOSED' WHERE pp_company_id=1 AND pp_yymm=%d AND pp_division='SOLO'`, ym)); err != nil {
 				t.Fatal(err)
 			}

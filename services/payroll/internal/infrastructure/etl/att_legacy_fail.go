@@ -68,6 +68,24 @@ type failCollector struct {
 	premiOn map[failKey]bool   // T40 attached with frz=2 per nik/division (D-46)
 	vals    map[failKey]*failVal
 	order   []failKey
+
+	// COMPNT_EMP is read lazily (T033h5): a spool whose D rows all carry PD_BASIS_AMOUNT and no OPEN period never needs it.
+	readCE   func() (*Table, error)
+	ceLoaded bool
+	ceErr    error
+}
+
+// ensureAmounts loads COMPNT_EMP (T74 amounts, T40 frz) once; the first error is kept in ceErr.
+func (c *failCollector) ensureAmounts() {
+	if c.ceLoaded || c.readCE == nil { // nil reader: amounts were preloaded by the caller
+		return
+	}
+	c.ceLoaded = true
+	ce, err := c.readCE()
+	if err == nil {
+		err = c.loadAmounts(ce)
+	}
+	c.ceErr = err
 }
 
 func (c *failCollector) get(k failKey) *failVal {
@@ -190,6 +208,7 @@ func (c *failCollector) beras(k failKey, amt, basis, sts string) {
 	}
 	src := basis
 	if src == "" {
+		c.ensureAmounts()
 		src = c.amounts[failKey{"", k.division, k.nik}]
 		c.rep.BerasAFallback++
 	}
@@ -329,19 +348,20 @@ func RunAttLegacyFail(ctx context.Context, db *sql.DB, src Source, o AttLegacyFa
 	if err != nil {
 		return rep, err
 	}
-	ce, err := src.Read(TableEmployeeComponent)
-	if err != nil {
-		return rep, err
-	}
-	c := &failCollector{rep: &rep, amounts: map[failKey]string{}, vals: map[failKey]*failVal{}}
+	c := &failCollector{rep: &rep, amounts: map[failKey]string{}, vals: map[failKey]*failVal{},
+		readCE: func() (*Table, error) { return src.Read(TableEmployeeComponent) }}
 	if len(open) > 0 {
 		c.premiOn = map[failKey]bool{}
-	}
-	if err := c.loadAmounts(ce); err != nil {
-		return rep, err
+		c.ensureAmounts() // frz flags are needed for D-46 before DETAIL is scanned
+		if c.ceErr != nil {
+			return rep, c.ceErr
+		}
 	}
 	if err := c.scanDetail(dt); err != nil {
 		return rep, err
+	}
+	if c.ceErr != nil {
+		return rep, c.ceErr
 	}
 	if len(open) > 0 {
 		mn, err := src.Read(TableSalaryMain)

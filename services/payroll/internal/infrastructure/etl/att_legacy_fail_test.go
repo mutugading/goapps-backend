@@ -143,3 +143,35 @@ B|Tunjangan|74|200000|SOLO`)
 		t.Errorf("fallback=%d residu=%v", rep.BerasAFallback, rep.BerasResidue)
 	}
 }
+
+// T033h5: COMPNT_EMP is read lazily: when every D row has PD_BASIS_AMOUNT and no period is OPEN it is never touched.
+func TestBerasReadsCompntEmpOnlyOnFallback(t *testing.T) {
+	reads := 0
+	newC := func() *failCollector {
+		reads = 0
+		return &failCollector{rep: &AttLegacyFailReport{}, amounts: map[failKey]string{}, vals: map[failKey]*failVal{},
+			readCE: func() (*Table, error) {
+				reads++
+				return psvTable(TableEmployeeComponent, "MPCE_NIK|MPCE_TYPE|MPCE_ID|MPCE_AMOUNT|MPCE_DIVISION\nB|Tunjangan|74|200000|SOLO"), nil
+			}}
+	}
+	dtAll := psvTable(TableSalaryDetail, `PD_YYMM|PD_NIK|PD_NO|PD_TYPE|PD_AMOUNT|PD_STATUS|PD_BASIS_AMOUNT|PD_DIVISION
+202401|A|74|Tunjangan|147200|D|160000|SOLO`)
+	c := newC()
+	if err := c.scanDetail(dtAll); err != nil || c.ceErr != nil {
+		t.Fatal(err, c.ceErr)
+	}
+	if reads != 0 {
+		t.Errorf("semua baris punya basis: COMPNT_EMP dibaca %d kali, mau 0", reads)
+	}
+	dtFallback := psvTable(TableSalaryDetail, `PD_YYMM|PD_NIK|PD_NO|PD_TYPE|PD_AMOUNT|PD_STATUS|PD_BASIS_AMOUNT|PD_DIVISION
+202401|B|74|Tunjangan|192000|D||SOLO
+202402|B|74|Tunjangan|192000|D||SOLO`)
+	c = newC()
+	if err := c.scanDetail(dtFallback); err != nil || c.ceErr != nil {
+		t.Fatal(err, c.ceErr)
+	}
+	if reads != 1 {
+		t.Errorf("fallback: COMPNT_EMP dibaca %d kali, mau 1", reads)
+	}
+}
