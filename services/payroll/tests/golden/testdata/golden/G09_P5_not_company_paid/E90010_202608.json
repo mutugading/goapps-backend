@@ -1,0 +1,151 @@
+{
+  "formula": "G09_P5_not_company_paid",
+  "yymm": 202608,
+  "rule_set_id": 1,
+  "features": [
+    "synthetic",
+    "G9"
+  ],
+  "input": {
+    "Period": {
+      "YYMM": 202608,
+      "Start": "2026-07-26T00:00:00Z",
+      "End": "2026-08-25T00:00:00Z"
+    },
+    "Division": "SOLO",
+    "Emp": {
+      "NIK": "E90010",
+      "Name": "",
+      "Level": "staff",
+      "TaxStatus": "TK",
+      "Dept": "",
+      "HasNPWP": false,
+      "BirthDate": null,
+      "JoinDate": null,
+      "GapokSts": "F"
+    },
+    "Components": [
+      {
+        "Key": {
+          "Type": "T",
+          "ID": 1
+        },
+        "Amount": "5600000",
+        "Sts": "F",
+        "Tax": true,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": false,
+        "SubsidyOT": false,
+        "Frozen": false
+      },
+      {
+        "Key": {
+          "Type": "P",
+          "ID": 1
+        },
+        "Amount": "0",
+        "Sts": "F",
+        "Tax": false,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": false,
+        "SubsidyOT": false,
+        "Frozen": false
+      },
+      {
+        "Key": {
+          "Type": "P",
+          "ID": 5
+        },
+        "Amount": "0",
+        "Sts": "F",
+        "Tax": false,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": false,
+        "SubsidyOT": false,
+        "Frozen": false
+      }
+    ],
+    "Att": {
+      "pay_tot": "26"
+    },
+    "AttAdd": null,
+    "Sch": null,
+    "Workdays": 26,
+    "Daily": {
+      "PremiFail": 0,
+      "BerasFail": 0
+    },
+    "YTD": {
+      "Gross": "0",
+      "Deduct": "0",
+      "TaxPaid": "0",
+      "Months": 0
+    },
+    "TaxAdj": {
+      "Earn": "0",
+      "Deduct": "0"
+    },
+    "Thr": {
+      "Gross": "0",
+      "PPhPaid": "0"
+    },
+    "YTDCompany": {
+      "Gross": "0",
+      "CompanyPaid": "0",
+      "Deduct": "0",
+      "ThrBonus": "0",
+      "P5Paid": "0"
+    },
+    "Subsidy": {
+      "Rules": null,
+      "Override": null,
+      "Basis": null,
+      "PrevBasis": null,
+      "Locked": null,
+      "LockedYYMM": 0
+    }
+  },
+  "expected": {
+    "lines": [
+      {
+        "type": "T",
+        "id": 1,
+        "amount": "5600000"
+      },
+      {
+        "type": "P",
+        "id": 1,
+        "amount": "14000"
+      },
+      {
+        "type": "P",
+        "id": 5,
+        "amount": "0"
+      }
+    ],
+    "head": {
+      "tot_tunjangan": "5600000",
+      "tot_potongan": "14000",
+      "rounding": "0",
+      "take_home": "5586000"
+    }
+  },
+  "source": {
+    "kind": "SYNTHETIC",
+    "division": "SOLO"
+  },
+  "rules": {
+    "legacy": true,
+    "constants": {
+      "DAYS_MONTH": "30",
+      "HOURS_MONTH": "173",
+      "BERAS_DAYS": "25",
+      "NAKMIN": "2592154",
+      "KESMIN": "2592154",
+      "PENMIN": "2592154",
+      "KESMAX": "12000000",
+      "PENMAX": "11086300"
+    }
+  },
+  "note": "[V] 06§6.3: no tax_paid_company row -> P5 0; P1 TER A 0.25% of 5600000 = 14000"
+}

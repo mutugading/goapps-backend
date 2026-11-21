@@ -1,0 +1,24 @@
+# Payroll Service .gitignore
+
+# Binaries
+bin/
+tmp/
+
+# Go coverage
+coverage/
+*.out
+
+# Environment files with credentials
+.env
+.env.local
+.env.*.local
+
+# Config files with potential secrets
+config.local.yaml
+config.local.yml
+
+# Air build log
+build-errors.log
+
+# T018a: golden cases extracted from real legacy runs (real salary data, never committed)
+tests/golden/out/
