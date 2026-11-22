@@ -35,7 +35,18 @@ type TaxLayer struct {
 
 // noPTKPWarning is the PPH_NO_PTKP text of P1 and P5; the same text is kept once per employee.
 func noPTKPWarning(in Input) string {
-	return fmt.Sprintf("%s: %s status pajak %q", WarnPPhNoPTKP, in.Emp.NIK, in.Emp.TaxStatus)
+	return fmt.Sprintf("%s: %s status pajak %q", WarnPPhNoPTKP, in.Emp.NIK, annualTaxStatus(in))
+}
+
+// annualTaxStatus is the status of the annual PTKP (P1/P5 in December and in a leaver's true-up). Tax v2
+// uses the status of 1 January of the tax year (D-80 (3), T033n): a marriage in June changes PTKP only
+// from the next year. v1 keeps legacy parity (current status; legacy has no history). A cleared current
+// status wins over the history, so the run still raises PPH_NO_PTKP (bad master data blocks approve).
+func annualTaxStatus(in Input) string {
+	if in.Emp.TaxStatus != "" && in.Emp.TaxStatusJan1 != "" && taxV2(in) {
+		return in.Emp.TaxStatusJan1
+	}
+	return in.Emp.TaxStatus
 }
 
 // annualBasis is the December computation, kept for the remark.
@@ -58,7 +69,7 @@ func pph21Annual(ctx *EvalCtx) (*decimal.Decimal, string, error) {
 		return nil, "", ErrNoAnnualTaxTable
 	}
 	layers := sortedLayers(t.Progressive)
-	ptkp, okPTKP := t.PTKP[in.Emp.TaxStatus]
+	ptkp, okPTKP := t.PTKP[annualTaxStatus(in)]
 	if !okPTKP { // PPH_NO_PTKP blocks approve (T033i): raised only when there is an annual gross to tax
 		if money.Sum(in.YTD.Gross, cur, in.Thr.Gross, in.TaxAdj.Earn).IsPositive() {
 			ctx.warn(noPTKPWarning(in))

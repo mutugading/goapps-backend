@@ -3,7 +3,7 @@
 -- payroll_owner) SESUDAH SETIAP `migrate up`. Migrasi tidak memuat GRANT/REVOKE (ADR 0001, lint R4).
 --
 -- Deklaratif & idempoten: hak tabel/sequence role payroll_app/_etl/_ro di schema payroll + payroll_stg
--- di-reset lalu diberikan ulang ke keadaan akhir (setara hasil migrasi s.d. 000051, bukan urutan sejarahnya).
+-- di-reset lalu diberikan ulang ke keadaan akhir (setara hasil migrasi s.d. 000053, bukan urutan sejarahnya).
 -- Satu transaksi: aplikasi yang sedang jalan tidak pernah melihat keadaan tanpa grant.
 --
 -- Hak tingkat cluster/DB/schema (CONNECT, TEMP, USAGE schema, default privileges) ada di bootstrap.sql.
@@ -53,6 +53,8 @@ REVOKE DELETE ON payroll.pyr_distribution_item FROM payroll_app;
 -- jadi tanpa REVOKE app bisa menulis dependensi/test case ke versi rumus yang dilihatnya.
 REVOKE INSERT, UPDATE, DELETE ON payroll.pyr_formula_version, payroll.pyr_formula_dependency, payroll.pyr_formula_test_case,
   payroll.pyr_subsidy_rule, payroll.pyr_subsidy_override FROM payroll_app;
+-- riwayat status pajak hanya ditulis trigger SECURITY DEFINER di pyr_employee (000053, T033n)
+REVOKE INSERT, UPDATE, DELETE ON payroll.pyr_employee_tax_hist FROM payroll_app;
 -- view THR hanya baca (000039)
 REVOKE INSERT, UPDATE, DELETE ON payroll.v_pyr_thr_main, payroll.v_pyr_thr_detail FROM payroll_app;
 
@@ -110,10 +112,11 @@ GRANT SELECT (ptr_id, ptr_event_id, ptr_kind, ptr_scheme_id, ptr_rule_set_id, pt
 GRANT UPDATE (ptr_status, ptr_input_hash, ptr_emp_count, ptr_tot_tunjangan, ptr_tot_potongan, ptr_finished_at)
   ON payroll.pyr_thr_run TO payroll_etl;
 
--- 5. Fungsi milik payroll: tidak untuk PUBLIC; EXECUTE eksplisit (000007, 000016, 000021, 000024, 000035, 000036, 000039).
+-- 5. Fungsi milik payroll: tidak untuk PUBLIC; EXECUTE eksplisit (000007, 000016, 000021, 000024, 000035, 000036, 000039, 000053).
 REVOKE ALL ON FUNCTION payroll.fn_guard_closed(), payroll.fn_guard_thr_closed(),
   payroll.fn_in_scope(smallint, varchar), payroll.fn_purge_idempotency(interval),
-  payroll.fn_component_in_use(bigint), payroll.fn_ytd_out_of_scope(smallint, varchar, int, int, text[], int)
+  payroll.fn_component_in_use(bigint), payroll.fn_ytd_out_of_scope(smallint, varchar, int, int, text[], int),
+  payroll.fn_employee_tax_hist()
   FROM PUBLIC, payroll_app, payroll_etl, payroll_ro;
 GRANT EXECUTE ON FUNCTION payroll.fn_in_scope(smallint, varchar) TO payroll_app, payroll_ro;
 GRANT EXECUTE ON FUNCTION payroll.fn_ytd_out_of_scope(smallint, varchar, int, int, text[], int) TO payroll_app, payroll_ro;

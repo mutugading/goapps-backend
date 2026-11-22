@@ -132,6 +132,9 @@ type Employee struct {
 	// ResignDate is pe_resign_date. With tax v2 the period holding it is the employee's last tax
 	// month: P1/P5 are trued up on the annual basis there (D-80 (4a)).
 	ResignDate *time.Time
+	// TaxStatusJan1 is the tax status in force on 1 January of the tax year (pyr_employee_tax_hist, D-80 (3)).
+	// With tax v2 the annual PTKP of P1/P5 uses it instead of TaxStatus; empty = no history, use TaxStatus.
+	TaxStatusJan1 string
 }
 
 // EmpComponent is an employee component amount (COMPNT_EMP, frz=2 & sts_payroll=2).

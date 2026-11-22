@@ -48,4 +48,9 @@ func TestHashInputsIncludesTaxV2Fields(t *testing.T) {
 	if hashInputs(ins) == base {
 		t.Error("YTD.Months must change the input hash")
 	}
+	ins = syntheticInputs(2)
+	ins[0].Emp.TaxStatusJan1 = "TK" // T033n: annual PTKP status of 1 January
+	if hashInputs(ins) == base {
+		t.Error("TaxStatusJan1 must change the input hash")
+	}
 }

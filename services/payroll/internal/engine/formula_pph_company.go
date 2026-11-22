@@ -120,7 +120,7 @@ func pphCompanyAnnual(ctx *EvalCtx) (*decimal.Decimal, string, error) {
 // bad master data (T033i): with a positive gross it warns with the P1 text, so one warning blocks approve.
 // TK1–TK3 missing from PTKPCompany under v1 is parity (D-37a) and stays silent.
 func companyPTKP(ctx *EvalCtx, table map[string]decimal.Decimal, gross decimal.Decimal) (decimal.Decimal, bool) {
-	status := ctx.In.Emp.TaxStatus
+	status := annualTaxStatus(ctx.In)
 	ptkp, ok := table[status]
 	if ok {
 		return ptkp, true
