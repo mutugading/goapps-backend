@@ -55,3 +55,21 @@ func TestAnnualPTKPJanuaryStatusP5AndWarning(t *testing.T) {
 		}
 	}
 }
+
+// T033n2 (D-82 (5)): salah input TK dikoreksi di Desember menjadi K1 berlaku 1 Jan → status 1 Jan K1, PTKP
+// Desember K1 (63 jt). Tanpa koreksi mundur (riwayat 1 Jan masih TK) PTKP tetap TK 54 jt.
+func TestAnnualPTKPAfterBackdatedCorrection(t *testing.T) {
+	for _, c := range []struct{ name, jan1, ptkp string }{
+		{"koreksi mundur 1 Jan", "K1", "PTKP : 63,000,000"},
+		{"koreksi biasa (berlaku hari ini)", "TK", "PTKP : 54,000,000"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			in := decInput(true, "K1", "10000000", "110000000", "0", "0")
+			in.Emp.TaxStatusJan1 = c.jan1
+			l, _ := p1(t, withTaxV2From(in, 202612))
+			if !strings.Contains(l.Remark, c.ptkp) {
+				t.Errorf("P1 remark %q, want %s", l.Remark, c.ptkp)
+			}
+		})
+	}
+}

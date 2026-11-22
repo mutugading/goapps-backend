@@ -748,6 +748,46 @@
         ]
       }
     },
+    "/api/v1/payroll/employees/id/{id}/tax-status-correction": {
+      "post": {
+        "summary": "Backdated correction of a wrongly entered tax status (D-82 (5), T033n2): the status is recorded as valid\nfrom `valid_from` in the tax-status history, so the annual PTKP uses it. Needs payroll.master.taxstatus.update.",
+        "operationId": "PayrollService_CorrectEmployeeTaxStatus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CorrectEmployeeTaxStatusResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PayrollServiceCorrectEmployeeTaxStatusBody"
+            }
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
     "/api/v1/payroll/employees/{nik}": {
       "get": {
         "operationId": "PayrollService_GetEmployee",
@@ -1303,6 +1343,25 @@
     "PayrollServiceClosePeriodBody": {
       "type": "object"
     },
+    "PayrollServiceCorrectEmployeeTaxStatusBody": {
+      "type": "object",
+      "properties": {
+        "taxId": {
+          "type": "string"
+        },
+        "validFrom": {
+          "type": "string",
+          "title": "YYYY-MM-DD"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "ifMatch": {
+          "type": "string"
+        }
+      },
+      "description": "CorrectEmployeeTaxStatus fixes a wrong `tax_id` as if it had been entered on `valid_from` (D-82 (5)): history\nrows from that date on are replaced, earlier rows stay. `valid_from` must lie in the current or previous tax\nyear and not in the future (WIB); a tax year whose December (or a leaver's last) period is APPROVED/CLOSED\nis rejected with PERIOD_CLOSED. A genuine status change (marriage, child) goes through UpdateEmployee."
+    },
     "PayrollServiceCreateDivisionBody": {
       "type": "object",
       "properties": {
@@ -1768,6 +1827,17 @@
         }
       },
       "description": "ComponentInput carries the writable fields shared by create and update.\n`company_id`, `code` and `type` are fixed at creation."
+    },
+    "v1CorrectEmployeeTaxStatusResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1Employee"
+        }
+      }
     },
     "v1CreateCompanyRequest": {
       "type": "object",

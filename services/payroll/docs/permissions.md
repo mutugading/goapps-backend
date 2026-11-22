@@ -14,6 +14,7 @@ O=Officer, S=Supervisor, F=Finance, A=Admin.
 | `master.write` | `payroll.master.employee.create` / `.update` | O S A |
 | `master.write` (company/divisi, D-18) | `payroll.master.company.view` / `.create` / `.update` | A |
 | `master.write` (currency, D-18) | `payroll.master.currency.view` / `.create` / `.update` | A F |
+| koreksi status pajak mundur (D-82 (5), T033n2) | `payroll.master.taxstatus.update` | A (eksplisit; `employee.update` tidak cukup) |
 | `employee.gl_write` | `payroll.master.orionaccount.update` | (13§4, belum ada di tabel 07) |
 | `rule.write` | `payroll.rule.set.update` | A |
 | aktivasi rule set (4-eyes) | `payroll.rule.set.approve` | S |

@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	domain "github.com/mutugading/goapps-backend/services/payroll/internal/domain/master"
 )
 
@@ -174,6 +176,50 @@ func (MasterRepository) TaxStatusKnown(ctx context.Context, tx *sql.Tx, code str
 		return false, fmt.Errorf("check tax status: %w", err)
 	}
 	return ok, nil
+}
+
+// CorrectTaxStatus reads the history (audit "before") and calls payroll.fn_correct_employee_tax (SECURITY DEFINER,
+// 000054): the history table stays read-only for payroll_app and the actor comes from app.user_id.
+// P0001 = affected tax year final, P0002 = not in scope, 22023 = rejected input.
+func (MasterRepository) CorrectTaxStatus(ctx context.Context, tx *sql.Tx, id int64, taxID, validFrom, reason string) ([]domain.TaxHistory, error) {
+	hist, err := taxHistory(ctx, tx, id)
+	if err != nil {
+		return nil, err
+	}
+	_, err = tx.ExecContext(ctx, `SELECT payroll.fn_correct_employee_tax($1, $2, $3::date, $4)`, id, taxID, validFrom, reason)
+	var pe *pgconn.PgError
+	if errors.As(err, &pe) {
+		switch pe.Code {
+		case "P0001":
+			return nil, fmt.Errorf("%w: %s", domain.ErrTaxYearFinal, pe.Message)
+		case "P0002":
+			return nil, domain.ErrNotFound
+		case "22023":
+			return nil, &domain.ValidationError{Field: "valid_from", Msg: pe.Message}
+		}
+	}
+	if err != nil {
+		return nil, fmt.Errorf("correct tax status: %w", err)
+	}
+	return hist, nil
+}
+
+func taxHistory(ctx context.Context, tx *sql.Tx, id int64) ([]domain.TaxHistory, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT to_char(peth_valid_from, 'YYYY-MM-DD'), peth_tax_id, peth_source
+  FROM payroll.pyr_employee_tax_hist WHERE peth_employee_id = $1 ORDER BY peth_valid_from`, id)
+	if err != nil {
+		return nil, fmt.Errorf("read tax history: %w", err)
+	}
+	defer closeRows(rows)
+	var out []domain.TaxHistory
+	for rows.Next() {
+		var h domain.TaxHistory
+		if err := rows.Scan(&h.ValidFrom, &h.TaxID, &h.Source); err != nil {
+			return nil, fmt.Errorf("scan tax history: %w", err)
+		}
+		out = append(out, h)
+	}
+	return out, rows.Err()
 }
 
 // LockEmployee locks one employee row until the transaction ends.

@@ -21,6 +21,9 @@ const (
 	permEmployeeView   = "payroll.master.employee.view"
 	permEmployeeCreate = "payroll.master.employee.create"
 	permEmployeeUpdate = "payroll.master.employee.update"
+	// Backdated tax-status correction (D-82 (5), T033n2): separate from employee.update so HR edit rights do not
+	// silently include rewriting the 1 January status used by the annual PTKP.
+	permTaxStatusUpdate = "payroll.master.taxstatus.update"
 
 	// Global masters (D-18).
 	permCompanyView    = "payroll.master.company.view"
@@ -40,6 +43,7 @@ func init() {
 		"UpdateCompany": permCompanyUpdate, "UpdateDivision": permCompanyUpdate,
 		"GetEmployee": permEmployeeView, "ListEmployees": permEmployeeView,
 		"CreateEmployee": permEmployeeCreate, "UpdateEmployee": permEmployeeUpdate,
+		"CorrectEmployeeTaxStatus": permTaxStatusUpdate,
 	} {
 		rpcPermissions[svc+m] = p
 	}
@@ -314,4 +318,18 @@ func (h *MasterHandler) UpdateEmployee(ctx context.Context, r *payrollv1.UpdateE
 		return nil, fail(ctx, err)
 	}
 	return &payrollv1.UpdateEmployeeResponse{Base: ok("Employee updated"), Data: employeePB(out)}, nil
+}
+
+// CorrectEmployeeTaxStatus applies a backdated tax-status correction (D-82 (5), T033n2).
+func (h *MasterHandler) CorrectEmployeeTaxStatus(ctx context.Context, r *payrollv1.CorrectEmployeeTaxStatusRequest) (*payrollv1.CorrectEmployeeTaxStatusResponse, error) {
+	v, err := ifMatch(r.GetIfMatch())
+	if err != nil {
+		return nil, fail(ctx, err)
+	}
+	c := app.TaxCorrection{TaxID: r.GetTaxId(), ValidFrom: r.GetValidFrom(), Reason: r.GetReason()}
+	out, err := h.svc.CorrectEmployeeTaxStatus(ctx, r.GetId(), c, v, caller(ctx))
+	if err != nil {
+		return nil, fail(ctx, err)
+	}
+	return &payrollv1.CorrectEmployeeTaxStatusResponse{Base: ok("Tax status corrected"), Data: employeePB(out)}, nil
 }

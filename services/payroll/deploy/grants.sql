@@ -53,7 +53,8 @@ REVOKE DELETE ON payroll.pyr_distribution_item FROM payroll_app;
 -- jadi tanpa REVOKE app bisa menulis dependensi/test case ke versi rumus yang dilihatnya.
 REVOKE INSERT, UPDATE, DELETE ON payroll.pyr_formula_version, payroll.pyr_formula_dependency, payroll.pyr_formula_test_case,
   payroll.pyr_subsidy_rule, payroll.pyr_subsidy_override FROM payroll_app;
--- riwayat status pajak hanya ditulis trigger SECURITY DEFINER di pyr_employee (000053, T033n)
+-- riwayat status pajak hanya ditulis trigger SECURITY DEFINER di pyr_employee (000053, T033n) dan
+-- fn_correct_employee_tax (koreksi mundur, 000054, T033n2)
 REVOKE INSERT, UPDATE, DELETE ON payroll.pyr_employee_tax_hist FROM payroll_app;
 -- view THR hanya baca (000039)
 REVOKE INSERT, UPDATE, DELETE ON payroll.v_pyr_thr_main, payroll.v_pyr_thr_detail FROM payroll_app;
@@ -112,15 +113,16 @@ GRANT SELECT (ptr_id, ptr_event_id, ptr_kind, ptr_scheme_id, ptr_rule_set_id, pt
 GRANT UPDATE (ptr_status, ptr_input_hash, ptr_emp_count, ptr_tot_tunjangan, ptr_tot_potongan, ptr_finished_at)
   ON payroll.pyr_thr_run TO payroll_etl;
 
--- 5. Fungsi milik payroll: tidak untuk PUBLIC; EXECUTE eksplisit (000007, 000016, 000021, 000024, 000035, 000036, 000039, 000053).
+-- 5. Fungsi milik payroll: tidak untuk PUBLIC; EXECUTE eksplisit (000007, 000016, 000021, 000024, 000035, 000036, 000039, 000053, 000054).
 REVOKE ALL ON FUNCTION payroll.fn_guard_closed(), payroll.fn_guard_thr_closed(),
   payroll.fn_in_scope(smallint, varchar), payroll.fn_purge_idempotency(interval),
   payroll.fn_component_in_use(bigint), payroll.fn_ytd_out_of_scope(smallint, varchar, int, int, text[], int),
-  payroll.fn_employee_tax_hist()
+  payroll.fn_employee_tax_hist(), payroll.fn_correct_employee_tax(bigint, varchar, date, varchar)
   FROM PUBLIC, payroll_app, payroll_etl, payroll_ro;
 GRANT EXECUTE ON FUNCTION payroll.fn_in_scope(smallint, varchar) TO payroll_app, payroll_ro;
 GRANT EXECUTE ON FUNCTION payroll.fn_ytd_out_of_scope(smallint, varchar, int, int, text[], int) TO payroll_app, payroll_ro;
 GRANT EXECUTE ON FUNCTION payroll.fn_purge_idempotency(interval) TO payroll_app;
 GRANT EXECUTE ON FUNCTION payroll.fn_component_in_use(bigint) TO payroll_app;
+GRANT EXECUTE ON FUNCTION payroll.fn_correct_employee_tax(bigint, varchar, date, varchar) TO payroll_app;
 
 COMMIT;

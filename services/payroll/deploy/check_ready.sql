@@ -127,7 +127,7 @@ seq_line AS (
 fexp(fname, allowed) AS (VALUES
   ('fn_guard_closed', ''), ('fn_guard_thr_closed', ''), ('fn_employee_tax_hist', ''),
   ('fn_in_scope', 'payroll_app,payroll_ro'), ('fn_ytd_out_of_scope', 'payroll_app,payroll_ro'),
-  ('fn_purge_idempotency', 'payroll_app'), ('fn_component_in_use', 'payroll_app')
+  ('fn_purge_idempotency', 'payroll_app'), ('fn_component_in_use', 'payroll_app'), ('fn_correct_employee_tax', 'payroll_app')
 ),
 fn AS (
   SELECT f.fname, r.role, p.oid AS poid,
@@ -164,7 +164,8 @@ secdef AS (
          count(*) FILTER (WHERE NOT coalesce(p.proconfig @> ARRAY['search_path=payroll, pg_catalog'], false)) AS bad,
          left(string_agg(p.proname, ',') FILTER (WHERE NOT coalesce(p.proconfig @> ARRAY['search_path=payroll, pg_catalog'], false)), 300) AS detail,
          (SELECT count(*) FROM unnest(ARRAY['fn_guard_closed', 'fn_guard_thr_closed', 'fn_ytd_out_of_scope',
-                                           'fn_purge_idempotency', 'fn_component_in_use', 'fn_employee_tax_hist']) w(name)
+                                           'fn_purge_idempotency', 'fn_component_in_use', 'fn_employee_tax_hist',
+                                           'fn_correct_employee_tax']) w(name)
            WHERE NOT EXISTS (SELECT 1 FROM pg_proc q WHERE q.proname = w.name AND q.pronamespace = 'payroll'::regnamespace AND q.prosecdef)) AS missing
   FROM pg_proc p WHERE p.pronamespace IN ('payroll'::regnamespace, 'payroll_stg'::regnamespace) AND p.prosecdef
 ),

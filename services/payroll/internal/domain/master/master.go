@@ -114,6 +114,10 @@ type Repository interface {
 	UpdateEmployee(ctx context.Context, tx *sql.Tx, id int64, e Employee, npwp, ktp, bankAcnt, actor string, ifMatch int, p PII) (Employee, error)
 	// TaxStatusKnown reports whether code is an EMPTAX code (pe_tax_id) of an ACTIVE rule set.
 	TaxStatusKnown(ctx context.Context, tx *sql.Tx, code string) (bool, error)
+	// CorrectTaxStatus records taxID as the status on validFrom (YYYY-MM-DD) until the next recorded change, and sets
+	// pe_tax_id when no change is recorded after validFrom (D-82 (5)/(6), T033n2). It returns the history before
+	// the correction (for the audit log) and ErrTaxYearFinal when an affected tax year is already final.
+	CorrectTaxStatus(ctx context.Context, tx *sql.Tx, id int64, taxID, validFrom, reason string) ([]TaxHistory, error)
 
 	// Lock* take a row lock (SELECT ... FOR UPDATE) so the "before" image read for
 	// the audit log cannot differ from the row the UPDATE then changes.
@@ -121,4 +125,11 @@ type Repository interface {
 	LockCompany(ctx context.Context, tx *sql.Tx, id int16) error
 	LockDivision(ctx context.Context, tx *sql.Tx, companyID int16, code string) error
 	LockEmployee(ctx context.Context, tx *sql.Tx, id int64) error
+}
+
+// TaxHistory is one pyr_employee_tax_hist row (D-82): the tax status valid from a date.
+type TaxHistory struct {
+	ValidFrom string // YYYY-MM-DD
+	TaxID     string
+	Source    string
 }

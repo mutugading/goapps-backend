@@ -23,4 +23,5 @@ R2 services/payroll/migrations/postgres/000046_guard_closed_old_new.up.sql:50  #
 # jadi nama tanpa schema tidak bisa dipakai; nama schema-qualified di sini bukan lintas-database (positif palsu R6).
 R6 services/payroll/migrations/postgres/000040_att_daily_derived.up.sql:6  # COMMENT ON COLUMN payroll_stg.<t>.<c>: schema internal payroll_stg (D-66 C)
 R6 services/payroll/migrations/postgres/000040_att_daily_derived.up.sql:7  # COMMENT ON COLUMN payroll_stg.<t>.<c>: schema internal payroll_stg (D-66 C)
-R2 services/payroll/migrations/postgres/000053_employee_tax_hist.up.sql:21  # SECURITY DEFINER pin search_path = payroll, pg_catalog (D-66 C, tes I16); trigger riwayat status pajak T033n
+R2 services/payroll/migrations/postgres/000053_employee_tax_hist.up.sql:24  # SECURITY DEFINER pin search_path = payroll, pg_catalog (D-66 C, tes I16); trigger riwayat status pajak T033n
+R2 services/payroll/migrations/postgres/000054_employee_tax_correction.up.sql:26  # SECURITY DEFINER pin search_path = payroll, pg_catalog (D-66 C, tes I16); koreksi status pajak mundur T033n2

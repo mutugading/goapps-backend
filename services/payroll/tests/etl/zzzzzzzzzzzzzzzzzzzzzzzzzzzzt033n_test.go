@@ -140,3 +140,43 @@ func TestT033n_MigrationDownUp(t *testing.T) {
 		t.Fatalf("after update rows = %d (%v)", n, err)
 	}
 }
+
+// T033n2: migrasi 000054 down → down → up dapat diulang; down mempertahankan baris koreksi sebagai UPDATE.
+func TestT033n2_MigrationDownUp(t *testing.T) {
+	read := func(f string) string {
+		b, err := os.ReadFile("../../migrations/postgres/" + f) //nolint:gosec // repo migration
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	tx, err := ownDB.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback() }() //nolint:errcheck // test cleanup
+	if _, err = tx.Exec(`INSERT INTO payroll.pyr_employee (pe_company_id, pe_nik, pe_division, pe_nama, pe_tax_id, pe_orion_sub_acnt)
+	  VALUES (1,'T33N2-MIG','SOLO','Mig','TK','T33N2-MIG')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.Exec(`INSERT INTO payroll.pyr_employee_tax_hist (peth_employee_id, peth_valid_from, peth_tax_id, peth_source, peth_reason)
+	  SELECT pe_id, '2035-01-01', 'K1', 'CORRECT', 'salah input' FROM payroll.pyr_employee WHERE pe_nik = 'T33N2-MIG'`); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"000054_employee_tax_correction.down.sql", "000054_employee_tax_correction.down.sql",
+		"000054_employee_tax_correction.up.sql"} {
+		if _, err = tx.Exec(read(f)); err != nil {
+			t.Fatalf("%s: %v", f, err)
+		}
+	}
+	var src string
+	if err = tx.QueryRow(`SELECT h.peth_source FROM payroll.pyr_employee_tax_hist h JOIN payroll.pyr_employee e ON e.pe_id = h.peth_employee_id
+	  WHERE e.pe_nik = 'T33N2-MIG' AND h.peth_valid_from = '2035-01-01'`).Scan(&src); err != nil || src != "UPDATE" {
+		t.Fatalf("source after down/up = %q (%v)", src, err)
+	}
+	// CORRECT tanpa alasan ditolak.
+	if _, err = tx.Exec(`SAVEPOINT s; INSERT INTO payroll.pyr_employee_tax_hist (peth_employee_id, peth_valid_from, peth_tax_id, peth_source)
+	  SELECT pe_id, '2035-02-01', 'K1', 'CORRECT' FROM payroll.pyr_employee WHERE pe_nik = 'T33N2-MIG'`); err == nil {
+		t.Fatal("CORRECT without reason accepted")
+	}
+}
