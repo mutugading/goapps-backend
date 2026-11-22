@@ -248,9 +248,9 @@ func TestMasterRPCPermissionMap(t *testing.T) {
 	methods := []string{"CreateCurrency", "ListCurrencies", "UpdateCurrency", "CreateCompany", "GetCompany", "ListCompanies",
 		"UpdateCompany", "CreateDivision", "ListDivisions", "UpdateDivision", "CreateEmployee", "GetEmployee", "ListEmployees", "UpdateEmployee",
 		"CreateComponent", "GetComponent", "ListComponents", "UpdateComponent", "RetireComponent", "GetComponentTemplate", "PutComponentTemplate",
-		"CorrectEmployeeTaxStatus"}
-	if len(methods) != 22 {
-		t.Fatal("expected 22 master RPCs")
+		"CorrectEmployeeTaxStatus", "ListEmployeeTaxHistory"}
+	if len(methods) != 23 {
+		t.Fatal("expected 23 master RPCs")
 	}
 	viewOnly := context.WithValue(context.Background(), AuthPermissionsKey,
 		[]string{permEmployeeView, permCompanyView, permCurrencyView, permComponentView, permTemplateView})

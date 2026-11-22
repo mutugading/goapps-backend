@@ -90,6 +90,20 @@ func (s *Service) CorrectEmployeeTaxStatus(ctx context.Context, id int64, c TaxC
 	return out, err
 }
 
+// ListEmployeeTaxHistory returns the tax-status history of one in-scope employee, newest first (D-82 (1), T033n4).
+// The employee is read first, so an id outside the RLS scope is NOT_FOUND instead of an empty list.
+func (s *Service) ListEmployeeTaxHistory(ctx context.Context, id int64) (out []domain.TaxHistoryEntry, err error) {
+	err = s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
+		if _, e := s.repo.GetEmployeeByID(ctx, tx, id, domain.PII{EncKey: s.enc, HMACKey: s.hmac}); e != nil {
+			return toAppErr(e, "karyawan")
+		}
+		var e error
+		out, e = s.repo.ListTaxHistory(ctx, tx, id)
+		return e
+	})
+	return out, err
+}
+
 func taxCorrectionErr(err error, emp domain.Employee) error {
 	if errors.Is(err, domain.ErrTaxYearFinal) {
 		return apperr.New(apperr.CodePeriodClosed, "tahun pajak sudah final (periode Desember/resign APPROVED atau CLOSED); status pajak tidak boleh dikoreksi",

@@ -222,6 +222,26 @@ func taxHistory(ctx context.Context, tx *sql.Tx, id int64) ([]domain.TaxHistory,
 	return out, rows.Err()
 }
 
+// ListTaxHistory reads the history of one employee, newest first (display; the audit "before" uses taxHistory).
+func (MasterRepository) ListTaxHistory(ctx context.Context, tx *sql.Tx, id int64) ([]domain.TaxHistoryEntry, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT to_char(peth_valid_from, 'YYYY-MM-DD'), peth_tax_id, peth_source,
+  COALESCE(peth_reason, ''), created_by, created_at
+  FROM payroll.pyr_employee_tax_hist WHERE peth_employee_id = $1 ORDER BY peth_valid_from DESC`, id)
+	if err != nil {
+		return nil, fmt.Errorf("list tax history: %w", err)
+	}
+	defer closeRows(rows)
+	var out []domain.TaxHistoryEntry
+	for rows.Next() {
+		var h domain.TaxHistoryEntry
+		if err := rows.Scan(&h.ValidFrom, &h.TaxID, &h.Source, &h.Reason, &h.CreatedBy, &h.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan tax history: %w", err)
+		}
+		out = append(out, h)
+	}
+	return out, rows.Err()
+}
+
 // LockEmployee locks one employee row until the transaction ends.
 func (MasterRepository) LockEmployee(ctx context.Context, tx *sql.Tx, id int64) error {
 	return lockRow(ctx, tx, `SELECT 1 FROM payroll.pyr_employee WHERE pe_id=$1 FOR UPDATE`, id)

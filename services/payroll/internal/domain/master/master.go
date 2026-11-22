@@ -5,6 +5,7 @@ package master
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 // MaskedValue replaces PII in responses and logs for callers without permission (D-17).
@@ -118,6 +119,8 @@ type Repository interface {
 	// pe_tax_id when no change is recorded after validFrom (D-82 (5)/(6), T033n2). It returns the history before
 	// the correction (for the audit log) and ErrTaxYearFinal when an affected tax year is already final.
 	CorrectTaxStatus(ctx context.Context, tx *sql.Tx, id int64, taxID, validFrom, reason string) ([]TaxHistory, error)
+	// ListTaxHistory returns the tax-status history of one employee, newest first, for display (D-82 (1), T033n4).
+	ListTaxHistory(ctx context.Context, tx *sql.Tx, id int64) ([]TaxHistoryEntry, error)
 
 	// Lock* take a row lock (SELECT ... FOR UPDATE) so the "before" image read for
 	// the audit log cannot differ from the row the UPDATE then changes.
@@ -132,4 +135,14 @@ type TaxHistory struct {
 	ValidFrom string // YYYY-MM-DD
 	TaxID     string
 	Source    string
+}
+
+// TaxHistoryEntry is a pyr_employee_tax_hist row with its provenance, for the read RPC (T033n4).
+type TaxHistoryEntry struct {
+	ValidFrom string // YYYY-MM-DD
+	TaxID     string
+	Source    string // BACKFILL | INSERT | UPDATE | CORRECT
+	Reason    string // CORRECT rows only
+	CreatedBy string
+	CreatedAt time.Time
 }

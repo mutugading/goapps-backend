@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc/codes"
@@ -43,7 +44,7 @@ func init() {
 		"UpdateCompany": permCompanyUpdate, "UpdateDivision": permCompanyUpdate,
 		"GetEmployee": permEmployeeView, "ListEmployees": permEmployeeView,
 		"CreateEmployee": permEmployeeCreate, "UpdateEmployee": permEmployeeUpdate,
-		"CorrectEmployeeTaxStatus": permTaxStatusUpdate,
+		"CorrectEmployeeTaxStatus": permTaxStatusUpdate, "ListEmployeeTaxHistory": permEmployeeView,
 	} {
 		rpcPermissions[svc+m] = p
 	}
@@ -332,4 +333,18 @@ func (h *MasterHandler) CorrectEmployeeTaxStatus(ctx context.Context, r *payroll
 		return nil, fail(ctx, err)
 	}
 	return &payrollv1.CorrectEmployeeTaxStatusResponse{Base: ok("Tax status corrected"), Data: employeePB(out)}, nil
+}
+
+// ListEmployeeTaxHistory returns the tax-status history of one employee (D-82 (1), T033n4).
+func (h *MasterHandler) ListEmployeeTaxHistory(ctx context.Context, r *payrollv1.ListEmployeeTaxHistoryRequest) (*payrollv1.ListEmployeeTaxHistoryResponse, error) {
+	out, err := h.svc.ListEmployeeTaxHistory(ctx, r.GetId())
+	if err != nil {
+		return nil, fail(ctx, err)
+	}
+	resp := &payrollv1.ListEmployeeTaxHistoryResponse{Base: ok("OK")}
+	for _, e := range out {
+		resp.Data = append(resp.Data, &payrollv1.EmployeeTaxHistory{ValidFrom: e.ValidFrom, TaxId: e.TaxID, Source: e.Source,
+			Reason: e.Reason, CreatedBy: e.CreatedBy, CreatedAt: e.CreatedAt.UTC().Format(time.RFC3339)})
+	}
+	return resp, nil
 }

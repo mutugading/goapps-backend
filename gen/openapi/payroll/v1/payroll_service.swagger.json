@@ -748,6 +748,38 @@
         ]
       }
     },
+    "/api/v1/payroll/employees/id/{id}/tax-history": {
+      "get": {
+        "summary": "Tax-status history of one employee (D-82 (1), T033n4), newest first; read-only.",
+        "operationId": "PayrollService_ListEmployeeTaxHistory",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListEmployeeTaxHistoryResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
     "/api/v1/payroll/employees/id/{id}/tax-status-correction": {
       "post": {
         "summary": "Backdated correction of a wrongly entered tax status (D-82 (5), T033n2): the status is recorded as valid\nfrom `valid_from` in the tax-status history, so the annual PTKP uses it. Needs payroll.master.taxstatus.update.",
@@ -2400,6 +2432,34 @@
       },
       "description": "EmployeeInput carries the writable fields shared by create and update."
     },
+    "v1EmployeeTaxHistory": {
+      "type": "object",
+      "properties": {
+        "validFrom": {
+          "type": "string",
+          "description": "YYYY-MM-DD (WIB calendar)."
+        },
+        "taxId": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string",
+          "description": "BACKFILL | INSERT | UPDATE | CORRECT."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Only CORRECT rows carry a reason."
+        },
+        "createdBy": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "RFC 3339, UTC."
+        }
+      },
+      "description": "EmployeeTaxHistory is one history row: `tax_id` is valid from `valid_from` until the next row."
+    },
     "v1GetCompanyResponse": {
       "type": "object",
       "properties": {
@@ -2541,6 +2601,21 @@
           "items": {
             "type": "object",
             "$ref": "#/definitions/v1Division"
+          }
+        }
+      }
+    },
+    "v1ListEmployeeTaxHistoryResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1EmployeeTaxHistory"
           }
         }
       }

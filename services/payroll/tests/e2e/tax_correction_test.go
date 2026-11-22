@@ -198,3 +198,58 @@ func ownScalar(t *testing.T, q string, args ...any) string {
 	}
 	return s.String
 }
+
+// T033n4 (D-82 (1)): riwayat status pajak tampil di UI lewat RPC baca; koreksi langsung terlihat, terbaru dulu,
+// dan scope RLS dihormati (id di luar scope = NOT_FOUND, bukan daftar kosong).
+func TestT033n4_ListEmployeeTaxHistory(t *testing.T) {
+	wib := time.FixedZone("WIB", 7*60*60)
+	year := time.Now().In(wib).Year()
+	jan1, mar1 := fmt.Sprintf("%d-01-01", year), fmt.Sprintf("%d-03-01", year)
+	rw := ctxFor(t, userRW, append(permsRW, "payroll.master.taxstatus.update")...)
+	emp := mustCreate(t, "T33N4-A", "Riwayat tampil")
+	list := func(c context.Context) (*payrollv1.ListEmployeeTaxHistoryResponse, error) {
+		return handler.ListEmployeeTaxHistory(c, &payrollv1.ListEmployeeTaxHistoryRequest{Id: emp.GetId()})
+	}
+	// Riwayat buatan: TK sejak 1 Jan (backfill), K1 sejak 1 Maret (perubahan sungguhan).
+	if _, err := ownDB.Exec(`DELETE FROM payroll.pyr_employee_tax_hist WHERE peth_employee_id = $1`, emp.GetId()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ownDB.Exec(`INSERT INTO payroll.pyr_employee_tax_hist (peth_employee_id, peth_valid_from, peth_tax_id, peth_source)
+	  VALUES ($1, $2::date, 'TK', 'BACKFILL'), ($1, $3::date, 'K1', 'UPDATE')`, emp.GetId(), jan1, mar1); err != nil {
+		t.Fatal(err)
+	}
+	r, err := list(rw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := r.GetData()
+	if len(d) != 2 || d[0].GetValidFrom() != mar1 || d[0].GetTaxId() != "K1" || d[0].GetSource() != "UPDATE" ||
+		d[1].GetValidFrom() != jan1 || d[1].GetTaxId() != "TK" || d[1].GetSource() != "BACKFILL" || d[1].GetReason() != "" {
+		t.Fatalf("history = %v", d)
+	}
+	if d[0].GetCreatedBy() == "" || d[0].GetCreatedAt() == "" {
+		t.Errorf("created_by/created_at kosong: %v", d[0])
+	}
+
+	// Koreksi dari RPC langsung terlihat: baris CORRECT berlaku 1 Jan memuat alasan dan aktor.
+	if _, err = handler.CorrectEmployeeTaxStatus(rw, &payrollv1.CorrectEmployeeTaxStatusRequest{
+		Id: emp.GetId(), TaxId: "K1", ValidFrom: jan1, Reason: "salah input HR", IfMatch: emp.GetEtag()}); err != nil {
+		t.Fatal(err)
+	}
+	if r, err = list(rw); err != nil {
+		t.Fatal(err)
+	}
+	d = r.GetData()
+	if len(d) != 2 || d[1].GetValidFrom() != jan1 || d[1].GetTaxId() != "K1" || d[1].GetSource() != "CORRECT" ||
+		d[1].GetReason() != "salah input HR" || d[1].GetCreatedBy() != userRW || d[0].GetValidFrom() != mar1 {
+		t.Fatalf("history after correction = %v", d)
+	}
+
+	// Scope: user Jakarta tidak melihat karyawan SOLO; id tidak ada juga NOT_FOUND.
+	if _, err = list(ctxFor(t, userJkt, permsRW...)); code(t, err) != apperr.CodeNotFound {
+		t.Errorf("di luar scope: %v, want NOT_FOUND", err)
+	}
+	if _, err = handler.ListEmployeeTaxHistory(rw, &payrollv1.ListEmployeeTaxHistoryRequest{Id: 999999999}); code(t, err) != apperr.CodeNotFound {
+		t.Errorf("id tidak ada: %v, want NOT_FOUND", err)
+	}
+}
