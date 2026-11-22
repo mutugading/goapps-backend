@@ -14,6 +14,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/run"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/apperr"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/audit"
@@ -25,6 +27,10 @@ const (
 	ActionApprove = "PERIOD_APPROVE"
 	ActionClose   = "PERIOD_CLOSE"
 	ActionReopen  = "PERIOD_REOPEN"
+	// ActionDeniedSuffix is appended to the action of a maker≠checker refusal (D-80 (5), T033o).
+	ActionDeniedSuffix = "_DENIED"
+	// ReasonMakerChecker is the Details["reason"] of the refusal and the audit reason of the _DENIED row.
+	ReasonMakerChecker = "maker_checker"
 
 	auditEntity     = "pyr_period"
 	minReasonLength = 10
@@ -72,11 +78,33 @@ type state struct {
 	runStatus  sql.NullString
 	runKind    sql.NullString
 	hasLegacy  bool
+	startedBy  sql.NullString
 	snapshotID sql.NullInt64
 	ruleSetID  sql.NullInt64
 	inputHash  sql.NullString
 	warnings   sql.NullString
 }
+
+// makerChecker refuses approve/close by the user who committed the ACTIVE run (D-80 (5), T033o). There is no
+// bypass for administrators: the rule compares identities only, permissions are checked by the delivery layer.
+func makerChecker(cmd Command, st state, actor, op string) error {
+	if !st.startedBy.Valid || st.startedBy.String == "" || st.startedBy.String != actor {
+		return nil
+	}
+	d := details(cmd)
+	d["run_id"] = strconv.FormatInt(st.runID.Int64, 10)
+	d["reason"] = ReasonMakerChecker // lets a client tell this 403 from a missing permission
+	return &makerCheckerError{inner: apperr.New(apperr.CodePermissionDenied,
+		"pengguna yang meng-commit run tidak boleh "+op+" periode yang sama (maker ≠ checker)", d)}
+}
+
+// makerCheckerError marks the refusal so transition records it in the audit log after the rollback.
+type makerCheckerError struct{ inner *apperr.Error }
+
+func (e *makerCheckerError) Error() string { return e.inner.Error() }
+
+// Unwrap lets errors.As find the *apperr.Error (PERMISSION_DENIED) behind it.
+func (e *makerCheckerError) Unwrap() error { return e.inner }
 
 // Approve moves DRAFT → APPROVED. The period needs an ACTIVE run without blocking warnings whose input is
 // unchanged since the commit (D-54); the snapshot of that run is locked so a later sync is refused (05§6).
@@ -87,6 +115,9 @@ func (s *Service) Approve(ctx context.Context, cmd Command) error {
 		}
 		if !st.runID.Valid || st.runStatus.String != "ACTIVE" {
 			return "", apperr.New(apperr.CodeBusinessRule, "periode belum punya run ACTIVE", details(cmd))
+		}
+		if err := makerChecker(cmd, st, actor, "approve"); err != nil {
+			return "", err
 		}
 		if err := blockingWarnings(cmd, st); err != nil {
 			return "", err
@@ -110,6 +141,9 @@ func (s *Service) Close(ctx context.Context, cmd Command) error {
 	return s.transition(ctx, cmd, ActionClose, func(tx *sql.Tx, st state, actor string) (string, error) {
 		if st.status != run.PeriodApproved {
 			return "", wrongStatus(cmd, st.status, "close", run.PeriodApproved)
+		}
+		if err := makerChecker(cmd, st, actor, "close"); err != nil {
+			return "", err
 		}
 		if err := s.checkInput(ctx, tx, cmd, st); err != nil {
 			return "", err
@@ -180,7 +214,7 @@ func (s *Service) transition(ctx context.Context, cmd Command, action string, fn
 	if action == ActionApprove || action == ActionClose {
 		opts = run.SnapshotTx // InputHash reads one snapshot (T023f)
 	}
-	return s.db.ScopedTxOpts(ctx, opts, func(tx *sql.Tx) error {
+	err := s.db.ScopedTxOpts(ctx, opts, func(tx *sql.Tx) error {
 		if err := run.Lock(ctx, tx, run.Query{CompanyID: cmd.CompanyID, Division: cmd.Division, YYMM: cmd.YYMM}); err != nil {
 			return err
 		}
@@ -200,19 +234,38 @@ func (s *Service) transition(ctx context.Context, cmd Command, action string, fn
 			Entity: auditEntity, EntityKey: strconv.Itoa(cmd.YYMM) + ":" + cmd.Division,
 			Before: map[string]any{"status": st.status}, After: after, IP: cmd.IP})
 	})
+	var mc *makerCheckerError
+	if errors.As(err, &mc) {
+		// The refused transaction rolled back, so the refusal is audited in a transaction of its own.
+		// A failed audit write must not hide the refusal from the caller, but it must not vanish silently either.
+		if aerr := s.auditDenied(ctx, cmd, action, mc); aerr != nil {
+			log.Error().Err(aerr).Str("action", action+ActionDeniedSuffix).Int("yymm", cmd.YYMM).Str("division", cmd.Division).
+				Msg("period: maker-checker refusal not audited")
+		}
+	}
+	return err
+}
+
+// auditDenied writes the PERIOD_*_DENIED row of a maker≠checker refusal.
+func (s *Service) auditDenied(ctx context.Context, cmd Command, action string, mc *makerCheckerError) error {
+	return s.db.ScopedTx(ctx, func(tx *sql.Tx) error {
+		return s.audit.Write(ctx, tx, audit.Entry{CompanyID: cmd.CompanyID, Division: cmd.Division,
+			Action: action + ActionDeniedSuffix, Entity: auditEntity, EntityKey: strconv.Itoa(cmd.YYMM) + ":" + cmd.Division,
+			After: map[string]any{"reason": ReasonMakerChecker, "run_id": mc.inner.Details["run_id"]}, IP: cmd.IP})
+	})
 }
 
 // lockPeriod reads the period with its ACTIVE run FOR UPDATE.
 func lockPeriod(ctx context.Context, tx *sql.Tx, cmd Command) (state, error) {
 	var st state
 	err := tx.QueryRowContext(ctx, `SELECT p.pp_status::text, p.pp_active_run_id, r.pr_status::text, r.pr_snapshot_id, r.pr_kind,
-  r.pr_rule_set_id, r.pr_input_hash, r.pr_warnings::text,
+  r.pr_rule_set_id, r.pr_input_hash, r.pr_warnings::text, r.pr_started_by,
   EXISTS (SELECT 1 FROM payroll.pyr_run l WHERE l.pr_company_id = p.pp_company_id AND l.pr_yymm = p.pp_yymm
     AND l.pr_division = p.pp_division AND l.pr_kind = 'LEGACY')
 FROM payroll.pyr_period p LEFT JOIN payroll.pyr_run r ON r.pr_id = p.pp_active_run_id
 WHERE p.pp_company_id = $1 AND p.pp_yymm = $2 AND p.pp_division = $3 FOR UPDATE OF p`,
 		cmd.CompanyID, cmd.YYMM, cmd.Division).Scan(&st.status, &st.runID, &st.runStatus, &st.snapshotID, &st.runKind,
-		&st.ruleSetID, &st.inputHash, &st.warnings, &st.hasLegacy)
+		&st.ruleSetID, &st.inputHash, &st.warnings, &st.startedBy, &st.hasLegacy)
 	if errors.Is(err, sql.ErrNoRows) {
 		return st, apperr.New(apperr.CodeNotFound, "periode tidak ditemukan", details(cmd))
 	}

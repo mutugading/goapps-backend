@@ -93,3 +93,35 @@ func TestBlockingCodesCoverPPhWarnings(t *testing.T) {
 		}
 	}
 }
+
+// T033o (D-80 (5)): the user who committed the ACTIVE run may not approve/close it; only identities are compared.
+func TestMakerChecker(t *testing.T) {
+	cmd := Command{CompanyID: 1, Division: "SOLO", YYMM: 202610}
+	st := func(by string, valid bool) state {
+		return state{startedBy: sql.NullString{String: by, Valid: valid}, runID: sql.NullInt64{Int64: 7, Valid: true}}
+	}
+	for _, tc := range []struct {
+		name    string
+		st      state
+		actor   string
+		refused bool
+	}{
+		{"same user", st("u-1", true), "u-1", true},
+		{"other user", st("u-1", true), "u-2", false},
+		{"legacy run without maker", st("", false), "u-1", false},
+		{"empty maker", st("", true), "u-1", false},
+	} {
+		err := makerChecker(cmd, tc.st, tc.actor, "approve")
+		if (err != nil) != tc.refused {
+			t.Fatalf("%s: err = %v, refused want %v", tc.name, err, tc.refused)
+		}
+		if !tc.refused {
+			continue
+		}
+		var ae *apperr.Error
+		var mc *makerCheckerError
+		if !errors.As(err, &ae) || ae.Code != apperr.CodePermissionDenied || !errors.As(err, &mc) || ae.Details["run_id"] != "7" || ae.Details["reason"] != ReasonMakerChecker {
+			t.Fatalf("%s: err = %#v, want PERMISSION_DENIED with run_id and reason", tc.name, err)
+		}
+	}
+}

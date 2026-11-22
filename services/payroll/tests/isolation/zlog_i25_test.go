@@ -345,10 +345,12 @@ func TestI25_LogsHoldNoNameOrSalary(t *testing.T) {
 	}
 	_, err = rh.CreateRun(full, runReq("JAKARTA", payrollv1.RunMode_RUN_MODE_COMMIT))
 	wantCode(t, "api commit JAKARTA", err, apperr.CodeDivisionForbidden)
-	if _, err := rh.ApprovePeriod(full, &payrollv1.ApprovePeriodRequest{Yymm: i25Period, Division: "SOLO"}); err != nil {
+	// Maker ≠ checker (D-80 (5)): userSolo committed, so userTwo (also SOLO) approves and closes.
+	checker := ctxPerms(t, userTwo, permsRunAll...)
+	if _, err := rh.ApprovePeriod(checker, &payrollv1.ApprovePeriodRequest{Yymm: i25Period, Division: "SOLO"}); err != nil {
 		t.Fatalf("api approve: %v", err)
 	}
-	if _, err := rh.ClosePeriod(full, &payrollv1.ClosePeriodRequest{Yymm: i25Period, Division: "SOLO"}); err != nil {
+	if _, err := rh.ClosePeriod(checker, &payrollv1.ClosePeriodRequest{Yymm: i25Period, Division: "SOLO"}); err != nil {
 		t.Fatalf("api close: %v", err)
 	}
 	var st string
