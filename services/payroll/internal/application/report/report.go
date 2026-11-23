@@ -19,11 +19,21 @@ import (
 // ActionExport is the audit action of every report export.
 const ActionExport = "REPORT_EXPORT"
 
+// Audit key and period statuses shared by the exports.
+const (
+	keyPeriodStatus  = "period_status"
+	keySkippedNoHead = "skipped_no_head"
+	statusApproved   = "APPROVED"
+)
+
 // ErrPeriodNotApproved is returned for a period that is not APPROVED/CLOSED without AllowOpen.
 var ErrPeriodNotApproved = errors.New("report: periode belum APPROVED/CLOSED")
 
 // ErrNoRun is returned when the period has no ACTIVE engine run.
 var ErrNoRun = errors.New("report: tidak ada run ACTIVE untuk periode ini")
+
+// ErrBankConfig is returned when the bank file text (PAYROLL_REPORT_*) is not configured (T030h2).
+var ErrBankConfig = errors.New("report: konfigurasi teks file bank belum lengkap")
 
 // Query selects the run to report on.
 type Query struct {
@@ -32,6 +42,10 @@ type Query struct {
 	Division  string
 	// AllowOpen permits a period that is not yet APPROVED (rehearsal); the audit row records it.
 	AllowOpen bool
+	// IP is the caller address recorded in the audit row (API only; the CLI leaves it empty).
+	IP string
+	// Extra is merged into the audit "after" (counts and flags only; never amounts, NIKs, or account numbers).
+	Extra map[string]any
 }
 
 // Comp identifies a component column.
@@ -59,6 +73,9 @@ type RunData struct {
 	Status string // period status
 	Comps  []Comp
 	Emps   []Emp
+	// SkippedNoHead counts NIKs that have detail lines but no head row (employees without an attendance recap,
+	// MISSING_ATTENDANCE/D2). Their lines are left out of the report (D-70).
+	SkippedNoHead int
 }
 
 // Service builds reports.
@@ -82,18 +99,26 @@ func (s *Service) Export(ctx context.Context, kind string, q Query, build func(R
 		if err != nil {
 			return err
 		}
-		return s.writeAudit(ctx, tx, q, kind, rows, nil)
+		return s.writeAudit(ctx, tx, q, kind, rows, map[string]any{keyPeriodStatus: d.Status})
 	})
 }
 
 // writeAudit records REPORT_EXPORT (counts and flags only; never amounts or NIKs).
 func (s *Service) writeAudit(ctx context.Context, tx *sql.Tx, q Query, kind string, rows int, extra map[string]any) error {
 	after := map[string]any{"jenis": kind, "yymm": q.YYMM, "divisi": q.Division, "baris": rows, "allow_open": q.AllowOpen}
+	for k, v := range q.Extra {
+		after[k] = v
+	}
 	for k, v := range extra {
 		after[k] = v
 	}
+	// allow_open means "exported although the period was not APPROVED/CLOSED": an APPROVED period needs no override,
+	// so a policy flag set by the caller must not be recorded as one.
+	if st, ok := after[keyPeriodStatus].(string); ok && (st == statusApproved || st == statusClosed) {
+		after["allow_open"] = false
+	}
 	return s.Audit.Write(ctx, tx, audit.Entry{CompanyID: q.CompanyID, Division: q.Division, Action: ActionExport,
-		Entity: "report", EntityKey: kind, After: after})
+		Entity: "report", EntityKey: kind, After: after, IP: q.IP})
 }
 
 // Load reads the ACTIVE engine run of the period inside tx.
@@ -107,7 +132,7 @@ WHERE pp_company_id = $1 AND pp_yymm = $2 AND pp_division = $3`, q.CompanyID, q.
 	if err != nil {
 		return d, fmt.Errorf("read period: %w", err)
 	}
-	if d.Status != "APPROVED" && d.Status != "CLOSED" && !q.AllowOpen {
+	if d.Status != statusApproved && d.Status != statusClosed && !q.AllowOpen {
 		return d, fmt.Errorf("%w (status %s, periode %d %s); gunakan -allow-open untuk gladi", ErrPeriodNotApproved, d.Status, q.YYMM, q.Division)
 	}
 	err = tx.QueryRowContext(ctx, `SELECT pr_id FROM payroll.pyr_run
@@ -170,6 +195,7 @@ WHERE d.psd_run_id = $1 ORDER BY d.psd_nik`, runID, unknownSerial)
 		idx[e.NIK] = i
 	}
 	seen := map[string]Comp{}
+	orphans := map[string]struct{}{}
 	for rows.Next() {
 		var nik, typ, amt string
 		var c Comp
@@ -186,7 +212,8 @@ WHERE d.psd_run_id = $1 ORDER BY d.psd_nik`, runID, unknownSerial)
 		}
 		i, ok := idx[nik]
 		if !ok {
-			return errors.New("detail tanpa head")
+			orphans[nik] = struct{}{} // counted only, never logged or returned (PII)
+			continue
 		}
 		if _, ok := seen[c.Key()]; !ok {
 			seen[c.Key()] = c
@@ -198,6 +225,7 @@ WHERE d.psd_run_id = $1 ORDER BY d.psd_nik`, runID, unknownSerial)
 	if err := rows.Err(); err != nil {
 		return err
 	}
+	d.SkippedNoHead = len(orphans)
 	for _, c := range seen {
 		d.Comps = append(d.Comps, c)
 	}

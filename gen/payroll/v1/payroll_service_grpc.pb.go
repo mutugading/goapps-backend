@@ -50,10 +50,12 @@ const (
 	PayrollService_GetRun_FullMethodName                   = "/payroll.v1.PayrollService/GetRun"
 	PayrollService_ListRuns_FullMethodName                 = "/payroll.v1.PayrollService/ListRuns"
 	PayrollService_ListRunLines_FullMethodName             = "/payroll.v1.PayrollService/ListRunLines"
+	PayrollService_GetRunDiff_FullMethodName               = "/payroll.v1.PayrollService/GetRunDiff"
 	PayrollService_ListPeriods_FullMethodName              = "/payroll.v1.PayrollService/ListPeriods"
 	PayrollService_ApprovePeriod_FullMethodName            = "/payroll.v1.PayrollService/ApprovePeriod"
 	PayrollService_ClosePeriod_FullMethodName              = "/payroll.v1.PayrollService/ClosePeriod"
 	PayrollService_ReopenPeriod_FullMethodName             = "/payroll.v1.PayrollService/ReopenPeriod"
+	PayrollService_ExportReport_FullMethodName             = "/payroll.v1.PayrollService/ExportReport"
 )
 
 // PayrollServiceClient is the client API for PayrollService service.
@@ -111,10 +113,14 @@ type PayrollServiceClient interface {
 	GetRun(ctx context.Context, in *GetRunRequest, opts ...grpc.CallOption) (*GetRunResponse, error)
 	ListRuns(ctx context.Context, in *ListRunsRequest, opts ...grpc.CallOption) (*ListRunsResponse, error)
 	ListRunLines(ctx context.Context, in *ListRunLinesRequest, opts ...grpc.CallOption) (*ListRunLinesResponse, error)
+	// Diff of a run against the ACTIVE run, another run of the period, or the LEGACY run (07§4, T030c, D-67).
+	GetRunDiff(ctx context.Context, in *GetRunDiffRequest, opts ...grpc.CallOption) (*GetRunDiffResponse, error)
 	ListPeriods(ctx context.Context, in *ListPeriodsRequest, opts ...grpc.CallOption) (*ListPeriodsResponse, error)
 	ApprovePeriod(ctx context.Context, in *ApprovePeriodRequest, opts ...grpc.CallOption) (*ApprovePeriodResponse, error)
 	ClosePeriod(ctx context.Context, in *ClosePeriodRequest, opts ...grpc.CallOption) (*ClosePeriodResponse, error)
 	ReopenPeriod(ctx context.Context, in *ReopenPeriodRequest, opts ...grpc.CallOption) (*ReopenPeriodResponse, error)
+	// ExportReport returns the reco or bank xlsx of a period, audited (07§6, T030d, D-67).
+	ExportReport(ctx context.Context, in *ExportReportRequest, opts ...grpc.CallOption) (*ExportReportResponse, error)
 }
 
 type payrollServiceClient struct {
@@ -435,6 +441,16 @@ func (c *payrollServiceClient) ListRunLines(ctx context.Context, in *ListRunLine
 	return out, nil
 }
 
+func (c *payrollServiceClient) GetRunDiff(ctx context.Context, in *GetRunDiffRequest, opts ...grpc.CallOption) (*GetRunDiffResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetRunDiffResponse)
+	err := c.cc.Invoke(ctx, PayrollService_GetRunDiff_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *payrollServiceClient) ListPeriods(ctx context.Context, in *ListPeriodsRequest, opts ...grpc.CallOption) (*ListPeriodsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListPeriodsResponse)
@@ -469,6 +485,16 @@ func (c *payrollServiceClient) ReopenPeriod(ctx context.Context, in *ReopenPerio
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ReopenPeriodResponse)
 	err := c.cc.Invoke(ctx, PayrollService_ReopenPeriod_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) ExportReport(ctx context.Context, in *ExportReportRequest, opts ...grpc.CallOption) (*ExportReportResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExportReportResponse)
+	err := c.cc.Invoke(ctx, PayrollService_ExportReport_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -530,10 +556,14 @@ type PayrollServiceServer interface {
 	GetRun(context.Context, *GetRunRequest) (*GetRunResponse, error)
 	ListRuns(context.Context, *ListRunsRequest) (*ListRunsResponse, error)
 	ListRunLines(context.Context, *ListRunLinesRequest) (*ListRunLinesResponse, error)
+	// Diff of a run against the ACTIVE run, another run of the period, or the LEGACY run (07§4, T030c, D-67).
+	GetRunDiff(context.Context, *GetRunDiffRequest) (*GetRunDiffResponse, error)
 	ListPeriods(context.Context, *ListPeriodsRequest) (*ListPeriodsResponse, error)
 	ApprovePeriod(context.Context, *ApprovePeriodRequest) (*ApprovePeriodResponse, error)
 	ClosePeriod(context.Context, *ClosePeriodRequest) (*ClosePeriodResponse, error)
 	ReopenPeriod(context.Context, *ReopenPeriodRequest) (*ReopenPeriodResponse, error)
+	// ExportReport returns the reco or bank xlsx of a period, audited (07§6, T030d, D-67).
+	ExportReport(context.Context, *ExportReportRequest) (*ExportReportResponse, error)
 	mustEmbedUnimplementedPayrollServiceServer()
 }
 
@@ -637,6 +667,9 @@ func (UnimplementedPayrollServiceServer) ListRuns(context.Context, *ListRunsRequ
 func (UnimplementedPayrollServiceServer) ListRunLines(context.Context, *ListRunLinesRequest) (*ListRunLinesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListRunLines not implemented")
 }
+func (UnimplementedPayrollServiceServer) GetRunDiff(context.Context, *GetRunDiffRequest) (*GetRunDiffResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetRunDiff not implemented")
+}
 func (UnimplementedPayrollServiceServer) ListPeriods(context.Context, *ListPeriodsRequest) (*ListPeriodsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListPeriods not implemented")
 }
@@ -648,6 +681,9 @@ func (UnimplementedPayrollServiceServer) ClosePeriod(context.Context, *ClosePeri
 }
 func (UnimplementedPayrollServiceServer) ReopenPeriod(context.Context, *ReopenPeriodRequest) (*ReopenPeriodResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReopenPeriod not implemented")
+}
+func (UnimplementedPayrollServiceServer) ExportReport(context.Context, *ExportReportRequest) (*ExportReportResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ExportReport not implemented")
 }
 func (UnimplementedPayrollServiceServer) mustEmbedUnimplementedPayrollServiceServer() {}
 func (UnimplementedPayrollServiceServer) testEmbeddedByValue()                        {}
@@ -1228,6 +1264,24 @@ func _PayrollService_ListRunLines_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PayrollService_GetRunDiff_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRunDiffRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).GetRunDiff(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_GetRunDiff_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).GetRunDiff(ctx, req.(*GetRunDiffRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _PayrollService_ListPeriods_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListPeriodsRequest)
 	if err := dec(in); err != nil {
@@ -1296,6 +1350,24 @@ func _PayrollService_ReopenPeriod_Handler(srv interface{}, ctx context.Context, 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(PayrollServiceServer).ReopenPeriod(ctx, req.(*ReopenPeriodRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_ExportReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExportReportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).ExportReport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_ExportReport_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).ExportReport(ctx, req.(*ExportReportRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1432,6 +1504,10 @@ var PayrollService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _PayrollService_ListRunLines_Handler,
 		},
 		{
+			MethodName: "GetRunDiff",
+			Handler:    _PayrollService_GetRunDiff_Handler,
+		},
+		{
 			MethodName: "ListPeriods",
 			Handler:    _PayrollService_ListPeriods_Handler,
 		},
@@ -1446,6 +1522,10 @@ var PayrollService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReopenPeriod",
 			Handler:    _PayrollService_ReopenPeriod_Handler,
+		},
+		{
+			MethodName: "ExportReport",
+			Handler:    _PayrollService_ExportReport_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

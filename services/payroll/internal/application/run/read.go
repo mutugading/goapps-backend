@@ -11,6 +11,7 @@ import (
 // Info is the summary of one run (pyr_run), or of a dry run that was never persisted (ID 0, status DRY).
 type Info struct {
 	ID         int64
+	CompanyID  int16
 	YYMM       int
 	Division   string
 	PayDate    string // YYYY-MM-DD

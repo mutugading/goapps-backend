@@ -133,7 +133,7 @@ func (s *Service) ExportReco(ctx context.Context, q Query, key string, build fun
 		if err != nil {
 			return err
 		}
-		return s.writeAudit(ctx, tx, q, "reco", rows, map[string]any{"pra_cek": len(PreChecks(rd.Rows)), "pra_cek_transfer": len(rd.Transfer.Issues)})
+		return s.writeAudit(ctx, tx, q, "reco", rows, map[string]any{"pra_cek": len(PreChecks(rd.Rows)), "pra_cek_transfer": len(rd.Transfer.Issues), keyPeriodStatus: d.Status, keySkippedNoHead: d.SkippedNoHead})
 	})
 }
 

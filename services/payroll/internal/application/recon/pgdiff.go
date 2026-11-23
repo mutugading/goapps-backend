@@ -62,6 +62,20 @@ func (s DiffSource) Load(ctx context.Context, q DiffQuery) (DiffInput, error) {
 	if s.DB == nil || s.Rules == nil {
 		return DiffInput{}, ErrDiffNotReady
 	}
+	if _, err := ParseTarget(q.Target); err != nil {
+		return DiffInput{}, err
+	}
+	var out DiffInput
+	err := s.DB.ScopedTxOpts(ctx, run.SnapshotTx, func(tx *sql.Tx) error {
+		var err error
+		out, err = s.loadTx(ctx, tx, q)
+		return err
+	})
+	return out, err
+}
+
+// loadTx is Load inside the caller's transaction (shared with LoadRun, T030c).
+func (s DiffSource) loadTx(ctx context.Context, tx *sql.Tx, q DiffQuery) (DiffInput, error) {
 	targetRun, err := ParseTarget(q.Target)
 	if err != nil {
 		return DiffInput{}, err
@@ -69,37 +83,34 @@ func (s DiffSource) Load(ctx context.Context, q DiffQuery) (DiffInput, error) {
 	rq := run.Query{CompanyID: q.CompanyID, Division: q.Division, YYMM: q.YYMM}
 	out := DiffInput{Meta: DiffMeta{CompanyID: q.CompanyID, Division: q.Division, YYMM: q.YYMM, Target: q.Target,
 		RuleSetID: q.RuleSetID}}
-	err = s.DB.ScopedTxOpts(ctx, run.SnapshotTx, func(tx *sql.Tx) error {
-		legacySnap, err := s.loadLegacy(ctx, tx, rq, &out)
-		if err != nil {
-			return err
-		}
-		if targetRun == 0 && legacySnap != 0 {
-			rq.SnapshotID = legacySnap // dry input = the recap legacy calculated with (09§4 step 2)
-		}
-		rules, err := s.Rules(ctx, tx, rq, q.RuleSetID)
-		if err != nil {
-			return fmt.Errorf("load rules: %w", err)
-		}
-		loaded, err := run.NewLoader().Load(ctx, tx, rq, rules)
-		if err != nil {
-			return fmt.Errorf("load inputs: %w", err)
-		}
-		out.Components = componentsByNIK(loaded.Inputs)
-		if out.Drift, err = loadDrift(ctx, tx, rq, out.Meta.LegacyRunID, out.Meta.LegacySnapshotID); err != nil {
-			return err
-		}
-		targetSnap, err := s.loadTarget(ctx, tx, rq, targetRun, loaded, &out)
-		if err != nil {
-			return err
-		}
-		out.Meta.TargetSnapshotID = targetSnap
-		if out.AttChanged, err = LoadAttChanged(ctx, tx, legacySnap, targetSnap); err != nil {
-			return err
-		}
-		out.Meta.DerivedSnapshotID, out.Derived, err = LoadAttDerived(ctx, tx, q.CompanyID, q.Division, q.YYMM)
-		return err
-	})
+	legacySnap, err := s.loadLegacy(ctx, tx, rq, &out)
+	if err != nil {
+		return out, err
+	}
+	if targetRun == 0 && legacySnap != 0 {
+		rq.SnapshotID = legacySnap // dry input = the recap legacy calculated with (09§4 step 2)
+	}
+	rules, err := s.Rules(ctx, tx, rq, q.RuleSetID)
+	if err != nil {
+		return out, fmt.Errorf("load rules: %w", err)
+	}
+	loaded, err := run.NewLoader().Load(ctx, tx, rq, rules)
+	if err != nil {
+		return out, fmt.Errorf("load inputs: %w", err)
+	}
+	out.Components = componentsByNIK(loaded.Inputs)
+	if out.Drift, err = loadDrift(ctx, tx, rq, out.Meta.LegacyRunID, out.Meta.LegacySnapshotID); err != nil {
+		return out, err
+	}
+	targetSnap, err := s.loadTarget(ctx, tx, rq, targetRun, loaded, &out)
+	if err != nil {
+		return out, err
+	}
+	out.Meta.TargetSnapshotID = targetSnap
+	if out.AttChanged, err = LoadAttChanged(ctx, tx, legacySnap, targetSnap); err != nil {
+		return out, err
+	}
+	out.Meta.DerivedSnapshotID, out.Derived, err = LoadAttDerived(ctx, tx, q.CompanyID, q.Division, q.YYMM)
 	return out, err
 }
 

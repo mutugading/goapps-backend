@@ -9,6 +9,7 @@ import (
 	commonv1 "github.com/mutugading/goapps-backend/gen/common/v1"
 	payrollv1 "github.com/mutugading/goapps-backend/gen/payroll/v1"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/period"
+	"github.com/mutugading/goapps-backend/services/payroll/internal/application/report"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/run"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/apperr"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/scope"
@@ -35,13 +36,18 @@ const (
 )
 
 // methodTimeouts raises the server timeout of the synchronous run RPC above the default (TimeoutInterceptor).
-var methodTimeouts = map[string]time.Duration{"/payroll.v1.PayrollService/CreateRun": runTimeout}
+var methodTimeouts = map[string]time.Duration{
+	"/payroll.v1.PayrollService/CreateRun":    runTimeout,
+	"/payroll.v1.PayrollService/ExportReport": runTimeout, // T030d: ~1.300 employees × components, PII decrypt per row
+}
 
 func init() {
 	const svc = "/payroll.v1.PayrollService/"
 	for m, p := range map[string]string{
 		"CreateRun": permRunDry, // commit mode additionally needs permRunCommit (checked in CreateRun)
 		"GetRun":    permReportView, "ListRuns": permReportView, "ListRunLines": permReportView, "ListPeriods": permReportView,
+		"GetRunDiff":    permReportView,
+		"ExportReport":  permReportView, // the handler additionally requires permSalaryAmount (no masked variant)
 		"ApprovePeriod": permPeriodApprove, "ClosePeriod": permPeriodClose, "ReopenPeriod": permPeriodReopen,
 	} {
 		rpcPermissions[svc+m] = p
@@ -53,11 +59,22 @@ type RunHandler struct {
 	runs    *run.Service
 	periods *period.Service
 	reader  run.Reader
+	diff    RunDiffLoader
+
+	reports  ReportExporter // T030d
+	piiKey   string
+	bankText report.TextLoader
 }
 
 // NewRunHandler creates a RunHandler.
 func NewRunHandler(runs *run.Service, periods *period.Service, reader run.Reader) *RunHandler {
 	return &RunHandler{runs: runs, periods: periods, reader: reader}
+}
+
+// WithDiff wires the run diff source (T030c); without it GetRunDiff answers UNIMPLEMENTED.
+func (h *RunHandler) WithDiff(d RunDiffLoader) *RunHandler {
+	h.diff = d
+	return h
 }
 
 // PayrollHandler combines the master-data and run handlers into one PayrollServiceServer.
@@ -137,6 +154,7 @@ func runPB(r run.Info, see bool) *payrollv1.Run {
 		RunId: r.ID, Yymm: int32(r.YYMM), Division: r.Division, ProcessDate: r.PayDate, Status: r.Status, //nolint:gosec // validated yymm
 		EmployeeCount: int32(r.EmpCount), LineCount: int32(r.LineCount), //nolint:gosec // bounded by employees
 		TotalTunjangan: mask(see, r.TotT), TotalPotongan: mask(see, r.TotP), RuleSetId: int32(r.RuleSetID), //nolint:gosec // small id
+		CompanyId:  int32(r.CompanyID), //nolint:gosec // smallint
 		SnapshotId: r.SnapshotID, NikFilter: r.NIKFilter, Warnings: warningsPB(r.Warnings, see), StartedBy: r.StartedBy,
 		StartedAt: r.StartedAt.UTC().Format(time.RFC3339), DurationMs: r.DurationMs,
 	}
@@ -159,8 +177,9 @@ func periodPB(p run.PeriodInfo) *payrollv1.Period {
 
 // CreateRun runs the division synchronously: dry returns the totals per employee, commit persists the run.
 func (h *RunHandler) CreateRun(ctx context.Context, r *payrollv1.CreateRunRequest) (*payrollv1.CreateRunResponse, error) {
-	company, division, yymm := i16(r.GetCompanyId()), r.GetDivision(), int(r.GetYymm())
-	if err := requireDivision(ctx, company, division); err != nil {
+	division, yymm := r.GetDivision(), int(r.GetYymm())
+	company, err := resolveCreateCompany(ctx, r)
+	if err != nil {
 		return nil, fail(ctx, err)
 	}
 	payDate, err := validateCreateRun(ctx, r)
@@ -178,7 +197,7 @@ func (h *RunHandler) CreateRun(ctx context.Context, r *payrollv1.CreateRunReques
 		if err != nil {
 			return nil, fail(ctx, err)
 		}
-		return &payrollv1.CreateRunResponse{Base: ok("Dry run completed"), Data: dryRunPB(ctx, r, ruleSet, out, see),
+		return &payrollv1.CreateRunResponse{Base: ok("Dry run completed"), Data: dryRunPB(ctx, r, company, ruleSet, out, see),
 			Employees: employeesPB(out.Employees, see)}, nil
 	}
 	cm, err := h.runs.Commit(ctx, run.CommitCommand{CompanyID: company, Division: division, YYMM: yymm, RuleSetID: ruleSet,
@@ -192,6 +211,46 @@ func (h *RunHandler) CreateRun(ctx context.Context, r *payrollv1.CreateRunReques
 	}
 	info.Warnings = cm.Warnings
 	return &payrollv1.CreateRunResponse{Base: ok("Run committed"), Data: runPB(info, see)}, nil
+}
+
+// resolveCreateCompany returns the company of the run and refuses a division outside the caller scope (I22).
+// company_id=0 is allowed in dry mode only (D-71 (3)): the company is the one of the caller scope that has the
+// division; more than one company is ambiguous (400), none is 403. Commit always needs company_id > 0.
+func resolveCreateCompany(ctx context.Context, r *payrollv1.CreateRunRequest) (int16, error) {
+	division := r.GetDivision()
+	byCompany := map[string]string{keyField: "company_id"}
+	if r.GetCompanyId() < 0 {
+		return 0, apperr.New(apperr.CodeValidation, "company_id tidak valid", byCompany)
+	}
+	if r.GetCompanyId() > 0 {
+		company := i16(r.GetCompanyId())
+		return company, requireDivision(ctx, company, division)
+	}
+	switch r.GetMode() {
+	case payrollv1.RunMode_RUN_MODE_DRY:
+	case payrollv1.RunMode_RUN_MODE_COMMIT:
+		return 0, apperr.New(apperr.CodeValidation, "company_id wajib untuk commit", byCompany)
+	default:
+		return 0, apperr.New(apperr.CodeValidation, "mode wajib dry atau commit", map[string]string{keyField: "mode"})
+	}
+	scopes, found := scopeOf(ctx)
+	if !found {
+		return 0, run.InScope(ctx, 0, division)
+	}
+	var company int16
+	for _, sc := range scopes {
+		if sc.Division() != division || sc.CompanyID() == company {
+			continue
+		}
+		if company != 0 {
+			return 0, apperr.New(apperr.CodeValidation, "divisi ada di lebih dari satu company; company_id wajib diisi (ambigu)", byCompany)
+		}
+		company = sc.CompanyID()
+	}
+	if company == 0 {
+		return 0, apperr.DivisionForbidden(0, division)
+	}
+	return company, nil
 }
 
 // validateCreateRun checks the request before the rule set is resolved (400 on failure) and returns the pay date.
@@ -221,12 +280,12 @@ func validateCreateRun(ctx context.Context, r *payrollv1.CreateRunRequest) (time
 	return payDate, nil
 }
 
-func dryRunPB(ctx context.Context, r *payrollv1.CreateRunRequest, ruleSet int, out run.DryResult, see bool) *payrollv1.Run {
+func dryRunPB(ctx context.Context, r *payrollv1.CreateRunRequest, company int16, ruleSet int, out run.DryResult, see bool) *payrollv1.Run {
 	actor := ""
 	if id, found := identityOf(ctx); found {
 		actor = id
 	}
-	return runPB(run.Info{YYMM: int(r.GetYymm()), Division: r.GetDivision(), PayDate: r.GetProcessDate(), Status: "DRY",
+	return runPB(run.Info{CompanyID: company, YYMM: int(r.GetYymm()), Division: r.GetDivision(), PayDate: r.GetProcessDate(), Status: "DRY",
 		EmpCount: out.Summary.EmpCount, LineCount: out.Summary.LineCount, TotT: out.Summary.TotalT.StringFixed(2),
 		TotP: out.Summary.TotalP.StringFixed(2), RuleSetID: ruleSet, SnapshotID: out.SnapshotID, NIKFilter: r.GetNik(),
 		Warnings: out.Warnings, StartedBy: actor, StartedAt: time.Now().Add(-out.Duration), FinishedAt: time.Now(),

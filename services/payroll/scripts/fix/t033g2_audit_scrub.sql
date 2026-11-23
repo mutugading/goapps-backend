@@ -51,7 +51,7 @@ SELECT ARRAY[
   'active_run_id', 'reason', 'run_id', 'superseded_run_id', 'yymm', 'rule_set_id', 'snapshot_id', 'input_hash',
   'emp_count', 'line_count', 'tot_tunjangan', 'tot_potongan', 'warnings',
   'jenis', 'divisi', 'baris', 'allow_open', 'pra_cek', 'pra_cek_transfer', 'tanpa_password', 'dilewati',
-  'filter_nik',
+  'filter_nik', 'period_status', 'transfer_date',
   'total', 'queued', 'tanpa_email', 'email_ganda', 'sent', 'failed', 'blocked', 'pending', 'jumlah', 'tujuan',
   'item', 'asal', 'alasan', 'terkirim', 'tertunda', 'run', 'run_aktif'
   -- ALLOWLIST END

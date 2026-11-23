@@ -50,6 +50,7 @@ func TestMaskRunResponses(t *testing.T) {
 		"GetRun":         &payrollv1.GetRunResponse{Data: runPB(info, false)},
 		"ListRuns":       &payrollv1.ListRunsResponse{Data: []*payrollv1.Run{runPB(info, false)}},
 		"ListRunLines":   &payrollv1.ListRunLinesResponse{Data: []*payrollv1.RunLine{linePB(line, false)}},
+		"GetRunDiff":     &payrollv1.GetRunDiffResponse{Data: runDiffPB(1, "active", sampleDiff(), sampleDiff().Lines, "", false)},
 	}
 	for name, msg := range resps {
 		seen := 0

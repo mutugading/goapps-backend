@@ -35,7 +35,7 @@ var allowedKeys = toSet(
 	"emp_count", "line_count", "tot_tunjangan", "tot_potongan", "warnings",
 	// report export (counts and flags only)
 	"jenis", "divisi", "baris", "allow_open", "pra_cek", "pra_cek_transfer", "tanpa_password", "dilewati",
-	"filter_nik",
+	"filter_nik", "period_status", "transfer_date", // F2 export audit (T030d): period status and transfer date, no personal data
 	// distribution (tujuan is already MaskEmail'd by the caller)
 	"total", "queued", "tanpa_email", "email_ganda", "sent", "failed", "blocked", "pending", "jumlah", "tujuan",
 	"item", "asal", "alasan", "terkirim", "tertunda", "run", "run_aktif",

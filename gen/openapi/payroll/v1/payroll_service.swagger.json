@@ -1189,6 +1189,64 @@
         ]
       }
     },
+    "/api/v1/payroll/reports/export": {
+      "get": {
+        "summary": "ExportReport returns the reco or bank xlsx of a period, audited (07§6, T030d, D-67).",
+        "operationId": "PayrollService_ExportReport",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ExportReportResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "yymm",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "division",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "kind",
+            "description": " - REPORT_KIND_RECO: Reconciliation workbook (F-2): detail, transfer, upload, additional, reg,\nOT payroll. Also available for a period that is not yet APPROVED.\n - REPORT_KIND_BANK: Bank transfer file (F-1, Mandiri): cover letter + DETAIL. Only for an\nAPPROVED or CLOSED period; employees failing the pre-check are left out.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "REPORT_KIND_UNSPECIFIED",
+              "REPORT_KIND_RECO",
+              "REPORT_KIND_BANK"
+            ],
+            "default": "REPORT_KIND_UNSPECIFIED"
+          },
+          {
+            "name": "transferDate",
+            "description": "Transfer date YYYY-MM-DD (cover letter of the bank file). Required for BANK,\nignored for RECO.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
     "/api/v1/payroll/runs": {
       "get": {
         "operationId": "PayrollService_ListRuns",
@@ -1283,6 +1341,75 @@
             "required": true,
             "type": "string",
             "format": "int64"
+          }
+        ],
+        "tags": [
+          "PayrollService"
+        ]
+      }
+    },
+    "/api/v1/payroll/runs/{runId}/diff": {
+      "get": {
+        "summary": "Diff of a run against the ACTIVE run, another run of the period, or the LEGACY run (07§4, T030c, D-67).",
+        "operationId": "PayrollService_GetRunDiff",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetRunDiffResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "against",
+            "description": "Empty or active = the ACTIVE run of the period | legacy = the LEGACY run of the\nperiod (recon, D-41) | run:\u003cid\u003e = another run of the same period.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "nik",
+            "description": "Empty = all.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "category",
+            "description": "Line category filter (e.g. FORMULA); empty = every non-MATCH line.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "page",
+            "description": "0 = 1.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pageSize",
+            "description": "0 = 100.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
           }
         ],
         "tags": [
@@ -2008,7 +2135,8 @@
         },
         "companyId": {
           "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "title": "0 = derived from the caller scope (dry only, D-71)"
         },
         "processDate": {
           "type": "string",
@@ -2460,6 +2588,39 @@
       },
       "description": "EmployeeTaxHistory is one history row: `tax_id` is valid from `valid_from` until the next row."
     },
+    "v1ExportReportResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "fileContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "Excel file content as bytes."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Suggested filename, e.g. bank_SOLO_202701.xlsx."
+        },
+        "rowCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Rows written (the figure recorded in the audit row)."
+        },
+        "skippedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "BANK: employees left out by the pre-check (the CLI lists them in a separate\nworkbook). RECO: components without a GL setup."
+        },
+        "skippedNoHeadCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Employees with detail lines but no head row (no attendance recap) left out of the file (D-70). A count only,\nkept apart from skipped_count, which means something else per kind."
+        }
+      },
+      "description": "ExportReportResponse contains the xlsx file."
+    },
     "v1GetCompanyResponse": {
       "type": "object",
       "properties": {
@@ -2527,6 +2688,21 @@
         },
         "data": {
           "$ref": "#/definitions/v1Employee"
+        }
+      }
+    },
+    "v1GetRunDiffResponse": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/definitions/v1BaseResponse"
+        },
+        "data": {
+          "$ref": "#/definitions/v1RunDiff"
+        },
+        "pagination": {
+          "$ref": "#/definitions/v1PaginationResponse",
+          "description": "Pagination of data.lines."
         }
       }
     },
@@ -2834,6 +3010,16 @@
         }
       }
     },
+    "v1ReportKind": {
+      "type": "string",
+      "enum": [
+        "REPORT_KIND_UNSPECIFIED",
+        "REPORT_KIND_RECO",
+        "REPORT_KIND_BANK"
+      ],
+      "default": "REPORT_KIND_UNSPECIFIED",
+      "description": "ReportKind selects the workbook.\n\n - REPORT_KIND_RECO: Reconciliation workbook (F-2): detail, transfer, upload, additional, reg,\nOT payroll. Also available for a period that is not yet APPROVED.\n - REPORT_KIND_BANK: Bank transfer file (F-1, Mandiri): cover letter + DETAIL. Only for an\nAPPROVED or CLOSED period; employees failing the pre-check are left out."
+    },
     "v1RetireComponentResponse": {
       "type": "object",
       "properties": {
@@ -2918,9 +3104,212 @@
         "durationMs": {
           "type": "string",
           "format": "int64"
+        },
+        "companyId": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Company of the run (D-71 (3)); not a nominal, shown without the amount permission."
         }
       },
       "description": "Run is the summary of one payroll run (≈ pyr_run)."
+    },
+    "v1RunDiff": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "against": {
+          "type": "string"
+        },
+        "againstRunId": {
+          "type": "string",
+          "format": "int64",
+          "description": "Run id of the against side (the LEGACY run for against=legacy)."
+        },
+        "yymm": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "division": {
+          "type": "string"
+        },
+        "summary": {
+          "$ref": "#/definitions/v1RunDiffSummary"
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1RunDiffLine"
+          },
+          "description": "Lines of the requested page (filters applied)."
+        },
+        "heads": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1RunDiffHead"
+          },
+          "description": "Every header mismatch (nik filter applied)."
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Code and NIK stay visible; the message is masked like Run.warnings."
+        }
+      }
+    },
+    "v1RunDiffExclusion": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "nik": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "lines": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "otherLines": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "headMismatch": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "takeHomeLegacy": {
+          "type": "string",
+          "description": "Nominals: decimal string, or \"***\" when masked."
+        },
+        "takeHomeTarget": {
+          "type": "string"
+        },
+        "takeHomeDelta": {
+          "type": "string"
+        }
+      },
+      "description": "RunDiffExclusion aggregates the NIKs left out of parity (D-47/D-50)."
+    },
+    "v1RunDiffHead": {
+      "type": "object",
+      "properties": {
+        "nik": {
+          "type": "string"
+        },
+        "hasLegacy": {
+          "type": "boolean"
+        },
+        "hasTarget": {
+          "type": "boolean"
+        },
+        "legacyTotalTunjangan": {
+          "type": "string",
+          "description": "Nominals: decimal string (\"\" when the side is missing), or \"***\" when masked\n(a missing side is \"***\" too)."
+        },
+        "legacyTotalPotongan": {
+          "type": "string"
+        },
+        "legacyTakeHome": {
+          "type": "string"
+        },
+        "targetTotalTunjangan": {
+          "type": "string"
+        },
+        "targetTotalPotongan": {
+          "type": "string"
+        },
+        "targetTakeHome": {
+          "type": "string"
+        },
+        "excluded": {
+          "type": "string",
+          "description": "D-47/D-50 exclusion reason (against=legacy only); empty = counted."
+        }
+      },
+      "description": "RunDiffHead is a NIK whose header totals differ or exist on one side only."
+    },
+    "v1RunDiffLine": {
+      "type": "object",
+      "properties": {
+        "nik": {
+          "type": "string"
+        },
+        "component": {
+          "type": "string",
+          "title": "T001 / P032"
+        },
+        "legacyAmount": {
+          "type": "string",
+          "description": "Nominal: decimal string (\"\" = no line / NULL), or \"***\" when masked."
+        },
+        "targetAmount": {
+          "type": "string",
+          "description": "Nominal: decimal string (\"\" = no line / NULL), or \"***\" when masked."
+        },
+        "deltaAmount": {
+          "type": "string",
+          "description": "Nominal: decimal string, or \"***\" when masked."
+        },
+        "category": {
+          "type": "string",
+          "description": "ROUNDING | FORMULA | INPUT_ATT | INPUT_MASTER | ONLY_LEGACY | ONLY_TARGET |\nMASTER_DRIFT | KNOWN_DEFECT."
+        }
+      },
+      "description": "RunDiffLine is one non-MATCH (nik, component) line; delta = run - against."
+    },
+    "v1RunDiffSummary": {
+      "type": "object",
+      "properties": {
+        "categories": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "description": "Line count per category (MATCH included)."
+        },
+        "nikLegacy": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "nikTarget": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "headMismatch": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "takeHomeLegacy": {
+          "type": "string",
+          "description": "Nominals: decimal string, or \"***\" when masked."
+        },
+        "takeHomeTarget": {
+          "type": "string"
+        },
+        "takeHomeDelta": {
+          "type": "string"
+        },
+        "parity": {
+          "type": "boolean",
+          "description": "Parity verdict of rule set v1 (09§4, D-49)."
+        },
+        "excluded": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1RunDiffExclusion"
+          }
+        }
+      }
     },
     "v1RunEmployeeTotal": {
       "type": "object",

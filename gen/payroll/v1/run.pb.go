@@ -92,11 +92,13 @@ type Run struct {
 	SnapshotId    int64    `protobuf:"varint,11,opt,name=snapshot_id,json=snapshotId,proto3" json:"snapshot_id,omitempty"`
 	NikFilter     []string `protobuf:"bytes,12,rep,name=nik_filter,json=nikFilter,proto3" json:"nik_filter,omitempty"`
 	// Warnings stay visible when nominals are masked.
-	Warnings      []string `protobuf:"bytes,13,rep,name=warnings,proto3" json:"warnings,omitempty"`
-	StartedBy     string   `protobuf:"bytes,14,opt,name=started_by,json=startedBy,proto3" json:"started_by,omitempty"`
-	StartedAt     string   `protobuf:"bytes,15,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`    // RFC3339
-	FinishedAt    string   `protobuf:"bytes,16,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"` // RFC3339, empty while running.
-	DurationMs    int64    `protobuf:"varint,17,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
+	Warnings   []string `protobuf:"bytes,13,rep,name=warnings,proto3" json:"warnings,omitempty"`
+	StartedBy  string   `protobuf:"bytes,14,opt,name=started_by,json=startedBy,proto3" json:"started_by,omitempty"`
+	StartedAt  string   `protobuf:"bytes,15,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`    // RFC3339
+	FinishedAt string   `protobuf:"bytes,16,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"` // RFC3339, empty while running.
+	DurationMs int64    `protobuf:"varint,17,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
+	// Company of the run (D-71 (3)); not a nominal, shown without the amount permission.
+	CompanyId     int32 `protobuf:"varint,18,opt,name=company_id,json=companyId,proto3" json:"company_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -246,6 +248,13 @@ func (x *Run) GetFinishedAt() string {
 func (x *Run) GetDurationMs() int64 {
 	if x != nil {
 		return x.DurationMs
+	}
+	return 0
+}
+
+func (x *Run) GetCompanyId() int32 {
+	if x != nil {
+		return x.CompanyId
 	}
 	return 0
 }
@@ -582,7 +591,7 @@ type CreateRunRequest struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	Yymm        int32                  `protobuf:"varint,1,opt,name=yymm,proto3" json:"yymm,omitempty"`
 	Division    string                 `protobuf:"bytes,2,opt,name=division,proto3" json:"division,omitempty"`
-	CompanyId   int32                  `protobuf:"varint,3,opt,name=company_id,json=companyId,proto3" json:"company_id,omitempty"`
+	CompanyId   int32                  `protobuf:"varint,3,opt,name=company_id,json=companyId,proto3" json:"company_id,omitempty"`      // 0 = derived from the caller scope (dry only, D-71)
 	ProcessDate string                 `protobuf:"bytes,4,opt,name=process_date,json=processDate,proto3" json:"process_date,omitempty"` // YYYY-MM-DD
 	Mode        RunMode                `protobuf:"varint,5,opt,name=mode,proto3,enum=payroll.v1.RunMode" json:"mode,omitempty"`
 	// Optional: limit the run to these NIKs (single-employee reprocess).
@@ -1052,6 +1061,689 @@ func (x *ListRunLinesResponse) GetPagination() *v1.PaginationResponse {
 	return nil
 }
 
+type GetRunDiffRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	RunId int64                  `protobuf:"varint,1,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	// Empty or active = the ACTIVE run of the period | legacy = the LEGACY run of the
+	// period (recon, D-41) | run:<id> = another run of the same period.
+	Against string `protobuf:"bytes,2,opt,name=against,proto3" json:"against,omitempty"`
+	Nik     string `protobuf:"bytes,3,opt,name=nik,proto3" json:"nik,omitempty"` // Empty = all.
+	// Line category filter (e.g. FORMULA); empty = every non-MATCH line.
+	Category      string `protobuf:"bytes,4,opt,name=category,proto3" json:"category,omitempty"`
+	Page          int32  `protobuf:"varint,5,opt,name=page,proto3" json:"page,omitempty"`                         // 0 = 1.
+	PageSize      int32  `protobuf:"varint,6,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"` // 0 = 100.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRunDiffRequest) Reset() {
+	*x = GetRunDiffRequest{}
+	mi := &file_payroll_v1_run_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRunDiffRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRunDiffRequest) ProtoMessage() {}
+
+func (x *GetRunDiffRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_payroll_v1_run_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRunDiffRequest.ProtoReflect.Descriptor instead.
+func (*GetRunDiffRequest) Descriptor() ([]byte, []int) {
+	return file_payroll_v1_run_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *GetRunDiffRequest) GetRunId() int64 {
+	if x != nil {
+		return x.RunId
+	}
+	return 0
+}
+
+func (x *GetRunDiffRequest) GetAgainst() string {
+	if x != nil {
+		return x.Against
+	}
+	return ""
+}
+
+func (x *GetRunDiffRequest) GetNik() string {
+	if x != nil {
+		return x.Nik
+	}
+	return ""
+}
+
+func (x *GetRunDiffRequest) GetCategory() string {
+	if x != nil {
+		return x.Category
+	}
+	return ""
+}
+
+func (x *GetRunDiffRequest) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *GetRunDiffRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+// RunDiffLine is one non-MATCH (nik, component) line; delta = run - against.
+type RunDiffLine struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Nik       string                 `protobuf:"bytes,1,opt,name=nik,proto3" json:"nik,omitempty"`
+	Component string                 `protobuf:"bytes,2,opt,name=component,proto3" json:"component,omitempty"` // T001 / P032
+	// Nominal: decimal string ("" = no line / NULL), or "***" when masked.
+	LegacyAmount string `protobuf:"bytes,3,opt,name=legacy_amount,json=legacyAmount,proto3" json:"legacy_amount,omitempty"`
+	// Nominal: decimal string ("" = no line / NULL), or "***" when masked.
+	TargetAmount string `protobuf:"bytes,4,opt,name=target_amount,json=targetAmount,proto3" json:"target_amount,omitempty"`
+	// Nominal: decimal string, or "***" when masked.
+	DeltaAmount string `protobuf:"bytes,5,opt,name=delta_amount,json=deltaAmount,proto3" json:"delta_amount,omitempty"`
+	// ROUNDING | FORMULA | INPUT_ATT | INPUT_MASTER | ONLY_LEGACY | ONLY_TARGET |
+	// MASTER_DRIFT | KNOWN_DEFECT.
+	Category      string `protobuf:"bytes,6,opt,name=category,proto3" json:"category,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunDiffLine) Reset() {
+	*x = RunDiffLine{}
+	mi := &file_payroll_v1_run_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunDiffLine) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunDiffLine) ProtoMessage() {}
+
+func (x *RunDiffLine) ProtoReflect() protoreflect.Message {
+	mi := &file_payroll_v1_run_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunDiffLine.ProtoReflect.Descriptor instead.
+func (*RunDiffLine) Descriptor() ([]byte, []int) {
+	return file_payroll_v1_run_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *RunDiffLine) GetNik() string {
+	if x != nil {
+		return x.Nik
+	}
+	return ""
+}
+
+func (x *RunDiffLine) GetComponent() string {
+	if x != nil {
+		return x.Component
+	}
+	return ""
+}
+
+func (x *RunDiffLine) GetLegacyAmount() string {
+	if x != nil {
+		return x.LegacyAmount
+	}
+	return ""
+}
+
+func (x *RunDiffLine) GetTargetAmount() string {
+	if x != nil {
+		return x.TargetAmount
+	}
+	return ""
+}
+
+func (x *RunDiffLine) GetDeltaAmount() string {
+	if x != nil {
+		return x.DeltaAmount
+	}
+	return ""
+}
+
+func (x *RunDiffLine) GetCategory() string {
+	if x != nil {
+		return x.Category
+	}
+	return ""
+}
+
+// RunDiffHead is a NIK whose header totals differ or exist on one side only.
+type RunDiffHead struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Nik       string                 `protobuf:"bytes,1,opt,name=nik,proto3" json:"nik,omitempty"`
+	HasLegacy bool                   `protobuf:"varint,2,opt,name=has_legacy,json=hasLegacy,proto3" json:"has_legacy,omitempty"`
+	HasTarget bool                   `protobuf:"varint,3,opt,name=has_target,json=hasTarget,proto3" json:"has_target,omitempty"`
+	// Nominals: decimal string ("" when the side is missing), or "***" when masked
+	// (a missing side is "***" too).
+	LegacyTotalTunjangan string `protobuf:"bytes,4,opt,name=legacy_total_tunjangan,json=legacyTotalTunjangan,proto3" json:"legacy_total_tunjangan,omitempty"`
+	LegacyTotalPotongan  string `protobuf:"bytes,5,opt,name=legacy_total_potongan,json=legacyTotalPotongan,proto3" json:"legacy_total_potongan,omitempty"`
+	LegacyTakeHome       string `protobuf:"bytes,6,opt,name=legacy_take_home,json=legacyTakeHome,proto3" json:"legacy_take_home,omitempty"`
+	TargetTotalTunjangan string `protobuf:"bytes,7,opt,name=target_total_tunjangan,json=targetTotalTunjangan,proto3" json:"target_total_tunjangan,omitempty"`
+	TargetTotalPotongan  string `protobuf:"bytes,8,opt,name=target_total_potongan,json=targetTotalPotongan,proto3" json:"target_total_potongan,omitempty"`
+	TargetTakeHome       string `protobuf:"bytes,9,opt,name=target_take_home,json=targetTakeHome,proto3" json:"target_take_home,omitempty"`
+	// D-47/D-50 exclusion reason (against=legacy only); empty = counted.
+	Excluded      string `protobuf:"bytes,10,opt,name=excluded,proto3" json:"excluded,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunDiffHead) Reset() {
+	*x = RunDiffHead{}
+	mi := &file_payroll_v1_run_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunDiffHead) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunDiffHead) ProtoMessage() {}
+
+func (x *RunDiffHead) ProtoReflect() protoreflect.Message {
+	mi := &file_payroll_v1_run_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunDiffHead.ProtoReflect.Descriptor instead.
+func (*RunDiffHead) Descriptor() ([]byte, []int) {
+	return file_payroll_v1_run_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *RunDiffHead) GetNik() string {
+	if x != nil {
+		return x.Nik
+	}
+	return ""
+}
+
+func (x *RunDiffHead) GetHasLegacy() bool {
+	if x != nil {
+		return x.HasLegacy
+	}
+	return false
+}
+
+func (x *RunDiffHead) GetHasTarget() bool {
+	if x != nil {
+		return x.HasTarget
+	}
+	return false
+}
+
+func (x *RunDiffHead) GetLegacyTotalTunjangan() string {
+	if x != nil {
+		return x.LegacyTotalTunjangan
+	}
+	return ""
+}
+
+func (x *RunDiffHead) GetLegacyTotalPotongan() string {
+	if x != nil {
+		return x.LegacyTotalPotongan
+	}
+	return ""
+}
+
+func (x *RunDiffHead) GetLegacyTakeHome() string {
+	if x != nil {
+		return x.LegacyTakeHome
+	}
+	return ""
+}
+
+func (x *RunDiffHead) GetTargetTotalTunjangan() string {
+	if x != nil {
+		return x.TargetTotalTunjangan
+	}
+	return ""
+}
+
+func (x *RunDiffHead) GetTargetTotalPotongan() string {
+	if x != nil {
+		return x.TargetTotalPotongan
+	}
+	return ""
+}
+
+func (x *RunDiffHead) GetTargetTakeHome() string {
+	if x != nil {
+		return x.TargetTakeHome
+	}
+	return ""
+}
+
+func (x *RunDiffHead) GetExcluded() string {
+	if x != nil {
+		return x.Excluded
+	}
+	return ""
+}
+
+// RunDiffExclusion aggregates the NIKs left out of parity (D-47/D-50).
+type RunDiffExclusion struct {
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Reason       string                 `protobuf:"bytes,1,opt,name=reason,proto3" json:"reason,omitempty"`
+	Nik          int32                  `protobuf:"varint,2,opt,name=nik,proto3" json:"nik,omitempty"`
+	Lines        int32                  `protobuf:"varint,3,opt,name=lines,proto3" json:"lines,omitempty"`
+	OtherLines   int32                  `protobuf:"varint,4,opt,name=other_lines,json=otherLines,proto3" json:"other_lines,omitempty"`
+	HeadMismatch int32                  `protobuf:"varint,5,opt,name=head_mismatch,json=headMismatch,proto3" json:"head_mismatch,omitempty"`
+	// Nominals: decimal string, or "***" when masked.
+	TakeHomeLegacy string `protobuf:"bytes,6,opt,name=take_home_legacy,json=takeHomeLegacy,proto3" json:"take_home_legacy,omitempty"`
+	TakeHomeTarget string `protobuf:"bytes,7,opt,name=take_home_target,json=takeHomeTarget,proto3" json:"take_home_target,omitempty"`
+	TakeHomeDelta  string `protobuf:"bytes,8,opt,name=take_home_delta,json=takeHomeDelta,proto3" json:"take_home_delta,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *RunDiffExclusion) Reset() {
+	*x = RunDiffExclusion{}
+	mi := &file_payroll_v1_run_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunDiffExclusion) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunDiffExclusion) ProtoMessage() {}
+
+func (x *RunDiffExclusion) ProtoReflect() protoreflect.Message {
+	mi := &file_payroll_v1_run_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunDiffExclusion.ProtoReflect.Descriptor instead.
+func (*RunDiffExclusion) Descriptor() ([]byte, []int) {
+	return file_payroll_v1_run_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *RunDiffExclusion) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *RunDiffExclusion) GetNik() int32 {
+	if x != nil {
+		return x.Nik
+	}
+	return 0
+}
+
+func (x *RunDiffExclusion) GetLines() int32 {
+	if x != nil {
+		return x.Lines
+	}
+	return 0
+}
+
+func (x *RunDiffExclusion) GetOtherLines() int32 {
+	if x != nil {
+		return x.OtherLines
+	}
+	return 0
+}
+
+func (x *RunDiffExclusion) GetHeadMismatch() int32 {
+	if x != nil {
+		return x.HeadMismatch
+	}
+	return 0
+}
+
+func (x *RunDiffExclusion) GetTakeHomeLegacy() string {
+	if x != nil {
+		return x.TakeHomeLegacy
+	}
+	return ""
+}
+
+func (x *RunDiffExclusion) GetTakeHomeTarget() string {
+	if x != nil {
+		return x.TakeHomeTarget
+	}
+	return ""
+}
+
+func (x *RunDiffExclusion) GetTakeHomeDelta() string {
+	if x != nil {
+		return x.TakeHomeDelta
+	}
+	return ""
+}
+
+type RunDiffSummary struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Line count per category (MATCH included).
+	Categories   map[string]int32 `protobuf:"bytes,1,rep,name=categories,proto3" json:"categories,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	NikLegacy    int32            `protobuf:"varint,2,opt,name=nik_legacy,json=nikLegacy,proto3" json:"nik_legacy,omitempty"`
+	NikTarget    int32            `protobuf:"varint,3,opt,name=nik_target,json=nikTarget,proto3" json:"nik_target,omitempty"`
+	HeadMismatch int32            `protobuf:"varint,4,opt,name=head_mismatch,json=headMismatch,proto3" json:"head_mismatch,omitempty"`
+	// Nominals: decimal string, or "***" when masked.
+	TakeHomeLegacy string `protobuf:"bytes,5,opt,name=take_home_legacy,json=takeHomeLegacy,proto3" json:"take_home_legacy,omitempty"`
+	TakeHomeTarget string `protobuf:"bytes,6,opt,name=take_home_target,json=takeHomeTarget,proto3" json:"take_home_target,omitempty"`
+	TakeHomeDelta  string `protobuf:"bytes,7,opt,name=take_home_delta,json=takeHomeDelta,proto3" json:"take_home_delta,omitempty"`
+	// Parity verdict of rule set v1 (09§4, D-49).
+	Parity        bool                `protobuf:"varint,8,opt,name=parity,proto3" json:"parity,omitempty"`
+	Excluded      []*RunDiffExclusion `protobuf:"bytes,9,rep,name=excluded,proto3" json:"excluded,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunDiffSummary) Reset() {
+	*x = RunDiffSummary{}
+	mi := &file_payroll_v1_run_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunDiffSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunDiffSummary) ProtoMessage() {}
+
+func (x *RunDiffSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_payroll_v1_run_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunDiffSummary.ProtoReflect.Descriptor instead.
+func (*RunDiffSummary) Descriptor() ([]byte, []int) {
+	return file_payroll_v1_run_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *RunDiffSummary) GetCategories() map[string]int32 {
+	if x != nil {
+		return x.Categories
+	}
+	return nil
+}
+
+func (x *RunDiffSummary) GetNikLegacy() int32 {
+	if x != nil {
+		return x.NikLegacy
+	}
+	return 0
+}
+
+func (x *RunDiffSummary) GetNikTarget() int32 {
+	if x != nil {
+		return x.NikTarget
+	}
+	return 0
+}
+
+func (x *RunDiffSummary) GetHeadMismatch() int32 {
+	if x != nil {
+		return x.HeadMismatch
+	}
+	return 0
+}
+
+func (x *RunDiffSummary) GetTakeHomeLegacy() string {
+	if x != nil {
+		return x.TakeHomeLegacy
+	}
+	return ""
+}
+
+func (x *RunDiffSummary) GetTakeHomeTarget() string {
+	if x != nil {
+		return x.TakeHomeTarget
+	}
+	return ""
+}
+
+func (x *RunDiffSummary) GetTakeHomeDelta() string {
+	if x != nil {
+		return x.TakeHomeDelta
+	}
+	return ""
+}
+
+func (x *RunDiffSummary) GetParity() bool {
+	if x != nil {
+		return x.Parity
+	}
+	return false
+}
+
+func (x *RunDiffSummary) GetExcluded() []*RunDiffExclusion {
+	if x != nil {
+		return x.Excluded
+	}
+	return nil
+}
+
+type RunDiff struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	RunId   int64                  `protobuf:"varint,1,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	Against string                 `protobuf:"bytes,2,opt,name=against,proto3" json:"against,omitempty"`
+	// Run id of the against side (the LEGACY run for against=legacy).
+	AgainstRunId int64           `protobuf:"varint,3,opt,name=against_run_id,json=againstRunId,proto3" json:"against_run_id,omitempty"`
+	Yymm         int32           `protobuf:"varint,4,opt,name=yymm,proto3" json:"yymm,omitempty"`
+	Division     string          `protobuf:"bytes,5,opt,name=division,proto3" json:"division,omitempty"`
+	Summary      *RunDiffSummary `protobuf:"bytes,6,opt,name=summary,proto3" json:"summary,omitempty"`
+	// Lines of the requested page (filters applied).
+	Lines []*RunDiffLine `protobuf:"bytes,7,rep,name=lines,proto3" json:"lines,omitempty"`
+	// Every header mismatch (nik filter applied).
+	Heads []*RunDiffHead `protobuf:"bytes,8,rep,name=heads,proto3" json:"heads,omitempty"`
+	// Code and NIK stay visible; the message is masked like Run.warnings.
+	Warnings      []string `protobuf:"bytes,9,rep,name=warnings,proto3" json:"warnings,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunDiff) Reset() {
+	*x = RunDiff{}
+	mi := &file_payroll_v1_run_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunDiff) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunDiff) ProtoMessage() {}
+
+func (x *RunDiff) ProtoReflect() protoreflect.Message {
+	mi := &file_payroll_v1_run_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunDiff.ProtoReflect.Descriptor instead.
+func (*RunDiff) Descriptor() ([]byte, []int) {
+	return file_payroll_v1_run_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *RunDiff) GetRunId() int64 {
+	if x != nil {
+		return x.RunId
+	}
+	return 0
+}
+
+func (x *RunDiff) GetAgainst() string {
+	if x != nil {
+		return x.Against
+	}
+	return ""
+}
+
+func (x *RunDiff) GetAgainstRunId() int64 {
+	if x != nil {
+		return x.AgainstRunId
+	}
+	return 0
+}
+
+func (x *RunDiff) GetYymm() int32 {
+	if x != nil {
+		return x.Yymm
+	}
+	return 0
+}
+
+func (x *RunDiff) GetDivision() string {
+	if x != nil {
+		return x.Division
+	}
+	return ""
+}
+
+func (x *RunDiff) GetSummary() *RunDiffSummary {
+	if x != nil {
+		return x.Summary
+	}
+	return nil
+}
+
+func (x *RunDiff) GetLines() []*RunDiffLine {
+	if x != nil {
+		return x.Lines
+	}
+	return nil
+}
+
+func (x *RunDiff) GetHeads() []*RunDiffHead {
+	if x != nil {
+		return x.Heads
+	}
+	return nil
+}
+
+func (x *RunDiff) GetWarnings() []string {
+	if x != nil {
+		return x.Warnings
+	}
+	return nil
+}
+
+type GetRunDiffResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Base  *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	Data  *RunDiff               `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	// Pagination of data.lines.
+	Pagination    *v1.PaginationResponse `protobuf:"bytes,3,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRunDiffResponse) Reset() {
+	*x = GetRunDiffResponse{}
+	mi := &file_payroll_v1_run_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRunDiffResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRunDiffResponse) ProtoMessage() {}
+
+func (x *GetRunDiffResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_payroll_v1_run_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRunDiffResponse.ProtoReflect.Descriptor instead.
+func (*GetRunDiffResponse) Descriptor() ([]byte, []int) {
+	return file_payroll_v1_run_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *GetRunDiffResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *GetRunDiffResponse) GetData() *RunDiff {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+func (x *GetRunDiffResponse) GetPagination() *v1.PaginationResponse {
+	if x != nil {
+		return x.Pagination
+	}
+	return nil
+}
+
 type ListPeriodsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Division      string                 `protobuf:"bytes,1,opt,name=division,proto3" json:"division,omitempty"` // Empty = all in scope.
@@ -1061,7 +1753,7 @@ type ListPeriodsRequest struct {
 
 func (x *ListPeriodsRequest) Reset() {
 	*x = ListPeriodsRequest{}
-	mi := &file_payroll_v1_run_proto_msgTypes[12]
+	mi := &file_payroll_v1_run_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1073,7 +1765,7 @@ func (x *ListPeriodsRequest) String() string {
 func (*ListPeriodsRequest) ProtoMessage() {}
 
 func (x *ListPeriodsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_payroll_v1_run_proto_msgTypes[12]
+	mi := &file_payroll_v1_run_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1086,7 +1778,7 @@ func (x *ListPeriodsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPeriodsRequest.ProtoReflect.Descriptor instead.
 func (*ListPeriodsRequest) Descriptor() ([]byte, []int) {
-	return file_payroll_v1_run_proto_rawDescGZIP(), []int{12}
+	return file_payroll_v1_run_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ListPeriodsRequest) GetDivision() string {
@@ -1106,7 +1798,7 @@ type ListPeriodsResponse struct {
 
 func (x *ListPeriodsResponse) Reset() {
 	*x = ListPeriodsResponse{}
-	mi := &file_payroll_v1_run_proto_msgTypes[13]
+	mi := &file_payroll_v1_run_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1118,7 +1810,7 @@ func (x *ListPeriodsResponse) String() string {
 func (*ListPeriodsResponse) ProtoMessage() {}
 
 func (x *ListPeriodsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_payroll_v1_run_proto_msgTypes[13]
+	mi := &file_payroll_v1_run_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1131,7 +1823,7 @@ func (x *ListPeriodsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPeriodsResponse.ProtoReflect.Descriptor instead.
 func (*ListPeriodsResponse) Descriptor() ([]byte, []int) {
-	return file_payroll_v1_run_proto_rawDescGZIP(), []int{13}
+	return file_payroll_v1_run_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ListPeriodsResponse) GetBase() *v1.BaseResponse {
@@ -1158,7 +1850,7 @@ type ApprovePeriodRequest struct {
 
 func (x *ApprovePeriodRequest) Reset() {
 	*x = ApprovePeriodRequest{}
-	mi := &file_payroll_v1_run_proto_msgTypes[14]
+	mi := &file_payroll_v1_run_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1170,7 +1862,7 @@ func (x *ApprovePeriodRequest) String() string {
 func (*ApprovePeriodRequest) ProtoMessage() {}
 
 func (x *ApprovePeriodRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_payroll_v1_run_proto_msgTypes[14]
+	mi := &file_payroll_v1_run_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1183,7 +1875,7 @@ func (x *ApprovePeriodRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApprovePeriodRequest.ProtoReflect.Descriptor instead.
 func (*ApprovePeriodRequest) Descriptor() ([]byte, []int) {
-	return file_payroll_v1_run_proto_rawDescGZIP(), []int{14}
+	return file_payroll_v1_run_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ApprovePeriodRequest) GetYymm() int32 {
@@ -1210,7 +1902,7 @@ type ApprovePeriodResponse struct {
 
 func (x *ApprovePeriodResponse) Reset() {
 	*x = ApprovePeriodResponse{}
-	mi := &file_payroll_v1_run_proto_msgTypes[15]
+	mi := &file_payroll_v1_run_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1222,7 +1914,7 @@ func (x *ApprovePeriodResponse) String() string {
 func (*ApprovePeriodResponse) ProtoMessage() {}
 
 func (x *ApprovePeriodResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_payroll_v1_run_proto_msgTypes[15]
+	mi := &file_payroll_v1_run_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1235,7 +1927,7 @@ func (x *ApprovePeriodResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApprovePeriodResponse.ProtoReflect.Descriptor instead.
 func (*ApprovePeriodResponse) Descriptor() ([]byte, []int) {
-	return file_payroll_v1_run_proto_rawDescGZIP(), []int{15}
+	return file_payroll_v1_run_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ApprovePeriodResponse) GetBase() *v1.BaseResponse {
@@ -1262,7 +1954,7 @@ type ClosePeriodRequest struct {
 
 func (x *ClosePeriodRequest) Reset() {
 	*x = ClosePeriodRequest{}
-	mi := &file_payroll_v1_run_proto_msgTypes[16]
+	mi := &file_payroll_v1_run_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1274,7 +1966,7 @@ func (x *ClosePeriodRequest) String() string {
 func (*ClosePeriodRequest) ProtoMessage() {}
 
 func (x *ClosePeriodRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_payroll_v1_run_proto_msgTypes[16]
+	mi := &file_payroll_v1_run_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1287,7 +1979,7 @@ func (x *ClosePeriodRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClosePeriodRequest.ProtoReflect.Descriptor instead.
 func (*ClosePeriodRequest) Descriptor() ([]byte, []int) {
-	return file_payroll_v1_run_proto_rawDescGZIP(), []int{16}
+	return file_payroll_v1_run_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ClosePeriodRequest) GetYymm() int32 {
@@ -1314,7 +2006,7 @@ type ClosePeriodResponse struct {
 
 func (x *ClosePeriodResponse) Reset() {
 	*x = ClosePeriodResponse{}
-	mi := &file_payroll_v1_run_proto_msgTypes[17]
+	mi := &file_payroll_v1_run_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1326,7 +2018,7 @@ func (x *ClosePeriodResponse) String() string {
 func (*ClosePeriodResponse) ProtoMessage() {}
 
 func (x *ClosePeriodResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_payroll_v1_run_proto_msgTypes[17]
+	mi := &file_payroll_v1_run_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1339,7 +2031,7 @@ func (x *ClosePeriodResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClosePeriodResponse.ProtoReflect.Descriptor instead.
 func (*ClosePeriodResponse) Descriptor() ([]byte, []int) {
-	return file_payroll_v1_run_proto_rawDescGZIP(), []int{17}
+	return file_payroll_v1_run_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ClosePeriodResponse) GetBase() *v1.BaseResponse {
@@ -1368,7 +2060,7 @@ type ReopenPeriodRequest struct {
 
 func (x *ReopenPeriodRequest) Reset() {
 	*x = ReopenPeriodRequest{}
-	mi := &file_payroll_v1_run_proto_msgTypes[18]
+	mi := &file_payroll_v1_run_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1380,7 +2072,7 @@ func (x *ReopenPeriodRequest) String() string {
 func (*ReopenPeriodRequest) ProtoMessage() {}
 
 func (x *ReopenPeriodRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_payroll_v1_run_proto_msgTypes[18]
+	mi := &file_payroll_v1_run_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1393,7 +2085,7 @@ func (x *ReopenPeriodRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReopenPeriodRequest.ProtoReflect.Descriptor instead.
 func (*ReopenPeriodRequest) Descriptor() ([]byte, []int) {
-	return file_payroll_v1_run_proto_rawDescGZIP(), []int{18}
+	return file_payroll_v1_run_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *ReopenPeriodRequest) GetYymm() int32 {
@@ -1427,7 +2119,7 @@ type ReopenPeriodResponse struct {
 
 func (x *ReopenPeriodResponse) Reset() {
 	*x = ReopenPeriodResponse{}
-	mi := &file_payroll_v1_run_proto_msgTypes[19]
+	mi := &file_payroll_v1_run_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1439,7 +2131,7 @@ func (x *ReopenPeriodResponse) String() string {
 func (*ReopenPeriodResponse) ProtoMessage() {}
 
 func (x *ReopenPeriodResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_payroll_v1_run_proto_msgTypes[19]
+	mi := &file_payroll_v1_run_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1452,7 +2144,7 @@ func (x *ReopenPeriodResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReopenPeriodResponse.ProtoReflect.Descriptor instead.
 func (*ReopenPeriodResponse) Descriptor() ([]byte, []int) {
-	return file_payroll_v1_run_proto_rawDescGZIP(), []int{19}
+	return file_payroll_v1_run_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ReopenPeriodResponse) GetBase() *v1.BaseResponse {
@@ -1474,7 +2166,7 @@ var File_payroll_v1_run_proto protoreflect.FileDescriptor
 const file_payroll_v1_run_proto_rawDesc = "" +
 	"\n" +
 	"\x14payroll/v1/run.proto\x12\n" +
-	"payroll.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16common/v1/common.proto\"\x99\x04\n" +
+	"payroll.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16common/v1/common.proto\"\xb8\x04\n" +
 	"\x03Run\x12\x15\n" +
 	"\x06run_id\x18\x01 \x01(\x03R\x05runId\x12\x12\n" +
 	"\x04yymm\x18\x02 \x01(\x05R\x04yymm\x12\x1a\n" +
@@ -1500,7 +2192,9 @@ const file_payroll_v1_run_proto_rawDesc = "" +
 	"\vfinished_at\x18\x10 \x01(\tR\n" +
 	"finishedAt\x12\x1f\n" +
 	"\vduration_ms\x18\x11 \x01(\x03R\n" +
-	"durationMs\"\xf9\x01\n" +
+	"durationMs\x12\x1d\n" +
+	"\n" +
+	"company_id\x18\x12 \x01(\x05R\tcompanyId\"\xf9\x01\n" +
 	"\aRunLine\x12\x10\n" +
 	"\x03nik\x18\x01 \x01(\tR\x03nik\x12\x1b\n" +
 	"\tcomp_type\x18\x02 \x01(\tR\bcompType\x12\x17\n" +
@@ -1533,13 +2227,13 @@ const file_payroll_v1_run_proto_rawDesc = "" +
 	"\tclosed_by\x18\t \x01(\tR\bclosedBy\x12\x1b\n" +
 	"\tclosed_at\x18\n" +
 	" \x01(\tR\bclosedAt\x12#\n" +
-	"\rreopen_reason\x18\v \x01(\tR\freopenReason\"\x9d\x02\n" +
+	"\rreopen_reason\x18\v \x01(\tR\freopenReason\"\xa1\x02\n" +
 	"\x10CreateRunRequest\x12!\n" +
 	"\x04yymm\x18\x01 \x01(\x05B\r\xbaH\n" +
 	"\x1a\b\x18\xe8\x83=(\xb1\xcc\vR\x04yymm\x12%\n" +
-	"\bdivision\x18\x02 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18\x1eR\bdivision\x12&\n" +
+	"\bdivision\x18\x02 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18\x1eR\bdivision\x12*\n" +
 	"\n" +
-	"company_id\x18\x03 \x01(\x05B\a\xbaH\x04\x1a\x02 \x00R\tcompanyId\x12=\n" +
+	"company_id\x18\x03 \x01(\x05B\v\xbaH\b\x1a\x06\x18\xff\xff\x01(\x00R\tcompanyId\x12=\n" +
 	"\fprocess_date\x18\x04 \x01(\tB\x1a\xbaH\x17r\x152\x13^\\d{4}-\\d{2}-\\d{2}$R\vprocessDate\x123\n" +
 	"\x04mode\x18\x05 \x01(\x0e2\x13.payroll.v1.RunModeB\n" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x04mode\x12#\n" +
@@ -1568,6 +2262,78 @@ const file_payroll_v1_run_proto_rawDesc = "" +
 	"\x14ListRunLinesResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12'\n" +
 	"\x04data\x18\x02 \x03(\v2\x13.payroll.v1.RunLineR\x04data\x12=\n" +
+	"\n" +
+	"pagination\x18\x03 \x01(\v2\x1d.common.v1.PaginationResponseR\n" +
+	"pagination\"\x8e\x02\n" +
+	"\x11GetRunDiffRequest\x12\x1e\n" +
+	"\x06run_id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\x05runId\x12H\n" +
+	"\aagainst\x18\x02 \x01(\tB.\xbaH+r)2'^(|active|legacy|run:[1-9][0-9]{0,18})$R\aagainst\x12\x19\n" +
+	"\x03nik\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x18\x0fR\x03nik\x12.\n" +
+	"\bcategory\x18\x04 \x01(\tB\x12\xbaH\x0fr\r\x18\x142\t^[A-Z_]*$R\bcategory\x12\x1b\n" +
+	"\x04page\x18\x05 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x04page\x12'\n" +
+	"\tpage_size\x18\x06 \x01(\x05B\n" +
+	"\xbaH\a\x1a\x05\x18\xf4\x03(\x00R\bpageSize\"\xc6\x01\n" +
+	"\vRunDiffLine\x12\x10\n" +
+	"\x03nik\x18\x01 \x01(\tR\x03nik\x12\x1c\n" +
+	"\tcomponent\x18\x02 \x01(\tR\tcomponent\x12#\n" +
+	"\rlegacy_amount\x18\x03 \x01(\tR\flegacyAmount\x12#\n" +
+	"\rtarget_amount\x18\x04 \x01(\tR\ftargetAmount\x12!\n" +
+	"\fdelta_amount\x18\x05 \x01(\tR\vdeltaAmount\x12\x1a\n" +
+	"\bcategory\x18\x06 \x01(\tR\bcategory\"\xa1\x03\n" +
+	"\vRunDiffHead\x12\x10\n" +
+	"\x03nik\x18\x01 \x01(\tR\x03nik\x12\x1d\n" +
+	"\n" +
+	"has_legacy\x18\x02 \x01(\bR\thasLegacy\x12\x1d\n" +
+	"\n" +
+	"has_target\x18\x03 \x01(\bR\thasTarget\x124\n" +
+	"\x16legacy_total_tunjangan\x18\x04 \x01(\tR\x14legacyTotalTunjangan\x122\n" +
+	"\x15legacy_total_potongan\x18\x05 \x01(\tR\x13legacyTotalPotongan\x12(\n" +
+	"\x10legacy_take_home\x18\x06 \x01(\tR\x0elegacyTakeHome\x124\n" +
+	"\x16target_total_tunjangan\x18\a \x01(\tR\x14targetTotalTunjangan\x122\n" +
+	"\x15target_total_potongan\x18\b \x01(\tR\x13targetTotalPotongan\x12(\n" +
+	"\x10target_take_home\x18\t \x01(\tR\x0etargetTakeHome\x12\x1a\n" +
+	"\bexcluded\x18\n" +
+	" \x01(\tR\bexcluded\"\x94\x02\n" +
+	"\x10RunDiffExclusion\x12\x16\n" +
+	"\x06reason\x18\x01 \x01(\tR\x06reason\x12\x10\n" +
+	"\x03nik\x18\x02 \x01(\x05R\x03nik\x12\x14\n" +
+	"\x05lines\x18\x03 \x01(\x05R\x05lines\x12\x1f\n" +
+	"\vother_lines\x18\x04 \x01(\x05R\n" +
+	"otherLines\x12#\n" +
+	"\rhead_mismatch\x18\x05 \x01(\x05R\fheadMismatch\x12(\n" +
+	"\x10take_home_legacy\x18\x06 \x01(\tR\x0etakeHomeLegacy\x12(\n" +
+	"\x10take_home_target\x18\a \x01(\tR\x0etakeHomeTarget\x12&\n" +
+	"\x0ftake_home_delta\x18\b \x01(\tR\rtakeHomeDelta\"\xcc\x03\n" +
+	"\x0eRunDiffSummary\x12J\n" +
+	"\n" +
+	"categories\x18\x01 \x03(\v2*.payroll.v1.RunDiffSummary.CategoriesEntryR\n" +
+	"categories\x12\x1d\n" +
+	"\n" +
+	"nik_legacy\x18\x02 \x01(\x05R\tnikLegacy\x12\x1d\n" +
+	"\n" +
+	"nik_target\x18\x03 \x01(\x05R\tnikTarget\x12#\n" +
+	"\rhead_mismatch\x18\x04 \x01(\x05R\fheadMismatch\x12(\n" +
+	"\x10take_home_legacy\x18\x05 \x01(\tR\x0etakeHomeLegacy\x12(\n" +
+	"\x10take_home_target\x18\x06 \x01(\tR\x0etakeHomeTarget\x12&\n" +
+	"\x0ftake_home_delta\x18\a \x01(\tR\rtakeHomeDelta\x12\x16\n" +
+	"\x06parity\x18\b \x01(\bR\x06parity\x128\n" +
+	"\bexcluded\x18\t \x03(\v2\x1c.payroll.v1.RunDiffExclusionR\bexcluded\x1a=\n" +
+	"\x0fCategoriesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\xc0\x02\n" +
+	"\aRunDiff\x12\x15\n" +
+	"\x06run_id\x18\x01 \x01(\x03R\x05runId\x12\x18\n" +
+	"\aagainst\x18\x02 \x01(\tR\aagainst\x12$\n" +
+	"\x0eagainst_run_id\x18\x03 \x01(\x03R\fagainstRunId\x12\x12\n" +
+	"\x04yymm\x18\x04 \x01(\x05R\x04yymm\x12\x1a\n" +
+	"\bdivision\x18\x05 \x01(\tR\bdivision\x124\n" +
+	"\asummary\x18\x06 \x01(\v2\x1a.payroll.v1.RunDiffSummaryR\asummary\x12-\n" +
+	"\x05lines\x18\a \x03(\v2\x17.payroll.v1.RunDiffLineR\x05lines\x12-\n" +
+	"\x05heads\x18\b \x03(\v2\x17.payroll.v1.RunDiffHeadR\x05heads\x12\x1a\n" +
+	"\bwarnings\x18\t \x03(\tR\bwarnings\"\xa9\x01\n" +
+	"\x12GetRunDiffResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12'\n" +
+	"\x04data\x18\x02 \x01(\v2\x13.payroll.v1.RunDiffR\x04data\x12=\n" +
 	"\n" +
 	"pagination\x18\x03 \x01(\v2\x1d.common.v1.PaginationResponseR\n" +
 	"pagination\"9\n" +
@@ -1621,7 +2387,7 @@ func file_payroll_v1_run_proto_rawDescGZIP() []byte {
 }
 
 var file_payroll_v1_run_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_payroll_v1_run_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_payroll_v1_run_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
 var file_payroll_v1_run_proto_goTypes = []any{
 	(RunMode)(0),                  // 0: payroll.v1.RunMode
 	(*Run)(nil),                   // 1: payroll.v1.Run
@@ -1636,42 +2402,58 @@ var file_payroll_v1_run_proto_goTypes = []any{
 	(*ListRunsResponse)(nil),      // 10: payroll.v1.ListRunsResponse
 	(*ListRunLinesRequest)(nil),   // 11: payroll.v1.ListRunLinesRequest
 	(*ListRunLinesResponse)(nil),  // 12: payroll.v1.ListRunLinesResponse
-	(*ListPeriodsRequest)(nil),    // 13: payroll.v1.ListPeriodsRequest
-	(*ListPeriodsResponse)(nil),   // 14: payroll.v1.ListPeriodsResponse
-	(*ApprovePeriodRequest)(nil),  // 15: payroll.v1.ApprovePeriodRequest
-	(*ApprovePeriodResponse)(nil), // 16: payroll.v1.ApprovePeriodResponse
-	(*ClosePeriodRequest)(nil),    // 17: payroll.v1.ClosePeriodRequest
-	(*ClosePeriodResponse)(nil),   // 18: payroll.v1.ClosePeriodResponse
-	(*ReopenPeriodRequest)(nil),   // 19: payroll.v1.ReopenPeriodRequest
-	(*ReopenPeriodResponse)(nil),  // 20: payroll.v1.ReopenPeriodResponse
-	(*v1.BaseResponse)(nil),       // 21: common.v1.BaseResponse
-	(*v1.PaginationResponse)(nil), // 22: common.v1.PaginationResponse
+	(*GetRunDiffRequest)(nil),     // 13: payroll.v1.GetRunDiffRequest
+	(*RunDiffLine)(nil),           // 14: payroll.v1.RunDiffLine
+	(*RunDiffHead)(nil),           // 15: payroll.v1.RunDiffHead
+	(*RunDiffExclusion)(nil),      // 16: payroll.v1.RunDiffExclusion
+	(*RunDiffSummary)(nil),        // 17: payroll.v1.RunDiffSummary
+	(*RunDiff)(nil),               // 18: payroll.v1.RunDiff
+	(*GetRunDiffResponse)(nil),    // 19: payroll.v1.GetRunDiffResponse
+	(*ListPeriodsRequest)(nil),    // 20: payroll.v1.ListPeriodsRequest
+	(*ListPeriodsResponse)(nil),   // 21: payroll.v1.ListPeriodsResponse
+	(*ApprovePeriodRequest)(nil),  // 22: payroll.v1.ApprovePeriodRequest
+	(*ApprovePeriodResponse)(nil), // 23: payroll.v1.ApprovePeriodResponse
+	(*ClosePeriodRequest)(nil),    // 24: payroll.v1.ClosePeriodRequest
+	(*ClosePeriodResponse)(nil),   // 25: payroll.v1.ClosePeriodResponse
+	(*ReopenPeriodRequest)(nil),   // 26: payroll.v1.ReopenPeriodRequest
+	(*ReopenPeriodResponse)(nil),  // 27: payroll.v1.ReopenPeriodResponse
+	nil,                           // 28: payroll.v1.RunDiffSummary.CategoriesEntry
+	(*v1.BaseResponse)(nil),       // 29: common.v1.BaseResponse
+	(*v1.PaginationResponse)(nil), // 30: common.v1.PaginationResponse
 }
 var file_payroll_v1_run_proto_depIdxs = []int32{
 	0,  // 0: payroll.v1.CreateRunRequest.mode:type_name -> payroll.v1.RunMode
-	21, // 1: payroll.v1.CreateRunResponse.base:type_name -> common.v1.BaseResponse
+	29, // 1: payroll.v1.CreateRunResponse.base:type_name -> common.v1.BaseResponse
 	1,  // 2: payroll.v1.CreateRunResponse.data:type_name -> payroll.v1.Run
 	3,  // 3: payroll.v1.CreateRunResponse.employees:type_name -> payroll.v1.RunEmployeeTotal
-	21, // 4: payroll.v1.GetRunResponse.base:type_name -> common.v1.BaseResponse
+	29, // 4: payroll.v1.GetRunResponse.base:type_name -> common.v1.BaseResponse
 	1,  // 5: payroll.v1.GetRunResponse.data:type_name -> payroll.v1.Run
-	21, // 6: payroll.v1.ListRunsResponse.base:type_name -> common.v1.BaseResponse
+	29, // 6: payroll.v1.ListRunsResponse.base:type_name -> common.v1.BaseResponse
 	1,  // 7: payroll.v1.ListRunsResponse.data:type_name -> payroll.v1.Run
-	21, // 8: payroll.v1.ListRunLinesResponse.base:type_name -> common.v1.BaseResponse
+	29, // 8: payroll.v1.ListRunLinesResponse.base:type_name -> common.v1.BaseResponse
 	2,  // 9: payroll.v1.ListRunLinesResponse.data:type_name -> payroll.v1.RunLine
-	22, // 10: payroll.v1.ListRunLinesResponse.pagination:type_name -> common.v1.PaginationResponse
-	21, // 11: payroll.v1.ListPeriodsResponse.base:type_name -> common.v1.BaseResponse
-	4,  // 12: payroll.v1.ListPeriodsResponse.data:type_name -> payroll.v1.Period
-	21, // 13: payroll.v1.ApprovePeriodResponse.base:type_name -> common.v1.BaseResponse
-	4,  // 14: payroll.v1.ApprovePeriodResponse.data:type_name -> payroll.v1.Period
-	21, // 15: payroll.v1.ClosePeriodResponse.base:type_name -> common.v1.BaseResponse
-	4,  // 16: payroll.v1.ClosePeriodResponse.data:type_name -> payroll.v1.Period
-	21, // 17: payroll.v1.ReopenPeriodResponse.base:type_name -> common.v1.BaseResponse
-	4,  // 18: payroll.v1.ReopenPeriodResponse.data:type_name -> payroll.v1.Period
-	19, // [19:19] is the sub-list for method output_type
-	19, // [19:19] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	30, // 10: payroll.v1.ListRunLinesResponse.pagination:type_name -> common.v1.PaginationResponse
+	28, // 11: payroll.v1.RunDiffSummary.categories:type_name -> payroll.v1.RunDiffSummary.CategoriesEntry
+	16, // 12: payroll.v1.RunDiffSummary.excluded:type_name -> payroll.v1.RunDiffExclusion
+	17, // 13: payroll.v1.RunDiff.summary:type_name -> payroll.v1.RunDiffSummary
+	14, // 14: payroll.v1.RunDiff.lines:type_name -> payroll.v1.RunDiffLine
+	15, // 15: payroll.v1.RunDiff.heads:type_name -> payroll.v1.RunDiffHead
+	29, // 16: payroll.v1.GetRunDiffResponse.base:type_name -> common.v1.BaseResponse
+	18, // 17: payroll.v1.GetRunDiffResponse.data:type_name -> payroll.v1.RunDiff
+	30, // 18: payroll.v1.GetRunDiffResponse.pagination:type_name -> common.v1.PaginationResponse
+	29, // 19: payroll.v1.ListPeriodsResponse.base:type_name -> common.v1.BaseResponse
+	4,  // 20: payroll.v1.ListPeriodsResponse.data:type_name -> payroll.v1.Period
+	29, // 21: payroll.v1.ApprovePeriodResponse.base:type_name -> common.v1.BaseResponse
+	4,  // 22: payroll.v1.ApprovePeriodResponse.data:type_name -> payroll.v1.Period
+	29, // 23: payroll.v1.ClosePeriodResponse.base:type_name -> common.v1.BaseResponse
+	4,  // 24: payroll.v1.ClosePeriodResponse.data:type_name -> payroll.v1.Period
+	29, // 25: payroll.v1.ReopenPeriodResponse.base:type_name -> common.v1.BaseResponse
+	4,  // 26: payroll.v1.ReopenPeriodResponse.data:type_name -> payroll.v1.Period
+	27, // [27:27] is the sub-list for method output_type
+	27, // [27:27] is the sub-list for method input_type
+	27, // [27:27] is the sub-list for extension type_name
+	27, // [27:27] is the sub-list for extension extendee
+	0,  // [0:27] is the sub-list for field type_name
 }
 
 func init() { file_payroll_v1_run_proto_init() }
@@ -1685,7 +2467,7 @@ func file_payroll_v1_run_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_payroll_v1_run_proto_rawDesc), len(file_payroll_v1_run_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   20,
+			NumMessages:   28,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
