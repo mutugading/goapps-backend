@@ -16,6 +16,12 @@ dengan absensi dummy (D-64); recon 202701 di **DB salinan** production. `sync du
 - `<TAG>` sama untuk Deployment dan semua Job CLI (Job membawa `deploy/grants.sql` + `check_ready.sql` dari image).
 - `expect_version` = nomor migrasi terakhir di image (`ls services/payroll/migrations/postgres | tail -1`).
 - HRIS: karyawan JAKARTA `sts_payroll=1` (D-59 (1), tindakan tim HRIS). Cek sebelum `sync att` JAKARTA.
+- **Dua akun API: maker ≠ checker (D-80 (5), T033o).** Pengguna yang meng-commit run tidak boleh approve/close periode yang
+  sama, juga bukan admin: API menjawab 403 `PERMISSION_DENIED` dengan `details.reason = maker_checker` dan menulis audit
+  `PERIOD_APPROVE_DENIED` / `PERIOD_CLOSE_DENIED`. Siapkan di staging **dan** production sebelum gladi/go-live: akun **maker**
+  (`payroll.run.dryrun.execute`, `payroll.run.salary.commit`) dan akun **checker** (`payroll.period.salary.approve`,
+  `payroll.period.salary.close`), keduanya dengan scope divisi yang diproses (`$TOKEN_MAKER` / `$TOKEN_CHECKER` di langkah 4.3
+  dan 5.1). Run ulang (supersede) memindahkan maker ke pengguna yang meng-commit terakhir; Reopen tidak mengubahnya.
 
 ## 1. Urutan deploy (sekali per environment, `P/docs/database.md` §Urutan)
 
@@ -242,14 +248,16 @@ Langkah (staging, namespace `<NS>` staging, `APP_ENV` bukan production):
    Bersihkan dummy sesudah gladi: jalankan dulu dry-run `dummy-period -purge -owner-dsn "$(PAYROLL_OWNER_DSN)" -to <YYMM> -division <DIV>`,
    periksa jumlahnya, lalu ulangi dengan `-apply` untuk menghapus.
 2. Input periode (addition dsb.) tidak perlu diulang: sudah ikut terklon pada langkah 1.
-3. Run lewat API (user ber-permission `payroll.run.dryrun.execute`, `payroll.run.salary.commit`, `payroll.period.salary.approve`):
+3. Run lewat API. **Maker** (`$TOKEN_MAKER`: `payroll.run.dryrun.execute`, `payroll.run.salary.commit`) menghitung dan commit;
+   **checker** (`$TOKEN_CHECKER`, pengguna lain: `payroll.period.salary.approve`) approve. Pengguna yang sama ditolak 403
+   `maker_checker` (D-80 (5)):
    ```sh
-   curl -sf -X POST "$API/api/v1/payroll/runs" -H "Authorization: Bearer $TOKEN" \
+   curl -sf -X POST "$API/api/v1/payroll/runs" -H "Authorization: Bearer $TOKEN_MAKER" \
      -d '{"yymm":202612,"division":"SOLO","company_id":<CID>,"mode":"RUN_MODE_DRY"}'          # cek warnings & total
-   curl -sf -X POST "$API/api/v1/payroll/runs" -H "Authorization: Bearer $TOKEN" \
+   curl -sf -X POST "$API/api/v1/payroll/runs" -H "Authorization: Bearer $TOKEN_MAKER" \
      -d '{"yymm":202612,"division":"SOLO","company_id":<CID>,"process_date":"<YYYY-MM-DD>","mode":"RUN_MODE_COMMIT"}'
-   curl -sf "$API/api/v1/payroll/runs?yymm=202612&division=SOLO" -H "Authorization: Bearer $TOKEN"   # catat <RUN_ID>
-   curl -sf -X POST "$API/api/v1/payroll/periods/202612/SOLO:approve" -H "Authorization: Bearer $TOKEN" -d '{}'
+   curl -sf "$API/api/v1/payroll/runs?yymm=202612&division=SOLO" -H "Authorization: Bearer $TOKEN_MAKER"   # catat <RUN_ID>
+   curl -sf -X POST "$API/api/v1/payroll/periods/202612/SOLO:approve" -H "Authorization: Bearer $TOKEN_CHECKER" -d '{}'
    ```
 4. Laporan (Job `payroll-report`, `PAYROLL_APP_DSN` dari Job; keluaran ke `/out`, `kubectl cp` sebelum TTL 1 jam):
    ```sh
@@ -278,7 +286,7 @@ Langkah (staging, namespace `<NS>` staging, `APP_ENV` bukan production):
    ["snapshot","-dsn","$(PAYROLL_ETL_DSN)","-company","<CID>","-yymm","202701","-division","SOLO"]
    ```
    Lalu `inputs` dari dump 202701 OPEN (pola 2.3: `inputs -dir /out/dump -dsn "$PAYROLL_ETL_DSN" -company <CID>`), run dry →
-   commit → approve (pola 4.3, `yymm` 202701). Bagian 5.2 (recon) dikerjakan di DB salinan; tanpa dummy.
+   commit oleh maker → approve oleh checker (pola 4.3, `yymm` 202701; `close` juga oleh bukan maker). Bagian 5.2 (recon) dikerjakan di DB salinan; tanpa dummy.
 2. **Recon vs Oracle (syarat bayar D-62 (2b), D-68 (3))** di **DB salinan**, bukan production: `recon diff -target run:<RUN_ID>`
    butuh run LEGACY 202701 ACTIVE dan run ENGINE di DB yang sama, padahal satu periode hanya punya satu run ACTIVE dan
    `salary-legacy` menolak periode yang sudah dibuat engine. Alur: (a) `pg_dump` production → DB recon terpisah (mis.

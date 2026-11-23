@@ -145,6 +145,12 @@ func seedSubsidy(t *testing.T) {
 
 func asScopes(t *testing.T, divs ...string) context.Context {
 	t.Helper()
+	return asUser(t, "loader-test", divs...)
+}
+
+// asUser is asScopes for a named user: maker ≠ checker (D-80 (5), T033o) needs a second identity to approve/close.
+func asUser(t *testing.T, user string, divs ...string) context.Context {
+	t.Helper()
 	var ss []scope.Scope
 	for _, d := range divs {
 		s, err := scope.New(1, d)
@@ -153,7 +159,7 @@ func asScopes(t *testing.T, divs ...string) context.Context {
 		}
 		ss = append(ss, s)
 	}
-	return scope.WithIdentity(context.Background(), scope.Identity{UserID: "loader-test", Scopes: ss})
+	return scope.WithIdentity(context.Background(), scope.Identity{UserID: user, Scopes: ss})
 }
 
 func dec(s string) decimal.Decimal { return decimal.RequireFromString(s) }

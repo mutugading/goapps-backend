@@ -46,8 +46,9 @@ type taxInput struct {
 	lockedYYMM int
 }
 
-// loadTax reads the YTD and TaxAdj (December only) and the P0 basis of the rule version.
-func loadTax(ctx context.Context, tx *sql.Tx, q Query, legacy bool, basisPeriod int) (map[string]*taxInput, []Issue, error) {
+// loadTax reads the YTD and TaxAdj (December, and outside December the annual NIKs: tax v2 leavers,
+// D-80 (4a)) and the P0 basis of the rule version.
+func loadTax(ctx context.Context, tx *sql.Tx, q Query, legacy bool, basisPeriod int, annual []string) (map[string]*taxInput, []Issue, error) {
 	out := map[string]*taxInput{}
 	get := func(nik string) *taxInput {
 		if out[nik] == nil {
@@ -57,10 +58,14 @@ func loadTax(ctx context.Context, tx *sql.Tx, q Query, legacy bool, basisPeriod 
 	}
 	var issues []Issue
 	var err error
-	if q.YYMM%100 == 12 {
-		if issues, err = loadDecember(ctx, tx, q, legacy, get); err != nil {
-			return nil, nil, err
-		}
+	switch {
+	case q.YYMM%100 == 12:
+		issues, err = loadDecember(ctx, tx, q, !legacy, get)
+	case len(annual) > 0:
+		issues, err = loadLeavers(ctx, tx, q, annual, get)
+	}
+	if err != nil {
+		return nil, nil, err
 	}
 	switch {
 	case !legacy:
@@ -74,13 +79,43 @@ func loadTax(ctx context.Context, tx *sql.Tx, q Query, legacy bool, basisPeriod 
 	return out, issues, nil
 }
 
-// loadDecember reads the December-only inputs: YTD (with THR/Bonus, D-56), scope and THR warnings, TaxAdj.
-func loadDecember(ctx context.Context, tx *sql.Tx, q Query, legacy bool, get func(string) *taxInput) ([]Issue, error) {
+// loadLeavers reads the annual inputs of the tax v2 leavers outside December (D-80 (4a)): YTD, scope, TaxAdj. A YTD
+// placement outside the scope fails the load (no legacy parity to keep; the true-up would miss that gross and PPh
+// paid, D-81 (4)). A THR/Bonus event of the run month is not loaded into P1 (D-28c), so each leaver gets THR_NOT_LOADED.
+func loadLeavers(ctx context.Context, tx *sql.Tx, q Query, niks []string, get func(string) *taxInput) ([]Issue, error) {
+	q.NIKs = niks
 	issues, err := loadYTD(ctx, tx, q, get)
 	if err != nil {
 		return nil, err
 	}
-	scopeIssues, err := ytdOutOfScope(ctx, tx, q, legacy)
+	scopeIssues, err := ytdOutOfScope(ctx, tx, q, true)
+	if err != nil {
+		return nil, err
+	}
+	thr, err := thrEventsOfMonth(ctx, tx, q)
+	if err != nil {
+		return nil, err
+	}
+	issues = append(issues, scopeIssues...)
+	if thr != "" {
+		for _, n := range niks {
+			issues = append(issues, Issue{NIK: n, Code: CodeThrNotLoaded, Message: "masa pajak terakhir (resign): event " + thr +
+				" di bulan ini belum masuk PPh P1 tahunan (Input.Thr menunggu B-THR); periksa THR/Bonus slip terakhir"})
+		}
+	}
+	if err := loadTaxAdj(ctx, tx, q, get); err != nil {
+		return nil, err
+	}
+	return issues, nil
+}
+
+// loadDecember reads the December annual inputs: YTD (with THR/Bonus, D-56), scope and THR warnings, TaxAdj.
+func loadDecember(ctx context.Context, tx *sql.Tx, q Query, strict bool, get func(string) *taxInput) ([]Issue, error) {
+	issues, err := loadYTD(ctx, tx, q, get)
+	if err != nil {
+		return nil, err
+	}
+	scopeIssues, err := ytdOutOfScope(ctx, tx, q, strict)
 	if err != nil {
 		return nil, err
 	}
@@ -115,6 +150,7 @@ func (t *taxInput) apply(in *engine.Input) {
 //	YTD.Gross    = Σ tax=2 tax_paid_company=N id<>75 − Σ P4, P8 + Σ THR/Bonus Tunjangan ≠ 0 (Jan..prev)
 //	YTD.Deduct   = Σ P14, P18, P22, P23
 //	YTD.TaxPaid  = Σ P1 + Σ addition P7 + Σ THR Potongan no 1 + Bonus Potongan no 1, 3 (Jan..prev)
+//	YTD.Months   = distinct months with a salary run (Jan..prev); caps the tax v2 job cost (D-80 (4b))
 //	YTDCompany   = Gross Σ tax=2 · CompanyPaid Σ tax=2 tax_paid_company=Y · Deduct Σ P4, P14, P18 · P5Paid Σ P5
 //	               · ThrBonus Σ THR/Bonus Tunjangan Jan..run month (December included)
 //
@@ -141,7 +177,7 @@ const ytdSQL = `WITH RECURSIVE tgt AS (
   FROM hashes x JOIN payroll.pyr_employee e ON e.pe_company_id = $1 AND e.pe_npwp_hash = x.h
    AND payroll.fn_in_scope(e.pe_company_id, e.pe_division)
 ), det AS (
-  SELECT m.nik, d.psd_type::text typ, d.psd_id id, COALESCE(d.psd_tax, 0) = 2 tax,
+  SELECT m.nik, r.pr_yymm yymm, d.psd_type::text typ, d.psd_id id, COALESCE(d.psd_tax, 0) = 2 tax,
          COALESCE(d.psd_tax_paid_company, 'N') = 'Y' tpc, d.psd_amount amt
   FROM mem m
   JOIN payroll.pyr_run r ON r.pr_company_id = $1 AND r.pr_division = m.m_div AND r.pr_status = 'ACTIVE'
@@ -156,7 +192,8 @@ const ytdSQL = `WITH RECURSIVE tgt AS (
     COALESCE(SUM(amt) FILTER (WHERE tax), 0) c_gross,
     COALESCE(SUM(amt) FILTER (WHERE tax AND tpc), 0) c_paid,
     COALESCE(SUM(amt) FILTER (WHERE typ = 'Potongan' AND id IN (4, 14, 18)), 0) c_deduct,
-    COALESCE(SUM(amt) FILTER (WHERE typ = 'Potongan' AND id = 5), 0) p5
+    COALESCE(SUM(amt) FILTER (WHERE typ = 'Potongan' AND id = 5), 0) p5,
+    COUNT(DISTINCT yymm) months
   FROM det GROUP BY nik
 ), p7 AS (
   SELECT m.nik, SUM(a.pa_amount) amt
@@ -177,7 +214,7 @@ SELECT t.nik, t.h IS NULL, (SELECT count(*) FROM hashes x WHERE x.nik = t.nik) >
   (COALESCE(a.gross, 0) + COALESCE(thr.gross, 0))::text, COALESCE(a.deduct, 0)::text,
   (COALESCE(a.p1, 0) + COALESCE(p7.amt, 0) + COALESCE(thr.paid, 0))::text,
   COALESCE(a.c_gross, 0)::text, COALESCE(a.c_paid, 0)::text, COALESCE(a.c_deduct, 0)::text, COALESCE(a.p5, 0)::text,
-  COALESCE(thr.year_gross, 0)::text
+  COALESCE(thr.year_gross, 0)::text, COALESCE(a.months, 0)
 FROM tgt t LEFT JOIN agg a ON a.nik = t.nik LEFT JOIN p7 ON p7.nik = t.nik LEFT JOIN thr ON thr.nik = t.nik
 ORDER BY t.nik`
 
@@ -195,7 +232,8 @@ func loadYTD(ctx context.Context, tx *sql.Tx, q Query, get func(string) *taxInpu
 		var nik string
 		var noNPWP, conflict bool
 		var v [8]string
-		if err := rows.Scan(&nik, &noNPWP, &conflict, &v[0], &v[1], &v[2], &v[3], &v[4], &v[5], &v[6], &v[7]); err != nil {
+		var months int
+		if err := rows.Scan(&nik, &noNPWP, &conflict, &v[0], &v[1], &v[2], &v[3], &v[4], &v[5], &v[6], &v[7], &months); err != nil {
 			return nil, fmt.Errorf("scan YTD: %w", err)
 		}
 		d, err := decimals(v[:])
@@ -203,7 +241,7 @@ func loadYTD(ctx context.Context, tx *sql.Tx, q Query, get func(string) *taxInpu
 			return nil, fmt.Errorf("YTD %s: %w", nik, err)
 		}
 		t := get(nik)
-		t.ytd = engine.YTDTax{Gross: d[0], Deduct: d[1], TaxPaid: d[2]}
+		t.ytd = engine.YTDTax{Gross: d[0], Deduct: d[1], TaxPaid: d[2], Months: months}
 		t.ytdCompany = engine.YTDCompanyTax{Gross: d[3], CompanyPaid: d[4], Deduct: d[5], ThrBonus: d[7], P5Paid: d[6]}
 		if conflict {
 			conflicts = append(conflicts, nik)
@@ -225,23 +263,29 @@ func loadYTD(ctx context.Context, tx *sql.Tx, q Query, get func(string) *taxInpu
 // thrInRunMonth warns once when the division has a THR/Bonus event in the run month itself: P1 does
 // not see it (Input.Thr stays empty, D-28c), while P5 does once the event is CLOSED (ThrBonus, D-31).
 func thrInRunMonth(ctx context.Context, tx *sql.Tx, q Query) ([]Issue, error) {
+	kinds, err := thrEventsOfMonth(ctx, tx, q)
+	if err != nil || kinds == "" {
+		return nil, err
+	}
+	return []Issue{{Code: CodeThrNotLoaded, Message: "event " + kinds +
+		" di bulan run belum masuk PPh P1 Desember (Input.Thr menunggu B-THR); P5 memuatnya hanya bila event CLOSED"}}, nil
+}
+
+// thrEventsOfMonth lists the GIVEN, not cancelled THR/Bonus events of the division in the run month ("" = none).
+func thrEventsOfMonth(ctx context.Context, tx *sql.Tx, q Query) (string, error) {
 	var kinds sql.NullString
 	err := tx.QueryRowContext(ctx, `SELECT string_agg(pte_kind || ' ' || pte_status, ', ' ORDER BY pte_kind)
 FROM payroll.pyr_thr_event WHERE pte_company_id = $1 AND pte_division = $2 AND pte_yymm = $3
  AND pte_decision = 'GIVEN' AND pte_status <> 'CANCELLED'`, q.CompanyID, q.Division, q.YYMM).Scan(&kinds)
 	if err != nil {
-		return nil, fmt.Errorf("load THR events of the run month: %w", err)
+		return "", fmt.Errorf("load THR events of the run month: %w", err)
 	}
-	if !kinds.Valid {
-		return nil, nil
-	}
-	return []Issue{{Code: CodeThrNotLoaded, Message: "event " + kinds.String +
-		" di bulan run belum masuk PPh P1 Desember (Input.Thr menunggu B-THR); P5 memuatnya hanya bila event CLOSED"}}, nil
+	return kinds.String, nil
 }
 
 // ytdOutOfScope detects placements outside app.scopes through the SECURITY DEFINER function
-// fn_ytd_out_of_scope (counts only, no amounts). v1 warns per NIK, v2 fails the load (T016e).
-func ytdOutOfScope(ctx context.Context, tx *sql.Tx, q Query, legacy bool) ([]Issue, error) {
+// fn_ytd_out_of_scope (counts only, no amounts). Legacy tax warns per NIK; strict (rule v2 or tax v2, D-81) fails the load (T016e).
+func ytdOutOfScope(ctx context.Context, tx *sql.Tx, q Query, strict bool) ([]Issue, error) {
 	year := q.YYMM / 100 * 100
 	rows, err := tx.QueryContext(ctx,
 		`SELECT out_nik, out_placements FROM payroll.fn_ytd_out_of_scope($1, $2, $3, $4, $5::text[], $6) ORDER BY 1`,
@@ -265,7 +309,7 @@ func ytdOutOfScope(ctx context.Context, tx *sql.Tx, q Query, legacy bool) ([]Iss
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	if !legacy && len(niks) > 0 {
+	if strict && len(niks) > 0 {
 		return nil, fmt.Errorf("%w: %s", ErrYTDOutOfScope, strings.Join(niks, ", "))
 	}
 	return issues, nil

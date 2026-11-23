@@ -207,13 +207,19 @@ func TestRunAPI_DryCommitApproveClose(t *testing.T) {
 	if _, err = h.ClosePeriod(ctx, &payrollv1.ClosePeriodRequest{Yymm: runYYMM, Division: "SOLO"}); code(t, err) != apperr.CodeConflict {
 		t.Fatalf("close before approve: %v", err)
 	}
-	ap, err := h.ApprovePeriod(ctx, &payrollv1.ApprovePeriodRequest{Yymm: runYYMM, Division: "SOLO"})
+	// Maker ≠ checker (D-80 (5), T033o): the committer (userRW) is refused, also approve/close of another user passes.
+	_, err = h.ApprovePeriod(ctx, &payrollv1.ApprovePeriodRequest{Yymm: runYYMM, Division: "SOLO"})
+	wantCode(t, "approve by committer", err, apperr.CodePermissionDenied)
+	checker := ctxFor(t, userBoth, permsRun...)
+	ap, err := h.ApprovePeriod(checker, &payrollv1.ApprovePeriodRequest{Yymm: runYYMM, Division: "SOLO"})
 	if err != nil || ap.GetData().GetStatus() != "APPROVED" || ap.GetData().GetActiveRunId() != id {
 		t.Fatalf("approve: %v %v", ap, err)
 	}
 	_, err = h.CreateRun(ctx, createRun("SOLO", payrollv1.RunMode_RUN_MODE_COMMIT))
 	wantCode(t, "commit on APPROVED", err, apperr.CodePeriodApproved)
-	cl, err := h.ClosePeriod(ctx, &payrollv1.ClosePeriodRequest{Yymm: runYYMM, Division: "SOLO"})
+	_, err = h.ClosePeriod(ctx, &payrollv1.ClosePeriodRequest{Yymm: runYYMM, Division: "SOLO"})
+	wantCode(t, "close by committer", err, apperr.CodePermissionDenied)
+	cl, err := h.ClosePeriod(checker, &payrollv1.ClosePeriodRequest{Yymm: runYYMM, Division: "SOLO"})
 	if err != nil || cl.GetData().GetStatus() != "CLOSED" {
 		t.Fatalf("close: %v %v", cl, err)
 	}

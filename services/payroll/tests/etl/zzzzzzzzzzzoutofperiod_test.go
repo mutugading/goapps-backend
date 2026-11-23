@@ -85,13 +85,13 @@ func TestCommitApprove_OutOfPeriod(t *testing.T) {
 
 	cmd := period.Command{CompanyID: 1, Division: "SOLO", YYMM: yymm}
 	// Approve/close recompute InputHash over the same input (skipped NIKs included in the hash) and must match.
-	if err := svc.Approve(ctx, cmd); err != nil {
+	if err := svc.Approve(asUser(t, "checker-test", "SOLO"), cmd); err != nil {
 		t.Fatalf("approve blocked by OUT_OF_PERIOD or hash mismatch: %v", err)
 	}
 	if got := scalar(t, fmt.Sprintf(`SELECT pp_status FROM payroll.pyr_period WHERE pp_company_id=1 AND pp_yymm=%d AND pp_division='SOLO'`, yymm)); got != "APPROVED" {
 		t.Fatalf("status %s", got)
 	}
-	if err := svc.Close(ctx, cmd); err != nil {
+	if err := svc.Close(asUser(t, "checker-test", "SOLO"), cmd); err != nil {
 		t.Fatalf("close: %v", err)
 	}
 	if got := scalar(t, `SELECT pr_input_hash FROM payroll.pyr_run WHERE pr_id=`+id); got != res.InputHash {

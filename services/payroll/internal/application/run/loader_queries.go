@@ -66,12 +66,17 @@ func loadWorkdays(ctx context.Context, tx *sql.Tx, q Query, legacyCompat bool) (
 
 // loadEmployees reads the active (sts_payroll = 2) employees of the division (1 query).
 // resign is kept beside the engine input (not part of it) for the D-55 period filter.
+// TaxStatusJan1 (D-80 (3), T033n) is the last pyr_employee_tax_hist row valid on 1 January of the tax year;
+// without one (status first recorded later in the year) the earliest row of the year.
 func loadEmployees(ctx context.Context, tx *sql.Tx, q Query) ([]empRow, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT pe_nik, pe_nama, COALESCE(pe_level,''), COALESCE(pe_tax_id,''),
-  COALESCE(pe_dept_id,''), pe_npwp_enc IS NOT NULL, pe_birth_date, pe_date_join, pe_resign_date
+  COALESCE(pe_dept_id,''), pe_npwp_enc IS NOT NULL, pe_birth_date, pe_date_join, pe_resign_date,
+  COALESCE((SELECT h.peth_tax_id FROM payroll.pyr_employee_tax_hist h WHERE h.peth_employee_id = pe_id
+              AND h.peth_valid_from < make_date($4 + 1, 1, 1)
+            ORDER BY h.peth_valid_from > make_date($4, 1, 1), abs(h.peth_valid_from - make_date($4, 1, 1)) LIMIT 1), '')
 FROM payroll.pyr_employee
 WHERE pe_company_id = $1 AND pe_division = $2 AND pe_sts_payroll = 2 AND ($3::text[] = '{}' OR pe_nik = ANY($3::text[]))
-ORDER BY pe_nik`, q.CompanyID, q.Division, nikArray(q.NIKs))
+ORDER BY pe_nik`, q.CompanyID, q.Division, nikArray(q.NIKs), q.YYMM/100)
 	if err != nil {
 		return nil, fmt.Errorf("load employees: %w", err)
 	}
@@ -80,11 +85,11 @@ ORDER BY pe_nik`, q.CompanyID, q.Division, nikArray(q.NIKs))
 	for rows.Next() {
 		var e engine.Employee
 		var birth, join, resign sql.NullTime
-		if err := rows.Scan(&e.NIK, &e.Name, &e.Level, &e.TaxStatus, &e.Dept, &e.HasNPWP, &birth, &join, &resign); err != nil {
+		if err := rows.Scan(&e.NIK, &e.Name, &e.Level, &e.TaxStatus, &e.Dept, &e.HasNPWP, &birth, &join, &resign, &e.TaxStatusJan1); err != nil {
 			return nil, fmt.Errorf("scan employee: %w", err)
 		}
-		e.BirthDate, e.JoinDate = timePtr(birth), timePtr(join)
-		out = append(out, empRow{Employee: e, resign: timePtr(resign)})
+		e.BirthDate, e.JoinDate, e.ResignDate = timePtr(birth), timePtr(join), timePtr(resign)
+		out = append(out, empRow{Employee: e, resign: e.ResignDate})
 	}
 	return out, rows.Err()
 }

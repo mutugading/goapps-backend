@@ -22,7 +22,7 @@ func (pphCompany) Code() string { return FormulaPPhCompany }
 
 func (pphCompany) Eval(ctx *EvalCtx, _ EmpComponent, _ Params) (*decimal.Decimal, string, error) {
 	in := ctx.In
-	if in.Period.IsDecember() {
+	if annualMonth(in) {
 		return pphCompanyAnnual(ctx)
 	}
 	all, okAll := pphGross(ctx)
@@ -50,9 +50,9 @@ func (pphCompany) Eval(ctx *EvalCtx, _ EmpComponent, _ Params) (*decimal.Decimal
 	return &p, remark, nil
 }
 
-// pphCompanyAnnual is P5 in December. Legacy (rule v1) computes both annual taxes on the same
+// pphCompanyAnnual is P5 in December (with tax v2 also in a leaver's last month, D-80 (4a)). Legacy (rule v1) computes both annual taxes on the same
 // gross and job cost; the company-paid rows only join the deduction, after the job cost. Both
-// rules subtract the P5 of earlier months (D-31b, 06§6.3); legacy did not (D21, 10§1). Rule v2
+// rules subtract the P5 of earlier months (D-31b, 06§6.3); legacy did not (D21, 10§1). Tax v2 (D-81)
 // also lowers the gross itself, truncates the PKP and uses the statutory layers.
 func pphCompanyAnnual(ctx *EvalCtx) (*decimal.Decimal, string, error) {
 	in := ctx.In
@@ -76,7 +76,7 @@ func pphCompanyAnnual(ctx *EvalCtx) (*decimal.Decimal, string, error) {
 	}
 	t := in.Tax
 	ptkpTable := t.PTKP // v2 (D-37b): all 9 codes
-	if in.Rules.LegacyCompat() {
+	if !taxV2(in) {
 		ptkpTable = t.PTKPCompany // v1 (D-37a): legacy P5 query has no TK1–TK3 rows
 	}
 	if len(ptkpTable) == 0 || t.JobCost.Rate.IsZero() || t.JobCost.MaxMonthly.IsZero() || len(t.Progressive) == 0 {
@@ -87,18 +87,18 @@ func pphCompanyAnnual(ctx *EvalCtx) (*decimal.Decimal, string, error) {
 		p := decimal.Zero
 		return &p, "", nil
 	}
-	twelve := decimal.NewFromInt(12)
 	gross := money.Sum(y.Gross, cur, y.ThrBonus)
 	paid := money.Add(y.CompanyPaid, curPaid)
 	deduct := money.Add(y.Deduct, curDeduct)
-	ptkp = money.Mul(ptkp, twelve)
+	ptkp = money.Mul(ptkp, decimal.NewFromInt(monthsPerYear))
+	jcCap, _ := jobCostCap(in)
 	jobCost := func(g decimal.Decimal) decimal.Decimal {
-		return decimal.Min(money.Mul(g, t.JobCost.Rate).Shift(-2), money.Mul(t.JobCost.MaxMonthly, twelve))
+		return decimal.Min(money.Mul(g, t.JobCost.Rate).Shift(-2), jcCap)
 	}
 	layers := sortedLayers(t.Progressive)
 	var taxAll, taxOwn decimal.Decimal
 	p := decimal.Zero
-	if in.Rules.LegacyCompat() {
+	if !taxV2(in) {
 		nett := money.Sub(money.Sub(money.Sub(gross, deduct), jobCost(gross)), ptkp)
 		taxAll = progressiveLegacy(layers, nett)
 		taxOwn = progressiveLegacy(layers, money.Sub(nett, paid))
@@ -120,7 +120,7 @@ func pphCompanyAnnual(ctx *EvalCtx) (*decimal.Decimal, string, error) {
 // bad master data (T033i): with a positive gross it warns with the P1 text, so one warning blocks approve.
 // TK1–TK3 missing from PTKPCompany under v1 is parity (D-37a) and stays silent.
 func companyPTKP(ctx *EvalCtx, table map[string]decimal.Decimal, gross decimal.Decimal) (decimal.Decimal, bool) {
-	status := ctx.In.Emp.TaxStatus
+	status := annualTaxStatus(ctx.In)
 	ptkp, ok := table[status]
 	if ok {
 		return ptkp, true

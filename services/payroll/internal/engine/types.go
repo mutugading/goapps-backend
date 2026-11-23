@@ -129,6 +129,12 @@ type Employee struct {
 	BirthDate *time.Time
 	JoinDate  *time.Time // pe_date_join; decides the first full month of the P0 basis (D-30)
 	GapokSts  string     // F (full) / D (prorate) for the base salary
+	// ResignDate is pe_resign_date. With tax v2 the period holding it is the employee's last tax
+	// month: P1/P5 are trued up on the annual basis there (D-80 (4a)).
+	ResignDate *time.Time
+	// TaxStatusJan1 is the tax status in force on 1 January of the tax year (pyr_employee_tax_hist, D-80 (3)).
+	// With tax v2 the annual PTKP of P1/P5 uses it instead of TaxStatus; empty = no history, use TaxStatus.
+	TaxStatusJan1 string
 }
 
 // EmpComponent is an employee component amount (COMPNT_EMP, frz=2 & sts_payroll=2).
@@ -199,7 +205,9 @@ type YTDTax struct {
 	Gross   decimal.Decimal
 	Deduct  decimal.Decimal
 	TaxPaid decimal.Decimal
-	Months  int
+	// Months is the number of distinct earlier months of the tax year with a salary run (any placement of
+	// the tax subject); with the current month it caps the v2 job cost at MaxMonthly × months (D-80 (4b)).
+	Months int
 }
 
 // YTDCompanyTax is the December P5 basis January up to the previous period, aggregated by the

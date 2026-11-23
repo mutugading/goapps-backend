@@ -11,15 +11,16 @@ import (
 // pal_actor, created_by/updated_by on master) must hold it; with varchar(30) each write failed with 22001.
 // Own period (203503) so the commit → approve → close flow in run_api_test.go is untouched; sorts after it.
 const (
-	uuidUser  = "0b8f3c2e-6a1d-4f7b-9c3e-5d2a1b4c6e8f"
-	uuidYYMM  = 203503
-	uuidCheck = "uuid-actor"
+	uuidUser   = "0b8f3c2e-6a1d-4f7b-9c3e-5d2a1b4c6e8f"
+	uuidCheckr = "7d1e9a40-3b5c-4e28-8f6a-0c2b4d6e8a13" // second user: checker of the period (D-80 (5))
+	uuidYYMM   = 203503
+	uuidCheck  = "uuid-actor"
 )
 
 func TestActorColumns_UUIDUserID(t *testing.T) {
 	h := runHandler(t)
 	for _, q := range []string{
-		`INSERT INTO payroll.pyr_user_scope (pus_user_id, pus_company_id, pus_division) VALUES ('` + uuidUser + `',1,'SOLO')`,
+		`INSERT INTO payroll.pyr_user_scope (pus_user_id, pus_company_id, pus_division) VALUES ('` + uuidUser + `',1,'SOLO'), ('` + uuidCheckr + `',1,'SOLO')`,
 		`INSERT INTO payroll.pyr_attd_days (pad_company_id, pad_yymm, pad_division, pad_days) VALUES (1,203503,'SOLO',26)`,
 		`INSERT INTO payroll.pyr_att_snapshot (pas_company_id, pas_yymm, pas_division, pas_source_batch_ids, pas_checksum, pas_locked, created_by)
 		 VALUES (1,203503,'SOLO','{1}','` + uuidCheck + `',true,'` + uuidUser + `')`,
@@ -38,22 +39,23 @@ func TestActorColumns_UUIDUserID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("commit: %v", err)
 	}
-	if _, err = h.ApprovePeriod(ctx, &payrollv1.ApprovePeriodRequest{Yymm: uuidYYMM, Division: "SOLO"}); err != nil {
+	chk := ctxFor(t, uuidCheckr, permsRun...)
+	if _, err = h.ApprovePeriod(chk, &payrollv1.ApprovePeriodRequest{Yymm: uuidYYMM, Division: "SOLO"}); err != nil {
 		t.Fatalf("approve: %v", err)
 	}
-	cl, err := h.ClosePeriod(ctx, &payrollv1.ClosePeriodRequest{Yymm: uuidYYMM, Division: "SOLO"})
+	cl, err := h.ClosePeriod(chk, &payrollv1.ClosePeriodRequest{Yymm: uuidYYMM, Division: "SOLO"})
 	if err != nil {
 		t.Fatalf("close: %v", err)
 	}
-	if cl.GetData().GetClosedBy() != uuidUser {
-		t.Fatalf("closed_by = %q, want %q", cl.GetData().GetClosedBy(), uuidUser)
+	if cl.GetData().GetClosedBy() != uuidCheckr {
+		t.Fatalf("closed_by = %q, want %q", cl.GetData().GetClosedBy(), uuidCheckr)
 	}
 	id := cm.GetData().GetRunId()
 	if got := scalar(t, `SELECT pr_started_by FROM payroll.pyr_run WHERE pr_id = `+strconv.FormatInt(id, 10)); got != uuidUser {
 		t.Fatalf("pr_started_by = %q", got)
 	}
 	if got := scalar(t, `SELECT approved_by || '|' || closed_by FROM payroll.pyr_period
-		WHERE pp_company_id = 1 AND pp_yymm = 203503 AND pp_division = 'SOLO'`); got != uuidUser+"|"+uuidUser {
+		WHERE pp_company_id = 1 AND pp_yymm = 203503 AND pp_division = 'SOLO'`); got != uuidCheckr+"|"+uuidCheckr {
 		t.Fatalf("period actors = %q", got)
 	}
 
@@ -69,9 +71,11 @@ func TestActorColumns_UUIDUserID(t *testing.T) {
 	if got := scalar(t, `SELECT created_by || '|' || updated_by FROM payroll.pyr_employee WHERE pe_nik = 'UUID01'`); got != uuidUser+"|"+uuidUser {
 		t.Fatalf("employee actors = %q", got)
 	}
-	for _, want := range []string{"RUN_COMMIT", "PERIOD_APPROVE", "PERIOD_CLOSE", "CREATE", "UPDATE"} {
-		if n := scalar(t, `SELECT count(*) FROM payroll.pyr_audit_log WHERE pal_actor = '`+uuidUser+`' AND pal_action = '`+want+`'`); n == "0" {
-			t.Fatalf("no %s audit row with the UUID actor", want)
+	for actor, wants := range map[string][]string{uuidUser: {"RUN_COMMIT", "CREATE", "UPDATE"}, uuidCheckr: {"PERIOD_APPROVE", "PERIOD_CLOSE"}} {
+		for _, want := range wants {
+			if n := scalar(t, `SELECT count(*) FROM payroll.pyr_audit_log WHERE pal_actor = '`+actor+`' AND pal_action = '`+want+`'`); n == "0" {
+				t.Fatalf("no %s audit row with the UUID actor %s", want, actor)
+			}
 		}
 	}
 }

@@ -114,7 +114,7 @@ func (pph21) Code() string { return FormulaPPh21 }
 
 func (pph21) Eval(ctx *EvalCtx, _ EmpComponent, _ Params) (*decimal.Decimal, string, error) {
 	in := ctx.In
-	if in.Period.IsDecember() {
+	if annualMonth(in) {
 		return pph21Annual(ctx)
 	}
 	gross, ok := pphGross(ctx)

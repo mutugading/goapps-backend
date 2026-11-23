@@ -1,9 +1,11 @@
 package etl
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/period"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/application/run"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/domain/apperr"
+	domainaudit "github.com/mutugading/goapps-backend/services/payroll/internal/domain/audit"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/engine"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/audit"
 	"github.com/mutugading/goapps-backend/services/payroll/internal/infrastructure/postgres"
@@ -27,6 +30,7 @@ func TestPeriodTransitions(t *testing.T) {
 	defer func() { _ = raw.Close() }()
 	app := postgres.NewDBFromSQL(raw)
 	ctx := asScopes(t, "SOLO")
+	chk := asUser(t, "checker-test", "SOLO") // approve/close by a user other than the committer (D-80 (5))
 	stub := func(in engine.Input) (engine.Result, error) {
 		a := dec("1000")
 		return engine.Result{NIK: in.Emp.NIK, Lines: []engine.Line{{Key: engine.CompKey{Type: engine.CompT, ID: 1}, Amount: &a, Tax: true}},
@@ -67,35 +71,64 @@ func TestPeriodTransitions(t *testing.T) {
 	}
 
 	t.Run("DRAFT: close and reopen refused, guard open", func(t *testing.T) {
-		wantCode(t, svc.Close(ctx, cmd), apperr.CodeConflict)
+		wantCode(t, svc.Close(chk, cmd), apperr.CodeConflict)
 		wantCode(t, svc.Reopen(ctx, period.Command{CompanyID: 1, Division: "SOLO", YYMM: 203207, Reason: "salah input absensi"}), apperr.CodeConflict)
 		if err := guard(); err != nil {
 			t.Fatal(err)
 		}
 	})
+	t.Run("maker is not checker (D-80 (5), T033o)", func(t *testing.T) {
+		// The committer may not approve, also not with full scope; the refusal is audited and nothing changes.
+		err := svc.Approve(ctx, cmd)
+		wantCode(t, err, apperr.CodePermissionDenied)
+		var ae *apperr.Error
+		if !errors.As(err, &ae) || ae.Details["reason"] != period.ReasonMakerChecker || ae.Details["run_id"] != fmt.Sprint(first.RunID) {
+			t.Fatalf("details = %v", ae)
+		}
+		if got := scalar(t, `SELECT pp_status||'/'||COALESCE(approved_by,'-')`+where); got != "DRAFT/-" {
+			t.Fatalf("period = %s", got)
+		}
+		if snapLocked() != "false" {
+			t.Fatal("snapshot terkunci oleh approve yang ditolak")
+		}
+		got := scalar(t, `SELECT pal_action||'/'||pal_actor||'/'||pal_entity_key||'/'||(pal_after->>'reason')
+			FROM payroll.pyr_audit_log WHERE pal_entity='pyr_period' ORDER BY pal_id DESC LIMIT 1`)
+		if got != "PERIOD_APPROVE_DENIED/loader-test/203207:SOLO/maker_checker" {
+			t.Fatalf("audit = %s", got)
+		}
+	})
 	t.Run("approve locks the snapshot", func(t *testing.T) {
-		if err := svc.Approve(ctx, cmd); err != nil {
+		if err := svc.Approve(chk, cmd); err != nil {
 			t.Fatal(err)
 		}
-		if got := scalar(t, `SELECT pp_status||'/'||approved_by||'/'||(approved_at IS NOT NULL)`+where); got != "APPROVED/loader-test/true" {
+		if got := scalar(t, `SELECT pp_status||'/'||approved_by||'/'||(approved_at IS NOT NULL)`+where); got != "APPROVED/checker-test/true" {
 			t.Fatalf("period = %s", got)
 		}
 		if snapLocked() != "true" {
 			t.Fatal("snapshot tidak terkunci")
 		}
-		if got := lastAudit(); got != "PERIOD_APPROVE/loader-test/203207:SOLO/DRAFT/APPROVED" {
+		if got := lastAudit(); got != "PERIOD_APPROVE/checker-test/203207:SOLO/DRAFT/APPROVED" {
 			t.Fatalf("audit = %s", got)
 		}
 		wantCode(t, guard(), apperr.CodePeriodApproved)
 		_, err := runs.Commit(ctx, commit)
 		wantCode(t, err, apperr.CodePeriodApproved)
-		wantCode(t, svc.Approve(ctx, cmd), apperr.CodePeriodApproved)
+		wantCode(t, svc.Approve(chk, cmd), apperr.CodePeriodApproved)
+	})
+	t.Run("close by the committer is refused, audited (D-80 (5))", func(t *testing.T) {
+		wantCode(t, svc.Close(ctx, cmd), apperr.CodePermissionDenied)
+		if got := scalar(t, `SELECT pp_status`+where); got != "APPROVED" {
+			t.Fatalf("status = %s", got)
+		}
+		if got := scalar(t, `SELECT pal_action||'/'||pal_actor FROM payroll.pyr_audit_log WHERE pal_entity='pyr_period' ORDER BY pal_id DESC LIMIT 1`); got != "PERIOD_CLOSE_DENIED/loader-test" {
+			t.Fatalf("audit = %s", got)
+		}
 	})
 	t.Run("close: service and trigger reject mutations (I24)", func(t *testing.T) {
-		if err := svc.Close(ctx, cmd); err != nil {
+		if err := svc.Close(chk, cmd); err != nil {
 			t.Fatal(err)
 		}
-		if got := scalar(t, `SELECT pp_status||'/'||closed_by`+where); got != "CLOSED/loader-test" {
+		if got := scalar(t, `SELECT pp_status||'/'||closed_by`+where); got != "CLOSED/checker-test" {
 			t.Fatalf("period = %s", got)
 		}
 		wantCode(t, guard(), apperr.CodePeriodClosed)
@@ -155,12 +188,12 @@ func TestPeriodTransitions(t *testing.T) {
 			VALUES (1,203208,'SOLO','2032-07-26','2032-08-25','DRAFT')`); err != nil {
 			t.Fatal(err)
 		}
-		wantCode(t, svc.Approve(ctx, period.Command{CompanyID: 1, Division: "SOLO", YYMM: 203208}), apperr.CodeBusinessRule)
-		wantCode(t, svc.Approve(ctx, period.Command{CompanyID: 1, Division: "SOLO", YYMM: 209901}), apperr.CodeNotFound)
+		wantCode(t, svc.Approve(chk, period.Command{CompanyID: 1, Division: "SOLO", YYMM: 203208}), apperr.CodeBusinessRule)
+		wantCode(t, svc.Approve(chk, period.Command{CompanyID: 1, Division: "SOLO", YYMM: 209901}), apperr.CodeNotFound)
 		wantCode(t, svc.Approve(asScopes(t, "JAKARTA"), cmd), apperr.CodeDivisionForbidden)
 	})
 	t.Run("approve clears reopen reason; reopen from APPROVED", func(t *testing.T) {
-		if err := svc.Approve(ctx, cmd); err != nil {
+		if err := svc.Approve(chk, cmd); err != nil {
 			t.Fatal(err)
 		}
 		re := cmd
@@ -171,7 +204,7 @@ func TestPeriodTransitions(t *testing.T) {
 		if got := scalar(t, `SELECT pp_status||'/'||pp_reopen_reason`+where); got != "DRAFT/salah hitung lembur" {
 			t.Fatalf("period = %s", got)
 		}
-		if err := svc.Approve(ctx, cmd); err != nil {
+		if err := svc.Approve(chk, cmd); err != nil {
 			t.Fatal(err)
 		}
 		if got := scalar(t, `SELECT pp_status||'/'||(pp_reopen_reason IS NULL)`+where); got != "APPROVED/true" {
@@ -189,16 +222,16 @@ func TestPeriodTransitions(t *testing.T) {
 			}
 		}
 		days(25)
-		wantCode(t, svc.Approve(ctx, cmd), apperr.CodeConflict)
+		wantCode(t, svc.Approve(chk, cmd), apperr.CodeConflict)
 		if got := scalar(t, `SELECT pp_status::text`+where); got != "DRAFT" {
 			t.Fatalf("status = %s", got)
 		}
 		days(26)
-		if err := svc.Approve(ctx, cmd); err != nil {
+		if err := svc.Approve(chk, cmd); err != nil {
 			t.Fatalf("input dikembalikan, approve harus lolos: %v", err)
 		}
 		days(25) // APPROVED has no DB layer (D-40): period.Guard is the service layer, close re-checks the input
-		wantCode(t, svc.Close(ctx, cmd), apperr.CodeConflict)
+		wantCode(t, svc.Close(chk, cmd), apperr.CodeConflict)
 		days(26)
 		re := cmd
 		re.Reason = "kembali ke draft untuk tes"
@@ -216,7 +249,7 @@ func TestPeriodTransitions(t *testing.T) {
 		defer setWarn("[]")
 		for _, code := range []string{run.CodeCalcError, run.CodeLoanDouble, run.CodeIncomplete} {
 			setWarn(`[{"nik":"C00009","code":"` + code + `"},{"nik":"C00009","code":"ENGINE_WARNING"}]`)
-			err := svc.Approve(ctx, cmd)
+			err := svc.Approve(chk, cmd)
 			wantCode(t, err, apperr.CodeBusinessRule)
 			var ae *apperr.Error
 			if errors.As(err, &ae) && (ae.Details["niks"] != "C00009" || ae.Details["count"] != "1") {
@@ -224,7 +257,7 @@ func TestPeriodTransitions(t *testing.T) {
 			}
 		}
 		setWarn(`[{"nik":"C00009","code":"NO_WORKDAYS"},{"code":"SUBSIDY_LOCK_STALE"}]`)
-		if err := svc.Approve(ctx, cmd); err != nil {
+		if err := svc.Approve(chk, cmd); err != nil {
 			t.Fatalf("NO_WORKDAYS tidak memblokir: %v", err)
 		}
 		re := cmd
@@ -242,7 +275,7 @@ func TestPeriodTransitions(t *testing.T) {
 				t.Fatal(err)
 			}
 		}()
-		err := svc.Approve(ctx, cmd)
+		err := svc.Approve(chk, cmd)
 		wantCode(t, err, apperr.CodeBusinessRule)
 		var ae *apperr.Error
 		if errors.As(err, &ae) && ae.Details["count"] != "1" {
@@ -255,7 +288,7 @@ WHERE pasr_snapshot_id = (SELECT pas_snapshot_id FROM payroll.pyr_att_snapshot W
 		if _, err := ownDB.Exec(fmt.Sprintf(snapRow, 20)); err != nil {
 			t.Fatal(err)
 		}
-		wantCode(t, svc.Approve(ctx, cmd), apperr.CodeConflict)
+		wantCode(t, svc.Approve(chk, cmd), apperr.CodeConflict)
 		if _, err := ownDB.Exec(fmt.Sprintf(snapRow, 26)); err != nil {
 			t.Fatal(err)
 		}
@@ -308,7 +341,7 @@ WHERE pasr_snapshot_id = (SELECT pas_snapshot_id FROM payroll.pyr_att_snapshot W
 		if _, err := ownDB.Exec(`INSERT INTO payroll.pyr_tax_adj (pta_company_id, pta_yymm, pta_division, pta_nik, pta_type, pta_amount) VALUES (1,203312,'SOLO','C00001','Tunjangan',5)`); err != nil {
 			t.Fatal(err)
 		}
-		wantCode(t, svc.Approve(ctx, dec), apperr.CodeConflict)
+		wantCode(t, svc.Approve(chk, dec), apperr.CodeConflict)
 		if got := scalar(t, `SELECT pp_status::text FROM payroll.pyr_period WHERE pp_yymm=203312 AND pp_division='SOLO'`); got != "DRAFT" {
 			t.Fatalf("status = %s", got)
 		}
@@ -324,7 +357,7 @@ WHERE pasr_snapshot_id = (SELECT pas_snapshot_id FROM payroll.pyr_att_snapshot W
 				t.Fatal(err)
 			}
 		}()
-		err := svc.Approve(ctx, cmd)
+		err := svc.Approve(chk, cmd)
 		var ae *apperr.Error
 		if err == nil || errors.As(err, &ae) {
 			t.Fatalf("want plain internal error, got %v", err)
@@ -370,10 +403,10 @@ WHERE pasr_snapshot_id = (SELECT pas_snapshot_id FROM payroll.pyr_att_snapshot W
 			WHERE pp_company_id=1 AND pp_yymm=203207 AND pp_division='SOLO'`); err != nil {
 			t.Fatal(err)
 		}
-		if err := svc.Approve(ctx, cmd); err != nil {
+		if err := svc.Approve(chk, cmd); err != nil {
 			t.Fatal(err)
 		}
-		if err := svc.Close(ctx, cmd); err != nil {
+		if err := svc.Close(chk, cmd); err != nil {
 			t.Fatal(err)
 		}
 		jkt := asScopes(t, "JAKARTA")
@@ -441,6 +474,76 @@ WHERE pasr_snapshot_id = (SELECT pas_snapshot_id FROM payroll.pyr_att_snapshot W
 		if _, err := hold.Exec(`SELECT pg_advisory_xact_lock(hashtext('payroll.run'), hashtext('1:203207:SOLO'))`); err != nil {
 			t.Fatal(err)
 		}
-		wantCode(t, svc.Approve(ctx, cmd), apperr.CodeRunInProgress)
+		wantCode(t, svc.Approve(chk, cmd), apperr.CodeRunInProgress)
 	})
+	deniedRows := func(action string) string {
+		return scalar(t, `SELECT count(*) FROM payroll.pyr_audit_log WHERE pal_entity='pyr_period' AND pal_action='`+action+`'`)
+	}
+	t.Run("D-80 (5): the maker is the committer of the ACTIVE run (supersede, reopen)", func(t *testing.T) {
+		// chk re-runs the DRAFT period: its run supersedes the one of loader-test, so chk is the maker now.
+		if _, err := runs.Commit(chk, commit); err != nil {
+			t.Fatal(err)
+		}
+		wantCode(t, svc.Approve(chk, cmd), apperr.CodePermissionDenied)
+		if err := svc.Approve(ctx, cmd); err != nil {
+			t.Fatalf("maker lama boleh approve run milik user lain: %v", err)
+		}
+		wantCode(t, svc.Close(chk, cmd), apperr.CodePermissionDenied)
+		// Reopen keeps the ACTIVE run, so the maker stays the same: the committer is refused again, the other user passes.
+		re := cmd
+		re.Reason = "buka lagi untuk uji maker checker"
+		if err := svc.Reopen(ctx, re); err != nil {
+			t.Fatal(err)
+		}
+		wantCode(t, svc.Approve(chk, cmd), apperr.CodePermissionDenied)
+		if err := svc.Approve(ctx, cmd); err != nil {
+			t.Fatal(err)
+		}
+		if err := svc.Close(ctx, cmd); err != nil {
+			t.Fatalf("approver boleh close (D-80 hanya melarang pembuat run): %v", err)
+		}
+		// Restore for the rest of the file: DRAFT, ACTIVE run committed by loader-test again.
+		if err := svc.Reopen(ctx, re); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := runs.Commit(ctx, commit); err != nil {
+			t.Fatal(err)
+		}
+		if got := scalar(t, `SELECT pr_started_by FROM payroll.pyr_run WHERE pr_id=(SELECT pp_active_run_id`+where+`)`); got != "loader-test" {
+			t.Fatalf("maker = %s", got)
+		}
+	})
+	t.Run("D-80 (5): no bypass with the widest scope (administrator)", func(t *testing.T) {
+		// An administrator resolves to every company:division; the rule compares identities only.
+		admin := asUser(t, "loader-test", "SOLO", "JAKARTA")
+		before := deniedRows("PERIOD_APPROVE_DENIED")
+		wantCode(t, svc.Approve(admin, cmd), apperr.CodePermissionDenied)
+		if got := deniedRows("PERIOD_APPROVE_DENIED"); got == before {
+			t.Fatalf("penolakan admin tidak diaudit (%s baris)", got)
+		}
+		if got := scalar(t, `SELECT pp_status::text`+where); got != "DRAFT" {
+			t.Fatalf("status = %s", got)
+		}
+	})
+	t.Run("D-80 (5): a failing denial audit does not hide the refusal", func(t *testing.T) {
+		failing := period.NewService(app, denyAuditFails{audit.NewWriter()}, runs)
+		before := deniedRows("PERIOD_APPROVE_DENIED")
+		wantCode(t, failing.Approve(ctx, cmd), apperr.CodePermissionDenied)
+		if got := deniedRows("PERIOD_APPROVE_DENIED"); got != before {
+			t.Fatalf("baris audit bertambah padahal penulisan gagal: %s -> %s", before, got)
+		}
+		if got := scalar(t, `SELECT pp_status::text`+where); got != "DRAFT" {
+			t.Fatalf("status = %s", got)
+		}
+	})
+}
+
+// denyAuditFails writes every audit row except the maker≠checker refusals, which fail like a lost connection would.
+type denyAuditFails struct{ domainaudit.Writer }
+
+func (d denyAuditFails) Write(ctx context.Context, tx *sql.Tx, e domainaudit.Entry) error {
+	if strings.HasSuffix(e.Action, period.ActionDeniedSuffix) {
+		return errors.New("audit write failed (test)")
+	}
+	return d.Writer.Write(ctx, tx, e)
 }

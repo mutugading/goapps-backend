@@ -2506,6 +2506,321 @@ func (x *UpdateEmployeeResponse) GetData() *Employee {
 	return nil
 }
 
+// CorrectEmployeeTaxStatus fixes a wrong `tax_id` as if it had been entered on `valid_from` (D-82 (5)): history
+// rows from that date on are replaced, earlier rows stay. `valid_from` must lie in the current or previous tax
+// year and not in the future (WIB); a tax year whose December (or a leaver's last) period is APPROVED/CLOSED
+// is rejected with PERIOD_CLOSED. A genuine status change (marriage, child) goes through UpdateEmployee.
+type CorrectEmployeeTaxStatusRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	TaxId         string                 `protobuf:"bytes,2,opt,name=tax_id,json=taxId,proto3" json:"tax_id,omitempty"`
+	ValidFrom     string                 `protobuf:"bytes,3,opt,name=valid_from,json=validFrom,proto3" json:"valid_from,omitempty"` // YYYY-MM-DD
+	Reason        string                 `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
+	IfMatch       string                 `protobuf:"bytes,5,opt,name=if_match,json=ifMatch,proto3" json:"if_match,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CorrectEmployeeTaxStatusRequest) Reset() {
+	*x = CorrectEmployeeTaxStatusRequest{}
+	mi := &file_payroll_v1_master_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CorrectEmployeeTaxStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CorrectEmployeeTaxStatusRequest) ProtoMessage() {}
+
+func (x *CorrectEmployeeTaxStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_payroll_v1_master_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CorrectEmployeeTaxStatusRequest.ProtoReflect.Descriptor instead.
+func (*CorrectEmployeeTaxStatusRequest) Descriptor() ([]byte, []int) {
+	return file_payroll_v1_master_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *CorrectEmployeeTaxStatusRequest) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *CorrectEmployeeTaxStatusRequest) GetTaxId() string {
+	if x != nil {
+		return x.TaxId
+	}
+	return ""
+}
+
+func (x *CorrectEmployeeTaxStatusRequest) GetValidFrom() string {
+	if x != nil {
+		return x.ValidFrom
+	}
+	return ""
+}
+
+func (x *CorrectEmployeeTaxStatusRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *CorrectEmployeeTaxStatusRequest) GetIfMatch() string {
+	if x != nil {
+		return x.IfMatch
+	}
+	return ""
+}
+
+type CorrectEmployeeTaxStatusResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Base          *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	Data          *Employee              `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CorrectEmployeeTaxStatusResponse) Reset() {
+	*x = CorrectEmployeeTaxStatusResponse{}
+	mi := &file_payroll_v1_master_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CorrectEmployeeTaxStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CorrectEmployeeTaxStatusResponse) ProtoMessage() {}
+
+func (x *CorrectEmployeeTaxStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_payroll_v1_master_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CorrectEmployeeTaxStatusResponse.ProtoReflect.Descriptor instead.
+func (*CorrectEmployeeTaxStatusResponse) Descriptor() ([]byte, []int) {
+	return file_payroll_v1_master_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *CorrectEmployeeTaxStatusResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *CorrectEmployeeTaxStatusResponse) GetData() *Employee {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+// ListEmployeeTaxHistory reads the tax-status history of one employee (D-82 (1)), newest first. The caller must
+// hold payroll.master.employee.view and the employee must lie in scope (else NOT_FOUND).
+type ListEmployeeTaxHistoryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListEmployeeTaxHistoryRequest) Reset() {
+	*x = ListEmployeeTaxHistoryRequest{}
+	mi := &file_payroll_v1_master_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListEmployeeTaxHistoryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListEmployeeTaxHistoryRequest) ProtoMessage() {}
+
+func (x *ListEmployeeTaxHistoryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_payroll_v1_master_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListEmployeeTaxHistoryRequest.ProtoReflect.Descriptor instead.
+func (*ListEmployeeTaxHistoryRequest) Descriptor() ([]byte, []int) {
+	return file_payroll_v1_master_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *ListEmployeeTaxHistoryRequest) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+// EmployeeTaxHistory is one history row: `tax_id` is valid from `valid_from` until the next row.
+type EmployeeTaxHistory struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ValidFrom     string                 `protobuf:"bytes,1,opt,name=valid_from,json=validFrom,proto3" json:"valid_from,omitempty"` // YYYY-MM-DD (WIB calendar).
+	TaxId         string                 `protobuf:"bytes,2,opt,name=tax_id,json=taxId,proto3" json:"tax_id,omitempty"`
+	Source        string                 `protobuf:"bytes,3,opt,name=source,proto3" json:"source,omitempty"` // BACKFILL | INSERT | UPDATE | CORRECT.
+	Reason        string                 `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"` // Only CORRECT rows carry a reason.
+	CreatedBy     string                 `protobuf:"bytes,5,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
+	CreatedAt     string                 `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"` // RFC 3339, UTC.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EmployeeTaxHistory) Reset() {
+	*x = EmployeeTaxHistory{}
+	mi := &file_payroll_v1_master_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EmployeeTaxHistory) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EmployeeTaxHistory) ProtoMessage() {}
+
+func (x *EmployeeTaxHistory) ProtoReflect() protoreflect.Message {
+	mi := &file_payroll_v1_master_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EmployeeTaxHistory.ProtoReflect.Descriptor instead.
+func (*EmployeeTaxHistory) Descriptor() ([]byte, []int) {
+	return file_payroll_v1_master_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *EmployeeTaxHistory) GetValidFrom() string {
+	if x != nil {
+		return x.ValidFrom
+	}
+	return ""
+}
+
+func (x *EmployeeTaxHistory) GetTaxId() string {
+	if x != nil {
+		return x.TaxId
+	}
+	return ""
+}
+
+func (x *EmployeeTaxHistory) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *EmployeeTaxHistory) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *EmployeeTaxHistory) GetCreatedBy() string {
+	if x != nil {
+		return x.CreatedBy
+	}
+	return ""
+}
+
+func (x *EmployeeTaxHistory) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+type ListEmployeeTaxHistoryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Base          *v1.BaseResponse       `protobuf:"bytes,1,opt,name=base,proto3" json:"base,omitempty"`
+	Data          []*EmployeeTaxHistory  `protobuf:"bytes,2,rep,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListEmployeeTaxHistoryResponse) Reset() {
+	*x = ListEmployeeTaxHistoryResponse{}
+	mi := &file_payroll_v1_master_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListEmployeeTaxHistoryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListEmployeeTaxHistoryResponse) ProtoMessage() {}
+
+func (x *ListEmployeeTaxHistoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_payroll_v1_master_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListEmployeeTaxHistoryResponse.ProtoReflect.Descriptor instead.
+func (*ListEmployeeTaxHistoryResponse) Descriptor() ([]byte, []int) {
+	return file_payroll_v1_master_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *ListEmployeeTaxHistoryResponse) GetBase() *v1.BaseResponse {
+	if x != nil {
+		return x.Base
+	}
+	return nil
+}
+
+func (x *ListEmployeeTaxHistoryResponse) GetData() []*EmployeeTaxHistory {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
 var File_payroll_v1_master_proto protoreflect.FileDescriptor
 
 const file_payroll_v1_master_proto_rawDesc = "" +
@@ -2752,7 +3067,35 @@ const file_payroll_v1_master_proto_rawDesc = "" +
 	"\bif_match\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aifMatch\"o\n" +
 	"\x16UpdateEmployeeResponse\x12+\n" +
 	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12(\n" +
-	"\x04data\x18\x02 \x01(\v2\x14.payroll.v1.EmployeeR\x04dataB\xa5\x01\n" +
+	"\x04data\x18\x02 \x01(\v2\x14.payroll.v1.EmployeeR\x04data\"\xcd\x01\n" +
+	"\x1fCorrectEmployeeTaxStatusRequest\x12\x17\n" +
+	"\x02id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\x02id\x12 \n" +
+	"\x06tax_id\x18\x02 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18\n" +
+	"R\x05taxId\x12'\n" +
+	"\n" +
+	"valid_from\x18\x03 \x01(\tB\b\xbaH\x05r\x03\x98\x01\n" +
+	"R\tvalidFrom\x12\"\n" +
+	"\x06reason\x18\x04 \x01(\tB\n" +
+	"\xbaH\ar\x05\x10\x01\x18\xf4\x03R\x06reason\x12\"\n" +
+	"\bif_match\x18\x05 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aifMatch\"y\n" +
+	" CorrectEmployeeTaxStatusResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x12(\n" +
+	"\x04data\x18\x02 \x01(\v2\x14.payroll.v1.EmployeeR\x04data\"8\n" +
+	"\x1dListEmployeeTaxHistoryRequest\x12\x17\n" +
+	"\x02id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\x02id\"\xb8\x01\n" +
+	"\x12EmployeeTaxHistory\x12\x1d\n" +
+	"\n" +
+	"valid_from\x18\x01 \x01(\tR\tvalidFrom\x12\x15\n" +
+	"\x06tax_id\x18\x02 \x01(\tR\x05taxId\x12\x16\n" +
+	"\x06source\x18\x03 \x01(\tR\x06source\x12\x16\n" +
+	"\x06reason\x18\x04 \x01(\tR\x06reason\x12\x1d\n" +
+	"\n" +
+	"created_by\x18\x05 \x01(\tR\tcreatedBy\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x06 \x01(\tR\tcreatedAt\"\x81\x01\n" +
+	"\x1eListEmployeeTaxHistoryResponse\x12+\n" +
+	"\x04base\x18\x01 \x01(\v2\x17.common.v1.BaseResponseR\x04base\x122\n" +
+	"\x04data\x18\x02 \x03(\v2\x1e.payroll.v1.EmployeeTaxHistoryR\x04dataB\xa5\x01\n" +
 	"\x0ecom.payroll.v1B\vMasterProtoP\x01Z=github.com/mutugading/goapps-backend/gen/payroll/v1;payrollv1\xa2\x02\x03PXX\xaa\x02\n" +
 	"Payroll.V1\xca\x02\n" +
 	"Payroll\\V1\xe2\x02\x16Payroll\\V1\\GPBMetadata\xea\x02\vPayroll::V1b\x06proto3"
@@ -2769,81 +3112,90 @@ func file_payroll_v1_master_proto_rawDescGZIP() []byte {
 	return file_payroll_v1_master_proto_rawDescData
 }
 
-var file_payroll_v1_master_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
+var file_payroll_v1_master_proto_msgTypes = make([]protoimpl.MessageInfo, 38)
 var file_payroll_v1_master_proto_goTypes = []any{
-	(*Currency)(nil),               // 0: payroll.v1.Currency
-	(*CreateCurrencyRequest)(nil),  // 1: payroll.v1.CreateCurrencyRequest
-	(*CreateCurrencyResponse)(nil), // 2: payroll.v1.CreateCurrencyResponse
-	(*ListCurrenciesRequest)(nil),  // 3: payroll.v1.ListCurrenciesRequest
-	(*ListCurrenciesResponse)(nil), // 4: payroll.v1.ListCurrenciesResponse
-	(*UpdateCurrencyRequest)(nil),  // 5: payroll.v1.UpdateCurrencyRequest
-	(*UpdateCurrencyResponse)(nil), // 6: payroll.v1.UpdateCurrencyResponse
-	(*Company)(nil),                // 7: payroll.v1.Company
-	(*CreateCompanyRequest)(nil),   // 8: payroll.v1.CreateCompanyRequest
-	(*CreateCompanyResponse)(nil),  // 9: payroll.v1.CreateCompanyResponse
-	(*GetCompanyRequest)(nil),      // 10: payroll.v1.GetCompanyRequest
-	(*GetCompanyResponse)(nil),     // 11: payroll.v1.GetCompanyResponse
-	(*ListCompaniesRequest)(nil),   // 12: payroll.v1.ListCompaniesRequest
-	(*ListCompaniesResponse)(nil),  // 13: payroll.v1.ListCompaniesResponse
-	(*UpdateCompanyRequest)(nil),   // 14: payroll.v1.UpdateCompanyRequest
-	(*UpdateCompanyResponse)(nil),  // 15: payroll.v1.UpdateCompanyResponse
-	(*Division)(nil),               // 16: payroll.v1.Division
-	(*CreateDivisionRequest)(nil),  // 17: payroll.v1.CreateDivisionRequest
-	(*CreateDivisionResponse)(nil), // 18: payroll.v1.CreateDivisionResponse
-	(*ListDivisionsRequest)(nil),   // 19: payroll.v1.ListDivisionsRequest
-	(*ListDivisionsResponse)(nil),  // 20: payroll.v1.ListDivisionsResponse
-	(*UpdateDivisionRequest)(nil),  // 21: payroll.v1.UpdateDivisionRequest
-	(*UpdateDivisionResponse)(nil), // 22: payroll.v1.UpdateDivisionResponse
-	(*Employee)(nil),               // 23: payroll.v1.Employee
-	(*EmployeeInput)(nil),          // 24: payroll.v1.EmployeeInput
-	(*CreateEmployeeRequest)(nil),  // 25: payroll.v1.CreateEmployeeRequest
-	(*CreateEmployeeResponse)(nil), // 26: payroll.v1.CreateEmployeeResponse
-	(*GetEmployeeRequest)(nil),     // 27: payroll.v1.GetEmployeeRequest
-	(*GetEmployeeResponse)(nil),    // 28: payroll.v1.GetEmployeeResponse
-	(*ListEmployeesRequest)(nil),   // 29: payroll.v1.ListEmployeesRequest
-	(*ListEmployeesResponse)(nil),  // 30: payroll.v1.ListEmployeesResponse
-	(*UpdateEmployeeRequest)(nil),  // 31: payroll.v1.UpdateEmployeeRequest
-	(*UpdateEmployeeResponse)(nil), // 32: payroll.v1.UpdateEmployeeResponse
-	(*v1.BaseResponse)(nil),        // 33: common.v1.BaseResponse
-	(*v1.AuditInfo)(nil),           // 34: common.v1.AuditInfo
+	(*Currency)(nil),                         // 0: payroll.v1.Currency
+	(*CreateCurrencyRequest)(nil),            // 1: payroll.v1.CreateCurrencyRequest
+	(*CreateCurrencyResponse)(nil),           // 2: payroll.v1.CreateCurrencyResponse
+	(*ListCurrenciesRequest)(nil),            // 3: payroll.v1.ListCurrenciesRequest
+	(*ListCurrenciesResponse)(nil),           // 4: payroll.v1.ListCurrenciesResponse
+	(*UpdateCurrencyRequest)(nil),            // 5: payroll.v1.UpdateCurrencyRequest
+	(*UpdateCurrencyResponse)(nil),           // 6: payroll.v1.UpdateCurrencyResponse
+	(*Company)(nil),                          // 7: payroll.v1.Company
+	(*CreateCompanyRequest)(nil),             // 8: payroll.v1.CreateCompanyRequest
+	(*CreateCompanyResponse)(nil),            // 9: payroll.v1.CreateCompanyResponse
+	(*GetCompanyRequest)(nil),                // 10: payroll.v1.GetCompanyRequest
+	(*GetCompanyResponse)(nil),               // 11: payroll.v1.GetCompanyResponse
+	(*ListCompaniesRequest)(nil),             // 12: payroll.v1.ListCompaniesRequest
+	(*ListCompaniesResponse)(nil),            // 13: payroll.v1.ListCompaniesResponse
+	(*UpdateCompanyRequest)(nil),             // 14: payroll.v1.UpdateCompanyRequest
+	(*UpdateCompanyResponse)(nil),            // 15: payroll.v1.UpdateCompanyResponse
+	(*Division)(nil),                         // 16: payroll.v1.Division
+	(*CreateDivisionRequest)(nil),            // 17: payroll.v1.CreateDivisionRequest
+	(*CreateDivisionResponse)(nil),           // 18: payroll.v1.CreateDivisionResponse
+	(*ListDivisionsRequest)(nil),             // 19: payroll.v1.ListDivisionsRequest
+	(*ListDivisionsResponse)(nil),            // 20: payroll.v1.ListDivisionsResponse
+	(*UpdateDivisionRequest)(nil),            // 21: payroll.v1.UpdateDivisionRequest
+	(*UpdateDivisionResponse)(nil),           // 22: payroll.v1.UpdateDivisionResponse
+	(*Employee)(nil),                         // 23: payroll.v1.Employee
+	(*EmployeeInput)(nil),                    // 24: payroll.v1.EmployeeInput
+	(*CreateEmployeeRequest)(nil),            // 25: payroll.v1.CreateEmployeeRequest
+	(*CreateEmployeeResponse)(nil),           // 26: payroll.v1.CreateEmployeeResponse
+	(*GetEmployeeRequest)(nil),               // 27: payroll.v1.GetEmployeeRequest
+	(*GetEmployeeResponse)(nil),              // 28: payroll.v1.GetEmployeeResponse
+	(*ListEmployeesRequest)(nil),             // 29: payroll.v1.ListEmployeesRequest
+	(*ListEmployeesResponse)(nil),            // 30: payroll.v1.ListEmployeesResponse
+	(*UpdateEmployeeRequest)(nil),            // 31: payroll.v1.UpdateEmployeeRequest
+	(*UpdateEmployeeResponse)(nil),           // 32: payroll.v1.UpdateEmployeeResponse
+	(*CorrectEmployeeTaxStatusRequest)(nil),  // 33: payroll.v1.CorrectEmployeeTaxStatusRequest
+	(*CorrectEmployeeTaxStatusResponse)(nil), // 34: payroll.v1.CorrectEmployeeTaxStatusResponse
+	(*ListEmployeeTaxHistoryRequest)(nil),    // 35: payroll.v1.ListEmployeeTaxHistoryRequest
+	(*EmployeeTaxHistory)(nil),               // 36: payroll.v1.EmployeeTaxHistory
+	(*ListEmployeeTaxHistoryResponse)(nil),   // 37: payroll.v1.ListEmployeeTaxHistoryResponse
+	(*v1.BaseResponse)(nil),                  // 38: common.v1.BaseResponse
+	(*v1.AuditInfo)(nil),                     // 39: common.v1.AuditInfo
 }
 var file_payroll_v1_master_proto_depIdxs = []int32{
-	33, // 0: payroll.v1.CreateCurrencyResponse.base:type_name -> common.v1.BaseResponse
+	38, // 0: payroll.v1.CreateCurrencyResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 1: payroll.v1.CreateCurrencyResponse.data:type_name -> payroll.v1.Currency
-	33, // 2: payroll.v1.ListCurrenciesResponse.base:type_name -> common.v1.BaseResponse
+	38, // 2: payroll.v1.ListCurrenciesResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 3: payroll.v1.ListCurrenciesResponse.data:type_name -> payroll.v1.Currency
-	33, // 4: payroll.v1.UpdateCurrencyResponse.base:type_name -> common.v1.BaseResponse
+	38, // 4: payroll.v1.UpdateCurrencyResponse.base:type_name -> common.v1.BaseResponse
 	0,  // 5: payroll.v1.UpdateCurrencyResponse.data:type_name -> payroll.v1.Currency
-	33, // 6: payroll.v1.CreateCompanyResponse.base:type_name -> common.v1.BaseResponse
+	38, // 6: payroll.v1.CreateCompanyResponse.base:type_name -> common.v1.BaseResponse
 	7,  // 7: payroll.v1.CreateCompanyResponse.data:type_name -> payroll.v1.Company
-	33, // 8: payroll.v1.GetCompanyResponse.base:type_name -> common.v1.BaseResponse
+	38, // 8: payroll.v1.GetCompanyResponse.base:type_name -> common.v1.BaseResponse
 	7,  // 9: payroll.v1.GetCompanyResponse.data:type_name -> payroll.v1.Company
-	33, // 10: payroll.v1.ListCompaniesResponse.base:type_name -> common.v1.BaseResponse
+	38, // 10: payroll.v1.ListCompaniesResponse.base:type_name -> common.v1.BaseResponse
 	7,  // 11: payroll.v1.ListCompaniesResponse.data:type_name -> payroll.v1.Company
-	33, // 12: payroll.v1.UpdateCompanyResponse.base:type_name -> common.v1.BaseResponse
+	38, // 12: payroll.v1.UpdateCompanyResponse.base:type_name -> common.v1.BaseResponse
 	7,  // 13: payroll.v1.UpdateCompanyResponse.data:type_name -> payroll.v1.Company
-	33, // 14: payroll.v1.CreateDivisionResponse.base:type_name -> common.v1.BaseResponse
+	38, // 14: payroll.v1.CreateDivisionResponse.base:type_name -> common.v1.BaseResponse
 	16, // 15: payroll.v1.CreateDivisionResponse.data:type_name -> payroll.v1.Division
-	33, // 16: payroll.v1.ListDivisionsResponse.base:type_name -> common.v1.BaseResponse
+	38, // 16: payroll.v1.ListDivisionsResponse.base:type_name -> common.v1.BaseResponse
 	16, // 17: payroll.v1.ListDivisionsResponse.data:type_name -> payroll.v1.Division
-	33, // 18: payroll.v1.UpdateDivisionResponse.base:type_name -> common.v1.BaseResponse
+	38, // 18: payroll.v1.UpdateDivisionResponse.base:type_name -> common.v1.BaseResponse
 	16, // 19: payroll.v1.UpdateDivisionResponse.data:type_name -> payroll.v1.Division
-	34, // 20: payroll.v1.Employee.audit:type_name -> common.v1.AuditInfo
+	39, // 20: payroll.v1.Employee.audit:type_name -> common.v1.AuditInfo
 	24, // 21: payroll.v1.CreateEmployeeRequest.input:type_name -> payroll.v1.EmployeeInput
-	33, // 22: payroll.v1.CreateEmployeeResponse.base:type_name -> common.v1.BaseResponse
+	38, // 22: payroll.v1.CreateEmployeeResponse.base:type_name -> common.v1.BaseResponse
 	23, // 23: payroll.v1.CreateEmployeeResponse.data:type_name -> payroll.v1.Employee
-	33, // 24: payroll.v1.GetEmployeeResponse.base:type_name -> common.v1.BaseResponse
+	38, // 24: payroll.v1.GetEmployeeResponse.base:type_name -> common.v1.BaseResponse
 	23, // 25: payroll.v1.GetEmployeeResponse.data:type_name -> payroll.v1.Employee
-	33, // 26: payroll.v1.ListEmployeesResponse.base:type_name -> common.v1.BaseResponse
+	38, // 26: payroll.v1.ListEmployeesResponse.base:type_name -> common.v1.BaseResponse
 	23, // 27: payroll.v1.ListEmployeesResponse.data:type_name -> payroll.v1.Employee
 	24, // 28: payroll.v1.UpdateEmployeeRequest.input:type_name -> payroll.v1.EmployeeInput
-	33, // 29: payroll.v1.UpdateEmployeeResponse.base:type_name -> common.v1.BaseResponse
+	38, // 29: payroll.v1.UpdateEmployeeResponse.base:type_name -> common.v1.BaseResponse
 	23, // 30: payroll.v1.UpdateEmployeeResponse.data:type_name -> payroll.v1.Employee
-	31, // [31:31] is the sub-list for method output_type
-	31, // [31:31] is the sub-list for method input_type
-	31, // [31:31] is the sub-list for extension type_name
-	31, // [31:31] is the sub-list for extension extendee
-	0,  // [0:31] is the sub-list for field type_name
+	38, // 31: payroll.v1.CorrectEmployeeTaxStatusResponse.base:type_name -> common.v1.BaseResponse
+	23, // 32: payroll.v1.CorrectEmployeeTaxStatusResponse.data:type_name -> payroll.v1.Employee
+	38, // 33: payroll.v1.ListEmployeeTaxHistoryResponse.base:type_name -> common.v1.BaseResponse
+	36, // 34: payroll.v1.ListEmployeeTaxHistoryResponse.data:type_name -> payroll.v1.EmployeeTaxHistory
+	35, // [35:35] is the sub-list for method output_type
+	35, // [35:35] is the sub-list for method input_type
+	35, // [35:35] is the sub-list for extension type_name
+	35, // [35:35] is the sub-list for extension extendee
+	0,  // [0:35] is the sub-list for field type_name
 }
 
 func init() { file_payroll_v1_master_proto_init() }
@@ -2857,7 +3209,7 @@ func file_payroll_v1_master_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_payroll_v1_master_proto_rawDesc), len(file_payroll_v1_master_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   33,
+			NumMessages:   38,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

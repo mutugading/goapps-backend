@@ -197,7 +197,7 @@ func TestETL_InputsIdempotentAndCounts(t *testing.T) {
 	snap := func() string {
 		return scalar(t, `SELECT md5(
 		  (SELECT string_agg(psv_vs_code||psv_code||coalesce(psv_name,''), ',' ORDER BY 1) FROM payroll.pyr_static_value) ||
-		  (SELECT string_agg(prc_key||coalesce(prc_division,'*')||prc_value, ',' ORDER BY 1) FROM payroll.pyr_rule_constant) ||
+		  (SELECT string_agg(prc_key||coalesce(prc_division,'*')||prc_value, ',' ORDER BY prc_key, prc_division) FROM payroll.pyr_rule_constant) ||
 		  (SELECT coalesce(string_agg(psr_name, ',' ORDER BY 1),'-') FROM payroll.pyr_subsidy_rule WHERE created_by='etl') ||
 		  (SELECT string_agg(pa_nik||pa_type||pa_id||pa_amount||pa_source, ',' ORDER BY 1) FROM payroll.pyr_addition) ||
 		  (SELECT string_agg(pta_nik||pta_amount, ',' ORDER BY 1) FROM payroll.pyr_tax_adj) ||
@@ -220,9 +220,25 @@ func TestETL_InputsIdempotentAndCounts(t *testing.T) {
 			t.Errorf("%s src=%d dst=%d", r.Table, r.SrcRows, r.DstRows)
 		}
 	}
+	// T033m (D-81): TAX_V2_FROM is seeded once; an ops change (e.g. for recon) survives an ETL rerun.
+	if got := scalar(t, `SELECT prc_value::text FROM payroll.pyr_rule_constant WHERE prc_key='TAX_V2_FROM'`); got != "202612.000000" {
+		t.Errorf("TAX_V2_FROM seed = %s, want 202612", got)
+	}
+	if _, err := ownDB.Exec(`UPDATE payroll.pyr_rule_constant SET prc_value = 202701 WHERE prc_key='TAX_V2_FROM'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := etl.RunInputs(ctx, etlDB, src, o); err != nil {
+		t.Fatal(err)
+	}
+	if got := scalar(t, `SELECT prc_value::text FROM payroll.pyr_rule_constant WHERE prc_key='TAX_V2_FROM'`); got != "202701.000000" {
+		t.Errorf("ETL ulang menimpa TAX_V2_FROM ops: %s", got)
+	}
+	if _, err := ownDB.Exec(`UPDATE payroll.pyr_rule_constant SET prc_value = 202612 WHERE prc_key='TAX_V2_FROM'`); err != nil {
+		t.Fatal(err)
+	}
 	for q, want := range map[string]string{
 		`SELECT count(*) FROM payroll.pyr_static_value`:                                                "3",
-		`SELECT count(*) FROM payroll.pyr_rule_constant`:                                               "13",
+		`SELECT count(*) FROM payroll.pyr_rule_constant`:                                               "14",
 		`SELECT count(*) FROM payroll.pyr_attd_days`:                                                   "2",
 		`SELECT count(*) FROM payroll.pyr_subsidi_pph`:                                                 "3",
 		`SELECT count(*) FROM payroll.pyr_subsidy_rule WHERE created_by='etl' AND psr_status='ACTIVE'`: "1",

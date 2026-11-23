@@ -2,6 +2,7 @@ package run
 
 import (
 	"testing"
+	"time"
 
 	"github.com/shopspring/decimal"
 
@@ -29,5 +30,27 @@ func TestHashInputsIncludesRuleConstants(t *testing.T) {
 	}
 	if a != a2 {
 		t.Fatal("hash must be deterministic")
+	}
+}
+
+// T033m: the resign date and the YTD run months feed the tax v2 job cost cap and the leaver true-up, so they are
+// part of the input fingerprint (a change after commit makes approve see the run as stale).
+func TestHashInputsIncludesTaxV2Fields(t *testing.T) {
+	base := hashInputs(syntheticInputs(2))
+	ins := syntheticInputs(2)
+	r := time.Date(2026, 6, 10, 0, 0, 0, 0, time.UTC)
+	ins[1].Emp.ResignDate = &r
+	if hashInputs(ins) == base {
+		t.Error("ResignDate must change the input hash")
+	}
+	ins = syntheticInputs(2)
+	ins[0].YTD.Months = 7
+	if hashInputs(ins) == base {
+		t.Error("YTD.Months must change the input hash")
+	}
+	ins = syntheticInputs(2)
+	ins[0].Emp.TaxStatusJan1 = "TK" // T033n: annual PTKP status of 1 January
+	if hashInputs(ins) == base {
+		t.Error("TaxStatusJan1 must change the input hash")
 	}
 }

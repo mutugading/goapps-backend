@@ -19,41 +19,43 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	PayrollService_CreateCurrency_FullMethodName        = "/payroll.v1.PayrollService/CreateCurrency"
-	PayrollService_ListCurrencies_FullMethodName        = "/payroll.v1.PayrollService/ListCurrencies"
-	PayrollService_UpdateCurrency_FullMethodName        = "/payroll.v1.PayrollService/UpdateCurrency"
-	PayrollService_CreateCompany_FullMethodName         = "/payroll.v1.PayrollService/CreateCompany"
-	PayrollService_GetCompany_FullMethodName            = "/payroll.v1.PayrollService/GetCompany"
-	PayrollService_ListCompanies_FullMethodName         = "/payroll.v1.PayrollService/ListCompanies"
-	PayrollService_UpdateCompany_FullMethodName         = "/payroll.v1.PayrollService/UpdateCompany"
-	PayrollService_CreateDivision_FullMethodName        = "/payroll.v1.PayrollService/CreateDivision"
-	PayrollService_ListDivisions_FullMethodName         = "/payroll.v1.PayrollService/ListDivisions"
-	PayrollService_UpdateDivision_FullMethodName        = "/payroll.v1.PayrollService/UpdateDivision"
-	PayrollService_CreateEmployee_FullMethodName        = "/payroll.v1.PayrollService/CreateEmployee"
-	PayrollService_GetEmployee_FullMethodName           = "/payroll.v1.PayrollService/GetEmployee"
-	PayrollService_ListEmployees_FullMethodName         = "/payroll.v1.PayrollService/ListEmployees"
-	PayrollService_UpdateEmployee_FullMethodName        = "/payroll.v1.PayrollService/UpdateEmployee"
-	PayrollService_CreateComponent_FullMethodName       = "/payroll.v1.PayrollService/CreateComponent"
-	PayrollService_GetComponent_FullMethodName          = "/payroll.v1.PayrollService/GetComponent"
-	PayrollService_ListComponents_FullMethodName        = "/payroll.v1.PayrollService/ListComponents"
-	PayrollService_UpdateComponent_FullMethodName       = "/payroll.v1.PayrollService/UpdateComponent"
-	PayrollService_RetireComponent_FullMethodName       = "/payroll.v1.PayrollService/RetireComponent"
-	PayrollService_GetComponentTemplate_FullMethodName  = "/payroll.v1.PayrollService/GetComponentTemplate"
-	PayrollService_PutComponentTemplate_FullMethodName  = "/payroll.v1.PayrollService/PutComponentTemplate"
-	PayrollService_GetEmployeeComponents_FullMethodName = "/payroll.v1.PayrollService/GetEmployeeComponents"
-	PayrollService_PutEmployeeComponents_FullMethodName = "/payroll.v1.PayrollService/PutEmployeeComponents"
-	PayrollService_PreviewLevelChange_FullMethodName    = "/payroll.v1.PayrollService/PreviewLevelChange"
-	PayrollService_ApplyLevelChange_FullMethodName      = "/payroll.v1.PayrollService/ApplyLevelChange"
-	PayrollService_CreateRun_FullMethodName             = "/payroll.v1.PayrollService/CreateRun"
-	PayrollService_GetRun_FullMethodName                = "/payroll.v1.PayrollService/GetRun"
-	PayrollService_ListRuns_FullMethodName              = "/payroll.v1.PayrollService/ListRuns"
-	PayrollService_ListRunLines_FullMethodName          = "/payroll.v1.PayrollService/ListRunLines"
-	PayrollService_GetRunDiff_FullMethodName            = "/payroll.v1.PayrollService/GetRunDiff"
-	PayrollService_ListPeriods_FullMethodName           = "/payroll.v1.PayrollService/ListPeriods"
-	PayrollService_ApprovePeriod_FullMethodName         = "/payroll.v1.PayrollService/ApprovePeriod"
-	PayrollService_ClosePeriod_FullMethodName           = "/payroll.v1.PayrollService/ClosePeriod"
-	PayrollService_ReopenPeriod_FullMethodName          = "/payroll.v1.PayrollService/ReopenPeriod"
-	PayrollService_ExportReport_FullMethodName          = "/payroll.v1.PayrollService/ExportReport"
+	PayrollService_CreateCurrency_FullMethodName           = "/payroll.v1.PayrollService/CreateCurrency"
+	PayrollService_ListCurrencies_FullMethodName           = "/payroll.v1.PayrollService/ListCurrencies"
+	PayrollService_UpdateCurrency_FullMethodName           = "/payroll.v1.PayrollService/UpdateCurrency"
+	PayrollService_CreateCompany_FullMethodName            = "/payroll.v1.PayrollService/CreateCompany"
+	PayrollService_GetCompany_FullMethodName               = "/payroll.v1.PayrollService/GetCompany"
+	PayrollService_ListCompanies_FullMethodName            = "/payroll.v1.PayrollService/ListCompanies"
+	PayrollService_UpdateCompany_FullMethodName            = "/payroll.v1.PayrollService/UpdateCompany"
+	PayrollService_CreateDivision_FullMethodName           = "/payroll.v1.PayrollService/CreateDivision"
+	PayrollService_ListDivisions_FullMethodName            = "/payroll.v1.PayrollService/ListDivisions"
+	PayrollService_UpdateDivision_FullMethodName           = "/payroll.v1.PayrollService/UpdateDivision"
+	PayrollService_CreateEmployee_FullMethodName           = "/payroll.v1.PayrollService/CreateEmployee"
+	PayrollService_GetEmployee_FullMethodName              = "/payroll.v1.PayrollService/GetEmployee"
+	PayrollService_ListEmployees_FullMethodName            = "/payroll.v1.PayrollService/ListEmployees"
+	PayrollService_UpdateEmployee_FullMethodName           = "/payroll.v1.PayrollService/UpdateEmployee"
+	PayrollService_CorrectEmployeeTaxStatus_FullMethodName = "/payroll.v1.PayrollService/CorrectEmployeeTaxStatus"
+	PayrollService_ListEmployeeTaxHistory_FullMethodName   = "/payroll.v1.PayrollService/ListEmployeeTaxHistory"
+	PayrollService_CreateComponent_FullMethodName          = "/payroll.v1.PayrollService/CreateComponent"
+	PayrollService_GetComponent_FullMethodName             = "/payroll.v1.PayrollService/GetComponent"
+	PayrollService_ListComponents_FullMethodName           = "/payroll.v1.PayrollService/ListComponents"
+	PayrollService_UpdateComponent_FullMethodName          = "/payroll.v1.PayrollService/UpdateComponent"
+	PayrollService_RetireComponent_FullMethodName          = "/payroll.v1.PayrollService/RetireComponent"
+	PayrollService_GetComponentTemplate_FullMethodName     = "/payroll.v1.PayrollService/GetComponentTemplate"
+	PayrollService_PutComponentTemplate_FullMethodName     = "/payroll.v1.PayrollService/PutComponentTemplate"
+	PayrollService_GetEmployeeComponents_FullMethodName    = "/payroll.v1.PayrollService/GetEmployeeComponents"
+	PayrollService_PutEmployeeComponents_FullMethodName    = "/payroll.v1.PayrollService/PutEmployeeComponents"
+	PayrollService_PreviewLevelChange_FullMethodName       = "/payroll.v1.PayrollService/PreviewLevelChange"
+	PayrollService_ApplyLevelChange_FullMethodName         = "/payroll.v1.PayrollService/ApplyLevelChange"
+	PayrollService_CreateRun_FullMethodName                = "/payroll.v1.PayrollService/CreateRun"
+	PayrollService_GetRun_FullMethodName                   = "/payroll.v1.PayrollService/GetRun"
+	PayrollService_ListRuns_FullMethodName                 = "/payroll.v1.PayrollService/ListRuns"
+	PayrollService_ListRunLines_FullMethodName             = "/payroll.v1.PayrollService/ListRunLines"
+	PayrollService_GetRunDiff_FullMethodName               = "/payroll.v1.PayrollService/GetRunDiff"
+	PayrollService_ListPeriods_FullMethodName              = "/payroll.v1.PayrollService/ListPeriods"
+	PayrollService_ApprovePeriod_FullMethodName            = "/payroll.v1.PayrollService/ApprovePeriod"
+	PayrollService_ClosePeriod_FullMethodName              = "/payroll.v1.PayrollService/ClosePeriod"
+	PayrollService_ReopenPeriod_FullMethodName             = "/payroll.v1.PayrollService/ReopenPeriod"
+	PayrollService_ExportReport_FullMethodName             = "/payroll.v1.PayrollService/ExportReport"
 )
 
 // PayrollServiceClient is the client API for PayrollService service.
@@ -87,6 +89,11 @@ type PayrollServiceClient interface {
 	GetEmployee(ctx context.Context, in *GetEmployeeRequest, opts ...grpc.CallOption) (*GetEmployeeResponse, error)
 	ListEmployees(ctx context.Context, in *ListEmployeesRequest, opts ...grpc.CallOption) (*ListEmployeesResponse, error)
 	UpdateEmployee(ctx context.Context, in *UpdateEmployeeRequest, opts ...grpc.CallOption) (*UpdateEmployeeResponse, error)
+	// Backdated correction of a wrongly entered tax status (D-82 (5), T033n2): the status is recorded as valid
+	// from `valid_from` in the tax-status history, so the annual PTKP uses it. Needs payroll.master.taxstatus.update.
+	CorrectEmployeeTaxStatus(ctx context.Context, in *CorrectEmployeeTaxStatusRequest, opts ...grpc.CallOption) (*CorrectEmployeeTaxStatusResponse, error)
+	// Tax-status history of one employee (D-82 (1), T033n4), newest first; read-only.
+	ListEmployeeTaxHistory(ctx context.Context, in *ListEmployeeTaxHistoryRequest, opts ...grpc.CallOption) (*ListEmployeeTaxHistoryResponse, error)
 	// ── Master: Component (sysid) + template per level (T008) ──────────────────
 	CreateComponent(ctx context.Context, in *CreateComponentRequest, opts ...grpc.CallOption) (*CreateComponentResponse, error)
 	GetComponent(ctx context.Context, in *GetComponentRequest, opts ...grpc.CallOption) (*GetComponentResponse, error)
@@ -258,6 +265,26 @@ func (c *payrollServiceClient) UpdateEmployee(ctx context.Context, in *UpdateEmp
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdateEmployeeResponse)
 	err := c.cc.Invoke(ctx, PayrollService_UpdateEmployee_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) CorrectEmployeeTaxStatus(ctx context.Context, in *CorrectEmployeeTaxStatusRequest, opts ...grpc.CallOption) (*CorrectEmployeeTaxStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CorrectEmployeeTaxStatusResponse)
+	err := c.cc.Invoke(ctx, PayrollService_CorrectEmployeeTaxStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *payrollServiceClient) ListEmployeeTaxHistory(ctx context.Context, in *ListEmployeeTaxHistoryRequest, opts ...grpc.CallOption) (*ListEmployeeTaxHistoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListEmployeeTaxHistoryResponse)
+	err := c.cc.Invoke(ctx, PayrollService_ListEmployeeTaxHistory_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -505,6 +532,11 @@ type PayrollServiceServer interface {
 	GetEmployee(context.Context, *GetEmployeeRequest) (*GetEmployeeResponse, error)
 	ListEmployees(context.Context, *ListEmployeesRequest) (*ListEmployeesResponse, error)
 	UpdateEmployee(context.Context, *UpdateEmployeeRequest) (*UpdateEmployeeResponse, error)
+	// Backdated correction of a wrongly entered tax status (D-82 (5), T033n2): the status is recorded as valid
+	// from `valid_from` in the tax-status history, so the annual PTKP uses it. Needs payroll.master.taxstatus.update.
+	CorrectEmployeeTaxStatus(context.Context, *CorrectEmployeeTaxStatusRequest) (*CorrectEmployeeTaxStatusResponse, error)
+	// Tax-status history of one employee (D-82 (1), T033n4), newest first; read-only.
+	ListEmployeeTaxHistory(context.Context, *ListEmployeeTaxHistoryRequest) (*ListEmployeeTaxHistoryResponse, error)
 	// ── Master: Component (sysid) + template per level (T008) ──────────────────
 	CreateComponent(context.Context, *CreateComponentRequest) (*CreateComponentResponse, error)
 	GetComponent(context.Context, *GetComponentRequest) (*GetComponentResponse, error)
@@ -583,6 +615,12 @@ func (UnimplementedPayrollServiceServer) ListEmployees(context.Context, *ListEmp
 }
 func (UnimplementedPayrollServiceServer) UpdateEmployee(context.Context, *UpdateEmployeeRequest) (*UpdateEmployeeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateEmployee not implemented")
+}
+func (UnimplementedPayrollServiceServer) CorrectEmployeeTaxStatus(context.Context, *CorrectEmployeeTaxStatusRequest) (*CorrectEmployeeTaxStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CorrectEmployeeTaxStatus not implemented")
+}
+func (UnimplementedPayrollServiceServer) ListEmployeeTaxHistory(context.Context, *ListEmployeeTaxHistoryRequest) (*ListEmployeeTaxHistoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListEmployeeTaxHistory not implemented")
 }
 func (UnimplementedPayrollServiceServer) CreateComponent(context.Context, *CreateComponentRequest) (*CreateComponentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateComponent not implemented")
@@ -916,6 +954,42 @@ func _PayrollService_UpdateEmployee_Handler(srv interface{}, ctx context.Context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(PayrollServiceServer).UpdateEmployee(ctx, req.(*UpdateEmployeeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_CorrectEmployeeTaxStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CorrectEmployeeTaxStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).CorrectEmployeeTaxStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_CorrectEmployeeTaxStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).CorrectEmployeeTaxStatus(ctx, req.(*CorrectEmployeeTaxStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PayrollService_ListEmployeeTaxHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListEmployeeTaxHistoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PayrollServiceServer).ListEmployeeTaxHistory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PayrollService_ListEmployeeTaxHistory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PayrollServiceServer).ListEmployeeTaxHistory(ctx, req.(*ListEmployeeTaxHistoryRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1360,6 +1434,14 @@ var PayrollService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateEmployee",
 			Handler:    _PayrollService_UpdateEmployee_Handler,
+		},
+		{
+			MethodName: "CorrectEmployeeTaxStatus",
+			Handler:    _PayrollService_CorrectEmployeeTaxStatus_Handler,
+		},
+		{
+			MethodName: "ListEmployeeTaxHistory",
+			Handler:    _PayrollService_ListEmployeeTaxHistory_Handler,
 		},
 		{
 			MethodName: "CreateComponent",

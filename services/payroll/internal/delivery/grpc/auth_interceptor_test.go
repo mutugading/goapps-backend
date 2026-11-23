@@ -247,9 +247,10 @@ func TestMasterRPCPermissionMap(t *testing.T) {
 	const svc = "/payroll.v1.PayrollService/"
 	methods := []string{"CreateCurrency", "ListCurrencies", "UpdateCurrency", "CreateCompany", "GetCompany", "ListCompanies",
 		"UpdateCompany", "CreateDivision", "ListDivisions", "UpdateDivision", "CreateEmployee", "GetEmployee", "ListEmployees", "UpdateEmployee",
-		"CreateComponent", "GetComponent", "ListComponents", "UpdateComponent", "RetireComponent", "GetComponentTemplate", "PutComponentTemplate"}
-	if len(methods) != 21 {
-		t.Fatal("expected 21 master RPCs")
+		"CreateComponent", "GetComponent", "ListComponents", "UpdateComponent", "RetireComponent", "GetComponentTemplate", "PutComponentTemplate",
+		"CorrectEmployeeTaxStatus", "ListEmployeeTaxHistory"}
+	if len(methods) != 23 {
+		t.Fatal("expected 23 master RPCs")
 	}
 	viewOnly := context.WithValue(context.Background(), AuthPermissionsKey,
 		[]string{permEmployeeView, permCompanyView, permCurrencyView, permComponentView, permTemplateView})
@@ -263,5 +264,16 @@ func TestMasterRPCPermissionMap(t *testing.T) {
 		if got := HasPermission(viewOnly, perm); got != isRead {
 			t.Errorf("%s: view-only user allowed=%v, want %v (perm %s)", m, got, isRead, perm)
 		}
+	}
+	// T033n2: koreksi status pajak mundur butuh permission khusus; employee.update saja tidak cukup.
+	updater := context.WithValue(context.Background(), AuthPermissionsKey, []string{permEmployeeUpdate})
+	info := &grpc.UnaryServerInfo{FullMethod: svc + "CorrectEmployeeTaxStatus"}
+	noop := func(context.Context, any) (any, error) { return nil, nil }
+	if _, err := PermissionInterceptor()(updater, nil, info, noop); status.Code(err) != codes.PermissionDenied {
+		t.Errorf("CorrectEmployeeTaxStatus with employee.update only: %v, want PermissionDenied", err)
+	}
+	holder := context.WithValue(context.Background(), AuthPermissionsKey, []string{permTaxStatusUpdate})
+	if _, err := PermissionInterceptor()(holder, nil, info, noop); err != nil {
+		t.Errorf("CorrectEmployeeTaxStatus with taxstatus.update: %v", err)
 	}
 }

@@ -115,7 +115,7 @@ func (l Loader) Load(ctx context.Context, tx *sql.Tx, q Query, rules Rules) (Res
 	if err != nil {
 		return Result{}, err
 	}
-	tax, taxIssues, err := loadTax(ctx, tx, q, rules.Set.LegacyCompat(), basisPeriod)
+	tax, taxIssues, err := loadTax(ctx, tx, q, rules.Set.LegacyCompat(), basisPeriod, annualNIKs(emps, period, rules.Set))
 	if err != nil {
 		return Result{}, err
 	}
@@ -145,6 +145,21 @@ func (l Loader) Load(ctx context.Context, tx *sql.Tx, q Query, rules Rules) (Res
 		res.Inputs = append(res.Inputs, in)
 	}
 	return res, nil
+}
+
+// annualNIKs returns the employees whose P1/P5 use the annual computation outside December: with tax v2
+// the leavers of the period (D-80 (4a)). They need the YTD and TaxAdj that December loads for everyone.
+func annualNIKs(emps []empRow, p engine.Period, rs engine.RuleSet) []string {
+	if p.IsDecember() || !engine.TaxV2(rs, p.YYMM) {
+		return nil
+	}
+	var out []string
+	for _, er := range emps {
+		if engine.LeaverMonth(p, er.resign) {
+			out = append(out, er.NIK)
+		}
+	}
+	return out
 }
 
 // splitOutOfPeriod implements D-55 option A: rule v2 drops an employee who joined after the period end or
