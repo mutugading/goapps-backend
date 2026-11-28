@@ -1,0 +1,5 @@
+MPCT_TEMPLATE|MPCT_TYPE|MPCT_ID|MPCT_NAME|MPCT_STS|MPCT_TAX|MPCT_AMOUNT|MPCT_TAX_PAID_COMPANY
+Driver|Tunjangan|1|Gaji Pokok|F|2|0|N
+Driver|Tunjangan|6|OT In Work|D|2|0.9017|N
+Executive|Tunjangan|1|Gaji Pokok|F|2|0|N
+Executive|Potongan|32|Pinjaman Pokok|F|1||N

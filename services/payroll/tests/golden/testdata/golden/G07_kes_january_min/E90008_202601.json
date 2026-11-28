@@ -1,0 +1,151 @@
+{
+  "formula": "G07_kes_january_min",
+  "yymm": 202601,
+  "rule_set_id": 1,
+  "features": [
+    "synthetic",
+    "G7"
+  ],
+  "input": {
+    "Period": {
+      "YYMM": 202601,
+      "Start": "2025-12-26T00:00:00Z",
+      "End": "2026-01-25T00:00:00Z"
+    },
+    "Division": "SOLO",
+    "Emp": {
+      "NIK": "E90008",
+      "Name": "",
+      "Level": "staff",
+      "TaxStatus": "",
+      "Dept": "",
+      "HasNPWP": false,
+      "BirthDate": null,
+      "JoinDate": null,
+      "GapokSts": "F"
+    },
+    "Components": [
+      {
+        "Key": {
+          "Type": "T",
+          "ID": 1
+        },
+        "Amount": "3000000",
+        "Sts": "F",
+        "Tax": false,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": false,
+        "SubsidyOT": false,
+        "Frozen": false
+      },
+      {
+        "Key": {
+          "Type": "T",
+          "ID": 901
+        },
+        "Amount": "1800000",
+        "Sts": "F",
+        "Tax": false,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": false,
+        "SubsidyOT": false,
+        "Frozen": false
+      },
+      {
+        "Key": {
+          "Type": "P",
+          "ID": 15
+        },
+        "Amount": "0.04",
+        "Sts": "F",
+        "Tax": false,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": false,
+        "SubsidyOT": false,
+        "Frozen": false
+      }
+    ],
+    "Att": {
+      "pay_tot": "26"
+    },
+    "AttAdd": null,
+    "Sch": null,
+    "Workdays": 26,
+    "Daily": {
+      "PremiFail": 0,
+      "BerasFail": 0
+    },
+    "YTD": {
+      "Gross": "0",
+      "Deduct": "0",
+      "TaxPaid": "0",
+      "Months": 0
+    },
+    "TaxAdj": {
+      "Earn": "0",
+      "Deduct": "0"
+    },
+    "Thr": {
+      "Gross": "0",
+      "PPhPaid": "0"
+    },
+    "YTDCompany": {
+      "Gross": "0",
+      "CompanyPaid": "0",
+      "Deduct": "0",
+      "ThrBonus": "0",
+      "P5Paid": "0"
+    },
+    "Subsidy": {
+      "Rules": null,
+      "Override": null,
+      "Basis": null,
+      "PrevBasis": null,
+      "Locked": null,
+      "LockedYYMM": 0
+    }
+  },
+  "expected": {
+    "lines": [
+      {
+        "type": "T",
+        "id": 1,
+        "amount": "3000000"
+      },
+      {
+        "type": "T",
+        "id": 901,
+        "amount": null
+      },
+      {
+        "type": "P",
+        "id": 15,
+        "amount": "103686"
+      }
+    ],
+    "head": {
+      "tot_tunjangan": "3000000",
+      "tot_potongan": "103686",
+      "rounding": "14",
+      "take_home": "2896300"
+    }
+  },
+  "source": {
+    "kind": "SYNTHETIC",
+    "division": "SOLO"
+  },
+  "rules": {
+    "legacy": true,
+    "constants": {
+      "DAYS_MONTH": "30",
+      "HOURS_MONTH": "173",
+      "BERAS_DAYS": "25",
+      "NAKMIN": "2592154",
+      "KESMIN": "2592154",
+      "PENMIN": "2592154",
+      "KESMAX": "12000000",
+      "PENMAX": "11086300"
+    }
+  },
+  "note": "JAN_BASE 1800000 < KESMIN 2592154 -> 2592154*0.04=103686.16"
+}

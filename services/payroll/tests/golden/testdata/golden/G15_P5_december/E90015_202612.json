@@ -1,0 +1,170 @@
+{
+  "formula": "G15_P5_december",
+  "yymm": 202612,
+  "rule_set_id": 1,
+  "features": [
+    "synthetic",
+    "G9",
+    "G15"
+  ],
+  "input": {
+    "Period": {
+      "YYMM": 202612,
+      "Start": "2026-11-26T00:00:00Z",
+      "End": "2026-12-25T00:00:00Z"
+    },
+    "Division": "SOLO",
+    "Emp": {
+      "NIK": "E90015",
+      "Name": "",
+      "Level": "staff",
+      "TaxStatus": "TK",
+      "Dept": "",
+      "HasNPWP": false,
+      "BirthDate": null,
+      "JoinDate": null,
+      "GapokSts": "F"
+    },
+    "Components": [
+      {
+        "Key": {
+          "Type": "T",
+          "ID": 1
+        },
+        "Amount": "5400000",
+        "Sts": "F",
+        "Tax": true,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": false,
+        "SubsidyOT": false,
+        "Frozen": false
+      },
+      {
+        "Key": {
+          "Type": "T",
+          "ID": 73
+        },
+        "Amount": "600000",
+        "Sts": "F",
+        "Tax": true,
+        "TaxPaidCompany": true,
+        "TaxSubsidy": false,
+        "SubsidyOT": false,
+        "Frozen": false
+      },
+      {
+        "Key": {
+          "Type": "P",
+          "ID": 1
+        },
+        "Amount": "0",
+        "Sts": "F",
+        "Tax": false,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": false,
+        "SubsidyOT": false,
+        "Frozen": false
+      },
+      {
+        "Key": {
+          "Type": "P",
+          "ID": 5
+        },
+        "Amount": "0",
+        "Sts": "F",
+        "Tax": false,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": false,
+        "SubsidyOT": false,
+        "Frozen": false
+      }
+    ],
+    "Att": {
+      "pay_tot": "26"
+    },
+    "att_add": null,
+    "Sch": null,
+    "Workdays": 26,
+    "Daily": {
+      "PremiFail": 0,
+      "BerasFail": 0
+    },
+    "YTD": {
+      "Gross": "59400000",
+      "Deduct": "0",
+      "TaxPaid": "0",
+      "Months": 11
+    },
+    "tax_adj": {
+      "Earn": "0",
+      "Deduct": "0"
+    },
+    "Thr": {
+      "Gross": "0",
+      "PPhPaid": "0"
+    },
+    "ytd_company": {
+      "Gross": "66000000",
+      "CompanyPaid": "6600000",
+      "Deduct": "0",
+      "ThrBonus": "0",
+      "P5Paid": "-330000"
+    },
+    "Subsidy": {
+      "Rules": null,
+      "Override": null,
+      "Basis": null,
+      "PrevBasis": null,
+      "Locked": null,
+      "LockedYYMM": 0
+    }
+  },
+  "expected": {
+    "lines": [
+      {
+        "type": "T",
+        "id": 1,
+        "amount": "5400000"
+      },
+      {
+        "type": "T",
+        "id": 73,
+        "amount": "600000"
+      },
+      {
+        "type": "P",
+        "id": 1,
+        "amount": "406500"
+      },
+      {
+        "type": "P",
+        "id": 5,
+        "amount": "-30000"
+      }
+    ],
+    "head": {
+      "tot_tunjangan": "6000000",
+      "tot_potongan": "376500",
+      "rounding": "0",
+      "take_home": "5623500"
+    }
+  },
+  "source": {
+    "kind": "SYNTHETIC",
+    "division": "SOLO"
+  },
+  "rules": {
+    "legacy": true,
+    "constants": {
+      "DAYS_MONTH": "30",
+      "HOURS_MONTH": "173",
+      "BERAS_DAYS": "25",
+      "NAKMIN": "2592154",
+      "KESMIN": "2592154",
+      "PENMIN": "2592154",
+      "KESMAX": "12000000",
+      "PENMAX": "11086300"
+    }
+  },
+  "note": "[V] 06§6.3 Desember (D-31b, rule v1): YTD P5 dikurangkan. P5: bruto semua 66.000.000+6.000.000=72.000.000, BJ 3.600.000, PTKP TK 54.000.000 -> PKP 14.400.000 x 5% = 720.000; ditanggung perusahaan 7.200.000 masuk pengurang -> PKP 7.200.000 -> 360.000; P5 = 360.000 - 720.000 - (-330.000) = -30.000. P1: bruto 59.400.000+6.000.000 (T73 ikut gross bulan berjalan, D-29), BJ 3.270.000 -> PKP 8.130.000 -> 406.500."
+}

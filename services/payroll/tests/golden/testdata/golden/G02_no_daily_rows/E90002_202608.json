@@ -1,0 +1,134 @@
+{
+  "formula": "G02_no_daily_rows",
+  "yymm": 202608,
+  "rule_set_id": 1,
+  "features": [
+    "synthetic",
+    "G2"
+  ],
+  "input": {
+    "Period": {
+      "YYMM": 202608,
+      "Start": "2026-07-26T00:00:00Z",
+      "End": "2026-08-25T00:00:00Z"
+    },
+    "Division": "SOLO",
+    "Emp": {
+      "NIK": "E90002",
+      "Name": "",
+      "Level": "staff",
+      "TaxStatus": "",
+      "Dept": "",
+      "HasNPWP": false,
+      "BirthDate": null,
+      "JoinDate": null,
+      "GapokSts": "F"
+    },
+    "Components": [
+      {
+        "Key": {
+          "Type": "T",
+          "ID": 1
+        },
+        "Amount": "3000000",
+        "Sts": "F",
+        "Tax": false,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": false,
+        "SubsidyOT": false,
+        "Frozen": false
+      },
+      {
+        "Key": {
+          "Type": "T",
+          "ID": 40
+        },
+        "Amount": "150000",
+        "Sts": "F",
+        "Tax": false,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": false,
+        "SubsidyOT": false,
+        "Frozen": false
+      }
+    ],
+    "Att": {
+      "pay_tot": "26",
+      "day_work": "22"
+    },
+    "AttAdd": null,
+    "Sch": null,
+    "Workdays": 26,
+    "Daily": {
+      "PremiFail": 31,
+      "BerasFail": 0
+    },
+    "YTD": {
+      "Gross": "0",
+      "Deduct": "0",
+      "TaxPaid": "0",
+      "Months": 0
+    },
+    "TaxAdj": {
+      "Earn": "0",
+      "Deduct": "0"
+    },
+    "Thr": {
+      "Gross": "0",
+      "PPhPaid": "0"
+    },
+    "YTDCompany": {
+      "Gross": "0",
+      "CompanyPaid": "0",
+      "Deduct": "0",
+      "ThrBonus": "0",
+      "P5Paid": "0"
+    },
+    "Subsidy": {
+      "Rules": null,
+      "Override": null,
+      "Basis": null,
+      "PrevBasis": null,
+      "Locked": null,
+      "LockedYYMM": 0
+    }
+  },
+  "expected": {
+    "lines": [
+      {
+        "type": "T",
+        "id": 1,
+        "amount": "3000000"
+      },
+      {
+        "type": "T",
+        "id": 40,
+        "amount": null
+      }
+    ],
+    "head": {
+      "tot_tunjangan": "3000000",
+      "tot_potongan": "0",
+      "rounding": "0",
+      "take_home": "3000000"
+    }
+  },
+  "source": {
+    "kind": "SYNTHETIC",
+    "division": "SOLO"
+  },
+  "rules": {
+    "legacy": true,
+    "constants": {
+      "DAYS_MONTH": "30",
+      "HOURS_MONTH": "173",
+      "BERAS_DAYS": "25",
+      "NAKMIN": "2592154",
+      "KESMIN": "2592154",
+      "PENMIN": "2592154",
+      "KESMAX": "12000000",
+      "PENMAX": "11086300"
+    }
+  },
+  "note": "05§7: premi_fail = 31 (period days); loader derivation is tested in the loader task"
+}

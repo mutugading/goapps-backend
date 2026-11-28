@@ -1,0 +1,166 @@
+{
+  "formula": "G10_P0_basis_at_limit",
+  "yymm": 202608,
+  "rule_set_id": 1,
+  "features": [
+    "synthetic",
+    "G10"
+  ],
+  "input": {
+    "Period": {
+      "YYMM": 202608,
+      "Start": "2026-07-26T00:00:00Z",
+      "End": "2026-08-25T00:00:00Z"
+    },
+    "Division": "SOLO",
+    "Emp": {
+      "NIK": "E90017",
+      "Name": "",
+      "Level": "staff",
+      "TaxStatus": "TK",
+      "Dept": "",
+      "HasNPWP": false,
+      "BirthDate": null,
+      "JoinDate": null,
+      "GapokSts": "F"
+    },
+    "Components": [
+      {
+        "Key": {
+          "Type": "T",
+          "ID": 1
+        },
+        "Amount": "5600000",
+        "Sts": "F",
+        "Tax": true,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": true,
+        "SubsidyOT": false,
+        "Frozen": false
+      },
+      {
+        "Key": {
+          "Type": "P",
+          "ID": 0
+        },
+        "Amount": "0",
+        "Sts": "F",
+        "Tax": false,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": false,
+        "SubsidyOT": false,
+        "Frozen": false
+      },
+      {
+        "Key": {
+          "Type": "P",
+          "ID": 1
+        },
+        "Amount": "0",
+        "Sts": "F",
+        "Tax": false,
+        "TaxPaidCompany": false,
+        "TaxSubsidy": false,
+        "SubsidyOT": false,
+        "Frozen": false
+      }
+    ],
+    "Att": {
+      "pay_tot": "26"
+    },
+    "AttAdd": null,
+    "Sch": null,
+    "Workdays": 26,
+    "Daily": {
+      "PremiFail": 0,
+      "BerasFail": 0
+    },
+    "YTD": {
+      "Gross": "0",
+      "Deduct": "0",
+      "TaxPaid": "0",
+      "Months": 0
+    },
+    "TaxAdj": {
+      "Earn": "0",
+      "Deduct": "0"
+    },
+    "Thr": {
+      "Gross": "0",
+      "PPhPaid": "0"
+    },
+    "YTDCompany": {
+      "Gross": "0",
+      "CompanyPaid": "0",
+      "Deduct": "0",
+      "ThrBonus": "0",
+      "P5Paid": "0"
+    },
+    "Subsidy": {
+      "Rules": [
+        {
+          "ID": 7,
+          "Name": "SOLO 2026",
+          "Priority": 100,
+          "ValidFrom": 202601,
+          "ValidTo": 0,
+          "Divisions": [
+            "SOLO"
+          ],
+          "Depts": null,
+          "BasisPeriod": 202601,
+          "Limit": "10000000",
+          "Kind": "FULL_PPH"
+        }
+      ],
+      "Override": null,
+      "Basis": "10000000",
+      "PrevBasis": null,
+      "Locked": null,
+      "LockedYYMM": 0
+    }
+  },
+  "expected": {
+    "lines": [
+      {
+        "type": "T",
+        "id": 1,
+        "amount": "5600000"
+      },
+      {
+        "type": "P",
+        "id": 0,
+        "amount": "-14000"
+      },
+      {
+        "type": "P",
+        "id": 1,
+        "amount": "14000"
+      }
+    ],
+    "head": {
+      "tot_tunjangan": "5600000",
+      "tot_potongan": "0",
+      "rounding": "0",
+      "take_home": "5600000"
+    }
+  },
+  "source": {
+    "kind": "SYNTHETIC",
+    "division": "SOLO"
+  },
+  "rules": {
+    "legacy": true,
+    "constants": {
+      "DAYS_MONTH": "30",
+      "HOURS_MONTH": "173",
+      "BERAS_DAYS": "25",
+      "NAKMIN": "2592154",
+      "KESMIN": "2592154",
+      "PENMIN": "2592154",
+      "KESMAX": "12000000",
+      "PENMAX": "11086300"
+    }
+  },
+  "note": "[V] 06§6.4: basis exactly at the 10000000 limit still subsidizes"
+}
